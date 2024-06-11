@@ -84,6 +84,8 @@ int main(){
     outputFile << QQt::top_options() << '\n';
     outputFile.close();
 
+    bool doVariations = true;
+
     float default_PS_mass = 171.5;
     float default_width = 1.33;
     float default_PS_mass_scale = 80.;
@@ -92,12 +94,14 @@ int main(){
     float default_MS_mass = 163.;
 
     bool ISR_const = false;
-    bool MS_scheme = true;
+    bool MS_scheme = false;
 
     float default_Yukawa = 1.;
-    float default_as_var = 0.;
 
-    //alpha_s_mZ
+    float mt_var = 0.03;
+    float width_var = 0.05;
+    float Yukawa_var = 0.1;
+    float as_var = 0.0002;
 
     //std::vector<QQt::pert_order::order> orders = {QQt::NLO, QQt::NNLO, QQt::N3LO};
     std::vector<QQt::pert_order::order> orders = {QQt::N3LO};
@@ -107,24 +111,23 @@ int main(){
 
         scan_ttbar_threshold(order, ecm_scan, default_mt, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa);
 
-        //scan_ttbar_threshold(order, ecm_scan, default_mt+0.5, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa);
-        //scan_ttbar_threshold(order, ecm_scan, default_mt-0.5, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa);
+        if (!doVariations) continue;
 
-        //scan_ttbar_threshold(order, ecm_scan, default_mt+0.03, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa);
-        //scan_ttbar_threshold(order, ecm_scan, default_mt-0.03, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa);
+        // mass variation
+        scan_ttbar_threshold(order, ecm_scan, default_mt+mt_var, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa);
+        scan_ttbar_threshold(order, ecm_scan, default_mt-mt_var, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa);
 
-        //scan_ttbar_threshold(order, ecm_scan, default_mt, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa+.1);
-        //scan_ttbar_threshold(order, ecm_scan, default_mt, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa-.1);
+        // width variation
+        scan_ttbar_threshold(order, ecm_scan, default_mt, default_width+width_var, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa);
+        scan_ttbar_threshold(order, ecm_scan, default_mt, default_width-width_var, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa);
 
-        //scan_ttbar_threshold(order, ecm_scan, default_mt, default_width+.05, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa);
-        //scan_ttbar_threshold(order, ecm_scan, default_mt, default_width-.05, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa);
+        // Yukawa variation
+        scan_ttbar_threshold(order, ecm_scan, default_mt, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa+Yukawa_var);
+        scan_ttbar_threshold(order, ecm_scan, default_mt, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa-Yukawa_var);
 
-        //scan_ttbar_threshold(order, ecm_scan, default_mt, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa, 0.0002);
-        //scan_ttbar_threshold(order, ecm_scan, default_mt, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa, -0.0002);
-
-
-        //scan_ttbar_threshold(order, ecm_scan, default_PS_mass+1., default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme);
-        //scan_ttbar_threshold(order, ecm_scan, default_PS_mass-1., default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme);
+        // alphaS variation
+        scan_ttbar_threshold(order, ecm_scan, default_mt, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa, as_var);
+        scan_ttbar_threshold(order, ecm_scan, default_mt, default_width, default_PS_mass_scale, default_width_scale, ISR_const, MS_scheme, default_Yukawa, -1.*as_var);
     }
 
     return 0;
