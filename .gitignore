@@ -2,5 +2,7 @@ zz_old
 output
 output_ISR
 plots
+plots_ISR
 bin
 *~
+*.log
