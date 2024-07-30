@@ -1,7 +1,10 @@
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
+import scipy
 import os
+
+import scipy.ndimage
 
 orders = ['NLO', 'NNLO', 'N3LO']
 schemes = ['PS']
@@ -47,21 +50,46 @@ def get_Xsec(order,scheme, mass='', yukawa='', width = '', alphaS='Nominal'):
     df = pd.DataFrame({'ecm': ecms, 'xsec': xsec})
     return df
 
+def getMaxXsec(df_xsec, range_max_ecm = None, step = 1):
+    if range_max_ecm is None:
+        range_max_ecm = df_xsec['ecm'].max()
+    max_xsec = df_xsec[df_xsec['ecm'] <= range_max_ecm]['xsec'].max()
+    max_ecm = df_xsec.loc[df_xsec['xsec'] == max_xsec, 'ecm'].values[0]
+    if max_ecm > range_max_ecm - step/2:
+        return getMaxXsec(df_xsec, range_max_ecm - step, step)
+    return max_xsec, max_ecm
+
+def convoluteXsecGauss(df_xsec, sqrt_res):
+    tolerance = 6 # number of decimal places to consider
+    pitch = round(df_xsec['ecm'][1] - df_xsec['ecm'][0],tolerance)
+    pitches = [round(df_xsec['ecm'][i+1] - df_xsec['ecm'][i],tolerance) for i in range(len(df_xsec['ecm'])-1)]
+    if not (pitches == pitch).all():
+        raise ValueError('Non-uniform pitch')
+    _ , max_ecm = getMaxXsec(df_xsec)
+    sigma = max_ecm *sqrt_res*(2**.5)/100/pitch
+    xsec_smear = scipy.ndimage.gaussian_filter1d(df_xsec['xsec'], sigma)
+    df_xsec_smear = pd.DataFrame({'ecm': df_xsec['ecm'], 'xsec': xsec_smear})
+    return df_xsec_smear
+
 
 def main():
     if not os.path.exists(plotdir):
         os.makedirs(plotdir)
 
-    df_ISR = get_Xsec_ISR('N3LO','PS')
     df = get_Xsec('N3LO','PS')
+    df_ISR = get_Xsec_ISR('N3LO','PS')
+    beam_energy_res = 0.23 # per beam, in percent
+    df_ISR_conv = convoluteXsecGauss(df_ISR, beam_energy_res)
     plt.plot(df['ecm'], df['xsec'], label='N3LO')
     plt.plot(df_ISR['ecm'], df_ISR['xsec'], label='N3LO+ISR')
+    plt.plot(df_ISR_conv['ecm'], df_ISR_conv['xsec'], label='N3LO+ISR+LS')
     plt.legend()
     plt.xlabel('ECM [GeV]')
     plt.ylabel('Cross section [pb]')
     plt.title('N3LO vs N3LO+ISR')
     plt.savefig('{}/ISR_comparison_N3LO.png'.format(plotdir))
 
+    
     # Ratio plot
     plt.clf()
     plt.plot(df['ecm'], df_ISR['xsec'] / df['xsec'], label='N3LO+ISR / N3LO')
@@ -71,9 +99,6 @@ def main():
     plt.ylabel('Ratio')
     plt.title('Ratio of N3LO+ISR to N3LO')
     plt.savefig('{}/ISR_ratio_N3LO.png'.format(plotdir))
-
-    
-
 
 
     return
