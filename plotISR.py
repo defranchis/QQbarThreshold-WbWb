@@ -2,6 +2,10 @@ from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 import os
+from compareISR import convoluteXsecGauss
+
+smearing = True
+beam_energy_res = 0.23 # per beam, in percent
 
 orders = ['NLO', 'NNLO', 'N3LO']
 #schemes = ['MS', 'PS']
@@ -30,7 +34,8 @@ def get_Xsec(order,scheme, mass='', yukawa='', width = '', alphaS='Nominal'):
         f = open('output_ISR/{}_scan_{}_ISR_ecm{:.1f}_mass{}_width{}_yukawa{}_as{}'.format(order,scheme,ecm,mass,width,yukawa,alphaS), 'r')
         xsec.append(float(f.readlines()[0].split(',')[-1]))
     df = pd.DataFrame({'ecm': ecms, 'xsec': xsec})
-    return df
+
+    return df if not smearing else convoluteXsecGauss(df,beam_energy_res)
 
 def doPlotScheme(scheme):
 
