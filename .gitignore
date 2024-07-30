@@ -6,3 +6,4 @@ plots_ISR
 bin
 *~
 *.log
+*.pyc
