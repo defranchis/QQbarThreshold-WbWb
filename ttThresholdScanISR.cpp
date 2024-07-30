@@ -5,12 +5,14 @@
 #include <sstream>
 #include <iomanip>
 #include <array>
+#include <algorithm>
 
 #include "QQbar_threshold/parameters.hpp"
 #include "QQbar_threshold/xsection.hpp"
 #include "QQbar_threshold/load_grid.hpp"
 #include "QQbar_threshold/integrate.hpp"
 #include "QQbar_threshold/structure_function.hpp"
+
 
 
 
@@ -32,6 +34,14 @@ std::string floatToString(float value, int n_decimals) {
     return oss.str();
 }
 
+void symmetriseShifts(std::vector<float>& shifts) {
+    size_t originalSize = shifts.size();
+    for (size_t i = 0; i < originalSize; ++i){
+        shifts.push_back(-shifts[i]);
+    }
+    shifts.push_back(0.);
+    std::sort(shifts.begin(), shifts.end());
+}
 
 constexpr std::array<double, 251> sqrt_s_values = { //yes, it is this stupid...
                                                 335., 335.1, 335.2, 335.3, 335.4, 335.5, 335.6, 335.7, 335.8, 335.9, 
@@ -114,7 +124,8 @@ int main(){
     QQt::load_grid(QQt::grid_directory() + "ttbar_grid.tsv");
 
 
-    bool doVariations = true;
+    bool doVariations = false;
+    bool doShifts = true;
 
     float default_PS_mass = 171.5;
     float default_width = 1.33;
@@ -161,6 +172,31 @@ int main(){
         sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_mt, default_width, default_PS_mass_scale, default_width_scale, default_Yukawa, as_var);
         sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_mt, default_width, default_PS_mass_scale, default_width_scale, default_Yukawa, -1.*as_var);
         
+    }
+
+    if (!doShifts) return 0;
+
+    QQt::pert_order::order order = QQt::N3LO;
+    std::vector<float> mass_shifts = {0.01, 0.03, 0.05};
+    std::vector<float> width_shifts = {0.1, 0.3, 0.5};
+    std::vector<float> Yukawa_shifts = {0.01, 0.05, 0.1};
+    std::vector<float> as_shifts = {0.0001, 0.0002, 0.0003};
+
+    symmetriseShifts(mass_shifts);
+    symmetriseShifts(width_shifts);
+    symmetriseShifts(Yukawa_shifts);
+    symmetriseShifts(as_shifts);
+
+    for (auto mass_shift : mass_shifts){
+        for (auto width_shift : width_shifts){
+            for (auto Yukawa_shift : Yukawa_shifts){
+                for (auto as_shift : as_shifts){
+                    std::cout << "mass shift: " << mass_shift << ", width shift: " << width_shift << ", Yukawa shift: " << Yukawa_shift << ", as shift: " << as_shift << std::endl;
+                    sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_PS_mass+mass_shift, default_width+width_shift, default_PS_mass_scale, 
+                                                                default_width_scale, default_Yukawa+Yukawa_shift, as_shift);
+                }
+            }
+        }
     }
 
     return 0;
