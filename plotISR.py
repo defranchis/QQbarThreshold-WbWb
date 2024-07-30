@@ -175,7 +175,8 @@ def compareWidthYukawaAlphaS(order,scheme):
 
     # Get data for Yukawa = 1.0
     df_nominal = get_Xsec(order, scheme, '', '1.0')
-    max_xsec = df_nominal['xsec'].max()
+    energy_peak = float(central_mass[scheme])*2
+    max_xsec = df_nominal[(df_nominal['ecm'] >= energy_peak-1) & (df_nominal['ecm'] <= energy_peak+1)]['xsec'].max()
     max_ecm = df_nominal.loc[df_nominal['xsec'] == max_xsec, 'ecm'].values[0]
     print("ecm value corresponding to max xsec:", max_ecm)
     df_nominal['ecm'] -= max_ecm
