@@ -1,8 +1,8 @@
 zz_old
 output
-output_ISR
+output_*
 plots
-plots_ISR
+plots_*
 bin
 *~
 *.log
