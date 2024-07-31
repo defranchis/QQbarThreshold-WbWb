@@ -13,7 +13,7 @@ class fit:
         self.input_dir = input_dir
         self.params = parameters
         self.fetchInputs()
-        self.checkParameters()
+        self.checkParameterNames()
         self.getParameterValues()
         self.readCrossSections()
 
@@ -30,7 +30,7 @@ class fit:
         self.l_ecm = l_ecm
 
 
-    def checkParameters(self):
+    def checkParameterNames(self):
         for param in self.params:
             for tag in self.l_tag:
                 if param not in tag:
