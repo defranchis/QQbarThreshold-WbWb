@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import iminuit, scipy
 import os, argparse
+import uncertainties as unc
 import matplotlib.pyplot as plt
 from fitUtils import convoluteXsecGauss
 
@@ -12,17 +13,38 @@ def formTag(mass, width, yukawa, alphas):
     return 'mass{:.2f}_width{:.2f}_yukawa{:.1f}_as{}'.format(mass,width,yukawa,alphas)
 
 class fit:
-    def __init__(self, input_dir, parameters, beam_energy_res = 0.221, smearXsec = True) -> None:
+    def __init__(self, input_dir, parameters, beam_energy_res = 0.221, smearXsec = True, debug = False) -> None:
         self.input_dir = input_dir
         self.params = parameters
         self.beam_energy_res = beam_energy_res
         self.smearXsec = smearXsec
+        self.debug = debug
+        if self.debug:
+            print('Input directory: {}'.format(self.input_dir))
+            print('Parameters: {}'.format(self.params))
+            print('Beam energy resolution: {}'.format(self.beam_energy_res))
+            print('Smear cross sections: {}'.format(self.smearXsec))
+        
+        if self.debug:
+            print('Fetching inputs')
         self.fetchInputs()
+        if self.debug:
+            print('Checking parameter names')
         self.checkParameterNames()
+        if self.debug:
+            print('Getting parameter values')
         self.getParameterValues()
+        if self.debug:
+            print('Reading cross sections')
         self.readCrossSections()
+        if self.debug:
+            print('Smearing cross sections')
         self.smearCrossSections()
+        if self.debug:
+            print('Morphing cross sections')
         self.morphCrossSections()
+        if self.debug:
+            print('Initialization done')
 
     def fetchInputs(self):
 
@@ -92,24 +114,107 @@ class fit:
             self.xsec_dict_smeared[tag] = self.smearCrossSection(self.xsec_dict[tag])
 
     def morphCrossSection(self,param):
-        nominal = [self.param_dict['{}_nom'.format(p)] for p in self.params]
-        varied = [self.param_dict['{}_nom'.format(p) if p != param else '{}_var'.format(p)] for p in self.params]
-        xsec_nom = self.xsec_dict_smeared[formTag(*nominal)]
-        xsec_var = self.xsec_dict_smeared[formTag(*varied)]
+        xsec_nom = self.getXsecTemplate()
+        xsec_var = self.getXsecTemplate([param])
         df_morph = pd.DataFrame({'ecm': xsec_nom['ecm'], 'xsec': xsec_var['xsec']/xsec_nom['xsec'] -1})
         return df_morph      
 
     def morphCrossSections(self):
         self.morph_dict = {}
         for param in self.params:
-            self.morph_dict[param] = self.morphCrossSection(param)    
+            self.morph_dict[param] = self.morphCrossSection(param)
 
+    def getXsecTemplate(self,var_param = []):
+        tag_input = [self.param_dict['{}_nom'.format(p) if p not in var_param else '{}_var'.format(p)] for p in self.params]
+        return self.xsec_dict_smeared[formTag(*tag_input)]
+    
+    def getXsecScenario(self,xsec,scenario):
+        xsec_scenario = xsec[[ecm in [float(e) for e in scenario.keys()] for ecm in xsec['ecm']]]
+        return xsec_scenario
+    
+    def createScenario(self,scenario):
+        if self.debug:
+            print('Creating threshold scan scenario')
+        for ecm in scenario.keys():
+            if ecm not in self.l_ecm:
+                raise ValueError('Invalid scenario key: {}'.format(ecm))
+        self.scenario = dict(sorted(scenario.items(), key=lambda x: float(x[0])))
+        self.xsec_scenario = self.getXsecScenario(self.getXsecTemplate(), self.scenario) # just nominal for now
+        self.unc_xsec = (np.array(self.xsec_scenario['xsec'])/np.array(list(self.scenario.values())))**.5
+        #self.pseudo_data = np.array(self.xsec_scenario['xsec']) + np.random.normal(0,self.unc_xsec)
+        self.pseudo_data = self.getXsecScenario(self.getXsecTemplate([]), self.scenario)['xsec'] #mass up
+        self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param], self.scenario) for param in self.params}
+
+    def chi2(self, params):
+        th_xsec = np.array(self.xsec_scenario['xsec'])
+        for i, param in enumerate(self.params):
+            th_xsec *= (1 + params[i]*np.array(self.morph_scenario[param]['xsec']))
+        return np.sum(((self.pseudo_data - th_xsec)/self.unc_xsec)**2) + params[-1]**2
+        
+            
+
+
+    def initMinuit(self):
+        self.fit_params = np.zeros(len(self.params))
+        self.minuit = iminuit.Minuit(self.chi2, self.fit_params)
+        self.minuit.errordef = 1
+
+
+    def fitPatameters(self):
+        if self.debug:
+            print('Initializing Minuit')
+        self.initMinuit()
+        if self.debug:
+            print('Fitting parameters')
+        self.minuit.migrad()
+        if self.debug:
+            print('Fit done')
+
+        nom_values = []
+        for i, param in enumerate(self.params):
+            param_w_unc = unc.ufloat(self.minuit.values[i],self.minuit.errors[i])
+            if param != 'as':
+                param_w_unc = float(self.param_dict['{}_nom'.format(param)]) + param_w_unc*(float(self.param_dict['{}_var'.format(param)]) - float(self.param_dict['{}_nom'.format(param)]))
+            nom_values.append(param_w_unc.n)
+            print('Fitted {}: {:.3f} {}'.format(param,param_w_unc,'GeV' if param in ['mass','width'] else ''))
+
+        correlation_matrix = np.zeros((len(self.params),len(self.params)))
+        for i in range(len(self.params)):
+            for j in range(len(self.params)):
+                correlation_matrix[i,j] = self.minuit.covariance[(i,j)]/(self.minuit.errors[i]*self.minuit.errors[j])
+
+        covariance_matrix = np.zeros((len(self.params),len(self.params)))
+        for i in range(len(self.params)):
+            for j in range(len(self.params)):
+                covariance_matrix[i,j] = correlation_matrix[(i,j)]*self.minuit.errors[i]*self.minuit.errors[j]
+
+        params_w_cov = unc.correlated_values(nom_values, covariance_matrix)
+
+        return params_w_cov
+
+
+def formatScenario(scenario):
+    return ['{:.1f}'.format(float(e)) for e in scenario]
 
 def main():
     parser = argparse.ArgumentParser(description='Specify options')
-    parser.add_argument('--debug', action='store_true', help='Debug mode') #does not do anything yet
+    parser.add_argument('--debug', action='store_true', help='Debug mode')
+    args = parser.parse_args()
     
-    f = fit(indir,parameters)
+    f = fit(indir,parameters,debug=args.debug)
+    n_IP_4 = True
+    total_lumi = 0.36 * 1E06 #pb^-1
+    scan_min = 340
+    scan_max = 350
+    scan_step = 1
+    scenario = formatScenario(np.arange(scan_min,scan_max+scan_step/2,scan_step))
+    scenario_dict = {k: total_lumi/len(scenario) for k in scenario}
+    scenario_dict['365.0'] = 0.58*4 * 1E06 
+    if not n_IP_4:
+        for k in scenario_dict.keys():
+            scenario_dict[k] = scenario_dict[k]/1.8
+    f.createScenario(scenario_dict)
+    f.fitPatameters()
 
 
 if __name__ == '__main__':
