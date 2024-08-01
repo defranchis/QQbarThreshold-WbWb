@@ -4,7 +4,7 @@ import pandas as pd
 import os
 from compareISR import convoluteXsecGauss
 
-smearing = False
+smearing = True
 beam_energy_res = 0.23 # per beam, in percent
 
 orders = ['N3LO']
