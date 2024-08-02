@@ -183,6 +183,10 @@ class fit:
             for j in range(len(self.params)):
                 correlation_matrix[i,j] = self.minuit.covariance[(i,j)]/(self.minuit.errors[i]*self.minuit.errors[j])
 
+        print('Correlation matrix:')
+        print(self.params)
+        print(np.round(correlation_matrix, 2))
+
         covariance_matrix = np.zeros((len(self.params),len(self.params)))
         for i in range(len(self.params)):
             for j in range(len(self.params)):
