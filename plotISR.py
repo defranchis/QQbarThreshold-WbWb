@@ -184,12 +184,12 @@ def compareWidthYukawaAlphaS(order,scheme):
     max_xsec = df_nominal[(df_nominal['ecm'] >= energy_peak-1) & (df_nominal['ecm'] <= energy_peak+1)]['xsec'].max()
     max_ecm = df_nominal.loc[df_nominal['xsec'] == max_xsec, 'ecm'].values[0]
     print("ecm value corresponding to max xsec:", max_ecm)
-    df_nominal['ecm'] -= max_ecm
+    #df_nominal['ecm'] -= max_ecm
 
     # Plot the cross section vs energy for different Yukawa values
     for yt in ['0.9', '1.0', '1.1']:
         df = get_Xsec(order, scheme, '', yt)
-        df['ecm'] -= max_ecm
+        #df['ecm'] -= max_ecm
         plt.plot(df['ecm'], df['xsec'], label=f'Yukawa = {yt}')
     addTitles(plt,order)
     plt.savefig('{}/plot_{}_{}_yukawa.png'.format(plotdir,order, scheme))
@@ -198,7 +198,7 @@ def compareWidthYukawaAlphaS(order,scheme):
     # Plot the ratio of cross sections with respect to Yukawa = 1.0
     for yt in ['0.9', '1.1']:
         df = get_Xsec(order, scheme, '', yt)
-        df['ecm'] -= max_ecm
+        #df['ecm'] -= max_ecm
         ratio = df['xsec'] / df_nominal['xsec']
         plt.plot(df['ecm'], ratio, label=f'Yukawa = {yt} / Yukawa = 1.0')
     addTitles(plt,order)
@@ -207,7 +207,7 @@ def compareWidthYukawaAlphaS(order,scheme):
 
     for alphaS in ['Up', 'Down']:
         df = get_Xsec(order, scheme, width='', yukawa='', alphaS=alphaS)
-        df['ecm'] -= max_ecm
+        #df['ecm'] -= max_ecm
         ratio = df['xsec'] / df_nominal['xsec']
         plt.plot(df['ecm'], ratio, label=f'{alphaS} / Nominal')
     addTitles(plt,order)
@@ -216,7 +216,7 @@ def compareWidthYukawaAlphaS(order,scheme):
 
     for width in ['1.28', '1.33', '1.38']:
         df = get_Xsec(order, scheme, width=width)
-        df['ecm'] -= max_ecm
+        #df['ecm'] -= max_ecm
         plt.plot(df['ecm'], df['xsec'], label=f'Width = {width}')
     addTitles(plt,order)
     plt.savefig('{}/plot_{}_{}_width.png'.format(plotdir,order, scheme))
@@ -224,22 +224,22 @@ def compareWidthYukawaAlphaS(order,scheme):
 
     for yt in ['0.9', '1.1']:
         df = get_Xsec(order, scheme, '', yt)
-        df['ecm'] -= max_ecm
+        #df['ecm'] -= max_ecm
         ratio = df['xsec'] / df_nominal['xsec']
         plt.plot(df['ecm'], ratio, label='Yukawa +{:.0f}%'.format((float(yt)-1)*100) if float(yt) > 1 else '', color = 'blue', linestyle='dashed' if float(yt) < 1 else 'solid')  
     for alphaS in ['Up', 'Down']:
         df = get_Xsec(order, scheme, width='', yukawa='', alphaS=alphaS)
-        df['ecm'] -= max_ecm
+        #df['ecm'] -= max_ecm
         ratio = df['xsec'] / df_nominal['xsec']
         plt.plot(df['ecm'], ratio, label='aS + 0.0002 (from Z)' if alphaS=='Up' else '', color='orange', linestyle='dashed' if alphaS == 'Down' else 'solid')
     for width in ['1.28', '1.38']:
         df = get_Xsec(order, scheme, width=width)
-        df['ecm'] -= max_ecm
+        #df['ecm'] -= max_ecm
         ratio = df['xsec'] / df_nominal['xsec']
         plt.plot(df['ecm'], ratio, label=f'Width + 50 MeV' if float(width) > 1.33 else '', color='red', linestyle='dashed' if float(width) < 1.33 else 'solid')
     for mass in ['{:.2f}'.format(float(central_mass[scheme])+0.03), '{:.2f}'.format(float(central_mass[scheme])-0.03)]:
         df = get_Xsec(order, scheme, mass=mass)
-        df['ecm'] -= max_ecm
+        #df['ecm'] -= max_ecm
         ratio = df['xsec'] / df_nominal['xsec']
         plt.plot(df['ecm'], ratio, label='mt +{:.0f} MeV'.format((float(mass)-float(central_mass[scheme]))*1000) if float(mass) > float(central_mass[scheme]) else '', color='green', linestyle='dashed' if float(mass) < float(central_mass[scheme]) else 'solid')
         if float(mass) > float(central_mass[scheme]):
@@ -248,21 +248,27 @@ def compareWidthYukawaAlphaS(order,scheme):
             print("min ratio:", min_ratio_ecm)
             #plt.axvline(x=max_ratio_ecm, color='red', linestyle='dotted', label='Max Ratio')
 
-    plt.axvline(x=0, color='black', linestyle='dotted',label='$\sqrt{s}$'+'={:.1f} GeV (peak)'.format(max_ecm))
-    plt.axvline(x=340-max_ecm, color='grey', linestyle='dotted',label='{} validity region'.format(order))
-    plt.axvline(x=345-max_ecm, color='grey', linestyle='dotted',label='')
+    #plt.axvline(x=0, color='black', linestyle='dotted',label='$\sqrt{s}$'+'={:.1f} GeV (peak)'.format(max_ecm))
+    #plt.axvline(x=340-max_ecm, color='grey', linestyle='dotted',label='{} validity region'.format(order))
+    #plt.axvline(x=345-max_ecm, color='grey', linestyle='dotted',label='')
+
+    plt.axvline(x=max_ecm, color='black', linestyle='dotted',label='$\sqrt{s}$'+'={:.1f} GeV (peak)'.format(max_ecm))
+    plt.axvline(x=340, color='grey', linestyle='dotted',label='{} validity region'.format(order))
+    plt.axvline(x=345, color='grey', linestyle='dotted',label='')
 
     
     plt.xticks(np.arange(int(df_nominal['ecm'].min())-2, int(df_nominal['ecm'].max())+3, 2))
     plt.legend()
     plt.ylim(0.95,1.05)
     addTitles(plt,order,ratio=True)
+    plt.grid(True)
     plt.savefig('{}/plot_{}_{}_yukawa_alphaS_ratio.png'.format(plotdir,order, scheme))
     plt.clf()
 
 def addTitles(plt,order,ratio=False):
     plt.legend()
-    plt.xlabel('$\sqrt{s} - m_{res}$ [GeV]')
+    #plt.xlabel('$\sqrt{s} - m_{res}$ [GeV]')
+    plt.xlabel('$\sqrt{s}$ [GeV]')
     plt.ylabel('WbWb cross section {}'.format('ratio' if ratio else '[pb]'))
     plt.title('QQbar_Threshold {}'.format(order))
     return

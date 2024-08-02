@@ -128,6 +128,12 @@ class fit:
         tag_input = [self.param_dict['{}_nom'.format(p) if p not in var_param else '{}_var'.format(p)] for p in self.params]
         return self.xsec_dict_smeared[formTag(*tag_input)]
     
+    def getXsecParams(self,params):
+        th_xsec = np.array(self.getXsecTemplate()['xsec'])
+        for i, param in enumerate(self.params):
+            th_xsec *= (1 + params[i]*np.array(self.morph_dict[param]['xsec']))
+        return th_xsec
+    
     def getXsecScenario(self,xsec,scenario):
         xsec_scenario = xsec[[ecm in [float(e) for e in scenario.keys()] for ecm in xsec['ecm']]]
         return xsec_scenario
@@ -142,7 +148,7 @@ class fit:
         self.xsec_scenario = self.getXsecScenario(self.getXsecTemplate(), self.scenario) # just nominal for now
         self.unc_xsec = (np.array(self.xsec_scenario['xsec'])/np.array(list(self.scenario.values())))**.5
         #self.pseudo_data = np.array(self.xsec_scenario['xsec']) + np.random.normal(0,self.unc_xsec)
-        self.pseudo_data = self.getXsecScenario(self.getXsecTemplate([]), self.scenario)['xsec'] #mass up
+        self.pseudo_data = self.getXsecScenario(self.getXsecTemplate(['mass']), self.scenario)['xsec']
         self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param], self.scenario) for param in self.params}
 
     def chi2(self, params):
@@ -195,6 +201,21 @@ class fit:
         params_w_cov = unc.correlated_values(nom_values, covariance_matrix)
 
         return params_w_cov
+    
+    def plotFitScenario(self):
+        plt.figure()
+        #plot pseudodata
+        plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data,yerr=self.unc_xsec,fmt='.',label='Pseudo data')
+        # plot nominal model
+        xsec_nom = self.getXsecTemplate()
+        # plot fitted model
+        xsec_fit = self.getXsecParams(self.fit_params)
+        plt.plot(xsec_nom['ecm'],xsec_fit,label='Fitted model')
+        plt.plot(xsec_nom['ecm'],xsec_nom['xsec'],label='Nominal model', linestyle='--')
+        plt.xlabel('Ecm [GeV]')
+        plt.ylabel('Cross section [pb]')
+        plt.legend()
+        plt.savefig('fit_scenario.png')
 
 
 def formatScenario(scenario):
@@ -209,8 +230,8 @@ def main():
     n_IP_4 = True
     total_lumi = 0.36 * 1E06 #pb^-1
     scan_min = 340
-    scan_max = 350
-    scan_step = 1
+    scan_max = 346
+    scan_step = .5
     scenario = formatScenario(np.arange(scan_min,scan_max+scan_step/2,scan_step))
     scenario_dict = {k: total_lumi/len(scenario) for k in scenario}
     scenario_dict['365.0'] = 0.58*4 * 1E06 
@@ -219,6 +240,7 @@ def main():
             scenario_dict[k] = scenario_dict[k]/1.8
     f.createScenario(scenario_dict)
     f.fitPatameters()
+    f.plotFitScenario()
 
 
 if __name__ == '__main__':
