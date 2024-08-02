@@ -9,6 +9,8 @@ from fitUtils import convoluteXsecGauss
 indir = 'output_ISR/for_fit'
 parameters = ['mass','width','yukawa','as']
 
+pseudo_data_values = {'mass': 0.01, 'width': -0.03, 'yukawa': 0.05, 'as': 0.} #hardcoded, to fix
+
 def formTag(mass, width, yukawa, alphas):
     return 'mass{:.2f}_width{:.2f}_yukawa{:.1f}_as{}'.format(mass,width,yukawa,alphas)
 
@@ -45,6 +47,7 @@ class fit:
         self.morphCrossSections()
         if self.debug:
             print('Initialization done')
+        self.readXsecPseudoData()
 
     def fetchInputs(self):
 
@@ -93,6 +96,21 @@ class fit:
             xsec.append(float(f.readlines()[0].split(',')[-1]))
         df_xsec = pd.DataFrame({'ecm': [float(ecm) for ecm in self.l_ecm], 'xsec': xsec})
         self.xsec_dict[tag] = df_xsec
+
+    def readXsecPseudoData(self): #TODO: fix this function
+        l_file = os.listdir(self.input_dir+'_var')
+        xsec = []
+        for ecm in self.l_ecm:
+            fl = [f for f in l_file if ecm in f]
+            if len(fl) > 1:
+                print(fl)
+                raise ValueError('More than one file found for ecm {}'.format(ecm))
+            elif len(fl) == 0:
+                raise ValueError('No file found for ecm {}'.format(ecm))
+            f = open('{}/{}'.format(self.input_dir+'_var',fl[0]), 'r')
+            xsec.append(float(f.readlines()[0].split(',')[-1]))
+        self.xsec_pseudo_data = self.smearCrossSection(pd.DataFrame({'ecm': [float(ecm) for ecm in self.l_ecm], 'xsec': xsec}))
+
             
     def readCrossSections(self):
         self.xsec_dict = {}
@@ -128,14 +146,16 @@ class fit:
         tag_input = [self.param_dict['{}_nom'.format(p) if p not in var_param else '{}_var'.format(p)] for p in self.params]
         return self.xsec_dict_smeared[formTag(*tag_input)]
     
-    def getXsecParams(self,params):
+    def getXsecParams(self):
+        params = unc.correlated_values([self.minuit.values[i] for i in range(len(self.params))], self.minuit.covariance)
         th_xsec = np.array(self.getXsecTemplate()['xsec'])
         for i, param in enumerate(self.params):
-            th_xsec *= (1 + params[i]*np.array(self.morph_dict[param]['xsec']))
-        return th_xsec
+            th_xsec = th_xsec * (1 + params[i]*np.array(self.morph_dict[param]['xsec']))
+        df_th_xsec = pd.DataFrame({'ecm': self.l_ecm, 'xsec': [th.n for th in th_xsec], 'unc': [th.s for th in th_xsec]})
+        return df_th_xsec
     
-    def getXsecScenario(self,xsec,scenario):
-        xsec_scenario = xsec[[ecm in [float(e) for e in scenario.keys()] for ecm in xsec['ecm']]]
+    def getXsecScenario(self,xsec):
+        xsec_scenario = xsec[[float(ecm) in [float(e) for e in self.scenario.keys()] for ecm in xsec['ecm']]]
         return xsec_scenario
     
     def createScenario(self,scenario):
@@ -145,19 +165,19 @@ class fit:
             if ecm not in self.l_ecm:
                 raise ValueError('Invalid scenario key: {}'.format(ecm))
         self.scenario = dict(sorted(scenario.items(), key=lambda x: float(x[0])))
-        self.xsec_scenario = self.getXsecScenario(self.getXsecTemplate(), self.scenario) # just nominal for now
-        self.unc_xsec = (np.array(self.xsec_scenario['xsec'])/np.array(list(self.scenario.values())))**.5
+        self.xsec_scenario = self.getXsecScenario(self.getXsecTemplate()) # just nominal for now
+        #self.unc_xsec_scenario = (np.array(self.xsec_scenario['xsec'])/np.array(list(self.scenario.values())))**.5
         #self.pseudo_data = np.array(self.xsec_scenario['xsec']) + np.random.normal(0,self.unc_xsec)
-        self.pseudo_data = self.getXsecScenario(self.getXsecTemplate(['mass']), self.scenario)['xsec']
-        self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param], self.scenario) for param in self.params}
+        self.pseudo_data_scenario = np.array(self.getXsecScenario(self.xsec_pseudo_data)['xsec'])
+        self.unc_pseudodata_scenario = (np.array(self.pseudo_data_scenario)/np.array(list(self.scenario.values())))**.5
+        self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
+        self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param]) for param in self.params}
 
     def chi2(self, params):
         th_xsec = np.array(self.xsec_scenario['xsec'])
         for i, param in enumerate(self.params):
             th_xsec *= (1 + params[i]*np.array(self.morph_scenario[param]['xsec']))
-        return np.sum(((self.pseudo_data - th_xsec)/self.unc_xsec)**2) + params[-1]**2
-        
-            
+        return np.sum(((self.pseudo_data_scenario - th_xsec)/self.unc_pseudodata_scenario)**2) + params[-1]**2
 
 
     def initMinuit(self):
@@ -183,6 +203,10 @@ class fit:
                 param_w_unc = float(self.param_dict['{}_nom'.format(param)]) + param_w_unc*(float(self.param_dict['{}_var'.format(param)]) - float(self.param_dict['{}_nom'.format(param)]))
             nom_values.append(param_w_unc.n)
             print('Fitted {}: {:.3f} {}'.format(param,param_w_unc,'GeV' if param in ['mass','width'] else ''))
+            pull = param_w_unc - pseudo_data_values[param] - (0 if param == 'as' else self.param_dict[param+'_nom'])
+            print('Pull {}: {:.1f}'.format(param, pull.n/pull.s))
+            print()
+
 
         correlation_matrix = np.zeros((len(self.params),len(self.params)))
         for i in range(len(self.params)):
@@ -205,17 +229,29 @@ class fit:
     def plotFitScenario(self):
         plt.figure()
         #plot pseudodata
-        plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data,yerr=self.unc_xsec,fmt='.',label='Pseudo data')
+        plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario,yerr=self.unc_pseudodata_scenario,fmt='.',label='Pseudo data')
         # plot nominal model
         xsec_nom = self.getXsecTemplate()
         # plot fitted model
-        xsec_fit = self.getXsecParams(self.fit_params)
-        plt.plot(xsec_nom['ecm'],xsec_fit,label='Fitted model')
+        xsec_fit = self.getXsecParams()
+        plt.plot(xsec_nom['ecm'],xsec_fit['xsec'],label='Fitted model')
         plt.plot(xsec_nom['ecm'],xsec_nom['xsec'],label='Nominal model', linestyle='--')
         plt.xlabel('Ecm [GeV]')
         plt.ylabel('Cross section [pb]')
         plt.legend()
         plt.savefig('fit_scenario.png')
+
+        plt.clf()
+        plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario/self.getXsecScenario(xsec_nom)['xsec'], yerr=self.unc_pseudodata_scenario/self.getXsecScenario(xsec_nom)['xsec'], fmt='.', label = 'Pseudo data')
+        plt.plot(xsec_nom['ecm'],xsec_fit['xsec']/xsec_nom['xsec'], label='fitted cross section')
+        plt.fill_between(xsec_nom['ecm'], (xsec_fit['xsec']-xsec_fit['unc'])/xsec_nom['xsec'], (xsec_fit['xsec']+xsec_fit['unc'])/xsec_nom['xsec'], alpha=0.5, label='uncertainty')
+        plt.plot(self.xsec_pseudo_data['ecm'], self.xsec_pseudo_data['xsec']/xsec_nom['xsec'], label='pseudodata cross section', linestyle='--')
+        plt.axhline(1, color='black', linestyle='--', label='nominal xsec')
+        plt.xlabel('Ecm [GeV]')
+        plt.ylabel('Ratio to nominal')
+        plt.legend()
+        plt.savefig('residuals.png')
+        
 
 
 def formatScenario(scenario):
@@ -231,7 +267,7 @@ def main():
     total_lumi = 0.36 * 1E06 #pb^-1
     scan_min = 340
     scan_max = 346
-    scan_step = .5
+    scan_step = 1
     scenario = formatScenario(np.arange(scan_min,scan_max+scan_step/2,scan_step))
     scenario_dict = {k: total_lumi/len(scenario) for k in scenario}
     scenario_dict['365.0'] = 0.58*4 * 1E06 
