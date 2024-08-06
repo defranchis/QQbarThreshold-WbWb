@@ -43,12 +43,7 @@ void symmetriseShifts(std::vector<float>& shifts) {
     std::sort(shifts.begin(), shifts.end());
 }
 
-constexpr std::array<double, 251> sqrt_s_values = { //yes, it is this stupid...
-                                                335., 335.1, 335.2, 335.3, 335.4, 335.5, 335.6, 335.7, 335.8, 335.9, 
-                                                336.0, 336.1, 336.2, 336.3, 336.4, 336.5, 336.6, 336.7, 336.8, 336.9,
-                                                337.0, 337.1, 337.2, 337.3, 337.4, 337.5, 337.6, 337.7, 337.8, 337.9, 
-                                                338.0, 338.1, 338.2, 338.3, 338.4, 338.5, 338.6, 338.7, 338.8, 338.9, 
-                                                339.0, 339.1, 339.2, 339.3, 339.4, 339.5, 339.6, 339.7, 339.8, 339.9, 
+constexpr std::array<double, 102> sqrt_s_values = { //yes, it is this stupid...
                                                 340.0, 340.1, 340.2, 340.3, 340.4, 340.5, 340.6, 340.7, 340.8, 340.9, 
                                                 341.0, 341.1, 341.2, 341.3, 341.4, 341.5, 341.6, 341.7, 341.8, 341.9, 
                                                 342.0, 342.1, 342.2, 342.3, 342.4, 342.5, 342.6, 342.7, 342.8, 342.9, 
@@ -59,17 +54,7 @@ constexpr std::array<double, 251> sqrt_s_values = { //yes, it is this stupid...
                                                 347.0, 347.1, 347.2, 347.3, 347.4, 347.5, 347.6, 347.7, 347.8, 347.9, 
                                                 348.0, 348.1, 348.2, 348.3, 348.4, 348.5, 348.6, 348.7, 348.8, 348.9, 
                                                 349.0, 349.1, 349.2, 349.3, 349.4, 349.5, 349.6, 349.7, 349.8, 349.9, 
-                                                350.0, 350.1, 350.2, 350.3, 350.4, 350.5, 350.6, 350.7, 350.8, 350.9, 
-                                                351.0, 351.1, 351.2, 351.3, 351.4, 351.5, 351.6, 351.7, 351.8, 351.9, 
-                                                352.0, 352.1, 352.2, 352.3, 352.4, 352.5, 352.6, 352.7, 352.8, 352.9, 
-                                                353.0, 353.1, 353.2, 353.3, 353.4, 353.5, 353.6, 353.7, 353.8, 353.9, 
-                                                354.0, 354.1, 354.2, 354.3, 354.4, 354.5, 354.6, 354.7, 354.8, 354.9, 
-                                                355.0, 355.1, 355.2, 355.3, 355.4, 355.5, 355.6, 355.7, 355.8, 355.9, 
-                                                356.0, 356.1, 356.2, 356.3, 356.4, 356.5, 356.6, 356.7, 356.8, 356.9, 
-                                                357.0, 357.1, 357.2, 357.3, 357.4, 357.5, 357.6, 357.7, 357.8, 357.9, 
-                                                358.0, 358.1, 358.2, 358.3, 358.4, 358.5, 358.6, 358.7, 358.8, 358.9, 
-                                                359.0, 359.1, 359.2, 359.3, 359.4, 359.5, 359.6, 359.7, 359.8, 359.9, 
-                                                360.0};
+                                                350.0, 365.0};
 
 template<size_t Index, size_t N>
 struct sqrt_s_loop {
@@ -86,6 +71,7 @@ struct sqrt_s_loop {
             if (as_var > 1E-6) filename += "_asUp";
             else if (as_var < -1E-6) filename += "_asDown";
             else filename += "_asNominal";
+            filename += ".txt";
             QQt::options opt = QQt::top_options();
             opt.Yukawa_factor = Yukawa;
             opt.alpha_s_mZ = opt.alpha_s_mZ + as_var;
@@ -104,7 +90,7 @@ struct sqrt_s_loop {
             const double t_max = std::pow(1 - x_min, beta);
             std::ofstream outputFile(filename);
             double xsec = QQt::integrate(integrand, 0, t_max);
-            std::cout << sqrt_s << ", " << xsec << '\n';
+            //std::cout << sqrt_s << ", " << xsec << '\n';
             outputFile << sqrt_s << ", " << xsec << '\n';  
             outputFile.close();
         }
@@ -150,6 +136,8 @@ int main(){
 
     for (auto order : orders){
         float default_mt = default_PS_mass;
+        continue;
+        
         sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_mt, default_width, default_PS_mass_scale, default_width_scale, default_Yukawa);
         
         if (!doVariations) continue;
@@ -157,7 +145,6 @@ int main(){
         // mass variation
         sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_mt+mt_var, default_width, default_PS_mass_scale, default_width_scale, default_Yukawa);
         sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_mt-mt_var, default_width, default_PS_mass_scale, default_width_scale, default_Yukawa);
-
 
         // width variation
         sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_mt, default_width+width_var, default_PS_mass_scale, default_width_scale, default_Yukawa);
@@ -177,16 +164,19 @@ int main(){
     if (!doShifts) return 0;
 
     QQt::pert_order::order order = QQt::N3LO;
-    std::vector<float> mass_shifts = {0.01, 0.03, 0.05};
-    std::vector<float> width_shifts = {0.1, 0.3, 0.5};
-    std::vector<float> Yukawa_shifts = {0.01, 0.05, 0.1};
-    std::vector<float> as_shifts = {0.0001, 0.0002, 0.0003};
+    std::vector<float> mass_shifts = {0.02};
+    std::vector<float> width_shifts = {0.03};
+    std::vector<float> Yukawa_shifts = {0.1};
+    std::vector<float> as_shifts = {0.0003};
 
     symmetriseShifts(mass_shifts);
     symmetriseShifts(width_shifts);
     symmetriseShifts(Yukawa_shifts);
     symmetriseShifts(as_shifts);
 
+    Yukawa_shifts = {0.};
+    as_shifts = {0.};
+    /*
     for (auto mass_shift : mass_shifts){
         for (auto width_shift : width_shifts){
             for (auto Yukawa_shift : Yukawa_shifts){
@@ -198,6 +188,44 @@ int main(){
             }
         }
     }
+    */
+
+    float mass_shift = 0.03;
+    float width_shift = 0.05;
+    float Yukawa_shift = 0.1;
+    float as_shift = 0.0003;
+
+    /*
+    std::cout << "nominal" << std::endl;
+    sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_PS_mass, default_width, default_PS_mass_scale, 
+                                                                default_width_scale, default_Yukawa);
+
+    std::cout << "mass shift: " << mass_shift << std::endl;
+    sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_PS_mass+mass_shift, default_width, default_PS_mass_scale, 
+                                                                default_width_scale, default_Yukawa);
+
+    std::cout << "width shift: " << width_shift << std::endl;
+    sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_PS_mass, default_width+width_shift, default_PS_mass_scale, 
+                                                                default_width_scale, default_Yukawa);
+
+    std::cout << "Yukawa shift: " << Yukawa_shift << std::endl;
+    sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_PS_mass, default_width, default_PS_mass_scale, 
+                                                                default_width_scale, default_Yukawa+Yukawa_shift);
+    
+    std::cout << "as shift: " << as_shift << std::endl;
+    sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_PS_mass, default_width, default_PS_mass_scale, 
+                                                                default_width_scale, default_Yukawa, as_shift);
+
+    */
+
+    mass_shift = 0.01;
+    width_shift = -0.03;
+    Yukawa_shift = 0.05;
+
+    std::cout << "mass shift: " << mass_shift << ", width shift: " << width_shift << ", Yukawa shift: " << Yukawa_shift << ", as shift: " << as_shift << std::endl;
+    sqrt_s_loop<0, sqrt_s_count>::compute_xsec(order, default_PS_mass+mass_shift, default_width+width_shift, default_PS_mass_scale, 
+                                                                default_width_scale, default_Yukawa+Yukawa_shift);
+
 
     return 0;
 }
