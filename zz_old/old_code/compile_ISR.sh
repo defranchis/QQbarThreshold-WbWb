@@ -1,1 +1,0 @@
-g++ -o bin/ISR -std=c++11 ttThresholdScanISR.cpp -lQQbar_threshold -lgsl -lgslcblas
