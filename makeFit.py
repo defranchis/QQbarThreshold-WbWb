@@ -5,11 +5,15 @@ import os, argparse
 import uncertainties as unc
 import matplotlib.pyplot as plt
 from fitUtils import convoluteXsecGauss
+import utils.scheme_conversion as scheme_conversion # type: ignore
 
 indir = 'output_ISR/for_fit'
 parameters = ['mass','width','yukawa','as']
 
 pseudo_data_values = {'mass': 0.01, 'width': -0.03, 'yukawa': 0.05, 'as': 0.} #hardcoded, to fix
+
+def getWidthN3LO(mt_PS):
+    return 1.3148 + 0.0277*(scheme_conversion.calculate_mt_Pole(mt_PS)-172.69)
 
 def formTag(mass, width, yukawa, alphas):
     return 'mass{:.2f}_width{:.2f}_yukawa{:.1f}_as{}'.format(mass,width,yukawa,alphas)
