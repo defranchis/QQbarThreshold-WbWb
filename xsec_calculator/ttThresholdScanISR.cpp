@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <filesystem>
 
-
 #include "QQbar_threshold/parameters.hpp"
 #include "QQbar_threshold/xsection.hpp"
 #include "QQbar_threshold/load_grid.hpp"
@@ -56,7 +55,7 @@ std::string floatToString(float value, int n_decimals) {
 constexpr double sqrt_s_min = 340.0;
 constexpr double sqrt_s_max = 350.0;
 constexpr double sqrt_s_step = 0.1;
-constexpr double sqrt_s_last = 365.0;
+constexpr double sqrt_s_last = 365.0; // additional point above last point of threshold scan
 
 constexpr std::size_t n_sqrt_s_values = (sqrt_s_max - sqrt_s_min)/sqrt_s_step + 2;
 
