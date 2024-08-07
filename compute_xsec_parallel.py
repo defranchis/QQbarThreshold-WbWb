@@ -1,5 +1,5 @@
-import xsec_calc
-from parameter_def import parameters
+import xsec_calculator.xsec_calc as xsec_calc
+from xsec_calculator.parameter_def import parameters
 import multiprocessing
 
 class XsecCalculator:
