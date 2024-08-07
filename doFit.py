@@ -6,43 +6,35 @@ import uncertainties as unc # type: ignore
 import matplotlib.pyplot as plt # type: ignore
 from utils_fit.fitUtils import convoluteXsecGauss # type: ignore
 import utils_convert.scheme_conversion as scheme_conversion # type: ignore
+from xsec_calculator.parameter_def import parameters # type: ignore
 
-indir = 'output_ISR/for_fit'
-parameters = ['mass','width','yukawa','as']
-
-pseudo_data_values = {'mass': 0.01, 'width': -0.03, 'yukawa': 0.05, 'as': 0.} #hardcoded, to fix
 
 def getWidthN3LO(mt_PS):
     return 1.3148 + 0.0277*(scheme_conversion.calculate_mt_Pole(mt_PS)-172.69)
 
-def formTag(mass, width, yukawa, alphas):
-    return 'mass{:.2f}_width{:.2f}_yukawa{:.1f}_as{}'.format(mass,width,yukawa,alphas)
+def formFileTag(mass, width, yukawa, alphas):
+    return 'mass{:.2f}_width{:.2f}_yukawa{:.2f}_asVar{:.4f}'.format(mass,width,yukawa,alphas)
 
 class fit:
-    def __init__(self, input_dir, parameters, beam_energy_res = 0.221, smearXsec = True, debug = False) -> None:
+    def __init__(self, beam_energy_res = 0.221, smearXsec = True, input_dir= 'output', debug = False, asimov = True) -> None:
         self.input_dir = input_dir
-        self.params = parameters
+        self.d_params = parameters().getDict()
+        self.param_names = list(self.d_params['nominal'].keys())
+        self.l_tags = list(self.d_params.keys())
         self.beam_energy_res = beam_energy_res
         self.smearXsec = smearXsec
+        self.asimov = asimov
         self.debug = debug
         if self.debug:
             print('Input directory: {}'.format(self.input_dir))
-            print('Parameters: {}'.format(self.params))
+            print('Parameters: {}'.format(self.param_names))
             print('Beam energy resolution: {}'.format(self.beam_energy_res))
             print('Smear cross sections: {}'.format(self.smearXsec))
         
         if self.debug:
-            print('Fetching inputs')
-        self.fetchInputs()
-        if self.debug:
-            print('Checking parameter names')
-        self.checkParameterNames()
-        if self.debug:
-            print('Getting parameter values')
-        self.getParameterValues()
-        if self.debug:
             print('Reading cross sections')
         self.readCrossSections()
+        self.l_ecm = self.xsec_dict[self.l_tags[0]]['ecm'].astype(str).tolist()
         if self.debug:
             print('Smearing cross sections')
         self.smearCrossSections()
@@ -51,75 +43,24 @@ class fit:
         self.morphCrossSections()
         if self.debug:
             print('Initialization done')
-        self.readXsecPseudoData()
 
-    def fetchInputs(self):
-
-        l_file = os.listdir(self.input_dir)
-        l_file = [f for f in l_file if '_scan_' in f and f.endswith('.txt')] #just in case
-        l_tag = list(set(['_'.join(f.split('N3LO_scan_PS_ISR_')[1].split('.txt')[0].split('_')[1:]) for f in l_file]))
-        l_ecm = list(set([f.split('_')[4].split('ecm')[1] for f in l_file]))
-        l_ecm.sort()
-
-        self.l_tag = l_tag
-        self.l_file = l_file
-        self.l_ecm = l_ecm
-
-
-    def checkParameterNames(self):
-        for param in self.params:
-            for tag in self.l_tag:
-                if param not in tag:
-                    raise ValueError('Parameter {} not found'.format(param))
-        for i, param in enumerate(self.params):
-            if '_'+parameters[i+1] not in self.l_tag[0].split(param)[1]:
-                raise ValueError('Wrong order of parameters, please check input files')
-            if i == len(parameters)-2:
-                break
-                
-
-    def getParameterValues(self):
-        self.param_dict = {}
-        for param in parameters:
-            l = [tag.split('_')[parameters.index(param)].replace(param,'') for tag in self.l_tag]
-            if param != 'as':
-                l = [float(i) for i in l]
-            self.param_dict['{}_nom'.format(param)] = max(set(l), key=l.count)
-            self.param_dict['{}_var'.format(param)] = min(set(l), key=l.count)
-
+    def formFileName(self, tag):
+        infile_tag = formFileTag(*[self.d_params[tag][p] for p in self.param_names])
+        return 'N3LO_scan_PS_ISR_{}_scaleM80.0_scaleW350.0.txt'.format(infile_tag)
 
     def readScanPerTag(self,tag):
-        xsec = []
-        for ecm in self.l_ecm:
-            fl = [f for f in self.l_file if ecm in f and tag in f]
-            if len(fl) > 1:
-                raise ValueError('More than one file found for tag {} and ecm {}'.format(tag,ecm))
-            elif len(fl) == 0:
-                raise ValueError('No file found for tag {} and ecm {}'.format(tag,ecm))
-            f = open('{}/{}'.format(self.input_dir,fl[0]), 'r')
-            xsec.append(float(f.readlines()[0].split(',')[-1]))
-        df_xsec = pd.DataFrame({'ecm': [float(ecm) for ecm in self.l_ecm], 'xsec': xsec})
-        self.xsec_dict[tag] = df_xsec
-
-    def readXsecPseudoData(self): #TODO: fix this function
-        l_file = os.listdir(self.input_dir+'_var')
-        xsec = []
-        for ecm in self.l_ecm:
-            fl = [f for f in l_file if ecm in f]
-            if len(fl) > 1:
-                print(fl)
-                raise ValueError('More than one file found for ecm {}'.format(ecm))
-            elif len(fl) == 0:
-                raise ValueError('No file found for ecm {}'.format(ecm))
-            f = open('{}/{}'.format(self.input_dir+'_var',fl[0]), 'r')
-            xsec.append(float(f.readlines()[0].split(',')[-1]))
-        self.xsec_pseudo_data = self.smearCrossSection(pd.DataFrame({'ecm': [float(ecm) for ecm in self.l_ecm], 'xsec': xsec}))
-
-            
+        filename = self.input_dir + '/' + self.formFileName(tag)
+        if not os.path.exists(filename):
+            raise ValueError('File {} not found'.format(filename))
+        f = open(filename, 'r')
+        df = pd.read_csv(f, header=None, names=['ecm','xsec'])
+        f.close()
+        return df
+          
     def readCrossSections(self):
         self.xsec_dict = {}
-        for tag in self.l_tag:
-            self.readScanPerTag(tag)
+        for tag in self.l_tags:
+            self.xsec_dict[tag] = self.readScanPerTag(tag)
 
     def smearCrossSection(self,xsec):
         if not self.smearXsec:
@@ -132,28 +73,27 @@ class fit:
 
     def smearCrossSections(self):
         self.xsec_dict_smeared = {}
-        for tag in self.l_tag:
+        for tag in self.l_tags:
             self.xsec_dict_smeared[tag] = self.smearCrossSection(self.xsec_dict[tag])
 
     def morphCrossSection(self,param):
         xsec_nom = self.getXsecTemplate()
-        xsec_var = self.getXsecTemplate([param])
+        xsec_var = self.getXsecTemplate('{}_var'.format(param))
         df_morph = pd.DataFrame({'ecm': xsec_nom['ecm'], 'xsec': xsec_var['xsec']/xsec_nom['xsec'] -1})
         return df_morph      
 
     def morphCrossSections(self):
         self.morph_dict = {}
-        for param in self.params:
+        for param in self.param_names:
             self.morph_dict[param] = self.morphCrossSection(param)
 
-    def getXsecTemplate(self,var_param = []):
-        tag_input = [self.param_dict['{}_nom'.format(p) if p not in var_param else '{}_var'.format(p)] for p in self.params]
-        return self.xsec_dict_smeared[formTag(*tag_input)]
+    def getXsecTemplate(self,tag='nominal'):
+        return self.xsec_dict_smeared[tag]
     
     def getXsecParams(self):
-        params = unc.correlated_values([self.minuit.values[i] for i in range(len(self.params))], self.minuit.covariance)
+        params = unc.correlated_values([self.minuit.values[i] for i in range(len(self.param_names))], self.minuit.covariance)
         th_xsec = np.array(self.getXsecTemplate()['xsec'])
-        for i, param in enumerate(self.params):
+        for i, param in enumerate(self.param_names):
             th_xsec = th_xsec * (1 + params[i]*np.array(self.morph_dict[param]['xsec']))
         df_th_xsec = pd.DataFrame({'ecm': self.l_ecm, 'xsec': [th.n for th in th_xsec], 'unc': [th.s for th in th_xsec]})
         return df_th_xsec
@@ -170,23 +110,21 @@ class fit:
                 raise ValueError('Invalid scenario key: {}'.format(ecm))
         self.scenario = dict(sorted(scenario.items(), key=lambda x: float(x[0])))
         self.xsec_scenario = self.getXsecScenario(self.getXsecTemplate()) # just nominal for now
-        #self.unc_xsec_scenario = (np.array(self.xsec_scenario['xsec'])/np.array(list(self.scenario.values())))**.5
-        #self.pseudo_data = np.array(self.xsec_scenario['xsec']) + np.random.normal(0,self.unc_xsec)
-        self.pseudo_data_scenario = np.array(self.getXsecScenario(self.xsec_pseudo_data)['xsec'])
+        self.pseudo_data_scenario = np.array(self.getXsecScenario(self.getXsecTemplate('pseudodata'))['xsec'])
         self.unc_pseudodata_scenario = (np.array(self.pseudo_data_scenario)/np.array(list(self.scenario.values())))**.5
-        self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
-        self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param]) for param in self.params}
+        if not self.asimov:
+            self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
+        self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param]) for param in self.param_names}
 
     def chi2(self, params):
         th_xsec = np.array(self.xsec_scenario['xsec'])
-        for i, param in enumerate(self.params):
+        for i, param in enumerate(self.param_names):
             th_xsec *= (1 + params[i]*np.array(self.morph_scenario[param]['xsec']))
         return np.sum(((self.pseudo_data_scenario - th_xsec)/self.unc_pseudodata_scenario)**2) + params[-1]**2
 
 
     def initMinuit(self):
-        self.fit_params = np.zeros(len(self.params))
-        self.minuit = iminuit.Minuit(self.chi2, self.fit_params)
+        self.minuit = iminuit.Minuit(self.chi2, np.zeros(len(self.param_names)))
         self.minuit.errordef = 1
 
 
@@ -201,29 +139,29 @@ class fit:
             print('Fit done')
 
         nom_values = []
-        for i, param in enumerate(self.params):
+        for i, param in enumerate(self.param_names):
             param_w_unc = unc.ufloat(self.minuit.values[i],self.minuit.errors[i])
             if param != 'as':
-                param_w_unc = float(self.param_dict['{}_nom'.format(param)]) + param_w_unc*(float(self.param_dict['{}_var'.format(param)]) - float(self.param_dict['{}_nom'.format(param)]))
+                param_w_unc = self.d_params['nominal'][param] + param_w_unc*(self.d_params['{}_var'.format(param)][param] - self.d_params['nominal'][param])
             nom_values.append(param_w_unc.n)
             print('Fitted {}: {:.3f} {}'.format(param,param_w_unc,'GeV' if param in ['mass','width'] else ''))
-            pull = param_w_unc - pseudo_data_values[param] - (0 if param == 'as' else self.param_dict[param+'_nom'])
+            pull = (param_w_unc - self.d_params['pseudodata'][param])
             print('Pull {}: {:.1f}'.format(param, pull.n/pull.s))
             print()
 
 
-        correlation_matrix = np.zeros((len(self.params),len(self.params)))
-        for i in range(len(self.params)):
-            for j in range(len(self.params)):
+        correlation_matrix = np.zeros((len(self.param_names),len(self.param_names)))
+        for i in range(len(self.param_names)):
+            for j in range(len(self.param_names)):
                 correlation_matrix[i,j] = self.minuit.covariance[(i,j)]/(self.minuit.errors[i]*self.minuit.errors[j])
 
         print('Correlation matrix:')
-        print(self.params)
+        print(self.param_names)
         print(np.round(correlation_matrix, 2))
 
-        covariance_matrix = np.zeros((len(self.params),len(self.params)))
-        for i in range(len(self.params)):
-            for j in range(len(self.params)):
+        covariance_matrix = np.zeros((len(self.param_names),len(self.param_names)))
+        for i in range(len(self.param_names)):
+            for j in range(len(self.param_names)):
                 covariance_matrix[i,j] = correlation_matrix[(i,j)]*self.minuit.errors[i]*self.minuit.errors[j]
 
         params_w_cov = unc.correlated_values(nom_values, covariance_matrix)
@@ -236,6 +174,7 @@ class fit:
         plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario,yerr=self.unc_pseudodata_scenario,fmt='.',label='Pseudo data')
         # plot nominal model
         xsec_nom = self.getXsecTemplate()
+        xsec_pseudodata = self.getXsecTemplate('pseudodata')
         # plot fitted model
         xsec_fit = self.getXsecParams()
         plt.plot(xsec_nom['ecm'],xsec_fit['xsec'],label='Fitted model')
@@ -249,11 +188,11 @@ class fit:
         plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario/self.getXsecScenario(xsec_nom)['xsec'], yerr=self.unc_pseudodata_scenario/self.getXsecScenario(xsec_nom)['xsec'], fmt='.', label = 'Pseudo data')
         plt.plot(xsec_nom['ecm'],xsec_fit['xsec']/xsec_nom['xsec'], label='fitted cross section')
         plt.fill_between(xsec_nom['ecm'], (xsec_fit['xsec']-xsec_fit['unc'])/xsec_nom['xsec'], (xsec_fit['xsec']+xsec_fit['unc'])/xsec_nom['xsec'], alpha=0.5, label='uncertainty')
-        plt.plot(self.xsec_pseudo_data['ecm'], self.xsec_pseudo_data['xsec']/xsec_nom['xsec'], label='pseudodata cross section', linestyle='--')
+        plt.plot(xsec_pseudodata['ecm'], xsec_pseudodata['xsec']/xsec_nom['xsec'], label='pseudodata cross section', linestyle='--')
         plt.axhline(1, color='black', linestyle='--', label='nominal xsec')
         plt.xlabel('Ecm [GeV]')
         plt.ylabel('Ratio to nominal')
-        plt.legend()
+        plt.legend(loc='lower right')
         plt.savefig('residuals.png')
         
 
@@ -263,10 +202,11 @@ def formatScenario(scenario):
 
 def main():
     parser = argparse.ArgumentParser(description='Specify options')
+    parser.add_argument('--asimov', action='store_true', help='Asimov data')
     parser.add_argument('--debug', action='store_true', help='Debug mode')
     args = parser.parse_args()
     
-    f = fit(indir,parameters,debug=args.debug)
+    f = fit(debug=args.debug, asimov=args.asimov)
     n_IP_4 = True
     total_lumi = 0.36 * 1E06 #pb^-1
     scan_min = 340
