@@ -4,8 +4,8 @@ import iminuit, scipy
 import os, argparse
 import uncertainties as unc
 import matplotlib.pyplot as plt
-from fitUtils import convoluteXsecGauss
-import utils.scheme_conversion as scheme_conversion # type: ignore
+from utils_fit.fitUtils import convoluteXsecGauss
+import utils_convert.scheme_conversion as scheme_conversion # type: ignore
 
 indir = 'output_ISR/for_fit'
 parameters = ['mass','width','yukawa','as']
