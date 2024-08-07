@@ -1,6 +1,6 @@
 
 import numpy as np
-import pandas as pd
+import pandas as pd # type: ignore
 import scipy.ndimage
 
 def getMaxXsec(df_xsec, range_max_ecm = None, step = 1):

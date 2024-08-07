@@ -1,4 +1,4 @@
-import xsec_calculator.xsec_calc as xsec_calc
+import xsec_calculator.xsec_calc as xsec_calc # type: ignore
 from xsec_calculator.parameter_def import parameters
 import multiprocessing
 

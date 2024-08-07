@@ -1,5 +1,5 @@
-from setuptools import setup, Extension
-from pybind11.setup_helpers import Pybind11Extension, build_ext
+from setuptools import setup, Extension # type: ignore
+from pybind11.setup_helpers import Pybind11Extension, build_ext # type: ignore
 
 ext_modules = [
     Pybind11Extension(
