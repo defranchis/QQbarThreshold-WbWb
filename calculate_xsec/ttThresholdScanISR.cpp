@@ -53,18 +53,25 @@ std::string floatToString(float value, int n_decimals) {
     return oss.str();
 }
 
-constexpr std::array<double, 102> sqrt_s_values = { //yes, it is this stupid...
-                                                340.0, 340.1, 340.2, 340.3, 340.4, 340.5, 340.6, 340.7, 340.8, 340.9, 
-                                                341.0, 341.1, 341.2, 341.3, 341.4, 341.5, 341.6, 341.7, 341.8, 341.9, 
-                                                342.0, 342.1, 342.2, 342.3, 342.4, 342.5, 342.6, 342.7, 342.8, 342.9, 
-                                                343.0, 343.1, 343.2, 343.3, 343.4, 343.5, 343.6, 343.7, 343.8, 343.9, 
-                                                344.0, 344.1, 344.2, 344.3, 344.4, 344.5, 344.6, 344.7, 344.8, 344.9, 
-                                                345.0, 345.1, 345.2, 345.3, 345.4, 345.5, 345.6, 345.7, 345.8, 345.9, 
-                                                346.0, 346.1, 346.2, 346.3, 346.4, 346.5, 346.6, 346.7, 346.8, 346.9, 
-                                                347.0, 347.1, 347.2, 347.3, 347.4, 347.5, 347.6, 347.7, 347.8, 347.9, 
-                                                348.0, 348.1, 348.2, 348.3, 348.4, 348.5, 348.6, 348.7, 348.8, 348.9, 
-                                                349.0, 349.1, 349.2, 349.3, 349.4, 349.5, 349.6, 349.7, 349.8, 349.9, 
-                                                350.0, 365.0};
+constexpr double sqrt_s_min = 340.0;
+constexpr double sqrt_s_max = 350.0;
+constexpr double sqrt_s_step = 0.1;
+constexpr double sqrt_s_last = 365.0;
+
+constexpr std::size_t n_sqrt_s_values = (sqrt_s_max - sqrt_s_min)/sqrt_s_step + 2;
+
+constexpr std::array<double, n_sqrt_s_values> generate_sqrt_s_values() {
+    std::array<double, n_sqrt_s_values> values = {};
+    double value = sqrt_s_min;
+    for (std::size_t i = 0; i < n_sqrt_s_values - 1; ++i) {
+        values[i] = value;
+        value += sqrt_s_step;
+    }
+    values[n_sqrt_s_values - 1] = sqrt_s_last;
+    return values;
+}
+
+constexpr std::array<double, n_sqrt_s_values> sqrt_s_values = generate_sqrt_s_values();
 
 template<size_t Index, size_t N>
 struct sqrt_s_loop {
