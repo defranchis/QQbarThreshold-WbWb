@@ -1,0 +1,42 @@
+
+class parameters:
+    def __init__(self):
+        self.mass = 171.5
+        self.width = 1.33
+        self.yukawa = 1.0
+        self.alphas = 0.
+        self.mass_scale = 80.0
+        self.width_scale = 350.0
+        self.mass_var = 0.03
+        self.width_var = 0.05
+        self.yukawa_var = 0.1
+        self.alphas_var = 0.0003
+        self.mass_pseudo = 0.01
+        self.width_pseudo = 0.02
+        self.yukawa_pseudo = 0.05
+        self.alphas_pseudo = 0.
+        self.create_dict()
+
+    def formDict(self, var):
+        self.parameters_dict[var] = dict()
+        for par in ['mass','width','yukawa','alphas']:
+            if var == 'nominal':
+                self.parameters_dict[var][par] = getattr(self, par)
+            elif var == 'variation':
+                self.parameters_dict[var][par] = getattr(self, par) + getattr(self, par+'_var')
+            elif var == 'pseudodata':
+                self.parameters_dict[var][par] = getattr(self, par) + getattr(self, par+'_pseudo')
+            self.parameters_dict[var][par] = round(self.parameters_dict[var][par], 2 if par != 'alphas' else 4)
+
+
+    def create_dict(self):
+        self.parameters_dict = dict()
+        for var in ['nominal','variation','pseudodata']:
+            self.formDict(var)
+
+    def getDict(self):
+        return self.parameters_dict
+
+
+
+
