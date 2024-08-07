@@ -12,7 +12,7 @@ class parameters:
         self.yukawa_var = 0.1
         self.alphas_var = 0.0003
         self.mass_pseudo = 0.01
-        self.width_pseudo = 0.02
+        self.width_pseudo = -0.02
         self.yukawa_pseudo = 0.05
         self.alphas_pseudo = 0. # to avoid bias due to fit prior
         self.params = ['mass','width','yukawa','alphas']
