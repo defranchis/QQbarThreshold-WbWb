@@ -14,7 +14,8 @@ class parameters:
         self.mass_pseudo = 0.01
         self.width_pseudo = 0.02
         self.yukawa_pseudo = 0.05
-        self.alphas_pseudo = 0.
+        self.alphas_pseudo = 0. # to avoid bias due to fit prior
+        self.params = ['mass','width','yukawa','alphas']
         self.create_dict()
 
     def formDict(self, var):
@@ -22,16 +23,19 @@ class parameters:
         for par in ['mass','width','yukawa','alphas']:
             if var == 'nominal':
                 self.parameters_dict[var][par] = getattr(self, par)
-            elif var == 'variation':
-                self.parameters_dict[var][par] = getattr(self, par) + getattr(self, par+'_var')
             elif var == 'pseudodata':
                 self.parameters_dict[var][par] = getattr(self, par) + getattr(self, par+'_pseudo')
+            else:
+                self.parameters_dict[var][par] = getattr(self, par) + getattr(self, par+'_var') if var == par+'_var' else getattr(self, par)
             self.parameters_dict[var][par] = round(self.parameters_dict[var][par], 2 if par != 'alphas' else 4)
 
 
     def create_dict(self):
         self.parameters_dict = dict()
-        for var in ['nominal','variation','pseudodata']:
+        vars = ['nominal','pseudodata']
+        for param in self.params:
+            vars.append(param+'_var')
+        for var in vars:
             self.formDict(var)
 
     def getDict(self):
