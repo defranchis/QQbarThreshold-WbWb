@@ -8,6 +8,7 @@ from utils_fit.fitUtils import convoluteXsecGauss # type: ignore
 import utils_convert.scheme_conversion as scheme_conversion # type: ignore
 from xsec_calculator.parameter_def import parameters # type: ignore
 
+plot_dir = 'plots/fit'
 
 def getWidthN3LO(mt_PS):
     return 1.3148 + 0.0277*(scheme_conversion.calculate_mt_Pole(mt_PS)-172.69)
@@ -43,6 +44,14 @@ class fit:
         self.morphCrossSections()
         if self.debug:
             print('Initialization done')
+
+    def update(self):
+        if self.debug:
+            print('Updating object')
+        self.smearCrossSections()
+        self.morphCrossSections()
+        self.createScenario(**self.scenario_dict)
+        self.initMinuit()
 
     def formFileName(self, tag):
         infile_tag = formFileTag(*[self.d_params[tag][p] for p in self.param_names])
@@ -102,19 +111,40 @@ class fit:
         xsec_scenario = xsec[[float(ecm) in [float(e) for e in self.scenario.keys()] for ecm in xsec['ecm']]]
         return xsec_scenario
     
-    def createScenario(self,scenario):
+    def initScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, last_ecm = 365.0, create_scenario = True):
+        self.scenario_dict = {'n_IPs': n_IPs, 'scan_min': scan_min, 'scan_max': scan_max, 'scan_step': scan_step, 'total_lumi': total_lumi,
+                             'last_lumi': last_lumi, 'add_last_ecm': add_last_ecm, 'last_ecm': last_ecm}
+        if create_scenario:
+            self.createScenario(**self.scenario_dict)
+    
+
+    def createScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, last_ecm = 365.0):
         if self.debug:
             print('Creating threshold scan scenario')
-        for ecm in scenario.keys():
+        if not n_IPs in [2,4]:
+            raise ValueError('Invalid number of IPs')
+
+        scenario = ['{:.1f}'.format(float(e)) for e in np.arange(scan_min,scan_max+scan_step/2,scan_step)]
+        scenario_dict = {k: total_lumi/len(scenario) for k in scenario}
+        if add_last_ecm:
+            scenario_dict['{:.1f}'.format(last_ecm)] = last_lumi
+        if n_IPs == 2:
+            for k in scenario_dict.keys():
+                scenario_dict[k] = scenario_dict[k]/1.8
+
+        for ecm in scenario_dict.keys():
             if ecm not in self.l_ecm:
                 raise ValueError('Invalid scenario key: {}'.format(ecm))
-        self.scenario = dict(sorted(scenario.items(), key=lambda x: float(x[0])))
+        self.scenario = dict(sorted(scenario_dict.items(), key=lambda x: float(x[0])))
         self.xsec_scenario = self.getXsecScenario(self.getXsecTemplate()) # just nominal for now
         self.pseudo_data_scenario = np.array(self.getXsecScenario(self.getXsecTemplate('pseudodata'))['xsec'])
         self.unc_pseudodata_scenario = (np.array(self.pseudo_data_scenario)/np.array(list(self.scenario.values())))**.5
         if not self.asimov:
             self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
         self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param]) for param in self.param_names}
+
+        
+
 
     def chi2(self, params):
         th_xsec = np.array(self.xsec_scenario['xsec'])
@@ -138,90 +168,68 @@ class fit:
         if self.debug:
             print('Fit done')
 
-        nom_values = []
+    def getFitResults(self, printout = True):
+        params_w_cov = list(unc.correlated_values([self.minuit.values[i] for i in range(len(self.param_names))], self.minuit.covariance))
         for i, param in enumerate(self.param_names):
-            param_w_unc = unc.ufloat(self.minuit.values[i],self.minuit.errors[i])
             if param != 'as':
-                param_w_unc = self.d_params['nominal'][param] + param_w_unc*(self.d_params['{}_var'.format(param)][param] - self.d_params['nominal'][param])
-            nom_values.append(param_w_unc.n)
-            print('Fitted {}: {:.3f} {}'.format(param,param_w_unc,'GeV' if param in ['mass','width'] else ''))
-            pull = (param_w_unc - self.d_params['pseudodata'][param])
-            print('Pull {}: {:.1f}'.format(param, pull.n/pull.s))
-            print()
-
-
-        correlation_matrix = np.zeros((len(self.param_names),len(self.param_names)))
-        for i in range(len(self.param_names)):
-            for j in range(len(self.param_names)):
-                correlation_matrix[i,j] = self.minuit.covariance[(i,j)]/(self.minuit.errors[i]*self.minuit.errors[j])
+                params_w_cov[i] = self.d_params['nominal'][param] + params_w_cov[i] * (self.d_params['{}_var'.format(param)][param] - self.d_params['nominal'][param])
+            if printout:
+                print('Fitted {}: {:.3f} {}'.format(param,params_w_cov[i],'GeV' if param in ['mass','width'] else ''))
+                pull = (params_w_cov[i] - self.d_params['pseudodata'][param])
+                print('Pull {}: {:.1f}'.format(param, pull.n/pull.s))
+                print()
 
         print('Correlation matrix:')
         print(self.param_names)
-        print(np.round(correlation_matrix, 2))
-
-        covariance_matrix = np.zeros((len(self.param_names),len(self.param_names)))
-        for i in range(len(self.param_names)):
-            for j in range(len(self.param_names)):
-                covariance_matrix[i,j] = correlation_matrix[(i,j)]*self.minuit.errors[i]*self.minuit.errors[j]
-
-        params_w_cov = unc.correlated_values(nom_values, covariance_matrix)
+        print(np.round(unc.correlation_matrix(params_w_cov), 2))
 
         return params_w_cov
     
+    
     def plotFitScenario(self):
+        if not os.path.exists(plot_dir):
+            os.makedirs(plot_dir)
+
         plt.figure()
-        #plot pseudodata
-        plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario,yerr=self.unc_pseudodata_scenario,fmt='.',label='Pseudo data')
-        # plot nominal model
+        plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario,yerr=self.unc_pseudodata_scenario,fmt='.',label='Pseudo data' if not self.asimov else 'Asimov data')
         xsec_nom = self.getXsecTemplate()
         xsec_pseudodata = self.getXsecTemplate('pseudodata')
-        # plot fitted model
         xsec_fit = self.getXsecParams()
         plt.plot(xsec_nom['ecm'],xsec_fit['xsec'],label='Fitted model')
         plt.plot(xsec_nom['ecm'],xsec_nom['xsec'],label='Nominal model', linestyle='--')
         plt.xlabel('Ecm [GeV]')
         plt.ylabel('Cross section [pb]')
         plt.legend()
-        plt.savefig('fit_scenario.png')
+        plt.savefig(plot_dir + '/fit_scenario_{}.png'.format('pseudo' if not self.asimov else 'asimov'))
 
         plt.clf()
-        plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario/self.getXsecScenario(xsec_nom)['xsec'], yerr=self.unc_pseudodata_scenario/self.getXsecScenario(xsec_nom)['xsec'], fmt='.', label = 'Pseudo data')
+        plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario/self.getXsecScenario(xsec_nom)['xsec'], yerr=self.unc_pseudodata_scenario/self.getXsecScenario(xsec_nom)['xsec'], 
+                    fmt='.', label = 'Pseudo data' if not self.asimov else 'Asimov data')
         plt.plot(xsec_nom['ecm'],xsec_fit['xsec']/xsec_nom['xsec'], label='fitted cross section')
         plt.fill_between(xsec_nom['ecm'], (xsec_fit['xsec']-xsec_fit['unc'])/xsec_nom['xsec'], (xsec_fit['xsec']+xsec_fit['unc'])/xsec_nom['xsec'], alpha=0.5, label='uncertainty')
-        plt.plot(xsec_pseudodata['ecm'], xsec_pseudodata['xsec']/xsec_nom['xsec'], label='pseudodata cross section', linestyle='--')
+        plt.plot(xsec_pseudodata['ecm'], xsec_pseudodata['xsec']/xsec_nom['xsec'], label='pseudodata cross section' if not self.asimov else 'Asimov cross section', linestyle='--')
         plt.axhline(1, color='black', linestyle='--', label='nominal xsec')
         plt.xlabel('Ecm [GeV]')
         plt.ylabel('Ratio to nominal')
+        plt.title('QQbarThreshold N3LO, FCC-ee')
         plt.legend(loc='lower right')
-        plt.savefig('residuals.png')
-        
+        plt.savefig(plot_dir + '/fit_scenario_ratio_{}.png'.format('pseudo' if not self.asimov else 'asimov'))
 
 
-def formatScenario(scenario):
-    return ['{:.1f}'.format(float(e)) for e in scenario]
 
 def main():
     parser = argparse.ArgumentParser(description='Specify options')
-    parser.add_argument('--asimov', action='store_true', help='Asimov data')
+    parser.add_argument('--pseudo', action='store_true', help='Pseudodata')
     parser.add_argument('--debug', action='store_true', help='Debug mode')
     args = parser.parse_args()
     
-    f = fit(debug=args.debug, asimov=args.asimov)
-    n_IP_4 = True
-    total_lumi = 0.36 * 1E06 #pb^-1
-    scan_min = 340
-    scan_max = 346
-    scan_step = 1
-    scenario = formatScenario(np.arange(scan_min,scan_max+scan_step/2,scan_step))
-    scenario_dict = {k: total_lumi/len(scenario) for k in scenario}
-    scenario_dict['365.0'] = 0.58*4 * 1E06 
-    if not n_IP_4:
-        for k in scenario_dict.keys():
-            scenario_dict[k] = scenario_dict[k]/1.8
-    f.createScenario(scenario_dict)
+    f = fit(debug=args.debug, asimov=not args.pseudo)
+    f.initScenario(n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, create_scenario = True)
+    
     f.fitPatameters()
+    f.getFitResults()
     f.plotFitScenario()
-
+    
 
 if __name__ == '__main__':
     main()
