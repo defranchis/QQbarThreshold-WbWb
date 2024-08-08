@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd # type: ignore
 import iminuit, scipy # type: ignore
 import os, argparse
+import copy
 import uncertainties as unc # type: ignore
 import matplotlib.pyplot as plt # type: ignore
 from utils_fit.fitUtils import convoluteXsecGauss # type: ignore
@@ -52,6 +53,7 @@ class fit:
         self.morphCrossSections()
         self.createScenario(**self.scenario_dict)
         self.initMinuit()
+        self.fitPatameters()
 
     def formFileName(self, tag):
         infile_tag = formFileTag(*[self.d_params[tag][p] for p in self.param_names])
@@ -171,17 +173,16 @@ class fit:
     def getFitResults(self, printout = True):
         params_w_cov = list(unc.correlated_values([self.minuit.values[i] for i in range(len(self.param_names))], self.minuit.covariance))
         for i, param in enumerate(self.param_names):
-            if param != 'as':
-                params_w_cov[i] = self.d_params['nominal'][param] + params_w_cov[i] * (self.d_params['{}_var'.format(param)][param] - self.d_params['nominal'][param])
+            params_w_cov[i] = self.d_params['nominal'][param] + params_w_cov[i] * (self.d_params['{}_var'.format(param)][param] - self.d_params['nominal'][param])
             if printout:
                 print('Fitted {}: {:.3f} {}'.format(param,params_w_cov[i],'GeV' if param in ['mass','width'] else ''))
                 pull = (params_w_cov[i] - self.d_params['pseudodata'][param])
                 print('Pull {}: {:.1f}'.format(param, pull.n/pull.s))
                 print()
-
-        print('Correlation matrix:')
-        print(self.param_names)
-        print(np.round(unc.correlation_matrix(params_w_cov), 2))
+        if printout:
+            print('Correlation matrix:')
+            print(self.param_names)
+            print(np.round(unc.correlation_matrix(params_w_cov), 2))
 
         return params_w_cov
     
@@ -214,13 +215,39 @@ class fit:
         plt.title('QQbarThreshold N3LO, FCC-ee')
         plt.legend(loc='lower right')
         plt.savefig(plot_dir + '/fit_scenario_ratio_{}.png'.format('pseudo' if not self.asimov else 'asimov'))
+        plt.clf()
 
+    def doLSscan (self, min, max, step):
+        if min == 0:
+            min = 1E-6
+        l_beam_energy_res = np.arange(min,max+step/2,step)
+        d = {var : [] for var in self.param_names}
+        for res in l_beam_energy_res:
+            f = copy.deepcopy(self)
+            f.beam_energy_res = res
+            f.update()
+            f.getFitResults(printout=False)
+            for i, param in enumerate(self.param_names):
+                if param == 'alphas':
+                    continue
+                d[param].append(f.getFitResults(printout=False)[i].s)
+        for param in self.param_names:
+            if param == 'alphas':
+                continue
+            plt.plot(l_beam_energy_res, d[param])
+            plt.title('Stat uncertainty in top {} vs beam energy resolution'.format(param))
+            plt.xlabel('Beam energy resolution per beam [%]')
+            plt.ylabel('Stat uncertainty in top {} [MeV]'.format(param))
+            plt.savefig(plot_dir + '/uncert_{}_vs_beam_energy_res.png'.format(param))
+            plt.clf()
 
+        return 
 
 def main():
     parser = argparse.ArgumentParser(description='Specify options')
     parser.add_argument('--pseudo', action='store_true', help='Pseudodata')
     parser.add_argument('--debug', action='store_true', help='Debug mode')
+    parser.add_argument('--LSscan', action='store_true', help='Do beam energy resolution scan')
     args = parser.parse_args()
     
     f = fit(debug=args.debug, asimov=not args.pseudo)
@@ -229,7 +256,10 @@ def main():
     f.fitPatameters()
     f.getFitResults()
     f.plotFitScenario()
-    
+    if args.LSscan:
+        f.doLSscan(0,0.3,0.01)
+
+
 
 if __name__ == '__main__':
     main()
