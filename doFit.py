@@ -13,25 +13,31 @@ plot_dir = 'plots/fit'
 
 def getWidthN3LO(mt_PS):
     return 1.3148 + 0.0277*(scheme_conversion.calculate_mt_Pole(mt_PS)-172.69)
+    # uncertainty = 0.005
 
 def formFileTag(mass, width, yukawa, alphas):
     return 'mass{:.2f}_width{:.2f}_yukawa{:.2f}_asVar{:.4f}'.format(mass,width,yukawa,alphas)
 
 class fit:
-    def __init__(self, beam_energy_res = 0.221, smearXsec = True, input_dir= 'output', debug = False, asimov = True) -> None:
+    def __init__(self, beam_energy_res = 0.221, smearXsec = True, SM_width = False, input_dir= 'output', debug = False, asimov = True) -> None:
         self.input_dir = input_dir
         self.d_params = parameters().getDict()
         self.param_names = list(self.d_params['nominal'].keys())
+        self.param_names_fit = self.param_names if not SM_width else [p for p in self.param_names if p != 'width']
         self.l_tags = list(self.d_params.keys())
         self.beam_energy_res = beam_energy_res
         self.smearXsec = smearXsec
+        self.SM_width = SM_width
         self.asimov = asimov
         self.debug = debug
         if self.debug:
             print('Input directory: {}'.format(self.input_dir))
             print('Parameters: {}'.format(self.param_names))
+            print('Parameters for fit: {}'.format(self.param_names_fit))
             print('Beam energy resolution: {}'.format(self.beam_energy_res))
             print('Smear cross sections: {}'.format(self.smearXsec))
+            print('Constrain width to SM value: {}'.format(self.SM_width))
+            print('Asimov data: {}'.format(self.asimov))
         
         if self.debug:
             print('Reading cross sections')
@@ -53,7 +59,7 @@ class fit:
         self.morphCrossSections()
         self.createScenario(**self.scenario_dict)
         self.initMinuit()
-        self.fitPatameters()
+        self.fitParameters()
 
     def formFileName(self, tag):
         infile_tag = formFileTag(*[self.d_params[tag][p] for p in self.param_names])
@@ -101,11 +107,21 @@ class fit:
     def getXsecTemplate(self,tag='nominal'):
         return self.xsec_dict_smeared[tag]
     
+    def getValueFromParameter(self,par,par_name):
+        return self.d_params['nominal'][par_name] + par * (self.d_params['{}_var'.format(par_name)][par_name] - self.d_params['nominal'][par_name])
+    
+    def getParameterFromValue(self,val,par_name):
+        return (val - self.d_params['nominal'][par_name])/(self.d_params['{}_var'.format(par_name)][par_name] - self.d_params['nominal'][par_name])
+    
     def getXsecParams(self):
-        params = unc.correlated_values([self.minuit.values[i] for i in range(len(self.param_names))], self.minuit.covariance)
+        params = unc.correlated_values([self.minuit.values[i] for i in range(len(self.param_names_fit))], self.minuit.covariance)
         th_xsec = np.array(self.getXsecTemplate()['xsec'])
-        for i, param in enumerate(self.param_names):
-            th_xsec = th_xsec * (1 + params[i]*np.array(self.morph_dict[param]['xsec']))
+        for i, param_name in enumerate(self.param_names):
+            if self.SM_width and param_name == 'width':
+                mass = self.getValueFromParameter(params[self.param_names_fit.index('mass')], 'mass')
+                param = self.getParameterFromValue(getWidthN3LO(mass.n), 'width')
+            else: param = params[self.param_names_fit.index(param_name)]
+            th_xsec = th_xsec * (1 + param*np.array(self.morph_dict[param_name]['xsec']))
         df_th_xsec = pd.DataFrame({'ecm': self.l_ecm, 'xsec': [th.n for th in th_xsec], 'unc': [th.s for th in th_xsec]})
         return df_th_xsec
     
@@ -139,28 +155,35 @@ class fit:
                 raise ValueError('Invalid scenario key: {}'.format(ecm))
         self.scenario = dict(sorted(scenario_dict.items(), key=lambda x: float(x[0])))
         self.xsec_scenario = self.getXsecScenario(self.getXsecTemplate()) # just nominal for now
-        self.pseudo_data_scenario = np.array(self.getXsecScenario(self.getXsecTemplate('pseudodata'))['xsec'])
+        self.pseudo_data_scenario = np.array(self.getXsecScenario(self.getXsecTemplate('pseudodata' if not self.SM_width else 'mass_var'))['xsec'])
         self.unc_pseudodata_scenario = (np.array(self.pseudo_data_scenario)/np.array(list(self.scenario.values())))**.5
         if not self.asimov:
             self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
         self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param]) for param in self.param_names}
 
         
-
+    def getParamsIncludingWidth(self,params):
+        if not self.SM_width:
+            return params
+        mt = self.getValueFromParameter(params[self.param_names_fit.index('mass')], 'mass')
+        width = self.getParameterFromValue(getWidthN3LO(mt), 'width')
+        return np.insert(params, self.param_names.index('width'), width)
 
     def chi2(self, params):
         th_xsec = np.array(self.xsec_scenario['xsec'])
+        if self.SM_width:
+            params = self.getParamsIncludingWidth(params)
         for i, param in enumerate(self.param_names):
             th_xsec *= (1 + params[i]*np.array(self.morph_scenario[param]['xsec']))
-        return np.sum(((self.pseudo_data_scenario - th_xsec)/self.unc_pseudodata_scenario)**2) + params[-1]**2
+        return np.sum(((self.pseudo_data_scenario - th_xsec)/self.unc_pseudodata_scenario)**2) + params[self.param_names.index('alphas')]**2
 
 
     def initMinuit(self):
-        self.minuit = iminuit.Minuit(self.chi2, np.zeros(len(self.param_names)))
+        self.minuit = iminuit.Minuit(self.chi2, np.zeros(len(self.param_names_fit)))
         self.minuit.errordef = 1
 
 
-    def fitPatameters(self):
+    def fitParameters(self):
         if self.debug:
             print('Initializing Minuit')
         self.initMinuit()
@@ -171,17 +194,22 @@ class fit:
             print('Fit done')
 
     def getFitResults(self, printout = True):
-        params_w_cov = list(unc.correlated_values([self.minuit.values[i] for i in range(len(self.param_names))], self.minuit.covariance))
-        for i, param in enumerate(self.param_names):
-            params_w_cov[i] = self.d_params['nominal'][param] + params_w_cov[i] * (self.d_params['{}_var'.format(param)][param] - self.d_params['nominal'][param])
+        params_w_cov = list(unc.correlated_values([self.minuit.values[i] for i in range(len(self.param_names_fit))], self.minuit.covariance))
+        for i, param in enumerate(self.param_names_fit):
+            params_w_cov[i] = self.getValueFromParameter(params_w_cov[i], param)
             if printout:
                 print('Fitted {}: {:.3f} {}'.format(param,params_w_cov[i],'GeV' if param in ['mass','width'] else ''))
                 pull = (params_w_cov[i] - self.d_params['pseudodata'][param])
                 print('Pull {}: {:.1f}'.format(param, pull.n/pull.s))
                 print()
+        if self.SM_width:
+            width_up = getWidthN3LO(params_w_cov[self.param_names_fit.index('mass')].n + params_w_cov[self.param_names_fit.index('mass')].s)
+            width_down = getWidthN3LO(params_w_cov[self.param_names_fit.index('mass')].n - params_w_cov[self.param_names_fit.index('mass')].s)
+            width_nom = getWidthN3LO(params_w_cov[self.param_names_fit.index('mass')].n)
+            print('Fitted width: {:.5f} + {:.5f} - {:.5f} GeV\n'.format(width_nom, width_up - width_nom, width_nom - width_down))
         if printout:
             print('Correlation matrix:')
-            print(self.param_names)
+            print(self.param_names_fit)
             print(np.round(unc.correlation_matrix(params_w_cov), 2))
 
         return params_w_cov
@@ -194,7 +222,7 @@ class fit:
         plt.figure()
         plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario,yerr=self.unc_pseudodata_scenario,fmt='.',label='Pseudo data' if not self.asimov else 'Asimov data')
         xsec_nom = self.getXsecTemplate()
-        xsec_pseudodata = self.getXsecTemplate('pseudodata')
+        xsec_pseudodata = self.getXsecTemplate('pseudodata' if not self.SM_width else 'mass_var')
         xsec_fit = self.getXsecParams()
         plt.plot(xsec_nom['ecm'],xsec_fit['xsec'],label='Fitted model')
         plt.plot(xsec_nom['ecm'],xsec_nom['xsec'],label='Nominal model', linestyle='--')
@@ -248,12 +276,15 @@ def main():
     parser.add_argument('--pseudo', action='store_true', help='Pseudodata')
     parser.add_argument('--debug', action='store_true', help='Debug mode')
     parser.add_argument('--LSscan', action='store_true', help='Do beam energy resolution scan')
+    parser.add_argument('--SMwidth', action='store_true', help='Constrain width to SM value')
     args = parser.parse_args()
     
-    f = fit(debug=args.debug, asimov=not args.pseudo)
+    f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth)
     f.initScenario(n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, create_scenario = True)
+    #f.initScenario(n_IPs=4, scan_min=342, scan_max=344, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
     
-    f.fitPatameters()
+    
+    f.fitParameters()
     f.getFitResults()
     f.plotFitScenario()
     if args.LSscan:
