@@ -54,17 +54,17 @@ def main():
     savePlot(plt, outdir, 'scale_vars_width.png')
     
     # Plot ratios
-    max_ecm = 346 # some ecm points are not calculated for higher mass scales. to be checked
-    df_nom = readScan()
-    df_nom = df_nom[df_nom['ecm'] < max_ecm]
     for mass_scale in np.linspace(50., 350., 11):
+        df_nom = readScan()
         df = readScan(mass_scale=mass_scale)
-        df = df[df['ecm'] < max_ecm]
+        ecm_max = list(df_nom['ecm'])[-2]
+        ecm_max = min(min(df['ecm'].max(), df_nom['ecm'].max()),ecm_max)    
+        if ecm_max < 347 or np.isnan(ecm_max):
+            print(f"Warning: ecm_max = {ecm_max} for mass scale {mass_scale}. Skipping.")
+            continue 
+        df_nom = df_nom[df_nom['ecm'] <= ecm_max]
         ratio = df['xsec'] / df_nom['xsec']
-        try:
-            plt.plot(df['ecm'], ratio, label=f"Mass Scale: {mass_scale}")
-        except:
-            print('skipping mass scale', mass_scale)
+        plt.plot(df['ecm'], ratio, label=f"Mass Scale: {mass_scale}")
     savePlot(plt, outdir, 'scale_vars_mass_ratio.png')
 
     for width_scale in np.linspace(50., 350., 11):
