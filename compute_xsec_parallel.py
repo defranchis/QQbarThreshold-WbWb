@@ -41,12 +41,12 @@ class XsecCalculator:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cores', type=int, default=6)
+    parser.add_argument('--ncores', type=int, default=6)
     parser.add_argument('--doScaleVars', action='store_true')
     parser.add_argument('--outdir', type=str, default='output')
 
     args = parser.parse_args()
-    xsec_calculator = XsecCalculator(doScaleVars=args.doScaleVars, outdir=args.outdir, n_cores=args.cores)
+    xsec_calculator = XsecCalculator(doScaleVars=args.doScaleVars, outdir=args.outdir, n_cores=args.ncores)
     xsec_calculator.run_calculations()
 
 if __name__ == '__main__':

@@ -14,7 +14,7 @@ class parameters:
         self.mass_pseudo = 0.01
         self.width_pseudo = -0.02
         self.yukawa_pseudo = 0.05
-        self.alphas_pseudo = 0. # to avoid bias due to fit prior
+        self.alphas_pseudo = -0.0001
         self.params = ['mass','width','yukawa','alphas']
         self.create_dict()
 
