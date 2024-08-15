@@ -11,25 +11,32 @@ from xsec_calculator.parameter_def import parameters # type: ignore
 
 plot_dir = 'plots/fit'
 
+uncert_yukawa_default = 0.01 # only when parameter is constrained. hardcoded for now
+
 def getWidthN3LO(mt_PS):
     return 1.3148 + 0.0277*(scheme_conversion.calculate_mt_Pole(mt_PS)-172.69)
-    # uncertainty = 0.005
+    # TODO: implement mu dependence
+    # TODO: uncertainty = 0.005
+    # TODO: add option to use NNLO dependence, including mu
 
 def formFileTag(mass, width, yukawa, alphas):
     return 'mass{:.2f}_width{:.2f}_yukawa{:.2f}_asVar{:.4f}'.format(mass,width,yukawa,alphas)
 
 class fit:
-    def __init__(self, beam_energy_res = 0.221, smearXsec = True, SM_width = False, input_dir= 'output', debug = False, asimov = True) -> None:
+    def __init__(self, beam_energy_res = 0.221, smearXsec = True, SM_width = False, input_dir= 'output', debug = False, asimov = True, constrain_Yukawa = False) -> None:
         self.input_dir = input_dir
         self.d_params = parameters().getDict()
         self.param_names = list(self.d_params['nominal'].keys())
-        self.param_names_fit = self.param_names if not SM_width else [p for p in self.param_names if p != 'width']
+        self.SM_width = SM_width
+        self.constrain_Yukawa = constrain_Yukawa
+        self.asimov = asimov
         self.l_tags = list(self.d_params.keys())
         self.beam_energy_res = beam_energy_res
         self.smearXsec = smearXsec
-        self.SM_width = SM_width
-        self.asimov = asimov
         self.debug = debug
+
+        self.setParamNamesFit()
+
         if self.debug:
             print('Input directory: {}'.format(self.input_dir))
             print('Parameters: {}'.format(self.param_names))
@@ -37,7 +44,10 @@ class fit:
             print('Beam energy resolution: {}'.format(self.beam_energy_res))
             print('Smear cross sections: {}'.format(self.smearXsec))
             print('Constrain width to SM value: {}'.format(self.SM_width))
-            print('Asimov data: {}'.format(self.asimov))
+            print('Constrain Yukawa coupling: {}'.format(self.constrain_Yukawa))
+            if self.constrain_Yukawa:
+                print('\tYukawa coupling uncertainty: {}'.format(uncert_yukawa_default))
+            print('Asimov fit: {}'.format(self.asimov))
         
         if self.debug:
             print('Reading cross sections')
@@ -60,6 +70,12 @@ class fit:
         self.createScenario(**self.scenario_dict)
         self.initMinuit()
         self.fitParameters()
+
+    def setParamNamesFit(self):
+        self.param_names_fit = self.param_names
+        if self.SM_width:
+            self.param_names_fit = [p for p in self.param_names if p != 'width']
+
 
     def formFileName(self, tag):
         infile_tag = formFileTag(*[self.d_params[tag][p] for p in self.param_names])
@@ -120,7 +136,8 @@ class fit:
             if self.SM_width and param_name == 'width':
                 mass = self.getValueFromParameter(params[self.param_names_fit.index('mass')], 'mass')
                 param = self.getParameterFromValue(getWidthN3LO(mass.n), 'width')
-            else: param = params[self.param_names_fit.index(param_name)]
+            else: 
+                param = params[self.param_names_fit.index(param_name)]
             th_xsec = th_xsec * (1 + param*np.array(self.morph_dict[param_name]['xsec']))
         df_th_xsec = pd.DataFrame({'ecm': self.l_ecm, 'xsec': [th.n for th in th_xsec], 'unc': [th.s for th in th_xsec]})
         return df_th_xsec
@@ -130,6 +147,9 @@ class fit:
         return xsec_scenario
     
     def initScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, last_ecm = 365.0, create_scenario = True):
+        if self.constrain_Yukawa and add_last_ecm:
+            print('\nWarning: constraining Yukawa coupling and adding last ecm is not supported. Setting add_last_ecm to False\n')
+            add_last_ecm = False
         self.scenario_dict = {'n_IPs': n_IPs, 'scan_min': scan_min, 'scan_max': scan_max, 'scan_step': scan_step, 'total_lumi': total_lumi,
                              'last_lumi': last_lumi, 'add_last_ecm': add_last_ecm, 'last_ecm': last_ecm}
         if create_scenario:
@@ -175,11 +195,17 @@ class fit:
             params = self.getParamsIncludingWidth(params)
         for i, param in enumerate(self.param_names):
             th_xsec *= (1 + params[i]*np.array(self.morph_scenario[param]['xsec']))
-        return np.sum(((self.pseudo_data_scenario - th_xsec)/self.unc_pseudodata_scenario)**2) + params[self.param_names.index('alphas')]**2
+        chi2 = np.sum(((self.pseudo_data_scenario - th_xsec)/self.unc_pseudodata_scenario)**2)
+        chi2 += (params[self.param_names_fit.index('alphas')] - self.getParameterFromValue(self.d_params['pseudodata']['alphas'],'alphas'))**2
+        if self.constrain_Yukawa:
+            uncert_yukawa = uncert_yukawa_default / (self.d_params['yukawa_var']['yukawa'] - self.d_params['nominal']['yukawa'])
+            chi2 += ((params[self.param_names_fit.index('yukawa')] - self.getParameterFromValue(self.d_params['pseudodata']['yukawa'], 'yukawa'))/uncert_yukawa)**2
+        return chi2
 
 
     def initMinuit(self):
-        self.minuit = iminuit.Minuit(self.chi2, np.zeros(len(self.param_names_fit)))
+        params = np.zeros(len(self.param_names_fit))
+        self.minuit = iminuit.Minuit(self.chi2, params)
         self.minuit.errordef = 1
 
 
@@ -193,15 +219,19 @@ class fit:
         if self.debug:
             print('Fit done')
 
+
     def getFitResults(self, printout = True):
         params_w_cov = list(unc.correlated_values([self.minuit.values[i] for i in range(len(self.param_names_fit))], self.minuit.covariance))
         for i, param in enumerate(self.param_names_fit):
             params_w_cov[i] = self.getValueFromParameter(params_w_cov[i], param)
             if printout:
-                print('Fitted {}: {:.3f} {}'.format(param,params_w_cov[i],'GeV' if param in ['mass','width'] else ''))
+                if param == 'alphas':
+                    print('Fitted {}: {:.5f}'.format(param, params_w_cov[i]))
+                else:
+                    print('Fitted {}: {:.3f} {}'.format(param, params_w_cov[i], 'GeV' if param in ['mass','width'] else ''))
                 pull = (params_w_cov[i] - self.d_params['pseudodata'][param])
-                print('Pull {}: {:.1f}'.format(param, pull.n/pull.s))
-                print()
+                print('Pull {}: {:.3f}\n'.format(param, pull.n/pull.s))
+
         if self.SM_width:
             width_up = getWidthN3LO(params_w_cov[self.param_names_fit.index('mass')].n + params_w_cov[self.param_names_fit.index('mass')].s)
             width_down = getWidthN3LO(params_w_cov[self.param_names_fit.index('mass')].n - params_w_cov[self.param_names_fit.index('mass')].s)
@@ -224,6 +254,9 @@ class fit:
         xsec_nom = self.getXsecTemplate()
         xsec_pseudodata = self.getXsecTemplate('pseudodata' if not self.SM_width else 'mass_var')
         xsec_fit = self.getXsecParams()
+        if not self.scenario_dict['add_last_ecm']:
+            xsec_nom = xsec_nom[:-1]
+            xsec_fit = xsec_fit[:-1]
         plt.plot(xsec_nom['ecm'],xsec_fit['xsec'],label='Fitted model')
         plt.plot(xsec_nom['ecm'],xsec_nom['xsec'],label='Nominal model', linestyle='--')
         plt.xlabel('Ecm [GeV]')
@@ -271,15 +304,17 @@ class fit:
 
         return 
 
+
 def main():
     parser = argparse.ArgumentParser(description='Specify options')
     parser.add_argument('--pseudo', action='store_true', help='Pseudodata')
     parser.add_argument('--debug', action='store_true', help='Debug mode')
     parser.add_argument('--LSscan', action='store_true', help='Do beam energy resolution scan')
     parser.add_argument('--SMwidth', action='store_true', help='Constrain width to SM value')
+    parser.add_argument('--constrainYukawa', action='store_true', help='Constrain Yukawa coupling in fit')
     args = parser.parse_args()
     
-    f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth)
+    f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa)
     f.initScenario(n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, create_scenario = True)
     #f.initScenario(n_IPs=4, scan_min=342, scan_max=344, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
     
