@@ -277,18 +277,22 @@ class fit:
             min = 1E-6
         l_beam_energy_res = np.arange(min,max+step/2,step)
         d = {var : [] for var in self.param_names}
+        params_to_scan = [param for param in self.param_names if param != 'alphas']
+        if self.SM_width:
+            params_to_scan.remove('width')
+        if self.constrain_Yukawa:
+            params_to_scan.remove('yukawa')
+        print('\nScanning parameters: {}\n'.format(params_to_scan))
+        
         for res in l_beam_energy_res:
             f = copy.deepcopy(self)
             f.beam_energy_res = res
             f.update()
-            f.getFitResults(printout=False)
-            for i, param in enumerate(self.param_names):
-                if param == 'alphas':
-                    continue
-                d[param].append(f.getFitResults(printout=False)[i].s)
-        for param in self.param_names:
-            if param == 'alphas':
-                continue
+            fit_results = f.getFitResults(printout=False)
+            for i, param in enumerate(params_to_scan):
+                d[param].append(fit_results[i].s)
+
+        for param in params_to_scan:
             plt.plot(l_beam_energy_res, d[param])
             plt.title('Stat uncertainty in top {} vs beam energy resolution'.format(param))
             plt.xlabel('Beam energy resolution per beam [%]')
