@@ -11,7 +11,7 @@ orders = ['NLO', 'NNLO', 'N3LO']
 #schemes = ['MS', 'PS']
 schemes = ['PS']
 
-plotdir = 'plots_ISR'
+plotdir = 'plots/plots_ISR'
 
 mass_scan = {
     'PS': ['170.5', '171.5', '172.5'],
@@ -261,7 +261,7 @@ def compareWidthYukawaAlphaS(order,scheme):
     plt.legend()
     plt.ylim(0.95,1.05)
     addTitles(plt,order,ratio=True)
-    plt.grid(True)
+    #plt.grid(True)
     plt.savefig('{}/plot_{}_{}_yukawa_alphaS_ratio.png'.format(plotdir,order, scheme))
     plt.clf()
 
