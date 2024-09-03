@@ -10,7 +10,7 @@ beam_energy_res = 0.23 # per beam, in percent
 orders = ['N3LO']
 schemes = ['PS']
 
-plotdir = 'plots_ISR_morphing'
+plotdir = 'plots/plots_ISR_morphing'
 
 central_mass = {
     'PS': '171.50',
@@ -27,19 +27,21 @@ def get_Xsec(order,scheme, mass='', yukawa='', width = '', alphaS='Nominal'):
     ecms = [round(ecm,1) for ecm in np.arange(340.0, 350.0, 0.1)]
     xsec = []
     for ecm in ecms:
-        f = open('output_ISR/small_grid_mass_width/{}_scan_{}_ISR_ecm{:.1f}_mass{}_width{}_yukawa{}_as{}.txt'.format(order,scheme,ecm,mass,width,yukawa,alphaS), 'r')
+        f = open('zz_old/output_ISR/small_grid_mass_width/{}_scan_{}_ISR_ecm{:.1f}_mass{}_width{}_yukawa{}_as{}.txt'.format(order,scheme,ecm,mass,width,yukawa,alphaS), 'r')
         xsec.append(float(f.readlines()[0].split(',')[-1]))
     df = pd.DataFrame({'ecm': ecms, 'xsec': xsec})
 
     return df if not smearing else convoluteXsecGauss(df,beam_energy_res)
 
 
-def addTitles(plt,order,ratio=False):
+def addTitles(order,ratio=False):
     plt.legend()
     plt.xlabel('$\sqrt{s}$ [GeV]')
-    plt.ylabel('WbWb cross section {}'.format('ratio' if ratio else '[pb]'))
+    plt.ylabel('WbWb cross section ratio')
     plt.title('QQbar_Threshold {}'.format(order))
     return
+
+
 
 def main():
     if not os.path.exists(plotdir):
@@ -68,13 +70,13 @@ def main():
             plt.plot(df['ecm'],df['xsec']/df_nominal['xsec'],label='varied')
             plt.plot(df['ecm'],df_morhp['xsec']/df_nominal['xsec'],label='nominal morphed', linestyle='--')
             plt.plot(df['ecm'],df_nominal['xsec']/df_nominal['xsec'],label='nominal')
-            addTitles(plt,order)
+            addTitles(order)
             plt.savefig('{}/{}_{}_mass{}_width{}.png'.format(plotdir,order,scheme,mass,width))
             plt.close()
 
             ratio = df_morhp['xsec'] / df['xsec']
             plt.plot(df['ecm'], ratio, label='ratio')
-            addTitles(plt, order, ratio=True)
+            addTitles(order, ratio=True)
             plt.savefig('{}/{}_{}_mass{}_width{}_ratio.png'.format(plotdir, order, scheme, mass, width))
             plt.close()
 
@@ -89,7 +91,7 @@ def main():
     plt.plot(df_mass_up['ecm'], ratio, label='mass +30 MeV')
     plt.plot(df_mass_intermediate['ecm'], ratio_interm, label='mass +20 MeV')
     plt.plot(df_mass_up['ecm'], ratio_interm_morph, label='morphed', linestyle='--')
-    addTitles(plt, order, ratio=True)
+    addTitles(order, ratio=True)
     plt.savefig('{}/{}_{}_mass_up_ratio.png'.format(plotdir, order, scheme))
     plt.close()
 
@@ -104,7 +106,7 @@ def main():
     plt.plot(df_width_up['ecm'], ratio, label='width 50 MeV')
     plt.plot(df_width_intermediate['ecm'], ratio_interm, label='width 30 MeV')
     plt.plot(df_width_up['ecm'], ratio_interm_morph, label='morphed', linestyle='--')
-    addTitles(plt, order, ratio=True)
+    addTitles(order, ratio=True)
     plt.savefig('{}/{}_{}_width_up_ratio.png'.format(plotdir, order, scheme))
     plt.close()
 

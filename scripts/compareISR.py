@@ -9,7 +9,7 @@ import scipy.ndimage
 orders = ['NLO', 'NNLO', 'N3LO']
 schemes = ['PS']
 
-plotdir = 'plots_ISR'
+plotdir = 'plots/plots_ISR'
 
 mass_scan = {
     'PS': ['170.5', '171.5', '172.5'],
@@ -29,7 +29,7 @@ def get_Xsec_ISR(order,scheme, mass='', yukawa='', width = '', alphaS='Nominal')
     ecms = [round(ecm,1) for ecm in np.arange(335.0, 360.0, 0.1)]
     xsec = []
     for ecm in ecms:
-        f = open('output_ISR/{}_scan_{}_ISR_ecm{:.1f}_mass{}_width{}_yukawa{}_as{}'.format(order,scheme,ecm,mass,width,yukawa,alphaS), 'r')
+        f = open('zz_old/output_ISR/no_grid/{}_scan_{}_ISR_ecm{:.1f}_mass{}_width{}_yukawa{}_as{}'.format(order,scheme,ecm,mass,width,yukawa,alphaS), 'r')
         xsec.append(float(f.readlines()[0].split(',')[-1]))
     df = pd.DataFrame({'ecm': ecms, 'xsec': xsec})
     return df
@@ -42,7 +42,7 @@ def get_Xsec(order,scheme, mass='', yukawa='', width = '', alphaS='Nominal'):
     ecms = []
 
     xsec = []
-    f = open('output/{}_scan_{}_noISR_mass{}_width{}_yukawa{}_as{}.txt'.format(order,scheme,mass,width,yukawa,alphaS), 'r')
+    f = open('zz_old/output/{}_scan_{}_noISR_mass{}_width{}_yukawa{}_as{}.txt'.format(order,scheme,mass,width,yukawa,alphaS), 'r')
     for l in f.read().splitlines():
         ecm, x = l.split(',')
         ecms.append(float(ecm))
@@ -66,7 +66,7 @@ def convoluteXsecGauss(df_xsec, sqrt_res):
     if not (pitches == pitch).all():
         raise ValueError('Non-uniform pitch')
     _ , max_ecm = getMaxXsec(df_xsec)
-    sigma = max_ecm *sqrt_res*(2**.5)/100/pitch
+    sigma = max_ecm *sqrt_res/(2**.5)/100/pitch
     xsec_smear = scipy.ndimage.gaussian_filter1d(df_xsec['xsec'], sigma)
     df_xsec_smear = pd.DataFrame({'ecm': df_xsec['ecm'], 'xsec': xsec_smear})
     return df_xsec_smear
@@ -82,9 +82,10 @@ def main():
     df_ISR_conv = convoluteXsecGauss(df_ISR, beam_energy_res)
     plt.plot(df['ecm'], df['xsec'], label='N3LO')
     plt.plot(df_ISR['ecm'], df_ISR['xsec'], label='N3LO+ISR')
-    plt.plot(df_ISR_conv['ecm'], df_ISR_conv['xsec'], label='N3LO+ISR+LS')
+    plt.plot(df_ISR_conv['ecm'], df_ISR_conv['xsec'], label='N3LO+ISR+BES')
     plt.legend()
-    plt.xlabel('ECM [GeV]')
+    plt.xlabel('$\sqrt{s}$ [GeV]')
+    plt.xlim(339, 352)
     plt.ylabel('Cross section [pb]')
     plt.title('N3LO vs N3LO+ISR')
     plt.savefig('{}/ISR_comparison_N3LO.png'.format(plotdir))
@@ -95,7 +96,7 @@ def main():
     plt.plot(df['ecm'], df_ISR['xsec'] / df['xsec'], label='N3LO+ISR / N3LO')
     plt.axhline(y=1, color='r', linestyle='--')
     plt.legend()
-    plt.xlabel('ECM [GeV]')
+    plt.xlabel('$\sqrt{s}$ [GeV]')
     plt.ylabel('Ratio')
     plt.title('Ratio of N3LO+ISR to N3LO')
     plt.savefig('{}/ISR_ratio_N3LO.png'.format(plotdir))

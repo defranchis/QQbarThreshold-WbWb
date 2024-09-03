@@ -31,7 +31,7 @@ def get_Xsec(order,scheme, mass='', yukawa='', width = '', alphaS='Nominal'):
     ecms = [round(ecm,1) for ecm in np.arange(335.0, 360.0, 0.1)]
     xsec = []
     for ecm in ecms:
-        f = open('output_ISR/no_grid/{}_scan_{}_ISR_ecm{:.1f}_mass{}_width{}_yukawa{}_as{}'.format(order,scheme,ecm,mass,width,yukawa,alphaS), 'r')
+        f = open('zz_old/output_ISR/no_grid/{}_scan_{}_ISR_ecm{:.1f}_mass{}_width{}_yukawa{}_as{}'.format(order,scheme,ecm,mass,width,yukawa,alphaS), 'r')
         xsec.append(float(f.readlines()[0].split(',')[-1]))
     df = pd.DataFrame({'ecm': ecms, 'xsec': xsec})
 

@@ -32,8 +32,8 @@ def readScan(mass_scale=80.,width_scale=350.):
     return df
 
 def savePlot(plt, dir, filename):
-    plt.xlabel('ecm [GeV]')
-    plt.ylabel('Cross Section')
+    plt.xlabel('$\sqrt{s}$ [GeV]')
+    plt.ylabel('Cross Section' if 'ratio' not in filename else 'Ratio to $\mu$ = {} GeV'.format(80 if 'mass' in filename else 350))
     plt.legend()
     plt.savefig(dir + '/' + filename)
     plt.clf()
@@ -45,7 +45,7 @@ def main():
 
     for mass_scale in np.linspace(50., 350., 11):
         df = readScan(mass_scale=mass_scale)
-        plt.plot(df['ecm'], df['xsec'], label=f"Mass Scale: {mass_scale}")
+        plt.plot(df['ecm'], df['xsec'], label='$\mu_m$ = {:.0f} GeV'.format(mass_scale))
     savePlot(plt, outdir, 'scale_vars_mass.png')
 
     for width_scale in np.linspace(50., 350., 11):
@@ -55,6 +55,7 @@ def main():
     
     # Plot ratios
     for mass_scale in np.linspace(50., 350., 11):
+        if mass_scale < 70.: continue #to remove
         df_nom = readScan()
         df = readScan(mass_scale=mass_scale)
         ecm_max = list(df_nom['ecm'])[-2]
@@ -64,13 +65,20 @@ def main():
             continue 
         df_nom = df_nom[df_nom['ecm'] <= ecm_max]
         ratio = df['xsec'] / df_nom['xsec']
-        plt.plot(df['ecm'], ratio, label=f"Mass Scale: {mass_scale}")
+        plt.plot(df['ecm'], ratio, label='$\mu_m$ = {:.0f} GeV'.format(mass_scale))
+        plt.title('Mass scale variations QQbarThreshold N3LO')
     savePlot(plt, outdir, 'scale_vars_mass_ratio.png')
 
+  
+    ecm_max = 350
     for width_scale in np.linspace(50., 350., 11):
+        if width_scale < 70.: continue #to remove
         df = readScan(width_scale=width_scale)
+        df = df[df['ecm'] <= ecm_max]
+        df_nom = df_nom[df_nom['ecm'] <= ecm_max]
         ratio = df['xsec'] / df_nom['xsec']
-        plt.plot(df['ecm'], ratio, label=f"Width Scale: {width_scale}")
+        plt.plot(df['ecm'], ratio, label='$\mu_{\Gamma}$ '+'= {:.0f} GeV'.format(width_scale))
+        plt.title('Width scale variations QQbarThreshold N3LO')
     savePlot(plt, outdir, 'scale_vars_width_ratio.png')
     
 
