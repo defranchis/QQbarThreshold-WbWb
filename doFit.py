@@ -11,7 +11,7 @@ from xsec_calculator.parameter_def import parameters # type: ignore
 
 plot_dir = 'plots/fit'
 
-uncert_yukawa_default = 0.01 # only when parameter is constrained. hardcoded for now
+uncert_yukawa_default = 0.03 # only when parameter is constrained. hardcoded for now
 
 def getWidthN2LO(mt_PS, mu = 80.): # TODO: not yet used
     return scheme_conversion.calculate_width(mt_PS, mu)
@@ -20,7 +20,7 @@ def formFileTag(mass, width, yukawa, alphas):
     return 'mass{:.2f}_width{:.2f}_yukawa{:.2f}_asVar{:.4f}'.format(mass,width,yukawa,alphas)
 
 class fit:
-    def __init__(self, beam_energy_res = 0.221, smearXsec = True, SM_width = False, input_dir= 'output', debug = False, asimov = True, constrain_Yukawa = False) -> None:
+    def __init__(self, beam_energy_res = 0.23, smearXsec = True, SM_width = False, input_dir= 'output', debug = False, asimov = True, constrain_Yukawa = False) -> None:
         self.input_dir = input_dir
         self.d_params = parameters().getDict()
         self.param_names = list(self.d_params['nominal'].keys())
@@ -262,7 +262,7 @@ class fit:
         plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario/self.getXsecScenario(xsec_nom)['xsec'], yerr=self.unc_pseudodata_scenario/self.getXsecScenario(xsec_nom)['xsec'], 
                     fmt='.', label = 'Pseudo data' if not self.asimov else 'Asimov data')
         plt.plot(xsec_nom['ecm'],xsec_fit['xsec']/xsec_nom['xsec'], label='fitted cross section')
-        plt.fill_between(xsec_nom['ecm'], (xsec_fit['xsec']-xsec_fit['unc'])/xsec_nom['xsec'], (xsec_fit['xsec']+xsec_fit['unc'])/xsec_nom['xsec'], alpha=0.5, label='uncertainty')
+        plt.fill_between(xsec_nom['ecm'], (xsec_fit['xsec']-xsec_fit['unc'])/xsec_nom['xsec'], (xsec_fit['xsec']+xsec_fit['unc'])/xsec_nom['xsec'], alpha=0.5, label='param. uncertainty')
         plt.plot(xsec_pseudodata['ecm'], xsec_pseudodata['xsec']/xsec_nom['xsec'], label='pseudodata cross section' if not self.asimov else 'Asimov cross section', linestyle='--')
         plt.axhline(1, color='black', linestyle='--', label='nominal xsec')
         plt.xlabel('Ecm [GeV]')
@@ -293,8 +293,10 @@ class fit:
                 d[param].append(fit_results[i].s)
 
         for param in params_to_scan:
-            plt.plot(l_beam_energy_res, d[param])
-            plt.title('Stat uncertainty in top {} vs beam energy resolution'.format(param))
+            plt.plot(l_beam_energy_res, d[param], 'b-', label='Stat uncertainty in top {}'.format(param))
+            plt.plot(self.beam_energy_res, self.getFitResults(printout=False)[self.param_names.index(param)].s, 'ro', label='nominal (resol/beam = {:.3f}%)'.format(self.beam_energy_res))
+            plt.legend()
+            plt.title('top {}'.format(param))
             plt.xlabel('Beam energy resolution per beam [%]')
             plt.ylabel('Stat uncertainty in top {} [MeV]'.format(param))
             plt.savefig(plot_dir + '/uncert_{}_vs_beam_energy_res.png'.format(param))
@@ -313,7 +315,8 @@ def main():
     args = parser.parse_args()
     
     f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa)
-    f.initScenario(n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, create_scenario = True)
+    f.initScenario(n_IPs=4, scan_min=340, scan_max=345, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
+    #f.initScenario(n_IPs=4, scan_min=342, scan_max=345, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
     #f.initScenario(n_IPs=4, scan_min=342, scan_max=344, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
     
     
@@ -321,7 +324,7 @@ def main():
     f.getFitResults()
     f.plotFitScenario()
     if args.LSscan:
-        f.doLSscan(0,0.3,0.01)
+        f.doLSscan(0,0.5,0.01)
 
 
 
