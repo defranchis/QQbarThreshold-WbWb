@@ -19,7 +19,7 @@ def convoluteXsecGauss(df_xsec, sqrt_res):
     if not (pitches == pitch).all():
         raise ValueError('Non-uniform pitch')
     _ , max_ecm = getMaxXsec(df_xsec)
-    sigma = max_ecm *sqrt_res*(2**.5)/100/pitch
+    sigma = max_ecm *sqrt_res/(2**.5)/100/pitch
     xsec_smear = scipy.ndimage.gaussian_filter1d(df_xsec['xsec'], sigma)
     df_xsec_smear = pd.DataFrame({'ecm': df_xsec['ecm'], 'xsec': xsec_smear})
     return df_xsec_smear
