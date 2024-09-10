@@ -1,3 +1,4 @@
+import numpy as np
 
 class parameters:
     def __init__(self):
@@ -16,6 +17,7 @@ class parameters:
         self.yukawa_pseudo = 0.05
         self.alphas_pseudo = -0.0001
         self.params = ['mass','width','yukawa','alphas']
+        self.scale_vars = [round(scale,1) for scale in np.arange(50., 351., 10.)]
         self.create_dict()
 
     def formDict(self, var):

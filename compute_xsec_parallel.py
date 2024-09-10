@@ -21,10 +21,10 @@ class XsecCalculator:
         with multiprocessing.Pool(processes=self.n_cores) as pool:
             processes = [pool.apply_async(self.calculate_xsec, args=(key,)) for key in self.d]
             if self.doScaleVars:
-                for mass_scale in np.linspace(50., 350., 11):
+                for mass_scale in self.params.scale_vars:
                     print(f"Calculating cross section for mass scale {mass_scale}...")
                     processes.append(pool.apply_async(self.calculate_xsec, args=(), kwds={'key':'nominal','mass_scale': mass_scale}))
-                for width_scale in np.linspace(50., 350., 11):
+                for width_scale in self.params.scale_vars:
                     print(f"Calculating cross section for width scale {width_scale}...")
                     processes.append(pool.apply_async(self.calculate_xsec, args=(), kwds={'key':'nominal','width_scale': width_scale}))
             pool.close()
