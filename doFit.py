@@ -49,7 +49,6 @@ class fit:
         if self.debug:
             print('Reading cross sections')
         self.readCrossSections()
-        self.l_ecm = self.xsec_dict[self.l_tags[0]]['ecm'].astype(str).tolist()
         if self.debug:
             print('Smearing cross sections')
         self.smearCrossSections()
@@ -64,7 +63,7 @@ class fit:
             print('Updating object')
         self.smearCrossSections()
         self.morphCrossSections()
-        self.createScenario(**self.scenario_dict)
+        self.createScenario(**self.scenario_dict, init_vars = False)
         self.initMinuit()
         self.fitParameters()
 
@@ -80,16 +79,16 @@ class fit:
         mt_pole = mt_PS + scheme_conversion.calculate_mt_Pole(mt_ref, mu) - mt_ref # constant
         return 1.3148 + 0.0277*(mt_pole-172.69) + fit_param*0.005
 
-    def formFileName(self, tag, scaleM = None, scaleW = None):
+    def formFileName(self, tag, scaleM, scaleW):
+        infile_tag = formFileTag(*[self.d_params[tag][p] for p in self.param_names])
+        return 'N3LO_scan_PS_ISR_{}_scaleM{:.1f}_scaleW{:.1f}.txt'.format(infile_tag, scaleM, scaleW)
+
+    def readScanPerTag(self, tag, scaleM = None, scaleW = None):
         if scaleM is None:
             scaleM = self.parameters.mass_scale
         if scaleW is None:
             scaleW = self.parameters.width_scale
-        infile_tag = formFileTag(*[self.d_params[tag][p] for p in self.param_names])
-        return 'N3LO_scan_PS_ISR_{}_scaleM{:.1f}_scaleW{:.1f}.txt'.format(infile_tag, scaleM, scaleW)
-
-    def readScanPerTag(self,tag):
-        filename = self.input_dir + '/' + self.formFileName(tag)
+        filename = self.input_dir + '/' + self.formFileName(tag, scaleM, scaleW)
         if not os.path.exists(filename):
             raise ValueError('File {} not found'.format(filename))
         f = open(filename, 'r')
@@ -102,6 +101,22 @@ class fit:
         for tag in self.l_tags:
             self.xsec_dict[tag] = self.readScanPerTag(tag)
 
+        self.l_ecm = self.xsec_dict[self.l_tags[0]]['ecm'].astype(str).tolist()
+
+        for scaleM in self.parameters.scale_vars:
+            xsec = self.readScanPerTag(tag='nominal', scaleM=scaleM)
+            if len(xsec) < len(self.l_ecm)-1:
+                print('Warning: length of xsec for scaleM = {} is not equal to nominal. Skipping'.format(scaleM))
+            else:
+                self.xsec_dict['scaleM_{:.1f}'.format(scaleM)] = xsec
+
+        for scaleW in self.parameters.scale_vars:
+            xsec = self.readScanPerTag(tag='nominal', scaleW=scaleW)
+            if len(xsec) < len(self.l_ecm)-1:
+                print('Warning: length of xsec for scaleW = {} is not equal to nominal. Skipping'.format(scaleW))
+            else:
+                self.xsec_dict['scaleW_{:.1f}'.format(scaleW)] = xsec
+
     def smearCrossSection(self,xsec):
         if not self.smearXsec:
             return xsec
@@ -113,7 +128,7 @@ class fit:
 
     def smearCrossSections(self):
         self.xsec_dict_smeared = {}
-        for tag in self.l_tags:
+        for tag in self.xsec_dict.keys():
             self.xsec_dict_smeared[tag] = self.smearCrossSection(self.xsec_dict[tag])
 
     def morphCrossSection(self,param):
@@ -159,7 +174,7 @@ class fit:
             self.createScenario(**self.scenario_dict)
     
 
-    def createScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True):
+    def createScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, init_vars = True):
         if self.debug:
             print('Creating threshold scan scenario')
         if not n_IPs in [2,4]:
@@ -178,6 +193,8 @@ class fit:
                 raise ValueError('Invalid scenario key: {}'.format(ecm))
         self.scenario = dict(sorted(scenario_dict.items(), key=lambda x: float(x[0])))
         self.xsec_scenario = self.getXsecScenario(self.getXsecTemplate()) # just nominal for now
+        if init_vars:
+            self.scale_var_scenario = np.ones(len(self.xsec_scenario['xsec']))
         self.pseudo_data_scenario = np.array(self.getXsecScenario(self.getXsecTemplate(self.pseudodata_tag))['xsec'])
         self.unc_pseudodata_scenario = (np.array(self.pseudo_data_scenario)/np.array(list(self.scenario.values())))**.5
         if not self.asimov:
@@ -195,6 +212,7 @@ class fit:
 
     def chi2(self, params):
         th_xsec = np.array(self.xsec_scenario['xsec'])
+        th_xsec *= self.scale_var_scenario
         prior_width = self.getPhysicalFitParams(params) # can be zero
         for i, param in enumerate(self.param_names):
             th_xsec *= (1 + params[i]*np.array(self.morph_scenario[param]['xsec']))
@@ -316,6 +334,49 @@ class fit:
             plt.clf()
 
         return 
+    
+    def doScaleVarsParam(self, scale_param):
+        if scale_param not in ['mass','width']:
+            raise ValueError('Invalid parameter for scale variations')
+        tag_par = 'scaleM' if scale_param == 'mass' else 'scaleW'
+        nominal_scenario = self.getXsecScenario(self.getXsecTemplate())
+        l_vars = []
+        l_mass = []
+        l_width = []
+        for var in self.parameters.scale_vars:
+            tag = tag_par + '_{:.1f}'.format(var)
+            if not tag in self.xsec_dict.keys():
+                print('Skipping {}'.format(tag))
+                continue
+            l_vars.append(var)
+            variation_scenario = self.getXsecScenario(self.getXsecTemplate(tag))
+            f = copy.deepcopy(self)
+            f.scale_var_scenario = np.array(variation_scenario['xsec'])/np.array(nominal_scenario['xsec'])
+            f.update()
+            fit_results = f.getFitResults(printout=False)
+            l_mass.append(fit_results[self.param_names.index('mass')].n-self.d_params[self.pseudodata_tag]['mass'])
+            l_width.append(fit_results[self.param_names.index('width')].n-self.d_params[self.pseudodata_tag]['width'])
+
+
+        for param in ['mass','width']:
+            l_scan = l_mass if param == 'mass' else l_width
+            plt.plot(l_vars, np.array(l_scan)*1E03, 'b-', label='Shift in fitted top {} [MeV]'.format(param))
+            central_scale = self.parameters.mass_scale if scale_param == 'mass' else self.parameters.width_scale
+            nominal_fit_results = self.getFitResults(printout=False)
+            nominal_shift = (nominal_fit_results[self.param_names.index(param)].n - self.d_params[self.pseudodata_tag][param])*1E03
+            print(param, scale_param, nominal_shift, central_scale)
+            plt.plot(central_scale, nominal_shift, 'ro', label='nominal ({} scale = {:.1f})'.format(scale_param, central_scale))
+            plt.legend()
+            plt.title('top {} vs {} scale'.format(param, scale_param))
+            plt.xlabel('{} scale [GeV]'.format(scale_param))
+            plt.ylabel('Shift in fitted top {} [MeV]'.format(param))
+            plt.savefig(plot_dir + '/uncert_{}_vs_{}_scale.png'.format(param,scale_param))
+            plt.clf()
+                
+    def doScaleVars(self):
+        for param in ['mass','width']:
+            self.doScaleVarsParam(param)
+
 
 
 def main():
@@ -323,6 +384,7 @@ def main():
     parser.add_argument('--pseudo', action='store_true', help='Pseudodata')
     parser.add_argument('--debug', action='store_true', help='Debug mode')
     parser.add_argument('--LSscan', action='store_true', help='Do beam energy resolution scan')
+    parser.add_argument('--scaleVars', action='store_true', help='Do scale variations')
     parser.add_argument('--SMwidth', action='store_true', help='Constrain width to SM value')
     parser.add_argument('--constrainYukawa', action='store_true', help='Constrain Yukawa coupling in fit')
     args = parser.parse_args()
@@ -338,6 +400,8 @@ def main():
     f.plotFitScenario()
     if args.LSscan:
         f.doLSscan(0,0.5,0.01)
+    if args.scaleVars:
+        f.doScaleVars()
 
 
 
