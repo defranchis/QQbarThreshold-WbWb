@@ -16,6 +16,9 @@ uncert_yukawa_default = 0.03 # only when parameter is constrained. hardcoded for
 def formFileTag(mass, width, yukawa, alphas):
     return 'mass{:.2f}_width{:.2f}_yukawa{:.2f}_asVar{:.4f}'.format(mass,width,yukawa,alphas)
 
+def ecmToString(ecm):
+    return '{:.1f}'.format(ecm)
+
 class fit:
     def __init__(self, beam_energy_res = 0.23, smearXsec = True, SM_width = False, input_dir= 'output_full', debug = False, asimov = True, constrain_Yukawa = False) -> None:
         self.input_dir = input_dir
@@ -30,6 +33,7 @@ class fit:
         self.beam_energy_res = beam_energy_res
         self.smearXsec = smearXsec
         self.debug = debug
+        self.last_ecm = 365.0 #hardcoded
 
         if self.debug:
             print('Input directory: {}'.format(self.input_dir))
@@ -101,9 +105,9 @@ class fit:
     def smearCrossSection(self,xsec):
         if not self.smearXsec:
             return xsec
-        xsec_to_smear = xsec[:-1] if self.l_ecm[-1] == '365.0' else xsec
+        xsec_to_smear = xsec[:-1] if self.l_ecm[-1] == ecmToString(self.last_ecm) else xsec
         xsec_smeared = convoluteXsecGauss(xsec_to_smear,self.beam_energy_res)
-        if self.l_ecm[-1] == '365.0':
+        if self.l_ecm[-1] == ecmToString(self.last_ecm):
             xsec_smeared = pd.concat([xsec_smeared, xsec[-1:]])
         return xsec_smeared
 
@@ -145,26 +149,26 @@ class fit:
         xsec_scenario = xsec[[float(ecm) in [float(e) for e in self.scenario.keys()] for ecm in xsec['ecm']]]
         return xsec_scenario
     
-    def initScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, last_ecm = 365.0, create_scenario = True):
+    def initScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, create_scenario = True):
         if self.constrain_Yukawa and add_last_ecm:
             print('\nWarning: constraining Yukawa coupling and adding last ecm is not supported. Setting add_last_ecm to False\n')
             add_last_ecm = False
         self.scenario_dict = {'n_IPs': n_IPs, 'scan_min': scan_min, 'scan_max': scan_max, 'scan_step': scan_step, 'total_lumi': total_lumi,
-                             'last_lumi': last_lumi, 'add_last_ecm': add_last_ecm, 'last_ecm': last_ecm}
+                             'last_lumi': last_lumi, 'add_last_ecm': add_last_ecm}
         if create_scenario:
             self.createScenario(**self.scenario_dict)
     
 
-    def createScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, last_ecm = 365.0):
+    def createScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True):
         if self.debug:
             print('Creating threshold scan scenario')
         if not n_IPs in [2,4]:
             raise ValueError('Invalid number of IPs')
 
-        scenario = ['{:.1f}'.format(float(e)) for e in np.arange(scan_min,scan_max+scan_step/2,scan_step)]
+        scenario = [ecmToString(e) for e in np.arange(scan_min,scan_max+scan_step/2,scan_step)]
         scenario_dict = {k: total_lumi/len(scenario) for k in scenario}
         if add_last_ecm:
-            scenario_dict['{:.1f}'.format(last_ecm)] = last_lumi
+            scenario_dict[ecmToString(self.last_ecm)] = last_lumi
         if n_IPs == 2:
             for k in scenario_dict.keys():
                 scenario_dict[k] = scenario_dict[k]/1.8
