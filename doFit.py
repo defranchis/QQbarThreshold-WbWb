@@ -364,7 +364,6 @@ class fit:
             central_scale = self.parameters.mass_scale if scale_param == 'mass' else self.parameters.width_scale
             nominal_fit_results = self.getFitResults(printout=False)
             nominal_shift = (nominal_fit_results[self.param_names.index(param)].n - self.d_params[self.pseudodata_tag][param])*1E03
-            print(param, scale_param, nominal_shift, central_scale)
             plt.plot(central_scale, nominal_shift, 'ro', label='nominal ({} scale = {:.1f})'.format(scale_param, central_scale))
             plt.legend()
             plt.title('top {} vs {} scale'.format(param, scale_param))
