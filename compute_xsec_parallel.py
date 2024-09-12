@@ -11,9 +11,13 @@ class XsecCalculator:
         self.params = parameters()
         self.d = self.params.getDict()
 
-    def calculate_xsec(self, key, mass_scale=80., width_scale=350.):
+    def calculate_xsec(self, key, mass_scale=None, width_scale=None):
+        if mass_scale is None:
+            mass_scale = self.params.mass_scale
+        if width_scale is None:
+            width_scale = self.params.width_scale
         print(f"Calculating cross section for {key}...")
-        xsec_calc.do_scan(order=3, PS_mass=self.d[key]['mass'], width=self.d[key]['width'], mass_scale=mass_scale, width_scale=width_scale,
+        xsec_calc.do_scan(order=self.params.order, PS_mass=self.d[key]['mass'], width=self.d[key]['width'], mass_scale=mass_scale, width_scale=width_scale,
                           yukawa=self.d[key]['yukawa'], as_var=self.d[key]['alphas'], outdir=self.outdir)
                 
 

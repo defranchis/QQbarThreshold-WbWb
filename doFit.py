@@ -13,16 +13,14 @@ plot_dir = 'plots/fit'
 
 uncert_yukawa_default = 0.03 # only when parameter is constrained. hardcoded for now
 
-def getWidthN2LO(mt_PS, mu = 80.): # TODO: not yet used
-    return scheme_conversion.calculate_width(mt_PS, mu)
-
 def formFileTag(mass, width, yukawa, alphas):
     return 'mass{:.2f}_width{:.2f}_yukawa{:.2f}_asVar{:.4f}'.format(mass,width,yukawa,alphas)
 
 class fit:
-    def __init__(self, beam_energy_res = 0.23, smearXsec = True, SM_width = False, input_dir= 'output', debug = False, asimov = True, constrain_Yukawa = False) -> None:
+    def __init__(self, beam_energy_res = 0.23, smearXsec = True, SM_width = False, input_dir= 'output_full', debug = False, asimov = True, constrain_Yukawa = False) -> None:
         self.input_dir = input_dir
-        self.d_params = parameters().getDict()
+        self.parameters = parameters()
+        self.d_params = self.parameters.getDict()
         self.param_names = list(self.d_params['nominal'].keys())
         self.SM_width = SM_width
         self.pseudodata_tag = 'pseudodata' if not self.SM_width else 'mass_var'
@@ -66,14 +64,25 @@ class fit:
         self.initMinuit()
         self.fitParameters()
 
-    def getWidthN3LO(self, mt_PS, fit_param = 0.):
+    def getWidthN2LO(self,mt_PS, mu = None): # TODO: not yet used
+        if mu is None:
+            mu = self.parameters.mass_scale
+        return scheme_conversion.calculate_width(mt_PS, mu)
+
+    def getWidthN3LO(self, mt_PS, mu = None, fit_param = 0.):
+        if mu is None:
+            mu = self.parameters.mass_scale
         mt_ref = self.d_params['nominal']['mass']
-        mt_pole = mt_PS + scheme_conversion.calculate_mt_Pole(mt_ref) - mt_ref # constant
+        mt_pole = mt_PS + scheme_conversion.calculate_mt_Pole(mt_ref, mu) - mt_ref # constant
         return 1.3148 + 0.0277*(mt_pole-172.69) + fit_param*0.005
 
-    def formFileName(self, tag):
+    def formFileName(self, tag, scaleM = None, scaleW = None):
+        if scaleM is None:
+            scaleM = self.parameters.mass_scale
+        if scaleW is None:
+            scaleW = self.parameters.width_scale
         infile_tag = formFileTag(*[self.d_params[tag][p] for p in self.param_names])
-        return 'N3LO_scan_PS_ISR_{}_scaleM80.0_scaleW350.0.txt'.format(infile_tag)
+        return 'N3LO_scan_PS_ISR_{}_scaleM{:.1f}_scaleW{:.1f}.txt'.format(infile_tag, scaleM, scaleW)
 
     def readScanPerTag(self,tag):
         filename = self.input_dir + '/' + self.formFileName(tag)

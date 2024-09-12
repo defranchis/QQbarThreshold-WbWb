@@ -2,6 +2,7 @@ import numpy as np
 
 class parameters:
     def __init__(self):
+        self.order = 3
         self.mass = 171.5
         self.width = 1.33
         self.yukawa = 1.0

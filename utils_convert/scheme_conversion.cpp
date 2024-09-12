@@ -27,10 +27,10 @@ double calculate_width(double mt_PS, double mu){
 }
 
 PYBIND11_MODULE(scheme_conversion, m) {
-    m.def("calculate_mt_Pole", &calculate_mt_Pole, py::arg("mt_PS"), py::arg("mu") = 80.,
+    m.def("calculate_mt_Pole", &calculate_mt_Pole, py::arg("mt_PS"), py::arg("mu"),
     "A function which converts PS mass to pole mass");
-    m.def("calculate_mt_MS", &calculate_mt_MS, py::arg("mt_PS"), py::arg("mu") = 80.,
+    m.def("calculate_mt_MS", &calculate_mt_MS, py::arg("mt_PS"), py::arg("mu"),
     "A function which converts PS mass to MS mass");
-    m.def("calculate_width_N2LO", &calculate_width, py::arg("mt_PS"), py::arg("mu") = 80.,
+    m.def("calculate_width_N2LO", &calculate_width, py::arg("mt_PS"), py::arg("mu"),
     "A function which calculates top width");
 }
