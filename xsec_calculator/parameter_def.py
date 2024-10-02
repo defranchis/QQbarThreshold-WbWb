@@ -7,8 +7,8 @@ class parameters:
         self.width = 1.33
         self.yukawa = 1.0
         self.alphas = 0.
-        self.mass_scale = 80.0
-        self.width_scale = 350.0
+        self.mass_scale = 170
+        self.width_scale = 170
         self.mass_var = 0.03
         self.width_var = 0.05
         self.yukawa_var = 0.1
