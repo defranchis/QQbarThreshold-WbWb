@@ -20,7 +20,7 @@ def ecmToString(ecm):
     return '{:.1f}'.format(ecm)
 
 class fit:
-    def __init__(self, beam_energy_res = 0.23, smearXsec = True, SM_width = False, input_dir= 'output_full', debug = False, asimov = True, constrain_Yukawa = False) -> None:
+    def __init__(self, beam_energy_res = 0.23, smearXsec = True, SM_width = False, input_dir= 'output_alternative', debug = False, asimov = True, constrain_Yukawa = False) -> None:
         self.input_dir = input_dir
         self.parameters = parameters()
         self.d_params = self.parameters.getDict()
@@ -120,9 +120,10 @@ class fit:
     def smearCrossSection(self,xsec):
         if not self.smearXsec:
             return xsec
-        xsec_to_smear = xsec[:-1] if self.l_ecm[-1] == ecmToString(self.last_ecm) else xsec
+        last_ecm_xsec = ecmToString(float(xsec['ecm'].iloc[-1]))
+        xsec_to_smear = xsec[:-1] if last_ecm_xsec == ecmToString(self.last_ecm) else xsec
         xsec_smeared = convoluteXsecGauss(xsec_to_smear,self.beam_energy_res)
-        if self.l_ecm[-1] == ecmToString(self.last_ecm):
+        if last_ecm_xsec == ecmToString(self.last_ecm):
             xsec_smeared = pd.concat([xsec_smeared, xsec[-1:]])
         return xsec_smeared
 
