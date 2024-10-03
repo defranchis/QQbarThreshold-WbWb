@@ -1,14 +1,14 @@
 import numpy as np
 
 class parameters:
-    def __init__(self):
+    def __init__(self, do_scale_vars):
         self.order = 3
         self.mass = 171.5
         self.width = 1.33
         self.yukawa = 1.0
         self.alphas = 0.
-        self.mass_scale = 170
-        self.width_scale = 170
+        self.mass_scale = 80 if not do_scale_vars else 170
+        self.width_scale = 350 if not do_scale_vars else 170
         self.mass_var = 0.03
         self.width_var = 0.05
         self.yukawa_var = 0.1
@@ -18,7 +18,7 @@ class parameters:
         self.yukawa_pseudo = 0.05
         self.alphas_pseudo = -0.0001
         self.params = ['mass','width','yukawa','alphas']
-        self.scale_vars = [round(scale,1) for scale in np.arange(50., 351., 10.)]
+        self.scale_vars = [round(scale,1) for scale in np.arange(50., 351., 10.)] if do_scale_vars else []
         self.create_dict()
 
     def formDict(self, var):

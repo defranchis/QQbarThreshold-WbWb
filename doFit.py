@@ -20,9 +20,11 @@ def ecmToString(ecm):
     return '{:.1f}'.format(ecm)
 
 class fit:
-    def __init__(self, beam_energy_res = 0.23, smearXsec = True, SM_width = False, input_dir= 'output_alternative', debug = False, asimov = True, constrain_Yukawa = False) -> None:
-        self.input_dir = input_dir
-        self.parameters = parameters()
+    def __init__(self, beam_energy_res = 0.23, smearXsec = True, SM_width = False, input_dir= None, debug = False, asimov = True, constrain_Yukawa = False, read_scale_vars = False) -> None:
+        if input_dir is None:
+            self.input_dir = 'output_full' if not read_scale_vars else 'output_alternative'
+        else: self.input_dir = input_dir
+        self.parameters = parameters(read_scale_vars)
         self.d_params = self.parameters.getDict()
         self.param_names = list(self.d_params['nominal'].keys())
         self.SM_width = SM_width
@@ -33,6 +35,7 @@ class fit:
         self.beam_energy_res = beam_energy_res
         self.smearXsec = smearXsec
         self.debug = debug
+        self.read_scale_vars = read_scale_vars
         self.last_ecm = 365.0 #hardcoded
 
         if self.debug:
@@ -103,6 +106,9 @@ class fit:
 
         self.l_ecm = self.xsec_dict[self.l_tags[0]]['ecm'].astype(str).tolist()
 
+        if not self.read_scale_vars:
+            return
+
         for scaleM in self.parameters.scale_vars:
             xsec = self.readScanPerTag(tag='nominal', scaleM=scaleM)
             if len(xsec) < len(self.l_ecm)-1:
@@ -165,17 +171,17 @@ class fit:
         xsec_scenario = xsec[[float(ecm) in [float(e) for e in self.scenario.keys()] for ecm in xsec['ecm']]]
         return xsec_scenario
     
-    def initScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, create_scenario = True):
+    def initScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, same_evts = False, create_scenario = True):
         if self.constrain_Yukawa and add_last_ecm:
             print('\nWarning: constraining Yukawa coupling and adding last ecm is not supported. Setting add_last_ecm to False\n')
             add_last_ecm = False
         self.scenario_dict = {'n_IPs': n_IPs, 'scan_min': scan_min, 'scan_max': scan_max, 'scan_step': scan_step, 'total_lumi': total_lumi,
-                             'last_lumi': last_lumi, 'add_last_ecm': add_last_ecm}
+                             'last_lumi': last_lumi, 'add_last_ecm': add_last_ecm, 'same_evts': same_evts}
         if create_scenario:
             self.createScenario(**self.scenario_dict)
     
 
-    def createScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, init_vars = True):
+    def createScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, same_evts = False, init_vars = True):
         if self.debug:
             print('Creating threshold scan scenario')
         if not n_IPs in [2,4]:
@@ -185,10 +191,9 @@ class fit:
         scenario_dict = {k: total_lumi/len(scenario) for k in scenario}
         if add_last_ecm:
             scenario_dict[ecmToString(self.last_ecm)] = last_lumi
-        if n_IPs == 2:
-            for k in scenario_dict.keys():
-                scenario_dict[k] = scenario_dict[k]/1.8
-
+        #if n_IPs == 2:
+        #    for k in scenario_dict.keys():
+        #        scenario_dict[k] = scenario_dict[k]/1.8
         for ecm in scenario_dict.keys():
             if ecm not in self.l_ecm:
                 raise ValueError('Invalid scenario key: {}'.format(ecm))
@@ -197,6 +202,9 @@ class fit:
         if init_vars:
             self.scale_var_scenario = np.ones(len(self.xsec_scenario['xsec']))
         self.pseudo_data_scenario = np.array(self.getXsecScenario(self.getXsecTemplate(self.pseudodata_tag))['xsec'])
+        if same_evts:
+            overall_factor = total_lumi / np.sum(np.array([1/sigma for sigma in self.pseudo_data_scenario]))
+            self.scenario = {ecm: overall_factor/sigma for ecm, sigma in zip(self.scenario.keys(), self.pseudo_data_scenario)}
         self.unc_pseudodata_scenario = (np.array(self.pseudo_data_scenario)/np.array(list(self.scenario.values())))**.5
         if not self.asimov:
             self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
@@ -387,10 +395,12 @@ def main():
     parser.add_argument('--scaleVars', action='store_true', help='Do scale variations')
     parser.add_argument('--SMwidth', action='store_true', help='Constrain width to SM value')
     parser.add_argument('--constrainYukawa', action='store_true', help='Constrain Yukawa coupling in fit')
+    parser.add_argument('--lastecm', action='store_true', help='Add last ecm to scenario')
+    parser.add_argument('--sameNevts', action='store_true', help='Same number of events in each ecm')
     args = parser.parse_args()
     
-    f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa)
-    f.initScenario(n_IPs=4, scan_min=340, scan_max=345, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
+    f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa, read_scale_vars = args.scaleVars)
+    f.initScenario(n_IPs=4, scan_min=340, scan_max=343, scan_step=1.5, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = args.lastecm, same_evts = args.sameNevts, create_scenario = True)
     #f.initScenario(n_IPs=4, scan_min=342, scan_max=345, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
     #f.initScenario(n_IPs=4, scan_min=342, scan_max=344, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
     

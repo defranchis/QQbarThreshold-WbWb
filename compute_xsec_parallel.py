@@ -8,7 +8,7 @@ class XsecCalculator:
         self.doScaleVars = doScaleVars
         self.outdir = outdir
         self.n_cores = n_cores
-        self.params = parameters()
+        self.params = parameters(doScaleVars)
         self.d = self.params.getDict()
 
     def calculate_xsec(self, key, mass_scale=None, width_scale=None):
