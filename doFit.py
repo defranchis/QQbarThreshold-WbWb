@@ -278,9 +278,9 @@ class fit:
             print('Correlation matrix:')
             print(self.param_names)
             print(np.round(unc.correlation_matrix(params_w_cov), 2))
-
-        self.fit_results = params_w_cov
-        return 
+        if printout:
+            self.fit_results = params_w_cov
+        return params_w_cov
     
     
     def plotFitScenario(self):
