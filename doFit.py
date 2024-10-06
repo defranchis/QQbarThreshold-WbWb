@@ -311,8 +311,7 @@ class fit:
         plt.axhline(1, color='grey', linestyle='--', label='Reference cross section', linewidth=2)
         plt.xlabel('$\sqrt{s}$ [GeV]')
         plt.ylabel('WbWb total cross section ratio')
-        lumi = self.scenario_dict['total_lumi']/1E03
-        plt.title('Preliminary ({:.0f}'.format(lumi)+' fb$^{-1}$)', loc='right', fontsize=20, style='italic')
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
         plt.legend(loc='lower right', fontsize=20)
         if not self.scenario_dict['add_last_ecm']:
         #if True:
@@ -357,6 +356,27 @@ class fit:
             plt.ylabel('Stat uncertainty in top {} [MeV]'.format(param))
             plt.savefig(plot_dir + '/uncert_{}_vs_beam_energy_res.png'.format(param))
             plt.clf()
+        
+        plt.figure()
+        plt.plot(l_beam_energy_res, np.array(d['mass'])*1E03, 'b-', label='$m_t$ statistical uncertainty', linewidth=2)
+        plt.plot(l_beam_energy_res, np.array(d['width'])*1E03, 'g--', label='$\Gamma_t$ statistical uncertainty',linewidth=2)
+        plt.plot(self.beam_energy_res, self.fit_results[self.param_names.index('mass')].s*1E03, 'ro', label='Nominal $m_t$'.format(self.beam_energy_res), markersize=8)
+        plt.plot(self.beam_energy_res, self.fit_results[self.param_names.index('width')].s*1E03, 's', color = 'orange', label='Nominal $\Gamma_t$'.format(self.beam_energy_res), markersize=7)
+        plt.legend()
+        #plt.title('Preliminary ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20, style='italic')
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+
+        plt.xlabel('Single beam energy resolution [%]')
+        plt.ylabel('Statistical uncertainty [MeV]')
+
+        plt.text(.5, 0.62, 'QQbar_Threshold N3LO', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.5, 0.57, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.5, 0.52, 'FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_beam_energy_res.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_beam_energy_res.pdf')
+
+        plt.clf()
 
         return 
     
