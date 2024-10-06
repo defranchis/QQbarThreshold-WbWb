@@ -3,9 +3,11 @@ import numpy as np
 import pandas as pd
 import os
 from compareISR import convoluteXsecGauss
+import mplhep as hep
+plt.style.use(hep.style.CMS)
 
 smearing = True
-beam_energy_res = 0.221 # per beam, in percent
+beam_energy_res = 0.23 # per beam, in percent
 
 orders = ['NLO', 'NNLO', 'N3LO']
 #schemes = ['MS', 'PS']
@@ -49,18 +51,26 @@ def doPlotScheme(scheme):
     max_ecm = df_reference.loc[df_reference['xsec'] == max_xsec, 'ecm'].values[0]
 
     # Plot the cross section vs energy for different orders
+    linestyles = {'NLO': 'dashed', 'NNLO': 'dashdot', 'N3LO': 'solid'}
     for order in orders:
         df = get_Xsec(order, scheme)
-        plt.plot(df['ecm'], df['xsec'], label=order)
-    plt.axvline(x=max_ecm, color='black', linestyle='dotted',label='peak position')
-    plt.axvline(x=340, color='grey', linestyle='dotted',label='validity region')
-    plt.axvline(x=345, color='grey', linestyle='dotted',label='')
+        plt.plot(df['ecm'], df['xsec'], label=order+' + ISR + BES', linestyle=linestyles[order], linewidth=2)
+    #plt.axvline(x=max_ecm, color='black', linestyle='dotted',label='peak position')
+    plt.axvline(x=340, color='grey', linestyle='dotted',label='NR-QCD validity')
+    plt.axvline(x=344.5, color='grey', linestyle='dotted',label='')
     plt.legend()
 
-    plt.xlabel('Energy')
-    plt.ylabel('Cross Section')
-    plt.title('Cross Section vs Energy')
+    # add text
+    plt.text(359, 0.37, 'QQbar_Threshold', fontsize=23, ha='right')
+    plt.text(359, 0.34, '[JHEP 02 (2018) 125]', fontsize=18, ha='right')
+
+    plt.text(359, 0.27, 'FCC-ee BES', fontsize=21, ha='right')
+
+    plt.xlabel('$\sqrt{s}$ [GeV]')
+    plt.ylabel('WbWb total cross section [pb]')
+    plt.title('Preliminary', fontsize=23, loc='right', fontstyle='italic')
     plt.savefig('{}/plot_{}.png'.format(plotdir,scheme))
+    plt.savefig('{}/plot_{}.pdf'.format(plotdir,scheme))
     plt.clf()
 
     # Plot the ratio of cross sections with respect to the reference order
@@ -222,26 +232,27 @@ def compareWidthYukawaAlphaS(order,scheme):
     plt.savefig('{}/plot_{}_{}_width.png'.format(plotdir,order, scheme))
     plt.clf()
 
+    reference = 345
     for yt in ['0.9', '1.1']:
         df = get_Xsec(order, scheme, '', yt)
-        #df['ecm'] -= max_ecm
+        df['ecm'] -= reference
         ratio = df['xsec'] / df_nominal['xsec']
-        plt.plot(df['ecm'], ratio, label='Yukawa +{:.0f}%'.format((float(yt)-1)*100) if float(yt) > 1 else '', color = 'blue', linestyle='dashed' if float(yt) < 1 else 'solid')  
+        plt.plot(df['ecm'], ratio, label='$y_t \pm {:.0f}\%$'.format((float(yt)-1)*100) if float(yt) > 1 else '', color = 'blue', linestyle='dashed' if float(yt) < 1 else 'solid', linewidth=2)  
     for alphaS in ['Up', 'Down']:
         df = get_Xsec(order, scheme, width='', yukawa='', alphaS=alphaS)
-        #df['ecm'] -= max_ecm
+        df['ecm'] -= reference
         ratio = df['xsec'] / df_nominal['xsec']
-        plt.plot(df['ecm'], ratio, label='aS + 0.0002 (from Z)' if alphaS=='Up' else '', color='orange', linestyle='dashed' if alphaS == 'Down' else 'solid')
+        plt.plot(df['ecm'], ratio, label=r'$\alpha_S \pm 0.0002$' if alphaS=='Up' else '', color='orange', linestyle='dashed' if alphaS == 'Down' else 'solid', linewidth=2)
     for width in ['1.28', '1.38']:
         df = get_Xsec(order, scheme, width=width)
-        #df['ecm'] -= max_ecm
+        df['ecm'] -= reference
         ratio = df['xsec'] / df_nominal['xsec']
-        plt.plot(df['ecm'], ratio, label=f'Width + 50 MeV' if float(width) > 1.33 else '', color='red', linestyle='dashed' if float(width) < 1.33 else 'solid')
+        plt.plot(df['ecm'], ratio, label=r'$\Gamma_t \pm 50~MeV$' if float(width) > 1.33 else '', color='red', linestyle='dashed' if float(width) < 1.33 else 'solid', linewidth=2)
     for mass in ['{:.2f}'.format(float(central_mass[scheme])+0.03), '{:.2f}'.format(float(central_mass[scheme])-0.03)]:
         df = get_Xsec(order, scheme, mass=mass)
-        #df['ecm'] -= max_ecm
+        df['ecm'] -= reference
         ratio = df['xsec'] / df_nominal['xsec']
-        plt.plot(df['ecm'], ratio, label='mt +{:.0f} MeV'.format((float(mass)-float(central_mass[scheme]))*1000) if float(mass) > float(central_mass[scheme]) else '', color='green', linestyle='dashed' if float(mass) < float(central_mass[scheme]) else 'solid')
+        plt.plot(df['ecm'], ratio, label='$m_t \pm {:.0f}~MeV$'.format((float(mass)-float(central_mass[scheme]))*1000) if float(mass) > float(central_mass[scheme]) else '', color='green', linestyle='dashed' if float(mass) < float(central_mass[scheme]) else 'solid', linewidth=2)
         if float(mass) > float(central_mass[scheme]):
             min_ratio = ratio.min()
             min_ratio_ecm = df.loc[ratio == min_ratio, 'ecm'].values[0]
@@ -252,25 +263,32 @@ def compareWidthYukawaAlphaS(order,scheme):
     #plt.axvline(x=340-max_ecm, color='grey', linestyle='dotted',label='{} validity region'.format(order))
     #plt.axvline(x=345-max_ecm, color='grey', linestyle='dotted',label='')
 
-    plt.axvline(x=max_ecm, color='black', linestyle='dotted',label='$\sqrt{s}$'+'={:.1f} GeV (peak)'.format(max_ecm))
-    plt.axvline(x=340, color='grey', linestyle='dotted',label='{} validity region'.format(order))
-    plt.axvline(x=345, color='grey', linestyle='dotted',label='')
+    #plt.axvline(x=max_ecm, color='black', linestyle='dotted',label='$\sqrt{s}$'+'={:.1f} GeV (peak)'.format(max_ecm))
+    plt.axvline(x=340-reference, color='grey', linestyle='dotted',label='NR-QCD validity')
+    plt.axvline(x=344.5-reference, color='grey', linestyle='dotted',label='')
+
+
 
     
-    plt.xticks(np.arange(int(df_nominal['ecm'].min())-2, int(df_nominal['ecm'].max())+3, 2))
+    plt.xticks(np.arange(int(df_nominal['ecm'].min())-2-reference, int(df_nominal['ecm'].max())+2-reference, 2))
     plt.legend()
     plt.ylim(0.95,1.05)
     addTitles(plt,order,ratio=True)
+    plt.text(0.95, 0.85, 'QQbar_Threshold {}'.format(order), fontsize=23, transform=plt.gca().transAxes, ha='right')
+    plt.text(0.95, 0.81, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+    plt.text(0.95, 0.75, 'FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
     #plt.grid(True)
     plt.savefig('{}/plot_{}_{}_yukawa_alphaS_ratio.png'.format(plotdir,order, scheme))
+    if order == 'N3LO' and scheme == 'PS':
+        plt.savefig('{}/plot_{}_{}_yukawa_alphaS_ratio.pdf'.format(plotdir,order, scheme))
     plt.clf()
 
 def addTitles(plt,order,ratio=False):
-    plt.legend()
+    plt.legend(loc='lower right')
     #plt.xlabel('$\sqrt{s} - m_{res}$ [GeV]')
-    plt.xlabel('$\sqrt{s}$ [GeV]')
-    plt.ylabel('WbWb cross section {}'.format('ratio' if ratio else '[pb]'))
-    plt.title('QQbar_Threshold {}'.format(order))
+    plt.xlabel('$\sqrt{s}$ - 345 GeV [GeV]')
+    plt.ylabel('WbWb total cross section {}'.format('ratio' if ratio else '[pb]'))
+    plt.title('Preliminary', fontsize=23, loc='right', fontstyle='italic')
     return
 
 def main():
