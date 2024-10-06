@@ -6,6 +6,10 @@ import os, sys
 import numpy as np
 import matplotlib.pyplot as plt # type: ignore
 
+import mplhep as hep # type: ignore
+plt.style.use(hep.style.CMS)
+
+
 sys.path.append(os.path.abspath(os.getcwd()))
 from doFit import formFileTag
 from xsec_calculator.parameter_def import parameters
@@ -13,7 +17,8 @@ from xsec_calculator.parameter_def import parameters
 input_dir = 'output_scale_vars'
 outdir = 'plots/scale_vars'
 
-d_params = parameters().getDict()
+
+d_params = parameters(do_scale_vars=True).getDict()
 
 def formFileName(mass_scale, width_scale):
         param_names = list(d_params['nominal'].keys())
@@ -29,13 +34,17 @@ def readScan(mass_scale=80.,width_scale=350.):
     f = open(filename, 'r')
     df = pd.read_csv(f, header=None, names=['ecm','xsec'])
     f.close()
-    return df
+    return df 
 
-def savePlot(plt, dir, filename):
+def savePlot(plt, dir, filename, pdf=False):
     plt.xlabel('$\sqrt{s}$ [GeV]')
-    plt.ylabel('Cross Section' if 'ratio' not in filename else 'Ratio to $\mu$ = {} GeV'.format(80 if 'mass' in filename else 350))
-    plt.legend()
+    plt.ylabel('Cross Section' if 'ratio' not in filename else 'Ratio to $\mu_{}$ = {} GeV'.format('m' if 'mass' in filename else '\Gamma', 80 if 'mass' in filename else 350))
+    plt.legend(loc='best')
+    plt.title('Preliminary', fontsize=23, loc='right', fontstyle='italic')
+
     plt.savefig(dir + '/' + filename)
+    if pdf:
+        plt.savefig(dir + '/' + filename.replace('.png','.pdf'))
     plt.clf()
 
 def main():
@@ -66,8 +75,13 @@ def main():
         df_nom = df_nom[df_nom['ecm'] <= ecm_max]
         ratio = df['xsec'] / df_nom['xsec']
         plt.plot(df['ecm'], ratio, label='$\mu_m$ = {:.0f} GeV'.format(mass_scale))
-        plt.title('Mass scale variations QQbarThreshold N3LO')
-    savePlot(plt, outdir, 'scale_vars_mass_ratio.png')
+
+    plt.text(.49, 0.9, 'QQbar_Threshold N3LO', fontsize=23, transform=plt.gca().transAxes, ha='right')
+    plt.text(.49, 0.85, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+    savePlot(plt, outdir, 'scale_vars_mass_ratio.png', pdf=True)
+
+
+
 
   
     ecm_max = 350
@@ -78,8 +92,9 @@ def main():
         df_nom = df_nom[df_nom['ecm'] <= ecm_max]
         ratio = df['xsec'] / df_nom['xsec']
         plt.plot(df['ecm'], ratio, label='$\mu_{\Gamma}$ '+'= {:.0f} GeV'.format(width_scale))
-        plt.title('Width scale variations QQbarThreshold N3LO')
-    savePlot(plt, outdir, 'scale_vars_width_ratio.png')
+    plt.text(.57, 0.1, 'QQbar_Threshold N3LO', fontsize=23, transform=plt.gca().transAxes, ha='right')
+    plt.text(.57, 0.05, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+    savePlot(plt, outdir, 'scale_vars_width_ratio.png', pdf=True)
     
 
 if __name__ == '__main__':
