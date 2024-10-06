@@ -61,10 +61,9 @@ def doPlotScheme(scheme):
     plt.legend()
 
     # add text
-    plt.text(359, 0.37, 'QQbar_Threshold', fontsize=23, ha='right')
-    plt.text(359, 0.34, '[JHEP 02 (2018) 125]', fontsize=18, ha='right')
-
-    plt.text(359, 0.27, 'FCC-ee BES', fontsize=21, ha='right')
+    plt.text(.95, 0.47, 'QQbar_Threshold', fontsize=23, transform=plt.gca().transAxes, ha='right')
+    plt.text(.95, 0.43, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+    plt.text(.95, 0.37, 'FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
 
     plt.xlabel('$\sqrt{s}$ [GeV]')
     plt.ylabel('WbWb total cross section [pb]')
