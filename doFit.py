@@ -363,9 +363,7 @@ class fit:
         plt.plot(self.beam_energy_res, self.fit_results[self.param_names.index('mass')].s*1E03, 'ro', label='Nominal $m_t$'.format(self.beam_energy_res), markersize=8)
         plt.plot(self.beam_energy_res, self.fit_results[self.param_names.index('width')].s*1E03, 's', color = 'orange', label='Nominal $\Gamma_t$'.format(self.beam_energy_res), markersize=7)
         plt.legend()
-        #plt.title('Preliminary ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20, style='italic')
         plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-
         plt.xlabel('Single beam energy resolution [%]')
         plt.ylabel('Statistical uncertainty [MeV]')
 
