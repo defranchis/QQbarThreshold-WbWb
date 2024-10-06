@@ -38,7 +38,7 @@ def readScan(mass_scale=80.,width_scale=350.):
 
 def savePlot(plt, dir, filename, pdf=False):
     plt.xlabel('$\sqrt{s}$ [GeV]')
-    plt.ylabel('Cross Section' if 'ratio' not in filename else 'Ratio to $\mu_{}$ = {} GeV'.format('m' if 'mass' in filename else '\Gamma', 80 if 'mass' in filename else 350))
+    plt.ylabel('Cross Section' if 'ratio' not in filename else 'Ratio to $\mu{}$ = {} GeV'.format('' if 'mass' in filename else '_w', 80 if 'mass' in filename else 350))
     plt.legend(loc='best')
     plt.title('Preliminary', fontsize=23, loc='right', fontstyle='italic')
 
@@ -74,14 +74,11 @@ def main():
             continue 
         df_nom = df_nom[df_nom['ecm'] <= ecm_max]
         ratio = df['xsec'] / df_nom['xsec']
-        plt.plot(df['ecm'], ratio, label='$\mu_m$ = {:.0f} GeV'.format(mass_scale))
+        plt.plot(df['ecm'], ratio, label='$\mu$ = {:.0f} GeV'.format(mass_scale))
 
     plt.text(.57, 0.9, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
     plt.text(.57, 0.86, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
     savePlot(plt, outdir, 'scale_vars_mass_ratio.png', pdf=True)
-
-
-
 
   
     ecm_max = 350
@@ -91,7 +88,7 @@ def main():
         df = df[df['ecm'] <= ecm_max]
         df_nom = df_nom[df_nom['ecm'] <= ecm_max]
         ratio = df['xsec'] / df_nom['xsec']
-        plt.plot(df['ecm'], ratio, label='$\mu_{\Gamma}$ '+'= {:.0f} GeV'.format(width_scale))
+        plt.plot(df['ecm'], ratio, label='$\mu_w$ '+'= {:.0f} GeV'.format(width_scale))
     plt.text(.6, 0.1, 'QQbar_Threshold N3LO+ISR', fontsize=22, transform=plt.gca().transAxes, ha='right')
     plt.text(.6, 0.06, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
     savePlot(plt, outdir, 'scale_vars_width_ratio.png', pdf=True)

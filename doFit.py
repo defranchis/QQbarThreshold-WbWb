@@ -447,7 +447,7 @@ class fit:
         plt.plot(self.parameters.mass_scale, 0, 'ro', label='Nominal fit', markersize=8)
         plt.legend()
         plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-        plt.xlabel('Scale $\mu_m$ [GeV]')
+        plt.xlabel('Renormalisation scale $\mu$ [GeV]')
         plt.ylabel('Shift in fitted parameter [MeV]')
         plt.text(.6, 0.17, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(.6, 0.13, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
