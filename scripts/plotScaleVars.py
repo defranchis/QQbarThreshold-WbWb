@@ -76,8 +76,8 @@ def main():
         ratio = df['xsec'] / df_nom['xsec']
         plt.plot(df['ecm'], ratio, label='$\mu_m$ = {:.0f} GeV'.format(mass_scale))
 
-    plt.text(.49, 0.9, 'QQbar_Threshold N3LO', fontsize=23, transform=plt.gca().transAxes, ha='right')
-    plt.text(.49, 0.85, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+    plt.text(.57, 0.9, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+    plt.text(.57, 0.86, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
     savePlot(plt, outdir, 'scale_vars_mass_ratio.png', pdf=True)
 
 
@@ -92,8 +92,8 @@ def main():
         df_nom = df_nom[df_nom['ecm'] <= ecm_max]
         ratio = df['xsec'] / df_nom['xsec']
         plt.plot(df['ecm'], ratio, label='$\mu_{\Gamma}$ '+'= {:.0f} GeV'.format(width_scale))
-    plt.text(.57, 0.1, 'QQbar_Threshold N3LO', fontsize=23, transform=plt.gca().transAxes, ha='right')
-    plt.text(.57, 0.05, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+    plt.text(.6, 0.1, 'QQbar_Threshold N3LO+ISR', fontsize=22, transform=plt.gca().transAxes, ha='right')
+    plt.text(.6, 0.06, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
     savePlot(plt, outdir, 'scale_vars_width_ratio.png', pdf=True)
     
 

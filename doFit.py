@@ -316,9 +316,9 @@ class fit:
         if not self.scenario_dict['add_last_ecm']:
         #if True:
             plt.xlim(339.7, 347)
-        plt.text(.95, 0.47, 'QQbar_Threshold N3LO', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.95, 0.42, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.95, 0.37, 'FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.text(.96, 0.45, 'QQbar_Threshold N3LO+ISR', fontsize=22, transform=plt.gca().transAxes, ha='right')
+        plt.text(.96, 0.41, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.96, 0.36, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
 
         plt.text(.35, 0.9, '$m_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('mass')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
         plt.text(.35, 0.85, '$\Gamma_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('width')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
@@ -367,9 +367,9 @@ class fit:
         plt.xlabel('Single beam energy resolution [%]')
         plt.ylabel('Statistical uncertainty [MeV]')
 
-        plt.text(.5, 0.62, 'QQbar_Threshold N3LO', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.5, 0.57, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.5, 0.52, 'FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.text(.6, 0.65, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.6, 0.61, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.6, 0.56, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
 
         plt.savefig(plot_dir + '/uncert_mass_width_vs_beam_energy_res.png')
         plt.savefig(plot_dir + '/uncert_mass_width_vs_beam_energy_res.pdf')
@@ -415,9 +415,46 @@ class fit:
             plt.savefig(plot_dir + '/uncert_{}_vs_{}_scale.png'.format(param,scale_param))
             plt.clf()
                 
-    def doScaleVars(self):
-        for param in ['mass','width']:
-            self.doScaleVarsParam(param)
+    def doScaleVars(self): # thanks Copilot
+        l_vars = []
+        l_mass = []
+        l_width = []
+        for var in self.parameters.scale_vars:
+            tag_mass = 'scaleM_{:.1f}'.format(var)
+            tag_width = 'scaleM_{:.1f}'.format(var)
+            if tag_mass not in self.xsec_dict.keys() or tag_width not in self.xsec_dict.keys():
+                print('Skipping {}'.format(var))
+                continue
+            l_vars.append(var)
+            nominal_scenario = self.getXsecScenario(self.getXsecTemplate())
+            variation_scenario_mass = self.getXsecScenario(self.getXsecTemplate(tag_mass))
+            variation_scenario_width = self.getXsecScenario(self.getXsecTemplate(tag_width))
+            
+            f_mass = copy.deepcopy(self)
+            f_mass.scale_var_scenario = np.array(variation_scenario_mass['xsec']) / np.array(nominal_scenario['xsec'])
+            f_mass.update()
+            fit_results_mass = f_mass.getFitResults(printout=False)
+            l_mass.append(fit_results_mass[self.param_names.index('mass')].n - self.fit_results[self.param_names.index('mass')].n)
+            
+            f_width = copy.deepcopy(self)
+            f_width.scale_var_scenario = np.array(variation_scenario_width['xsec']) / np.array(nominal_scenario['xsec'])
+            f_width.update()
+            fit_results_width = f_width.getFitResults(printout=False)
+            l_width.append(fit_results_width[self.param_names.index('width')].n - self.fit_results[self.param_names.index('width')].n)
+
+        plt.plot(l_vars, np.array(l_mass) * 1E03, 'b-', label='Shift in fitted $m_t$', linewidth=2)
+        plt.plot(l_vars, np.array(l_width) * 1E03, 'g--', label='Shift in fitted $\Gamma_t$', linewidth=2)
+        plt.plot(self.parameters.mass_scale, 0, 'ro', label='Nominal fit', markersize=8)
+        plt.legend()
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.xlabel('Scale $\mu_m$ [GeV]')
+        plt.ylabel('Shift in fitted parameter [MeV]')
+        plt.text(.6, 0.17, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.6, 0.13, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.6, 0.08, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_scale.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_scale.pdf')
+        plt.clf()
 
 
 

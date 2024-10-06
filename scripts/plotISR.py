@@ -273,9 +273,9 @@ def compareWidthYukawaAlphaS(order,scheme):
     plt.legend()
     plt.ylim(0.95,1.05)
     addTitles(plt,order,ratio=True)
-    plt.text(0.95, 0.85, 'QQbar_Threshold {}'.format(order), fontsize=23, transform=plt.gca().transAxes, ha='right')
-    plt.text(0.95, 0.81, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-    plt.text(0.95, 0.75, 'FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+    plt.text(0.96, 0.85, 'QQbar_Threshold {}+ISR'.format(order), fontsize=22, transform=plt.gca().transAxes, ha='right')
+    plt.text(0.96, 0.81, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+    plt.text(0.96, 0.75, 'FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
     #plt.grid(True)
     plt.savefig('{}/plot_{}_{}_yukawa_alphaS_ratio.png'.format(plotdir,order, scheme))
     if order == 'N3LO' and scheme == 'PS':
