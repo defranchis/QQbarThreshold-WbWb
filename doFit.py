@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt # type: ignore
 from utils_fit.fitUtils import convoluteXsecGauss # type: ignore
 import utils_convert.scheme_conversion as scheme_conversion # type: ignore
 from xsec_calculator.parameter_def import parameters # type: ignore
+import mplhep as hep
+plt.style.use(hep.style.CMS)
 
 plot_dir = 'plots/fit'
 
@@ -207,6 +209,7 @@ class fit:
             self.scenario = {ecm: overall_factor/sigma for ecm, sigma in zip(self.scenario.keys(), self.pseudo_data_scenario)}
         self.unc_pseudodata_scenario = (np.array(self.pseudo_data_scenario)/np.array(list(self.scenario.values())))**.5
         if not self.asimov:
+            np.random.seed(42)
             self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
         self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param]) for param in self.param_names}
 
@@ -276,7 +279,8 @@ class fit:
             print(self.param_names)
             print(np.round(unc.correlation_matrix(params_w_cov), 2))
 
-        return params_w_cov
+        self.fit_results = params_w_cov
+        return 
     
     
     def plotFitScenario(self):
@@ -291,8 +295,8 @@ class fit:
         if not self.scenario_dict['add_last_ecm']:
             xsec_nom = xsec_nom[:-1]
             xsec_fit = xsec_fit[:-1]
-        plt.plot(xsec_nom['ecm'],xsec_fit['xsec'],label='Fitted model')
-        plt.plot(xsec_nom['ecm'],xsec_nom['xsec'],label='Nominal model', linestyle='--')
+        plt.plot(xsec_nom['ecm'],xsec_fit['xsec'],label='Fitted model', linewidth=2)
+        plt.plot(xsec_nom['ecm'],xsec_nom['xsec'],label='Nominal model', linestyle='--', linewidth=2)
         plt.xlabel('Ecm [GeV]')
         plt.ylabel('Cross section [pb]')
         plt.legend()
@@ -300,16 +304,28 @@ class fit:
 
         plt.clf()
         plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario/self.getXsecScenario(xsec_nom)['xsec'], yerr=self.unc_pseudodata_scenario/self.getXsecScenario(xsec_nom)['xsec'], 
-                    fmt='.', label = 'Pseudo data' if not self.asimov else 'Asimov data')
-        plt.plot(xsec_nom['ecm'],xsec_fit['xsec']/xsec_nom['xsec'], label='fitted cross section')
-        plt.fill_between(xsec_nom['ecm'], (xsec_fit['xsec']-xsec_fit['unc'])/xsec_nom['xsec'], (xsec_fit['xsec']+xsec_fit['unc'])/xsec_nom['xsec'], alpha=0.5, label='param. uncertainty')
-        plt.plot(xsec_pseudodata['ecm'], xsec_pseudodata['xsec']/xsec_nom['xsec'], label='pseudodata cross section' if not self.asimov else 'Asimov cross section', linestyle='--')
-        plt.axhline(1, color='black', linestyle='--', label='nominal xsec')
-        plt.xlabel('Ecm [GeV]')
-        plt.ylabel('Ratio to nominal')
-        plt.title('QQbarThreshold N3LO, FCC-ee')
-        plt.legend(loc='lower right')
+                    fmt='.', label = 'Pseudodata (stat)' if not self.asimov else 'Asimov data (stat)', linewidth=2)
+        plt.plot(xsec_nom['ecm'],xsec_fit['xsec']/xsec_nom['xsec'], label='Fitted cross section', linewidth=2)
+        plt.fill_between(xsec_nom['ecm'], (xsec_fit['xsec']-xsec_fit['unc'])/xsec_nom['xsec'], (xsec_fit['xsec']+xsec_fit['unc'])/xsec_nom['xsec'], alpha=0.5, label='Parametric uncertainty (stat)')
+        plt.plot(xsec_pseudodata['ecm'], xsec_pseudodata['xsec']/xsec_nom['xsec'], label='Pseudodata cross section' if not self.asimov else 'Asimov cross section', linestyle='--', linewidth=2)
+        plt.axhline(1, color='grey', linestyle='--', label='Reference cross section', linewidth=2)
+        plt.xlabel('$\sqrt{s}$ [GeV]')
+        plt.ylabel('WbWb total cross section ratio')
+        lumi = self.scenario_dict['total_lumi']/1E03
+        plt.title('Preliminary ({:.0f}'.format(lumi)+' fb$^{-1}$)', loc='right', fontsize=20, style='italic')
+        plt.legend(loc='lower right', fontsize=20)
+        if not self.scenario_dict['add_last_ecm']:
+        #if True:
+            plt.xlim(339.7, 347)
+        plt.text(.95, 0.47, 'QQbar_Threshold N3LO', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.95, 0.42, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.95, 0.37, 'FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+
+        plt.text(.35, 0.9, '$m_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('mass')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.text(.35, 0.85, '$\Gamma_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('width')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
+
         plt.savefig(plot_dir + '/fit_scenario_ratio_{}.png'.format('pseudo' if not self.asimov else 'asimov'))
+        plt.savefig(plot_dir + '/fit_scenario_ratio_{}.pdf'.format('pseudo' if not self.asimov else 'asimov'))
         plt.clf()
 
     def doLSscan (self, min, max, step):
@@ -400,7 +416,7 @@ def main():
     args = parser.parse_args()
     
     f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa, read_scale_vars = args.scaleVars)
-    f.initScenario(n_IPs=4, scan_min=340, scan_max=343, scan_step=1.5, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = args.lastecm, same_evts = args.sameNevts, create_scenario = True)
+    f.initScenario(n_IPs=4, scan_min=340, scan_max=344.5, scan_step=.5, total_lumi=0.7 * 1E06, last_lumi = 3 * 1E06, add_last_ecm = args.lastecm, same_evts = args.sameNevts,  create_scenario = True)
     #f.initScenario(n_IPs=4, scan_min=342, scan_max=345, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
     #f.initScenario(n_IPs=4, scan_min=342, scan_max=344, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
     
@@ -412,7 +428,6 @@ def main():
         f.doLSscan(0,0.5,0.01)
     if args.scaleVars:
         f.doScaleVars()
-
 
 
 if __name__ == '__main__':
