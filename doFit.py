@@ -320,11 +320,12 @@ class fit:
         plt.text(.96, 0.41, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
         plt.text(.96, 0.36, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
 
-        plt.text(.35, 0.9, '$m_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('mass')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.text(.35, 0.85, '$\Gamma_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('width')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.text(.35, 0.935, '$m_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('mass')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.text(.35, 0.885, '$\Gamma_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('width')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
 
         plt.savefig(plot_dir + '/fit_scenario_ratio_{}.png'.format('pseudo' if not self.asimov else 'asimov'))
-        plt.savefig(plot_dir + '/fit_scenario_ratio_{}.pdf'.format('pseudo' if not self.asimov else 'asimov'))
+        if not self.asimov:
+            plt.savefig(plot_dir + '/fit_scenario_ratio_{}.pdf'.format('pseudo' if not self.asimov else 'asimov'))
         plt.clf()
 
     def doLSscan (self, min, max, step):
@@ -471,7 +472,7 @@ def main():
     args = parser.parse_args()
     
     f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa, read_scale_vars = args.scaleVars)
-    f.initScenario(n_IPs=4, scan_min=340, scan_max=344.5, scan_step=.5, total_lumi=0.7 * 1E06, last_lumi = 3 * 1E06, add_last_ecm = args.lastecm, same_evts = args.sameNevts,  create_scenario = True)
+    f.initScenario(n_IPs=4, scan_min=340, scan_max=344.5, scan_step=.5, total_lumi=0.41 * 1E06, last_lumi = 2.65 * 1E06, add_last_ecm = args.lastecm, same_evts = args.sameNevts,  create_scenario = True)
     #f.initScenario(n_IPs=4, scan_min=342, scan_max=345, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
     #f.initScenario(n_IPs=4, scan_min=342, scan_max=344, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
     
