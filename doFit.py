@@ -304,7 +304,7 @@ class fit:
 
         plt.clf()
         plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario/self.getXsecScenario(xsec_nom)['xsec'], yerr=self.unc_pseudodata_scenario/self.getXsecScenario(xsec_nom)['xsec'], 
-                    fmt='.', label = 'Pseudodata (stat)' if not self.asimov else 'Asimov data (stat)', linewidth=2)
+                     fmt='.', label = 'Pseudodata (stat)' if not self.asimov else 'Asimov data (stat)', linewidth=2, markersize=10)
         plt.plot(xsec_nom['ecm'],xsec_fit['xsec']/xsec_nom['xsec'], label='Fitted cross section', linewidth=2)
         plt.fill_between(xsec_nom['ecm'], (xsec_fit['xsec']-xsec_fit['unc'])/xsec_nom['xsec'], (xsec_fit['xsec']+xsec_fit['unc'])/xsec_nom['xsec'], alpha=0.5, label='Parametric uncertainty (stat)')
         plt.plot(xsec_pseudodata['ecm'], xsec_pseudodata['xsec']/xsec_nom['xsec'], label='Pseudodata cross section' if not self.asimov else 'Asimov cross section', linestyle='--', linewidth=2)
@@ -365,7 +365,7 @@ class fit:
         plt.plot(self.beam_energy_res, self.fit_results[self.param_names.index('width')].s*1E03, 's', color = 'orange', label='Nominal $\Gamma_t$'.format(self.beam_energy_res), markersize=7)
         plt.legend()
         plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-        plt.xlabel('Single beam energy resolution [%]')
+        plt.xlabel('Beam energy spread [%]')
         plt.ylabel('Statistical uncertainty [MeV]')
 
         plt.text(.6, 0.65, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
