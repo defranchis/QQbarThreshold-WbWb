@@ -4,12 +4,14 @@ import multiprocessing, argparse, time, sys
 import numpy as np
 
 class XsecCalculator:
-    def __init__(self, doScaleVars=False, outdir='output', n_cores=6):
+    def __init__(self, doScaleVars=False, outdir='output', n_cores=6, nominal=False):
         self.doScaleVars = doScaleVars
         self.outdir = outdir
         self.n_cores = n_cores
         self.params = parameters(doScaleVars)
         self.d = self.params.getDict()
+        self.nominal = nominal
+
 
     def calculate_xsec(self, key, mass_scale=None, width_scale=None):
         if mass_scale is None:
@@ -22,6 +24,11 @@ class XsecCalculator:
                 
 
     def run_calculations(self):
+
+        if self.nominal:
+            self.calculate_xsec('nominal')
+            return
+
         with multiprocessing.Pool(processes=self.n_cores) as pool:
             processes = [pool.apply_async(self.calculate_xsec, args=(key,)) for key in self.d]
             if self.doScaleVars:
@@ -48,9 +55,14 @@ def main():
     parser.add_argument('--ncores', type=int, default=6)
     parser.add_argument('--doScaleVars', action='store_true')
     parser.add_argument('--outdir', type=str, default='output')
+    parser.add_argument('--nominal', action='store_true')
 
     args = parser.parse_args()
-    xsec_calculator = XsecCalculator(doScaleVars=args.doScaleVars, outdir=args.outdir, n_cores=args.ncores)
+
+    if args.nominal and args.doScaleVars:
+        print("Warning: will not run scale variations when nominal is set to True.")
+
+    xsec_calculator = XsecCalculator(doScaleVars=args.doScaleVars, outdir=args.outdir, n_cores=args.ncores, nominal=args.nominal)
     xsec_calculator.run_calculations()
 
 if __name__ == '__main__':

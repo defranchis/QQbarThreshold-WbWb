@@ -63,12 +63,13 @@ class fit:
         if self.debug:
             print('Initialization done')
 
-    def update(self):
+    def update(self, update_scenario = True):
         if self.debug:
             print('Updating object')
         self.smearCrossSections()
         self.morphCrossSections()
-        self.createScenario(**self.scenario_dict, init_vars = False)
+        if update_scenario:
+            self.createScenario(**self.scenario_dict, init_vars = False)
         self.initMinuit()
         self.fitParameters()
 
@@ -88,12 +89,14 @@ class fit:
         infile_tag = formFileTag(*[self.d_params[tag][p] for p in self.param_names])
         return 'N3LO_scan_PS_ISR_{}_scaleM{:.1f}_scaleW{:.1f}.txt'.format(infile_tag, scaleM, scaleW)
 
-    def readScanPerTag(self, tag, scaleM = None, scaleW = None):
+    def readScanPerTag(self, tag, scaleM = None, scaleW = None, indir = None):
         if scaleM is None:
             scaleM = self.parameters.mass_scale
         if scaleW is None:
             scaleW = self.parameters.width_scale
-        filename = self.input_dir + '/' + self.formFileName(tag, scaleM, scaleW)
+        if indir is None:
+            indir = self.input_dir
+        filename = os.path.join(indir, self.formFileName(tag, scaleM, scaleW))
         if not os.path.exists(filename):
             raise ValueError('File {} not found'.format(filename))
         f = open(filename, 'r')
@@ -457,6 +460,71 @@ class fit:
         plt.savefig(plot_dir + '/uncert_mass_width_vs_scale.pdf')
         plt.clf()
 
+    def dirToVar(self,dir):
+        return float(dir.replace('scan_p','').replace('scan_m','')) * (-1 if dir.startswith('scan_m') else 1)
+    def varToDir(self,var):
+        return 'scan_p{:.0f}'.format(var) if var >= 0 else 'scan_m{:.0f}'.format(abs(var))
+
+    def fitBECvar(self,var,indir_BEC):
+        if abs(var) > 40:
+            raise ValueError('Warning: BEC variation too large')
+        if abs(var) > 1E-6: # different from zero
+            df = self.readScanPerTag('nominal', indir=os.path.join(indir_BEC,self.varToDir(var)))
+        else: df = self.readScanPerTag('nominal')
+
+        df['ecm'] = df['ecm'].round(1) # so that it's identical to nominal. This is why variations must be 40 MeV at most
+        df_smeared = self.smearCrossSection(df)
+
+        f_bec = copy.deepcopy(self)
+        f_bec.pseudo_data_scenario = np.array(self.getXsecScenario(df_smeared)['xsec'])
+        f_bec.update(update_scenario=False)
+        fit_results = f_bec.getFitResults(printout=False)
+        return [res.n for res in fit_results[:2]]
+
+
+    # Disclaimer: BEC functionalities are a bit ad hoc, and strongly depend on the directory naming
+    # The cross sections with BEC variations must be produced with the same parameters as "nominal"
+    # Unfortunately this cannot be easily automated, as the C++ code relies on constexpr variables for the centre-of-mass energy
+    # As it stands, the C++ code must be recompiled for each BEC variation
+    # This also prevents having a large number of points in the BEC scan
+
+    def doBECscan(self):
+        indir_BEC = 'BEC_variations' # hardcoded
+        if not os.path.exists(indir_BEC):
+            raise ValueError('Directory {} not found'.format(indir_BEC))
+        bec_dirs = [d for d in os.listdir(indir_BEC) if os.path.isdir(os.path.join(indir_BEC, d))]
+        variations = [self.dirToVar(bec_dir) for bec_dir in bec_dirs]
+        variations.append(0)
+        variations.sort()
+
+        l_mass = []
+        l_width = []
+        for var in variations:
+            mass, width = self.fitBECvar(var, indir_BEC)
+            l_mass.append(mass)
+            l_width.append(width)
+
+        l_mass = np.array(l_mass)
+        l_width = np.array(l_width)
+
+        l_mass -= l_mass[variations.index(0)]
+        l_width -= l_width[variations.index(0)]
+
+        plt.plot(variations, l_mass*1E03, 'b-', label='Shift in fitted $m_t$', linewidth=2)
+        plt.plot(variations, l_width*1E03, 'g--', label='Shift in fitted $\Gamma_t$', linewidth=2)
+        plt.plot(0, 0, 'ro', label='Nominal fit', markersize=8)
+        plt.legend()
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.xlabel(r'Shift in $\sqrt{s}$ [MeV]')
+        plt.ylabel('Shift in fitted parameter [MeV]')
+        plt.text(.6, 0.17, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.6, 0.13, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.6, 0.08, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.pdf')
+        plt.clf()
+
+
 
 
 def main():
@@ -469,7 +537,11 @@ def main():
     parser.add_argument('--constrainYukawa', action='store_true', help='Constrain Yukawa coupling in fit')
     parser.add_argument('--lastecm', action='store_true', help='Add last ecm to scenario')
     parser.add_argument('--sameNevts', action='store_true', help='Same number of events in each ecm')
+    parser.add_argument('--BECscan', action='store_true', help='Do beam energy calibration scan')
     args = parser.parse_args()
+
+    if args.BECscan and args.scaleVars:
+        raise ValueError('BEC scan currently incompatible with scale variations')
     
     f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa, read_scale_vars = args.scaleVars)
     f.initScenario(n_IPs=4, scan_min=340, scan_max=344.5, scan_step=.5, total_lumi=0.41 * 1E06, last_lumi = 2.65 * 1E06, add_last_ecm = args.lastecm, same_evts = args.sameNevts,  create_scenario = True)
@@ -484,6 +556,8 @@ def main():
         f.doLSscan(0,0.5,0.01)
     if args.scaleVars:
         f.doScaleVars()
+    if args.BECscan:
+        f.doBECscan()
 
 
 if __name__ == '__main__':

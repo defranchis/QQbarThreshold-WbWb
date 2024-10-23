@@ -59,14 +59,17 @@ constexpr double sqrt_s_last = 365.0; // additional point above last point of th
 
 constexpr std::size_t n_sqrt_s_values = (sqrt_s_max - sqrt_s_min)/sqrt_s_step + 2;
 
+//constexpr double offset = -0.01; // 1 MeV offset
+constexpr double offset = 0;
+
 constexpr std::array<double, n_sqrt_s_values> generate_sqrt_s_values() {
     std::array<double, n_sqrt_s_values> values = {};
-    double value = sqrt_s_min;
+    double value = sqrt_s_min + offset;
     for (std::size_t i = 0; i < n_sqrt_s_values - 1; ++i) {
         values[i] = value;
         value += sqrt_s_step;
     }
-    values[n_sqrt_s_values - 1] = sqrt_s_last;
+    values[n_sqrt_s_values - 1] = sqrt_s_last + offset;
     return values;
 }
 
