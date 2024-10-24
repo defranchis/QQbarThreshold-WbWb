@@ -39,6 +39,8 @@ class fit:
         self.debug = debug
         self.read_scale_vars = read_scale_vars
         self.last_ecm = 365.0 #hardcoded
+        self.lumi_uncorr = 1E-3 # hardcoded: estimate for full lumi! i.e. 410/fb
+        self.lumi_corr = 1E-4 # hardcoded: estimate for theory cross section uncertainty
 
         if self.debug:
             print('Input directory: {}'.format(self.input_dir))
@@ -63,15 +65,15 @@ class fit:
         if self.debug:
             print('Initialization done')
 
-    def update(self, update_scenario = True):
+    def update(self, update_scenario = True, exclude_stat = False):
         if self.debug:
             print('Updating object')
         self.smearCrossSections()
         self.morphCrossSections()
         if update_scenario:
             self.createScenario(**self.scenario_dict, init_vars = False)
-        self.initMinuit()
-        self.fitParameters()
+        #self.initMinuit(exclude_stat = exclude_stat)
+        self.fitParameters(exclude_stat = exclude_stat)
 
     def getWidthN2LO(self,mt_PS, mu = None): # TODO: not yet used
         if mu is None:
@@ -231,7 +233,8 @@ class fit:
         prior_width = self.getPhysicalFitParams(params) # can be zero
         for i, param in enumerate(self.param_names):
             th_xsec *= (1 + params[i]*np.array(self.morph_scenario[param]['xsec']))
-        chi2 = np.sum(((self.pseudo_data_scenario - th_xsec)/self.unc_pseudodata_scenario)**2)
+        res = self.pseudo_data_scenario - th_xsec
+        chi2 = np.dot(res, np.linalg.solve(self.cov, res))
         chi2 += (params[self.param_names.index('alphas')] - self.getParameterFromValue(self.d_params[self.pseudodata_tag]['alphas'],'alphas'))**2
         if self.constrain_Yukawa:
             uncert_yukawa = uncert_yukawa_default / (self.d_params['yukawa_var']['yukawa'] - self.d_params['nominal']['yukawa'])
@@ -239,14 +242,23 @@ class fit:
         return chi2 + prior_width
 
 
-    def initMinuit(self):
+    def initMinuit(self, exclude_stat = False):
+        cov_stat = np.diag(self.unc_pseudodata_scenario**2)
+        factor_thresh = len(self.scenario) if not self.scenario_dict['add_last_ecm'] else len(self.scenario) - 1
+        self.lumi_uncorr_ecm = np.array([self.lumi_uncorr * factor_thresh**.5 for _ in self.pseudo_data_scenario])
+        if self.scenario_dict['add_last_ecm']:
+            factor_above_thresh = self.scenario[str(self.last_ecm)]/self.scenario[list(self.scenario.keys())[0]]
+            self.lumi_uncorr_ecm[-1] = self.lumi_uncorr / (factor_above_thresh*factor_thresh)**.5
+        cov_lumi_uncorr = np.diag(self.pseudo_data_scenario*self.lumi_uncorr_ecm)**2
+        cov_lumi_corr = np.outer(self.pseudo_data_scenario, self.pseudo_data_scenario)*self.lumi_corr**2
+        self.cov = cov_stat + cov_lumi_uncorr + cov_lumi_corr if not exclude_stat else cov_lumi_uncorr + cov_lumi_corr
         self.minuit = iminuit.Minuit(self.chi2, np.zeros(len(self.param_names)), name = self.param_names)
         self.minuit.errordef = 1
 
-    def fitParameters(self):
+    def fitParameters(self, exclude_stat = False):
         if self.debug:
             print('Initializing Minuit')
-        self.initMinuit()
+        self.initMinuit(exclude_stat = exclude_stat)
         if self.debug:
             print('Fitting parameters')
         self.minuit.migrad()
@@ -524,7 +536,69 @@ class fit:
         plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.pdf')
         plt.clf()
 
+    
+    def doLumiScan(self,type):
+        if not type in ['uncorr','corr']:
+            raise ValueError('Invalid lumi scan type')
+        l_lumi = np.linspace(0.5, 1.5, 11)*self.lumi_uncorr if type == 'uncorr' else np.linspace(0.5, 1.5, 11)*self.lumi_corr
+        l_mass = []
+        l_width = []
+        l_yukawa = []
+        for lumi in l_lumi:
+            f_lumi = copy.deepcopy(self)
+            f_lumi.lumi_uncorr = lumi if type == 'uncorr' else self.lumi_uncorr
+            f_lumi.lumi_corr = lumi if type == 'corr' else self.lumi_corr
+            f_lumi.update(exclude_stat=True)
+            fit_results = f_lumi.getFitResults(printout=False)
+            l_mass.append(fit_results[self.param_names.index('mass')].s*1000)
+            l_width.append(fit_results[self.param_names.index('width')].s*1000)
+            l_yukawa.append(fit_results[self.param_names.index('yukawa')].s*100)
+        return l_mass, l_width, l_yukawa        
 
+    def doLumiScans(self):
+        dict_res = dict()
+        for type in ['uncorr','corr']:
+            l_mass, l_width, l_yukawa = self.doLumiScan(type)
+            dict_res[type] = [l_mass, l_width, l_yukawa]
+
+        plt.plot(np.linspace(0.5, 1.5, 11), dict_res['uncorr'][0], 'b-', label='Impact on $m_t$ (uncorr)', linewidth=2)
+        plt.plot(np.linspace(0.5, 1.5, 11), dict_res['uncorr'][1], 'g', label='Impact on $\Gamma_t$ (uncorr)', linewidth=2)
+        plt.plot(np.linspace(0.5, 1.5, 11), dict_res['corr'][0], 'b--', label='Impact on $m_t$ (corr)', linewidth=2)
+        plt.plot(np.linspace(0.5, 1.5, 11), dict_res['corr'][1], 'g--', label='Impact on $\Gamma_t$ (corr)', linewidth=2)
+
+        plt.plot(1, dict_res['uncorr'][0][list(np.linspace(0.5, 1.5, 11)).index(1)], 'ro', label='Nominal values', markersize=8)
+        plt.plot(1, dict_res['uncorr'][1][list(np.linspace(0.5, 1.5, 11)).index(1)], 'ro', label=None, markersize=8)
+        plt.legend()
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.xlabel('Luminosity uncert. / nominal value')
+        plt.ylabel('Luminosity uncert. on fitted parameter [MeV]')    
+        offset = 0.1   
+        plt.text(.96, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.96, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.96, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.text(.96, 0.07, 'nominal uncorr (corr) uncert. = {:.1f} ({:.2f}) %'.format(self.lumi_uncorr*100,self.lumi_corr*100), fontsize=21, transform=plt.gca().transAxes, ha='right',)
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_lumi.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_lumi.pdf')
+        plt.clf()
+
+        if not self.scenario_dict['add_last_ecm']:
+            return
+        
+        plt.plot(np.linspace(0.5, 1.5, 11), dict_res['uncorr'][2], 'r-', label='Impact on $y_t$ (uncorr)', linewidth=2)
+        plt.plot(np.linspace(0.5, 1.5, 11), dict_res['corr'][2], 'r--', label='Impact on $y_t$ (corr)', linewidth=2)
+        plt.plot(1, dict_res['uncorr'][2][list(np.linspace(0.5, 1.5, 11)).index(1)], 'ro', label='Nominal value', markersize=8)
+        plt.legend()
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.2f} ab$^{{-1}}$)'.format(self.scenario_dict['last_lumi']/1E06), loc='right', fontsize=20)
+        plt.xlabel('Luminosity uncert. / nominal value')
+        plt.ylabel('Luminosity uncert. on fitted $y_t$ [%]')
+        offset = 0.1
+        plt.text(.96, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.96, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.96, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.text(.96, 0.07, 'nominal uncorr (corr) uncert. = {:.3f} ({:.2f}) %'.format(self.lumi_uncorr_ecm[-1]*100,self.lumi_corr*100), fontsize=21, transform=plt.gca().transAxes, ha='right',)
+        plt.savefig(plot_dir + '/uncert_yukawa_vs_lumi.png')
+        plt.savefig(plot_dir + '/uncert_yukawa_vs_lumi.pdf')
+        plt.clf()
 
 
 def main():
@@ -538,6 +612,7 @@ def main():
     parser.add_argument('--lastecm', action='store_true', help='Add last ecm to scenario')
     parser.add_argument('--sameNevts', action='store_true', help='Same number of events in each ecm')
     parser.add_argument('--BECscan', action='store_true', help='Do beam energy calibration scan')
+    parser.add_argument('--lumiscan', action='store_true', help='Do luminosity scan')
     args = parser.parse_args()
 
     if args.BECscan and args.scaleVars:
@@ -558,6 +633,8 @@ def main():
         f.doScaleVars()
     if args.BECscan:
         f.doBECscan()
+    if args.lumiscan:
+        f.doLumiScans()
 
 
 if __name__ == '__main__':
