@@ -6,6 +6,7 @@ BEC_variations
 plots
 plots_*
 bin
+logs
 *~
 *.log
 *.pyc
