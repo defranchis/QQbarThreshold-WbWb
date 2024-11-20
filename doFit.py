@@ -609,26 +609,31 @@ class fit:
         plt.savefig(plot_dir + '/uncert_yukawa_vs_lumi.pdf')
         plt.clf()
 
-    def doAlphaSscanFixYukawa(self, max_uncert, step, noYukawa):
+    def doAlphaSscanFixYukawa(self, max_uncert, step, noYukawa, yukawa_uncert):
+        if noYukawa and yukawa_uncert:
+            raise ValueError('Cannot have no Yukawa and Yukawa uncertainty')
         l_alphas_uncert = np.arange(1E-10, max_uncert+step/2, step)
         l_mass = []
         l_width = []
+        yukawa_uncert = yukawa_uncert if not yukawa_uncert is None else self.input_uncert_Yukawa
+        if noYukawa: yukawa_uncert = 1E-10
+        print('Yukawa uncertainty: {}'.format(yukawa_uncert))
         for alphas_u in l_alphas_uncert:
             f_alphas = copy.deepcopy(self)
             f_alphas.input_uncert_alphas = alphas_u
-            f_alphas.input_uncert_Yukawa = 1E-10 if noYukawa else self.input_uncert_Yukawa 
+            f_alphas.input_uncert_Yukawa = yukawa_uncert
             f_alphas.constrain_Yukawa = True
             f_alphas.update()
             fit_results = f_alphas.getFitResults(printout=False)
             l_mass.append(fit_results[self.param_names.index('mass')].s*1000)
             l_width.append(fit_results[self.param_names.index('width')].s*1000)
-        return l_alphas_uncert, l_mass, l_width
+        return l_alphas_uncert, l_mass, l_width, yukawa_uncert
     
-    def doAlphaSscans(self, max_uncert = 7E-4, step = 1E-5, noYukawa = False):
-        l_as, l_m, l_w = self.doAlphaSscanFixYukawa(max_uncert, step, noYukawa = noYukawa)
+    def doAlphaSscans(self, max_uncert = 7E-4, step = 1E-5, noYukawa = False, yukawa_uncert = None):
+        l_as, l_m, l_w, yt_unc = self.doAlphaSscanFixYukawa(max_uncert, step, noYukawa = noYukawa, yukawa_uncert = yukawa_uncert)
         plt.plot(l_as *1E03, l_m, 'b-', label='Impact on $m_t$', linewidth=2)
         plt.plot(l_as *1E03, l_w, 'g--', label='Impact on $\Gamma_t$', linewidth=2)
-        label_nom = '$y_t$ uncert. {}%'.format(self.input_uncert_Yukawa*100) if not noYukawa else 'w/o $y_t$'
+        label_nom = '$y_t$ uncert. {}%'.format(yt_unc*100) if not noYukawa else 'w/o $y_t$'
         plt.plot(uncert_alphas_default *1E03, l_m[min(range(len(l_as)), key=lambda i: abs(l_as[i] - uncert_alphas_default))], 'ro', label='Nominal fit \n{}'.format(label_nom), markersize=8)
         plt.plot(uncert_alphas_default *1E03, l_w[min(range(len(l_as)), key=lambda i: abs(l_as[i] - uncert_alphas_default))], 'ro', label='', markersize=8)
 
@@ -640,7 +645,9 @@ class fit:
         plt.text(.9, 0.13, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
         plt.text(.9, 0.08, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
         plt.ylim(min(l_m)-1, max(l_w)+2)
-        outname = 'uncert_mass_width_vs_alphas' if not noYukawa else 'uncert_mass_width_vs_alphas_noYukawa'
+        outname = 'uncert_mass_width_vs_alphas'
+        if noYukawa: outname += '_noYukawa'
+        if yt_unc < self.input_uncert_Yukawa: outname += '_optimisticYukawa'
         plt.savefig(plot_dir + '/{}.png'.format(outname))
         plt.savefig(plot_dir + '/{}.pdf'.format(outname))
         plt.clf()
@@ -717,6 +724,7 @@ def main():
     if args.alphaSscan:
         f.doAlphaSscans()
         f.doAlphaSscans(noYukawa=True)
+        f.doAlphaSscans(yukawa_uncert=0.01)
         f.doYukawaScan() # by default
 
 
