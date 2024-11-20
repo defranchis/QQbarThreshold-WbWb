@@ -83,6 +83,7 @@ struct sqrt_s_loop {
         if (Index < N){
             constexpr double sqrt_s = sqrt_s_values[Index];
             QQt::options opt = QQt::top_options();
+            //opt.mass_scheme = {QQt::PSshift, 50.};
             opt.Yukawa_factor = Yukawa;
             opt.alpha_s_mZ = opt.alpha_s_mZ + as_var;
             opt.ISR_const = true;
