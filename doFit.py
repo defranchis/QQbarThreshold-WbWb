@@ -8,12 +8,14 @@ import matplotlib.pyplot as plt # type: ignore
 from utils_fit.fitUtils import convoluteXsecGauss # type: ignore
 import utils_convert.scheme_conversion as scheme_conversion # type: ignore
 from xsec_calculator.parameter_def import parameters # type: ignore
-import mplhep as hep
+import mplhep as hep # type: ignore
 plt.style.use(hep.style.CMS)
 
 plot_dir = 'plots/fit'
 
 uncert_yukawa_default = 0.03 # only when parameter is constrained. hardcoded for now
+uncert_alphas_default =  0.0003 
+
 
 def formFileTag(mass, width, yukawa, alphas):
     return 'mass{:.2f}_width{:.2f}_yukawa{:.2f}_asVar{:.4f}'.format(mass,width,yukawa,alphas)
@@ -41,6 +43,8 @@ class fit:
         self.last_ecm = 365.0 #hardcoded
         self.lumi_uncorr = 1E-3 # hardcoded: estimate for full lumi! i.e. 410/fb
         self.lumi_corr = 1E-4 # hardcoded: estimate for theory cross section uncertainty
+        self.input_uncert_Yukawa = uncert_yukawa_default
+        self.input_uncert_alphas = uncert_alphas_default
 
         if self.debug:
             print('Input directory: {}'.format(self.input_dir))
@@ -50,7 +54,8 @@ class fit:
             print('Constrain width to SM value: {}'.format(self.SM_width))
             print('Constrain Yukawa coupling: {}'.format(self.constrain_Yukawa))
             if self.constrain_Yukawa:
-                print('\tYukawa coupling uncertainty: {}'.format(uncert_yukawa_default))
+                print('\tYukawa coupling uncertainty: {}'.format(self.input_uncert_Yukawa))
+            print('\talpha_s uncertainty: {}'.format(self.input_uncert_alphas))
             print('Asimov fit: {}'.format(self.asimov))
         
         if self.debug:
@@ -235,9 +240,10 @@ class fit:
             th_xsec *= (1 + params[i]*np.array(self.morph_scenario[param]['xsec']))
         res = self.pseudo_data_scenario - th_xsec
         chi2 = np.dot(res, np.linalg.solve(self.cov, res))
-        chi2 += (params[self.param_names.index('alphas')] - self.getParameterFromValue(self.d_params[self.pseudodata_tag]['alphas'],'alphas'))**2
+        uncert_alphas = self.input_uncert_alphas / (self.d_params['alphas_var']['alphas'] - self.d_params['nominal']['alphas'])
+        chi2 += ((params[self.param_names.index('alphas')] - self.getParameterFromValue(self.d_params[self.pseudodata_tag]['alphas'],'alphas'))/uncert_alphas)**2
         if self.constrain_Yukawa:
-            uncert_yukawa = uncert_yukawa_default / (self.d_params['yukawa_var']['yukawa'] - self.d_params['nominal']['yukawa'])
+            uncert_yukawa = self.input_uncert_Yukawa / (self.d_params['yukawa_var']['yukawa'] - self.d_params['nominal']['yukawa'])
             chi2 += ((params[self.param_names.index('yukawa')] - self.getParameterFromValue(self.d_params[self.pseudodata_tag]['yukawa'], 'yukawa'))/uncert_yukawa)**2
         return chi2 + prior_width
 
@@ -282,7 +288,7 @@ class fit:
                     if param == 'width' and self.SM_width: 
                             print('including theory uncertainty in SM relation')
                             print('fitted theory parameter = {:.2f} +/- {:.2f} (constrained to 1)'.format(self.minuit.values[param], self.minuit.errors[param]))
-                    if param == 'yukawa' and self.constrain_Yukawa: print('constrained with uncertainty {:.3f}'.format(uncert_yukawa_default))
+                    if param == 'yukawa' and self.constrain_Yukawa: print('constrained with uncertainty {:.3f}'.format(self.input_uncert_Yukawa))
                 if param == 'width' and self.SM_width:
                     pull = unc.ufloat(self.minuit.values[param], self.minuit.errors[param])
                 else:
@@ -472,6 +478,9 @@ class fit:
         plt.savefig(plot_dir + '/uncert_mass_width_vs_scale.pdf')
         plt.clf()
 
+    def plotScaleVars(self): #to be implemented
+        pass
+
     def dirToVar(self,dir):
         return float(dir.replace('scan_p','').replace('scan_m','')) * (-1 if dir.startswith('scan_m') else 1)
     def varToDir(self,var):
@@ -600,6 +609,72 @@ class fit:
         plt.savefig(plot_dir + '/uncert_yukawa_vs_lumi.pdf')
         plt.clf()
 
+    def doAlphaSscanFixYukawa(self, max_uncert, step, noYukawa):
+        l_alphas_uncert = np.arange(1E-10, max_uncert+step/2, step)
+        l_mass = []
+        l_width = []
+        for alphas_u in l_alphas_uncert:
+            f_alphas = copy.deepcopy(self)
+            f_alphas.input_uncert_alphas = alphas_u
+            f_alphas.input_uncert_Yukawa = 1E-10 if noYukawa else self.input_uncert_Yukawa 
+            f_alphas.constrain_Yukawa = True
+            f_alphas.update()
+            fit_results = f_alphas.getFitResults(printout=False)
+            l_mass.append(fit_results[self.param_names.index('mass')].s*1000)
+            l_width.append(fit_results[self.param_names.index('width')].s*1000)
+        return l_alphas_uncert, l_mass, l_width
+    
+    def doAlphaSscans(self, max_uncert = 7E-4, step = 1E-5, noYukawa = False):
+        l_as, l_m, l_w = self.doAlphaSscanFixYukawa(max_uncert, step, noYukawa = noYukawa)
+        plt.plot(l_as *1E03, l_m, 'b-', label='Impact on $m_t$', linewidth=2)
+        plt.plot(l_as *1E03, l_w, 'g--', label='Impact on $\Gamma_t$', linewidth=2)
+        label_nom = '$y_t$ uncert. {}%'.format(self.input_uncert_Yukawa*100) if not noYukawa else 'w/o $y_t$'
+        plt.plot(uncert_alphas_default *1E03, l_m[min(range(len(l_as)), key=lambda i: abs(l_as[i] - uncert_alphas_default))], 'ro', label='Nominal fit \n{}'.format(label_nom), markersize=8)
+        plt.plot(uncert_alphas_default *1E03, l_w[min(range(len(l_as)), key=lambda i: abs(l_as[i] - uncert_alphas_default))], 'ro', label='', markersize=8)
+
+        plt.legend(loc='upper left')
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.xlabel(r'Uncertainty in $\alpha_S$ [x$10^3$]')
+        plt.ylabel(r'Uncertainty on fitted parameter [MeV]')
+        plt.text(.9, 0.17, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.9, 0.13, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.9, 0.08, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.ylim(min(l_m)-1, max(l_w)+2)
+        outname = 'uncert_mass_width_vs_alphas' if not noYukawa else 'uncert_mass_width_vs_alphas_noYukawa'
+        plt.savefig(plot_dir + '/{}.png'.format(outname))
+        plt.savefig(plot_dir + '/{}.pdf'.format(outname))
+        plt.clf()
+
+    def doYukawaScan(self, max_uncert = 0.1, step = 0.005):
+        l_yukawa_uncert = np.arange(0.005, max_uncert+step/2, step)
+        l_mass = []
+        l_width = []
+        for yukawa_u in l_yukawa_uncert:
+            f_yukawa = copy.deepcopy(self)
+            f_yukawa.input_uncert_Yukawa = yukawa_u
+            f_yukawa.constrain_Yukawa = True
+            f_yukawa.update()
+            fit_results = f_yukawa.getFitResults(printout=False)
+            l_mass.append(fit_results[self.param_names.index('mass')].s*1000)
+            l_width.append(fit_results[self.param_names.index('width')].s*1000)
+        plt.plot(l_yukawa_uncert, l_mass, 'b-', label='Impact on $m_t$', linewidth=2)
+        plt.plot(l_yukawa_uncert, l_width, 'g--', label='Impact on $\Gamma_t$', linewidth=2)
+        label_nom = r'$\alpha_S$ uncert. {}'.format(uncert_alphas_default)
+        plt.plot(self.input_uncert_Yukawa, l_mass[min(range(len(l_yukawa_uncert)), key=lambda i: abs(l_yukawa_uncert[i] - self.input_uncert_Yukawa))], 'ro', label='Nominal fit \n{}'.format(label_nom), markersize=8)
+        plt.plot(self.input_uncert_Yukawa, l_width[min(range(len(l_yukawa_uncert)), key=lambda i: abs(l_yukawa_uncert[i] - self.input_uncert_Yukawa))], 'ro', label='', markersize=8)
+        plt.legend(loc='upper left')
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.xlabel('Uncertainty in $y_t$')
+        plt.ylabel('Uncertainty on fitted parameter [MeV]')
+        offset = .3
+        plt.text(.9, 0.17+offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.9, 0.13+offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.9, 0.08+offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.ylim(min(l_mass)-1, max(l_width)+2)
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_yukawa.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_yukawa.pdf')
+        plt.clf()
+
 
 def main():
     parser = argparse.ArgumentParser(description='Specify options')
@@ -613,13 +688,16 @@ def main():
     parser.add_argument('--sameNevts', action='store_true', help='Same number of events in each ecm')
     parser.add_argument('--BECscan', action='store_true', help='Do beam energy calibration scan')
     parser.add_argument('--lumiscan', action='store_true', help='Do luminosity scan')
+    parser.add_argument('--alphaSscan', action='store_true', help='Do alphaS scan')
     args = parser.parse_args()
 
     if args.BECscan and args.scaleVars:
         raise ValueError('BEC scan currently incompatible with scale variations')
+    if args.alphaSscan and args.lastecm:
+        raise ValueError('AlphaS scan currently incompatible with last ecm')
     
     f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa, read_scale_vars = args.scaleVars)
-    f.initScenario(n_IPs=4, scan_min=340, scan_max=344.5, scan_step=.5, total_lumi=0.41 * 1E06, last_lumi = 2.65 * 1E06, add_last_ecm = args.lastecm, same_evts = args.sameNevts,  create_scenario = True)
+    f.initScenario(n_IPs=4, scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=0.41 * 1E06, last_lumi = 2.65 * 1E06, add_last_ecm = args.lastecm, same_evts = args.sameNevts,  create_scenario = True)
     #f.initScenario(n_IPs=4, scan_min=342, scan_max=345, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
     #f.initScenario(n_IPs=4, scan_min=342, scan_max=344, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
     
@@ -631,10 +709,15 @@ def main():
         f.doLSscan(0,0.5,0.01)
     if args.scaleVars:
         f.doScaleVars()
+        f.plotScaleVars() # to be implemented
     if args.BECscan:
         f.doBECscan()
     if args.lumiscan:
         f.doLumiScans()
+    if args.alphaSscan:
+        f.doAlphaSscans()
+        f.doAlphaSscans(noYukawa=True)
+        f.doYukawaScan() # by default
 
 
 if __name__ == '__main__':
