@@ -185,29 +185,26 @@ class fit:
         xsec_scenario = xsec[[float(ecm) in [float(e) for e in self.scenario.keys()] for ecm in xsec['ecm']]]
         return xsec_scenario
     
-    def initScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, same_evts = False, create_scenario = True):
+    def initScenario(self, scan_min, scan_max, scan_step, total_lumi, last_lumi, add_last_ecm, same_evts = False):
+        scan_list = [ecmToString(e) for e in np.arange(scan_min,scan_max+scan_step/2,scan_step)]
+        self.initScenarioCustom(scan_list, total_lumi, last_lumi, add_last_ecm, same_evts)
+        
+    def initScenarioCustom(self, scan_list, total_lumi, last_lumi, add_last_ecm, same_evts = False):
         if self.constrain_Yukawa and add_last_ecm:
             print('\nWarning: constraining Yukawa coupling and adding last ecm is not supported. Setting add_last_ecm to False\n')
             add_last_ecm = False
-        self.scenario_dict = {'n_IPs': n_IPs, 'scan_min': scan_min, 'scan_max': scan_max, 'scan_step': scan_step, 'total_lumi': total_lumi,
-                             'last_lumi': last_lumi, 'add_last_ecm': add_last_ecm, 'same_evts': same_evts}
-        if create_scenario:
-            self.createScenario(**self.scenario_dict)
+        self.scenario_dict = {'scan_list': scan_list, 'total_lumi': total_lumi, 'last_lumi': last_lumi, 'add_last_ecm': add_last_ecm, 'same_evts': same_evts}
+        self.createScenario(**self.scenario_dict)
     
 
-    def createScenario(self,n_IPs=4, scan_min=340, scan_max=346, scan_step=1, total_lumi=0.36 * 1E06, last_lumi = 0.58*4 * 1E06, add_last_ecm = True, same_evts = False, init_vars = True):
+    def createScenario(self, scan_list , total_lumi, last_lumi, add_last_ecm, same_evts, init_vars = True):
         if self.debug:
             print('Creating threshold scan scenario')
-        if not n_IPs in [2,4]:
-            raise ValueError('Invalid number of IPs')
 
-        scenario = [ecmToString(e) for e in np.arange(scan_min,scan_max+scan_step/2,scan_step)]
-        scenario_dict = {k: total_lumi/len(scenario) for k in scenario}
+        scenario_dict = {k: total_lumi/len(scan_list) for k in scan_list}
         if add_last_ecm:
             scenario_dict[ecmToString(self.last_ecm)] = last_lumi
-        #if n_IPs == 2:
-        #    for k in scenario_dict.keys():
-        #        scenario_dict[k] = scenario_dict[k]/1.8
+
         for ecm in scenario_dict.keys():
             if ecm not in self.l_ecm:
                 raise ValueError('Invalid scenario key: {}'.format(ecm))
@@ -224,7 +221,6 @@ class fit:
             np.random.seed(42)
             self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
         self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param]) for param in self.param_names}
-
 
     def getPhysicalFitParams(self,params):
         if not self.SM_width:
@@ -770,9 +766,7 @@ def main():
         raise ValueError('SM width assumption currently not supported') # to be fixed
     
     f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa, read_scale_vars = args.scaleVars)
-    f.initScenario(n_IPs=4, scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=0.41 * 1E06, last_lumi = 2.65 * 1E06, add_last_ecm = args.lastecm, same_evts = args.sameNevts,  create_scenario = True)
-    #f.initScenario(n_IPs=4, scan_min=342, scan_max=345, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
-    #f.initScenario(n_IPs=4, scan_min=342, scan_max=344, scan_step=2, total_lumi=0.36 * 1E06/10, last_lumi = 0.58*4 * 1E06, add_last_ecm = False, create_scenario = True)
+    f.initScenario(scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=0.41 * 1E06, last_lumi = 2.65 * 1E06, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
     
     
     f.fitParameters()
