@@ -16,6 +16,8 @@ plot_dir = 'plots/fit'
 uncert_yukawa_default = 0.03 # only when parameter is constrained. hardcoded for now
 uncert_alphas_default =  0.0003 
 
+label_d = {'mass': '$m_t$ [GeV]', 'width': r'$\Gamma_t$'+' [GeV]', 'yukawa': 'y_t', 'alphas': r'\alpha_S'}
+
 
 def formFileTag(mass, width, yukawa, alphas):
     return 'mass{:.2f}_width{:.2f}_yukawa{:.2f}_asVar{:.4f}'.format(mass,width,yukawa,alphas)
@@ -261,10 +263,11 @@ class fit:
         self.minuit = iminuit.Minuit(self.chi2, np.zeros(len(self.param_names)), name = self.param_names)
         self.minuit.errordef = 1
 
-    def fitParameters(self, exclude_stat = False):
-        if self.debug:
-            print('Initializing Minuit')
-        self.initMinuit(exclude_stat = exclude_stat)
+    def fitParameters(self, exclude_stat = False, initMinuit = True):
+        if initMinuit:
+            if self.debug:
+                print('Initializing Minuit')
+            self.initMinuit(exclude_stat = exclude_stat)
         if self.debug:
             print('Fitting parameters')
         self.minuit.migrad()
@@ -682,6 +685,66 @@ class fit:
         plt.savefig(plot_dir + '/uncert_mass_width_vs_yukawa.pdf')
         plt.clf()
 
+    def doChi2Scans(self):
+        for i_param, param in enumerate(self.param_names):
+            if param == 'yukawa' and self.constrain_Yukawa: continue
+            elif param == 'width' and self.SM_width: continue
+            elif param == 'alphas': continue
+            l_param = np.linspace(self.minuit.values[i_param]-3*self.minuit.errors[i_param], self.minuit.values[param]+3*self.minuit.errors[i_param], 101)
+            l_chi2 = []
+            for val in l_param:
+                f = copy.deepcopy(self)
+                f.minuit.fixed[i_param] = True
+                f.minuit.values[i_param] = val
+                #f.update()
+                f.fitParameters(initMinuit=False)
+                l_chi2.append(f.minuit.fval)
+            #plt.plot(l_param, l_chi2, label=param)
+            plt.plot(self.getValueFromParameter(l_param, param), l_chi2, label=param)
+            plt.xlabel(label_d[param])
+            plt.ylabel(r'$\chi^2$')
+            plt.legend()
+            plt.savefig(plot_dir + '/chi2_scan_{}.png'.format(param))
+            plt.clf()
+        # 2D contour plots
+        for i_param, param in enumerate(self.param_names):
+            if param == 'yukawa' and self.constrain_Yukawa: continue
+            elif param == 'width' and self.SM_width: continue
+            elif param == 'alphas': continue
+            for j_param, param2 in enumerate(self.param_names):
+                if param2 == 'yukawa' and self.constrain_Yukawa: continue
+                elif param2 == 'width' and self.SM_width: continue
+                elif param2 == 'alphas': continue
+                if j_param <= i_param: continue
+                l_param = np.linspace(self.minuit.values[i_param]-3*self.minuit.errors[i_param], self.minuit.values[param]+3*self.minuit.errors[i_param], 51)
+                l_param2 = np.linspace(self.minuit.values[j_param]-3*self.minuit.errors[j_param], self.minuit.values[param2]+3*self.minuit.errors[j_param], 51)
+                l_chi2 = np.zeros((len(l_param),len(l_param2)))
+                for i, val in enumerate(l_param):
+                    for j, val2 in enumerate(l_param2):
+                        f = copy.deepcopy(self)
+                        f.minuit.fixed[i_param] = True
+                        f.minuit.fixed[j_param] = True
+                        f.minuit.values[i_param] = val
+                        f.minuit.values[j_param] = val2
+                        f.fitParameters(initMinuit=False)
+                        l_chi2[i][j] = f.minuit.fval
+                plt.contour(self.getValueFromParameter(l_param, param), self.getValueFromParameter(l_param2, param2), l_chi2, levels=[self.minuit.fval + 1, self.minuit.fval + 4], colors=['#377eb8', '#4daf4a'], linewidths=2)
+                plt.plot(self.getValueFromParameter(self.minuit.values[i_param], param), self.getValueFromParameter(self.minuit.values[j_param], param2), 'k*', label='Best fit value', markersize=10)
+                plt.plot([], [], color='#377eb8', label='68% CL')
+                plt.plot([], [], color='#4daf4a', label='95% CL')
+                plt.xlabel(label_d[param])
+                plt.ylabel(label_d[param2])
+                plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+                plt.text(.95, 0.15, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+                plt.text(.95, 0.11, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+                plt.text(.95, 0.06, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+                plt.legend(loc='upper left')
+                y_offset = -0.003 if param2 == 'width' and param == 'mass' else 0
+                plt.ylim(self.getValueFromParameter(l_param2[0], param2)+y_offset, self.getValueFromParameter(l_param2[-1], param2)+y_offset)
+                plt.savefig(plot_dir + '/chi2_scan_{}_{}.png'.format(param,param2))
+                plt.savefig(plot_dir + '/chi2_scan_{}_{}.pdf'.format(param,param2))
+                plt.clf()
+
 
 def main():
     parser = argparse.ArgumentParser(description='Specify options')
@@ -696,6 +759,7 @@ def main():
     parser.add_argument('--BECscan', action='store_true', help='Do beam energy calibration scan')
     parser.add_argument('--lumiscan', action='store_true', help='Do luminosity scan')
     parser.add_argument('--alphaSscan', action='store_true', help='Do alphaS scan')
+    parser.add_argument('--chi2Scan', action='store_true', help='Do chi2 scans')
     args = parser.parse_args()
 
     if args.BECscan and args.scaleVars:
@@ -728,6 +792,9 @@ def main():
         f.doAlphaSscans(noYukawa=True)
         f.doAlphaSscans(yukawa_uncert=0.01)
         f.doYukawaScan() # by default
+    if args.chi2Scan:
+        f.doChi2Scans()
+    
 
 
 if __name__ == '__main__':
