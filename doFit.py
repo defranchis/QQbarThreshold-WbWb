@@ -702,6 +702,8 @@ def main():
         raise ValueError('BEC scan currently incompatible with scale variations')
     if args.alphaSscan and args.lastecm:
         raise ValueError('AlphaS scan currently incompatible with last ecm')
+    if args.SMwidth:
+        raise ValueError('SM width assumption currently not supported') # to be fixed
     
     f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa, read_scale_vars = args.scaleVars)
     f.initScenario(n_IPs=4, scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=0.41 * 1E06, last_lumi = 2.65 * 1E06, add_last_ecm = args.lastecm, same_evts = args.sameNevts,  create_scenario = True)
