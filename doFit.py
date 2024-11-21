@@ -765,8 +765,12 @@ def main():
     if args.SMwidth:
         raise ValueError('SM width assumption currently not supported') # to be fixed
     
+    
+    threshold_lumi = 0.41 * 1E06 # hardcoded
+    above_threshold_lumi = 2.65 * 1E06 # hardcoded
+
     f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa, read_scale_vars = args.scaleVars)
-    f.initScenario(scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=0.41 * 1E06, last_lumi = 2.65 * 1E06, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
+    f.initScenario(scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=threshold_lumi, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
     
     
     f.fitParameters()
