@@ -16,7 +16,9 @@ indir_BEC = 'BEC_variations' # hardcoded
 BEC_input_var = 10 # 10 MeV, for morphing, hardcoded
 
 uncert_yukawa_default = 0.03 # only when parameter is constrained. hardcoded for now
-uncert_alphas_default =  0.0003 
+uncert_alphas_default =  0.0003 # hardcoded for now
+
+lumi_uncert_default = 1E-3 # hardcoded for now
 
 label_d = {'mass': '$m_t$ [GeV]', 'width': r'$\Gamma_t$'+' [GeV]', 'yukawa': 'y_t', 'alphas': r'\alpha_S'}
 
@@ -46,8 +48,8 @@ class fit:
         self.debug = debug
         self.read_scale_vars = read_scale_vars
         self.last_ecm = 365.0 #hardcoded
-        self.lumi_uncorr = 1E-3 # hardcoded: estimate for full lumi! i.e. 410/fb
-        self.lumi_corr = 1E-4 # hardcoded: estimate for theory cross section uncertainty
+        self.lumi_uncorr = lumi_uncert_default # estimate for full lumi! i.e. 410/fb
+        self.lumi_corr = lumi_uncert_default # estimate for theory cross section uncertainty
         self.input_uncert_Yukawa = uncert_yukawa_default
         self.input_uncert_alphas = uncert_alphas_default
         self.BEC_nuisances = False
@@ -671,46 +673,60 @@ class fit:
 
 
     
-    def doLumiScan(self,type):
+    def doLumiScan(self,type,l_lumi):
         if not type in ['uncorr','corr']:
             raise ValueError('Invalid lumi scan type')
-        l_lumi = np.linspace(0.5, 1.5, 11)*self.lumi_uncorr if type == 'uncorr' else np.linspace(0.5, 1.5, 11)*self.lumi_corr
-        l_mass = []
-        l_width = []
-        l_yukawa = []
+        #l_lumi = np.linspace(0.5, 1.5, 11)*self.lumi_uncorr if type == 'uncorr' else np.linspace(0.5, 1.5, 11)*self.lumi_corr
+        l_mass = np.array([])
+        l_width = np.array([])
+        l_yukawa = np.array([])
         for lumi in l_lumi:
             f_lumi = copy.deepcopy(self)
-            f_lumi.lumi_uncorr = lumi if type == 'uncorr' else self.lumi_uncorr
-            f_lumi.lumi_corr = lumi if type == 'corr' else self.lumi_corr
-            f_lumi.update(exclude_stat=True)
+            if type == 'uncorr':
+                f_lumi.lumi_uncorr = lumi
+                f_lumi.lumi_corr = 0
+            else:
+                f_lumi.lumi_corr = lumi
+                f_lumi.lumi_uncorr = 0
+            #f_lumi.lumi_uncorr = lumi if type == 'uncorr' else self.lumi_uncorr
+            #f_lumi.lumi_corr = lumi if type == 'corr' else self.lumi_corr
+            #f_lumi.update(exclude_stat=True)
+            f_lumi.update()
             fit_results = f_lumi.getFitResults(printout=False)
-            l_mass.append(fit_results[self.param_names.index('mass')].s*1000)
-            l_width.append(fit_results[self.param_names.index('width')].s*1000)
-            l_yukawa.append(fit_results[self.param_names.index('yukawa')].s*100)
+            l_mass = np.append(l_mass, fit_results[self.param_names.index('mass')].s*1000)
+            l_width = np.append(l_width, fit_results[self.param_names.index('width')].s*1000)
+            l_yukawa = np.append(l_yukawa, fit_results[self.param_names.index('yukawa')].s*100)
+
+        l_mass = (l_mass**2 - l_mass[0]**2)**.5
+        l_width = (l_width**2 - l_width[0]**2)**.5
+        l_yukawa = (l_yukawa**2 - l_yukawa[0]**2)**.5
+        
         return l_mass, l_width, l_yukawa        
 
-    def doLumiScans(self):
+    def doLumiScans(self, min=0, max=3, points=11):
         dict_res = dict()
+        l_lumi = np.linspace(min,max,points) * lumi_uncert_default
         for type in ['uncorr','corr']:
-            l_mass, l_width, l_yukawa = self.doLumiScan(type)
+            l_mass, l_width, l_yukawa = self.doLumiScan(type,l_lumi)
             dict_res[type] = [l_mass, l_width, l_yukawa]
 
-        plt.plot(np.linspace(0.5, 1.5, 11), dict_res['uncorr'][0], 'b-', label='Impact on $m_t$ (uncorr)', linewidth=2)
-        plt.plot(np.linspace(0.5, 1.5, 11), dict_res['uncorr'][1], 'g', label='Impact on $\Gamma_t$ (uncorr)', linewidth=2)
-        plt.plot(np.linspace(0.5, 1.5, 11), dict_res['corr'][0], 'b--', label='Impact on $m_t$ (corr)', linewidth=2)
-        plt.plot(np.linspace(0.5, 1.5, 11), dict_res['corr'][1], 'g--', label='Impact on $\Gamma_t$ (corr)', linewidth=2)
+        l_lumi *= 100
+        plt.plot(l_lumi, dict_res['uncorr'][0], 'b-', label='Impact on $m_t$ (uncorr.)', linewidth=2)
+        plt.plot(l_lumi, dict_res['uncorr'][1], 'g', label='Impact on $\Gamma_t$ (uncorr.)', linewidth=2)
+        plt.plot(l_lumi, dict_res['corr'][0], 'b--', label='Impact on $m_t$ (corr.)', linewidth=2)
+        plt.plot(l_lumi, dict_res['corr'][1], 'g--', label='Impact on $\Gamma_t$ (corr.)', linewidth=2)
 
-        plt.plot(1, dict_res['uncorr'][0][list(np.linspace(0.5, 1.5, 11)).index(1)], 'ro', label='Nominal values', markersize=8)
-        plt.plot(1, dict_res['uncorr'][1][list(np.linspace(0.5, 1.5, 11)).index(1)], 'ro', label=None, markersize=8)
+        #plt.plot(lumi_uncert_default, dict_res['uncorr'][0][list(np.linspace(0.5, 1.5, 11)).index(1)], 'ro', label='Nominal values', markersize=8)
+        #plt.plot(lumi_uncert_default, dict_res['uncorr'][1][list(np.linspace(0.5, 1.5, 11)).index(1)], 'ro', label=None, markersize=8)
         plt.legend()
         plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-        plt.xlabel('Luminosity uncert. / nominal value')
-        plt.ylabel('Luminosity uncert. on fitted parameter [MeV]')    
+        plt.xlabel('Luminosity uncertainty [%]')
+        plt.ylabel('Impact on fitted parameter [MeV]')    
         offset = 0.1   
         plt.text(.96, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(.96, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
         plt.text(.96, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.text(.96, 0.07, 'nominal uncorr (corr) uncert. = {:.1f} ({:.2f}) %'.format(self.lumi_uncorr*100,self.lumi_corr*100), fontsize=21, transform=plt.gca().transAxes, ha='right',)
+        #plt.text(.96, 0.07, 'nominal uncorr (corr) uncert. = {:.1f} ({:.2f}) %'.format(self.lumi_uncorr*100,self.lumi_corr*100), fontsize=21, transform=plt.gca().transAxes, ha='right',)
         plt.savefig(plot_dir + '/uncert_mass_width_vs_lumi.png')
         plt.savefig(plot_dir + '/uncert_mass_width_vs_lumi.pdf')
         plt.clf()
