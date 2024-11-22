@@ -28,7 +28,8 @@ def ecmToString(ecm):
     return '{:.1f}'.format(ecm)
 
 class fit:
-    def __init__(self, beam_energy_res = 0.23, smearXsec = True, SM_width = False, input_dir= None, debug = False, asimov = True, constrain_Yukawa = False, read_scale_vars = False) -> None:
+    def __init__(self, beam_energy_res = 0.23, smearXsec = True, SM_width = False, input_dir= None, debug = False, asimov = True, 
+                constrain_Yukawa = False, read_scale_vars = False) -> None:
         if input_dir is None:
             self.input_dir = 'output_full' if not read_scale_vars else 'output_alternative'
         else: self.input_dir = input_dir
@@ -49,6 +50,7 @@ class fit:
         self.lumi_corr = 1E-4 # hardcoded: estimate for theory cross section uncertainty
         self.input_uncert_Yukawa = uncert_yukawa_default
         self.input_uncert_alphas = uncert_alphas_default
+        self.BEC_nuisances = False
 
         if self.debug:
             print('Input directory: {}'.format(self.input_dir))
@@ -175,7 +177,9 @@ class fit:
         return self.xsec_dict_smeared[tag]
     
     def getValueFromParameter(self,par,par_name):
-        return self.d_params['nominal'][par_name] + par * (self.d_params['{}_var'.format(par_name)][par_name] - self.d_params['nominal'][par_name])
+        if not 'BEC_bin' in par_name:
+            return self.d_params['nominal'][par_name] + par * (self.d_params['{}_var'.format(par_name)][par_name] - self.d_params['nominal'][par_name])
+        return par
     
     def getParameterFromValue(self,val,par_name):
         return (val - self.d_params['nominal'][par_name])/(self.d_params['{}_var'.format(par_name)][par_name] - self.d_params['nominal'][par_name])
@@ -184,6 +188,8 @@ class fit:
         params = self.getParamsWithCovarianceMinuit()
         th_xsec = np.array(self.getXsecTemplate()['xsec'])
         for param_name in self.param_names:
+            if 'BEC_bin' in param_name:
+                continue
             param = params[self.param_names.index(param_name)]
             th_xsec = th_xsec * (1 + param*np.array(self.morph_dict[param_name]['xsec']))
         df_th_xsec = pd.DataFrame({'ecm': self.l_ecm, 'xsec': [th.n for th in th_xsec], 'unc': [th.s for th in th_xsec]})
@@ -255,8 +261,14 @@ class fit:
         if self.constrain_Yukawa:
             uncert_yukawa = self.input_uncert_Yukawa / (self.d_params['yukawa_var']['yukawa'] - self.d_params['nominal']['yukawa'])
             chi2 += ((params[self.param_names.index('yukawa')] - self.getParameterFromValue(self.d_params[self.pseudodata_tag]['yukawa'], 'yukawa'))/uncert_yukawa)**2
+        if self.BEC_nuisances:
+            BEC_indices = [i for i, param in enumerate(self.param_names) if 'BEC_bin' in param]
+            BEC_params = params[BEC_indices]
+            if self.BEC_prior < 1E-6:
+                self.BEC_prior = 1E-6 # avoid division by zero
+            chi2 += sum((BEC_params/self.BEC_prior)**2)
         return chi2 + prior_width
-
+    
 
     def initMinuit(self, exclude_stat = False):
         cov_stat = np.diag(self.unc_pseudodata_scenario**2)
@@ -302,14 +314,17 @@ class fit:
                     if param == 'yukawa' and self.constrain_Yukawa: print('constrained with uncertainty {:.3f}'.format(self.input_uncert_Yukawa))
                 if param == 'width' and self.SM_width:
                     pull = unc.ufloat(self.minuit.values[param], self.minuit.errors[param])
+                elif 'BEC_bin' in param:
+                    pull = (params_w_cov[i])
                 else:
                     pull = (params_w_cov[i] - self.d_params[self.pseudodata_tag][param])
                 print('Pull {}: {:.3f}\n'.format(param, pull.n/pull.s))
 
         if printout:
             print('Correlation matrix:')
-            print(self.param_names)
-            print(np.round(unc.correlation_matrix(params_w_cov), 2))
+            print(self.param_names[:4])
+            corr_matrix = np.round(unc.correlation_matrix(params_w_cov), 2)
+            print(corr_matrix[:4, :4])
         if printout:
             self.fit_results = params_w_cov
         return params_w_cov
@@ -594,6 +609,66 @@ class fit:
         f.BEC_var_scenario *= (1 + var*np.array(self.morph_scenario['BEC']['xsec']))
         f.fitParameters(initMinuit=False)
         return [res.n for res in f.getFitResults(printout=False)[:2]]
+    
+    def addBECnuisances(self, prior = 5):
+        self.BEC_nuisances = True
+        self.setBECprior(prior)
+        for i in range(0,len(self.morph_scenario['BEC'])):
+            self.morph_scenario['BEC_bin{}'.format(i)] = self.morph_scenario['BEC'].copy()
+            for j in range(0,len(self.morph_scenario['BEC'])):
+                if i != j: self.morph_scenario['BEC_bin{}'.format(i)]['xsec'].iloc[j] = 0
+            self.param_names.append('BEC_bin{}'.format(i))
+    
+    def setBECprior(self, prior): # prior in MeV
+        self.BEC_prior = prior / BEC_input_var
+
+    def doBECscanUncorr(self, min = 0, max = 30, step = 1):
+        variations = np.arange(min,max+step/2,step)
+        l_mass = []
+        l_width = []
+        f = copy.deepcopy(self)
+        f.addBECnuisances()
+        for var in variations:
+            f.setBECprior(var)
+            f.fitParameters(initMinuit=True)
+            fit_results = f.getFitResults(printout=False)
+            l_mass.append(fit_results[self.param_names.index('mass')].s)
+            l_width.append(fit_results[self.param_names.index('width')].s)
+
+        l_mass = np.array(l_mass)
+        l_width = np.array(l_width)
+
+        plt.plot(variations, l_mass*1E03, 'b-', label='Uncertainty in $m_t$', linewidth=2)
+        plt.plot(variations, l_width*1E03, 'g--', label='Uncertainty in $\Gamma_t$', linewidth=2)
+        plt.legend(loc='upper left')
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.xlabel('Uncorrelated BEC uncertainty [MeV]')
+        plt.ylabel('Total uncertainty on fitted parameter [MeV]')
+        offset = .3
+        plt.text(.9, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.9, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.9, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_uncorr_total.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_uncorr_total.pdf')
+        plt.clf()
+
+        l_mass = (l_mass**2 - l_mass[0]**2)**.5
+        l_width = (l_width**2 - l_width[0]**2)**.5
+
+        plt.plot(variations, l_mass*1E03, 'b-', label='Uncertainty in $m_t$', linewidth=2)
+        plt.plot(variations, l_width*1E03, 'g--', label='Uncertainty in $\Gamma_t$', linewidth=2)
+        plt.legend(loc='upper left')
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.xlabel('Uncorrelated BEC uncertainty [MeV]')
+        plt.ylabel('Impact on fitted parameter [MeV]')
+        offset = 0
+        plt.text(.92, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.92, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.92, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_uncorr.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_uncorr.pdf')
+        plt.clf()
+
 
     
     def doLumiScan(self,type):
@@ -803,13 +878,14 @@ def main():
     parser.add_argument('--constrainYukawa', action='store_true', help='Constrain Yukawa coupling in fit')
     parser.add_argument('--lastecm', action='store_true', help='Add last ecm to scenario')
     parser.add_argument('--sameNevts', action='store_true', help='Same number of events in each ecm')
-    parser.add_argument('--BECscan', action='store_true', help='Do beam energy calibration scan')
+    parser.add_argument('--BECscans', action='store_true', help='Do beam energy calibration scans')
     parser.add_argument('--lumiscan', action='store_true', help='Do luminosity scan')
     parser.add_argument('--alphaSscan', action='store_true', help='Do alphaS scan')
     parser.add_argument('--chi2Scan', action='store_true', help='Do chi2 scans')
+    parser.add_argument('--BECnuisances', action='store_true', help='add BEC nuisances')
     args = parser.parse_args()
 
-    if args.BECscan and args.scaleVars:
+    if args.BECscans and args.scaleVars:
         raise ValueError('BEC scan currently incompatible with scale variations')
     if args.alphaSscan and args.lastecm:
         raise ValueError('AlphaS scan currently incompatible with last ecm')
@@ -823,7 +899,8 @@ def main():
     f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa, read_scale_vars = args.scaleVars)
     f.initScenario(scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=threshold_lumi, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
     
-    
+    if args.BECnuisances:
+        f.addBECnuisances()
     f.fitParameters()
     f.getFitResults()
     f.plotFitScenario()
@@ -832,10 +909,10 @@ def main():
     if args.scaleVars:
         f.doScaleVars()
         f.plotScaleVars() # to be implemented
-    if args.BECscan:
-        f.doBECscanCorr()
-        f.doBECscanCorrMorph()
-        #f.doBECscanUncorr() # to be implemented
+    if args.BECscans:
+        #f.doBECscanCorr()
+        #f.doBECscanCorrMorph()
+        f.doBECscanUncorr()
     if args.lumiscan:
         f.doLumiScans()
     if args.alphaSscan:
