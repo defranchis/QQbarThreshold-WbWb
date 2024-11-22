@@ -12,6 +12,8 @@ import mplhep as hep # type: ignore
 plt.style.use(hep.style.CMS)
 
 plot_dir = 'plots/fit'
+indir_BEC = 'BEC_variations' # hardcoded
+BEC_input_var = 10 # 10 MeV, for morphing, hardcoded
 
 uncert_yukawa_default = 0.03 # only when parameter is constrained. hardcoded for now
 uncert_alphas_default =  0.0003 
@@ -154,7 +156,12 @@ class fit:
 
     def morphCrossSection(self,param):
         xsec_nom = self.getXsecTemplate()
-        xsec_var = self.getXsecTemplate('{}_var'.format(param))
+        if param == 'BEC' and not self.read_scale_vars:
+            tmp = self.readScanPerTag('nominal', indir=os.path.join(indir_BEC,self.varToDir(BEC_input_var)))
+            tmp ['ecm'] = tmp['ecm'].round(1)
+            xsec_var = self.smearCrossSection(tmp)
+        else:
+            xsec_var = self.getXsecTemplate('{}_var'.format(param))
         df_morph = pd.DataFrame({'ecm': xsec_nom['ecm'], 'xsec': xsec_var['xsec']/xsec_nom['xsec'] -1})
         return df_morph      
 
@@ -162,6 +169,7 @@ class fit:
         self.morph_dict = {}
         for param in self.param_names:
             self.morph_dict[param] = self.morphCrossSection(param)
+        self.morph_dict['BEC'] = self.morphCrossSection('BEC')
 
     def getXsecTemplate(self,tag='nominal'):
         return self.xsec_dict_smeared[tag]
@@ -212,6 +220,7 @@ class fit:
         self.xsec_scenario = self.getXsecScenario(self.getXsecTemplate()) # just nominal for now
         if init_vars:
             self.scale_var_scenario = np.ones(len(self.xsec_scenario['xsec']))
+            self.BEC_var_scenario = np.ones(len(self.xsec_scenario['xsec']))
         self.pseudo_data_scenario = np.array(self.getXsecScenario(self.getXsecTemplate(self.pseudodata_tag))['xsec'])
         if same_evts:
             overall_factor = total_lumi / np.sum(np.array([1/sigma for sigma in self.pseudo_data_scenario]))
@@ -221,6 +230,8 @@ class fit:
             np.random.seed(42)
             self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
         self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param]) for param in self.param_names}
+        if not self.read_scale_vars:
+            self.morph_scenario['BEC'] = self.getXsecScenario(self.morph_dict['BEC'])
 
     def getPhysicalFitParams(self,params):
         if not self.SM_width:
@@ -233,6 +244,7 @@ class fit:
     def chi2(self, params):
         th_xsec = np.array(self.xsec_scenario['xsec'])
         th_xsec *= self.scale_var_scenario
+        th_xsec *= self.BEC_var_scenario
         prior_width = self.getPhysicalFitParams(params) # can be zero
         for i, param in enumerate(self.param_names):
             th_xsec *= (1 + params[i]*np.array(self.morph_scenario[param]['xsec']))
@@ -484,6 +496,13 @@ class fit:
         return float(dir.replace('scan_p','').replace('scan_m','')) * (-1 if dir.startswith('scan_m') else 1)
     def varToDir(self,var):
         return 'scan_p{:.0f}'.format(var) if var >= 0 else 'scan_m{:.0f}'.format(abs(var))
+    
+
+    # Disclaimer: BEC functionalities are a bit ad hoc, and strongly depend on the directory naming
+    # The cross sections with BEC variations must be produced with the same parameters as "nominal"
+    # Unfortunately this cannot be easily automated, as the C++ code relies on constexpr variables for the centre-of-mass energy
+    # As it stands, the C++ code must be recompiled for each BEC variation
+    # This also prevents having a large number of points in the BEC scan
 
     def fitBECvar(self,var,indir_BEC):
         if abs(var) > 40:
@@ -500,16 +519,9 @@ class fit:
         f_bec.update(update_scenario=False)
         fit_results = f_bec.getFitResults(printout=False)
         return [res.n for res in fit_results[:2]]
+    
 
-
-    # Disclaimer: BEC functionalities are a bit ad hoc, and strongly depend on the directory naming
-    # The cross sections with BEC variations must be produced with the same parameters as "nominal"
-    # Unfortunately this cannot be easily automated, as the C++ code relies on constexpr variables for the centre-of-mass energy
-    # As it stands, the C++ code must be recompiled for each BEC variation
-    # This also prevents having a large number of points in the BEC scan
-
-    def doBECscan(self):
-        indir_BEC = 'BEC_variations' # hardcoded
+    def doBECscanCorr(self):
         if not os.path.exists(indir_BEC):
             raise ValueError('Directory {} not found'.format(indir_BEC))
         bec_dirs = [d for d in os.listdir(indir_BEC) if os.path.isdir(os.path.join(indir_BEC, d))]
@@ -543,6 +555,45 @@ class fit:
         plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.png')
         plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.pdf')
         plt.clf()
+
+
+    def doBECscanCorrMorph(self, min = -30, max = 30, points = 11):
+
+        variations = np.linspace(min, max, points)
+        l_mass = []
+        l_width = []
+        for var in variations:
+            mass, width = self.fitBECvarMorph(var/BEC_input_var)
+            l_mass.append(mass)
+            l_width.append(width)
+
+        nominal_mass, nominal_width = self.fitBECvarMorph(0)
+
+        l_mass = np.array(l_mass)
+        l_width = np.array(l_width)
+
+        l_mass -= nominal_mass
+        l_width -= nominal_width
+
+        plt.plot(variations, l_mass*1E03, 'b-', label='Shift in fitted $m_t$', linewidth=2)
+        plt.plot(variations, l_width*1E03, 'g--', label='Shift in fitted $\Gamma_t$', linewidth=2)
+        plt.plot(0, 0, 'ro', label='Nominal fit', markersize=8)
+        plt.legend()
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.xlabel(r'Shift in $\sqrt{s}$ [MeV]')
+        plt.ylabel('Shift in fitted parameter [MeV]')
+        plt.text(.9, 0.17, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.9, 0.13, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.9, 0.08, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_morph.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_morph.pdf')
+        plt.clf()
+
+    def fitBECvarMorph(self,var):
+        f = copy.deepcopy(self)
+        f.BEC_var_scenario *= (1 + var*np.array(self.morph_scenario['BEC']['xsec']))
+        f.fitParameters(initMinuit=False)
+        return [res.n for res in f.getFitResults(printout=False)[:2]]
 
     
     def doLumiScan(self,type):
@@ -782,7 +833,9 @@ def main():
         f.doScaleVars()
         f.plotScaleVars() # to be implemented
     if args.BECscan:
-        f.doBECscan()
+        f.doBECscanCorr()
+        f.doBECscanCorrMorph()
+        #f.doBECscanUncorr() # to be implemented
     if args.lumiscan:
         f.doLumiScans()
     if args.alphaSscan:
