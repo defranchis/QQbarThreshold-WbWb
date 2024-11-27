@@ -189,7 +189,7 @@ class fit:
         return self.xsec_dict_smeared[tag]
     
     def getValueFromParameter(self,par,par_name):
-        if not 'BEC_bin' in par_name and not 'BES' in par_name:
+        if not 'BEC_bin' in par_name and par_name != 'BES' and par_name != 'BEC':
             return self.d_params['nominal'][par_name] + par * (self.d_params['{}_var'.format(par_name)][par_name] - self.d_params['nominal'][par_name])
         return par
     
@@ -200,7 +200,7 @@ class fit:
         params = self.getParamsWithCovarianceMinuit()
         th_xsec = np.array(self.getXsecTemplate()['xsec'])
         for param_name in self.param_names:
-            if 'BEC_bin' in param_name or 'BES' in param_name:
+            if 'BEC_bin' in param_name or param_name == 'BES' or param_name == 'BEC':
                 continue
             param = params[self.param_names.index(param_name)]
             th_xsec = th_xsec * (1 + param*np.array(self.morph_dict[param_name]['xsec']))
@@ -277,9 +277,13 @@ class fit:
         if self.BEC_nuisances:
             BEC_indices = [i for i, param in enumerate(self.param_names) if 'BEC_bin' in param]
             BEC_params = params[BEC_indices]
-            if self.BEC_prior < 1E-6:
-                self.BEC_prior = 1E-6 # avoid division by zero
-            chi2 += sum((BEC_params/self.BEC_prior)**2)
+            if self.BEC_prior_uncorr < 1E-6:
+                self.BEC_prior_uncorr = 1E-6 # avoid division by zero
+            chi2 += sum((BEC_params/self.BEC_prior_uncorr)**2)
+            if self.BEC_prior_corr < 1E-6:
+                self.BEC_prior_corr = 1E-6
+            BEC_index = self.param_names.index('BEC')
+            chi2 += (params[BEC_index]/self.BEC_prior_corr)**2
         if self.BES_nuisance:
             BES_index = self.param_names.index('BES')
             chi2 += (params[BES_index]/self.BES_prior)**2
@@ -330,7 +334,7 @@ class fit:
                     if param == 'yukawa' and self.constrain_Yukawa: print('constrained with uncertainty {:.3f}'.format(self.input_uncert_Yukawa))
                 if param == 'width' and self.SM_width:
                     pull = unc.ufloat(self.minuit.values[param], self.minuit.errors[param])
-                elif 'BEC_bin' in param or 'BES' in param:
+                elif 'BEC_bin' in param or param == 'BES' or param == 'BEC':
                     pull = (params_w_cov[i])
                 else:
                     pull = (params_w_cov[i] - self.d_params[self.pseudodata_tag][param])
@@ -628,15 +632,18 @@ class fit:
     
     def addBECnuisances(self,prior):
         self.BEC_nuisances = True
-        self.setBECprior(prior)
+        self.setBECpriors(prior,prior)
         for i in range(0,len(self.morph_scenario['BEC'])):
             self.morph_scenario['BEC_bin{}'.format(i)] = self.morph_scenario['BEC'].copy()
             for j in range(0,len(self.morph_scenario['BEC'])):
                 if i != j: self.morph_scenario['BEC_bin{}'.format(i)]['xsec'].iloc[j] = 0
             self.param_names.append('BEC_bin{}'.format(i))
+        self.param_names.append('BEC')
+        
 
-    def setBECprior(self, prior): # prior in MeV
-        self.BEC_prior = prior / BEC_input_var
+    def setBECpriors(self, prior_uncorr, prior_corr): # prior in MeV
+        self.BEC_prior_uncorr = prior_uncorr / BEC_input_var
+        self.BEC_prior_corr = prior_corr / BEC_input_var
     
     def addBESnuisance(self, uncert):
         self.BES_nuisance = True
