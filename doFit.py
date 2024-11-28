@@ -57,7 +57,7 @@ class fit:
         self.input_uncert_Yukawa = uncert_yukawa_default
         self.input_uncert_alphas = uncert_alphas_default
         self.BEC_nuisances = False
-        self.BES_nuisance = False
+        self.BES_nuisances = False
 
         if self.debug:
             print('Input directory: {}'.format(self.input_dir))
@@ -189,7 +189,7 @@ class fit:
         return self.xsec_dict_smeared[tag]
     
     def getValueFromParameter(self,par,par_name):
-        if not 'BEC_bin' in par_name and par_name != 'BES' and par_name != 'BEC':
+        if not 'BEC_bin' in par_name and not 'BES_bin' in par_name and par_name != 'BES' and par_name != 'BEC':
             return self.d_params['nominal'][par_name] + par * (self.d_params['{}_var'.format(par_name)][par_name] - self.d_params['nominal'][par_name])
         return par
     
@@ -200,7 +200,7 @@ class fit:
         params = self.getParamsWithCovarianceMinuit()
         th_xsec = np.array(self.getXsecTemplate()['xsec'])
         for param_name in self.param_names:
-            if 'BEC_bin' in param_name or param_name == 'BES' or param_name == 'BEC':
+            if 'BEC_bin' in param_name or 'BES_bin' in param_name or param_name == 'BES' or param_name == 'BEC':
                 continue
             param = params[self.param_names.index(param_name)]
             th_xsec = th_xsec * (1 + param*np.array(self.morph_dict[param_name]['xsec']))
@@ -238,7 +238,6 @@ class fit:
         self.xsec_scenario = self.getXsecScenario(self.getXsecTemplate()) # just nominal for now
         if init_vars:
             self.scale_var_scenario = np.ones(len(self.xsec_scenario['xsec']))
-            self.BEC_var_scenario = np.ones(len(self.xsec_scenario['xsec']))
         self.pseudo_data_scenario = np.array(self.getXsecScenario(self.getXsecTemplate(self.pseudodata_tag))['xsec'])
         if same_evts:
             overall_factor = total_lumi / np.sum(np.array([1/sigma for sigma in self.pseudo_data_scenario]))
@@ -263,7 +262,6 @@ class fit:
     def chi2(self, params):
         th_xsec = np.array(self.xsec_scenario['xsec'])
         th_xsec *= self.scale_var_scenario
-        th_xsec *= self.BEC_var_scenario
         prior_width = self.getPhysicalFitParams(params) # can be zero
         for i, param in enumerate(self.param_names):
             th_xsec *= (1 + params[i]*np.array(self.morph_scenario[param]['xsec']))
@@ -284,9 +282,16 @@ class fit:
                 self.BEC_prior_corr = 1E-6
             BEC_index = self.param_names.index('BEC')
             chi2 += (params[BEC_index]/self.BEC_prior_corr)**2
-        if self.BES_nuisance:
+        if self.BES_nuisances:
+            if self.BES_prior_uncorr < 1E-6:
+                self.BES_prior_uncorr = 1E-6
+            BES_indices = [i for i, param in enumerate(self.param_names) if 'BES_bin' in param]
+            BES_params = params[BES_indices]
+            chi2 += sum((BES_params/self.BES_prior_uncorr)**2)
+            if self.BES_prior_corr < 1E-6:
+                self.BES_prior_corr = 1E-6
             BES_index = self.param_names.index('BES')
-            chi2 += (params[BES_index]/self.BES_prior)**2
+            chi2 += (params[BES_index]/self.BES_prior_corr)**2
         return chi2 + prior_width
     
 
@@ -334,7 +339,7 @@ class fit:
                     if param == 'yukawa' and self.constrain_Yukawa: print('constrained with uncertainty {:.3f}'.format(self.input_uncert_Yukawa))
                 if param == 'width' and self.SM_width:
                     pull = unc.ufloat(self.minuit.values[param], self.minuit.errors[param])
-                elif 'BEC_bin' in param or param == 'BES' or param == 'BEC':
+                elif 'BEC_bin' in param or 'BES_bin' in param or param == 'BES' or param == 'BEC':
                     pull = (params_w_cov[i])
                 else:
                     pull = (params_w_cov[i] - self.d_params[self.pseudodata_tag][param])
@@ -603,9 +608,9 @@ class fit:
 
         
     
-    def addBECnuisances(self,prior):
+    def addBECnuisances(self,prior_uncorr, prior_corr):
         self.BEC_nuisances = True
-        self.setBECpriors(prior,prior)
+        self.setBECpriors(prior_uncorr=prior_uncorr, prior_corr=prior_corr)
         for i in range(0,len(self.morph_scenario['BEC'])):
             self.morph_scenario['BEC_bin{}'.format(i)] = self.morph_scenario['BEC'].copy()
             for j in range(0,len(self.morph_scenario['BEC'])):
@@ -618,13 +623,19 @@ class fit:
         self.BEC_prior_uncorr = prior_uncorr / BEC_input_var
         self.BEC_prior_corr = prior_corr / BEC_input_var
     
-    def addBESnuisance(self, uncert):
-        self.BES_nuisance = True
-        self.setBESprior(uncert)
+    def addBESnuisances(self, uncert_uncorr, uncert_corr):
+        self.BES_nuisances = True
+        self.setBESpriors(uncert_corr=uncert_corr, uncert_uncorr=uncert_uncorr)
+        for i in range(0,len(self.morph_scenario['BES'])):
+            self.morph_scenario['BES_bin{}'.format(i)] = self.morph_scenario['BES'].copy()
+            for j in range(0,len(self.morph_scenario['BES'])):
+                if i != j: self.morph_scenario['BES_bin{}'.format(i)]['xsec'].iloc[j] = 0
+            self.param_names.append('BES_bin{}'.format(i))
         self.param_names.append('BES')
     
-    def setBESprior(self, uncert):
-        self.BES_prior = uncert / BES_input_var
+    def setBESpriors(self, uncert_uncorr, uncert_corr):
+        self.BES_prior_corr = uncert_corr / BES_input_var
+        self.BES_prior_uncorr = uncert_uncorr / BES_input_var
 
     def doBECscanUncorr(self, min = 0, max = 30, step = 1):
         variations = np.arange(min,max+step/2,step)
@@ -673,16 +684,16 @@ class fit:
         plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_uncorr.pdf')
         plt.clf()
 
-    def doBESscan(self, min = 0, max = 0.1, step = 0.01):
+    def doBESscanCorr(self, min = 0, max = 0.03, step = 0.001):
         variations = np.arange(min,max+step/2,step)
         l_mass = []
         l_width = []
         f = copy.deepcopy(self)
-        f.addBESnuisance(uncert=.1)
+        f.addBESnuisances(uncert_corr=0, uncert_uncorr=0)
         for var in variations:
             if var < 1E-6:
                 var = 1E-10
-            f.setBESprior(var)
+            f.setBESpriors(uncert_corr=var,uncert_uncorr=0)
             f.fitParameters(initMinuit=True)
             fit_results = f.getFitResults(printout=False)
             l_mass.append(fit_results[self.param_names.index('mass')].s)
@@ -722,6 +733,54 @@ class fit:
         plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncert.pdf')
         plt.clf()
 
+    def doBESscanUncorr(self, min = 0, max = 0.03, step = 0.001):
+        variations = np.arange(min,max+step/2,step)
+        l_mass = []
+        l_width = []
+        f = copy.deepcopy(self)
+        f.addBESnuisances(uncert_corr=0, uncert_uncorr=0)
+        for var in variations:
+            if var < 1E-6:
+                var = 1E-10
+            f.setBESpriors(uncert_corr=0,uncert_uncorr=var)
+            f.fitParameters(initMinuit=True)
+            fit_results = f.getFitResults(printout=False)
+            l_mass.append(fit_results[self.param_names.index('mass')].s)
+            l_width.append(fit_results[self.param_names.index('width')].s)
+
+        l_mass = np.array(l_mass)
+        l_width = np.array(l_width)
+
+        plt.plot(variations*100, l_mass*1E03, 'b-', label='Uncertainty in $m_t$', linewidth=2)
+        plt.plot(variations*100, l_width*1E03, 'g--', label='Uncertainty in $\Gamma_t$', linewidth=2)
+        plt.legend(loc='upper left')
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.xlabel('Uncorrelated BES uncertainty [%]')
+        plt.ylabel('Total uncertainty on fitted parameter [MeV]')
+        offset = .1
+        plt.text(.9, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.9, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.9, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncorr_total.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncorr_total.pdf')
+        plt.clf()
+
+        l_mass = (l_mass**2 - np.min(l_mass)**2)**.5
+        l_width = (l_width**2 - l_width[0]**2)**.5
+
+        plt.plot(variations*100, l_mass*1E03, 'b-', label='Uncertainty in $m_t$', linewidth=2)
+        plt.plot(variations*100, l_width*1E03, 'g--', label='Uncertainty in $\Gamma_t$', linewidth=2)
+        plt.legend(loc='upper left')
+        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.xlabel('Uncorrelated BES uncertainty [%]')
+        plt.ylabel('Impact on fitted parameter [MeV]')
+        offset = -0.03
+        plt.text(.95, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.95, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.95, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncorr.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncorr.pdf')
+        plt.clf()
     
     def doLumiScan(self,type,l_lumi):
         if not type in ['uncorr','corr']:
@@ -983,10 +1042,10 @@ def main():
     parser.add_argument('--alphaSscan', action='store_true', help='Do alphaS scan')
     parser.add_argument('--chi2Scan', action='store_true', help='Do chi2 scans')
     parser.add_argument('--BECnuisances', action='store_true', help='add BEC nuisances')
-    parser.add_argument('--BESnuisance' , action='store_true', help='add BES nuisance')
+    parser.add_argument('--BESnuisances' , action='store_true', help='add BES nuisances')
     args = parser.parse_args()
 
-    if (args.BECscans or args.BESscans or args.BECnuisances or args.BESnuisance) and args.scaleVars:
+    if (args.BECscans or args.BESscans or args.BECnuisances or args.BESnuisances) and args.scaleVars:
         raise ValueError('BEC scan currently incompatible with scale variations')
     if args.alphaSscan and args.lastecm:
         raise ValueError('AlphaS scan currently incompatible with last ecm')
@@ -1001,9 +1060,9 @@ def main():
     f.initScenario(scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=threshold_lumi, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
     
     if args.BECnuisances:
-        f.addBECnuisances(uncert_BEC_default)
-    if args.BESnuisance:
-        f.addBESnuisance(uncert_BES_default)
+        f.addBECnuisances(prior_uncorr=uncert_BEC_default, prior_corr=uncert_BEC_default)
+    if args.BESnuisances:
+        f.addBESnuisances(uncert_corr=uncert_BES_default, uncert_uncorr=uncert_BES_default)
     f.fitParameters()
     f.getFitResults()
     f.plotFitScenario()
@@ -1014,10 +1073,10 @@ def main():
         f.plotScaleVars() # to be implemented
     if args.BECscans:
         f.doBECscanCorr()
-        #f.doBECscanCorrMorph()
         f.doBECscanUncorr()
     if args.BESscans:
-        f.doBESscan()
+        f.doBESscanCorr()
+        f.doBESscanUncorr()
     if args.lumiscan:
         f.doLumiScans()
     if args.alphaSscan:
