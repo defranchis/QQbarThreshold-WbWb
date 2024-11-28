@@ -1095,9 +1095,12 @@ class fit:
             width_unc = f.syst_width[syst]
             print(f"{syst:<12} {mass_unc:<12.1f} {width_unc:<12.1f}")
         print("-" * 36)
-        print(f"{'total':<12} {total_mass_unc:<12.1f} {total_width_unc:<12.1f}")
+        print(f"{'total exp':<12} {total_mass_unc:<12.1f} {total_width_unc:<12.1f}")
 
-        # Generate LaTeX table
+        theory_mass_unc = 30 #hardcoded
+        theory_width_unc = 30 #hardcoded
+        print(f"{'theory':<12} {theory_mass_unc:<12.0f} {theory_width_unc:<12.0f}")
+
         latex_table = r"""
         \begin{table}[h!]
         \centering
@@ -1107,22 +1110,21 @@ class fit:
         \hline
         """
 
-        # Add each systematic uncertainty (excluding total)
         for syst, mass_unc in f.syst_mass.items():
             width_unc = f.syst_width[syst]
-            latex_table += f"{syst} & {mass_unc:.1f} & {width_unc:.1f} \\\\\n\\hline\n"
+            latex_table += f"{syst} & {mass_unc:.1f} & {width_unc:.1f} \\\\\n"
 
-        # Append the total uncertainty at the bottom
-        latex_table += f"total & {total_mass_unc:.1f} & {total_width_unc:.1f} \\\\\n\\hline\n"
+        latex_table += f"\hline\n"
+        latex_table += f"total & {total_mass_unc:.1f} & {total_width_unc:.1f} \\\\\n"
+        latex_table += f"theory & {theory_mass_unc:.0f} & {theory_width_unc:.0f} \\\\\n\\hline\n"
 
         latex_table += r"""
         \end{tabular}
-        \caption{Systematic uncertainties on mass and width, with total uncertainty at the bottom.}
+        \caption{Systematic uncertainties on mass and width.}
         \label{tab:syst_unc}
         \end{table}
         """
 
-        # Save the LaTeX code to a file
         with open("systematics_table.tex", "w") as f:
             f.write(latex_table)
 
