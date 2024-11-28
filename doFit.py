@@ -18,10 +18,10 @@ BEC_input_var = 10 # 10 MeV, for morphing, hardcoded
 BES_input_var = 0.1 # 10%, for morphing, hardcoded
 
 uncert_yukawa_default = 0.03 # only when parameter is constrained. hardcoded for now
-uncert_alphas_default =  0.0003 # hardcoded for now
+uncert_alphas_default =  0.0001 # hardcoded for now
 
 uncert_lumi_default = 1E-3 # hardcoded for now
-uncert_BES_default = 0.1 # hardcoded for now
+uncert_BES_default = 0.01 # hardcoded for now
 uncert_BEC_default = 5 # hardcoded for now
 
 label_d = {'mass': '$m_t$ [GeV]', 'width': r'$\Gamma_t$'+' [GeV]', 'yukawa': 'y_t', 'alphas': r'\alpha_S'}
@@ -566,7 +566,7 @@ class fit:
         l_mass = []
         l_width = []
         f = copy.deepcopy(self)
-        f.addBECnuisances(0)
+        f.addBECnuisances(0,0)
         for var in variations:
             f.setBECpriors(prior_corr=var, prior_uncorr=0)
             f.fitParameters(initMinuit=True)
@@ -642,7 +642,7 @@ class fit:
         l_mass = []
         l_width = []
         f = copy.deepcopy(self)
-        f.addBECnuisances(0)
+        f.addBECnuisances(0,0)
         for var in variations:
             f.setBECpriors(prior_uncorr=var, prior_corr=0)
             f.fitParameters(initMinuit=True)
@@ -1025,6 +1025,108 @@ class fit:
                 plt.savefig(plot_dir + '/chi2_scan_{}_{}.pdf'.format(param,param2))
                 plt.clf()
 
+    def addSystToTable(self,syst_name):
+        fit_results = self.getFitResults(printout=False)
+        self.syst_mass[syst_name] = fit_results[self.param_names.index('mass')].s*1000
+        self.syst_width[syst_name] = fit_results[self.param_names.index('width')].s*1000
+        if syst_name != 'stat' and syst_name != 'total':
+            self.syst_mass[syst_name] = (self.syst_mass['total']**2 - self.syst_mass[syst_name]**2)**.5
+            self.syst_width[syst_name] = (self.syst_width['total']**2 - self.syst_width[syst_name]**2)**.5
+
+    def estimateSyst(self,syst_name):
+        if syst_name == 'stat':
+            self.reinitialiseToStat()
+        elif syst_name == 'alphaS':
+            self.input_uncert_alphas = 1E-10
+        elif syst_name == 'Yukawa':
+            self.input_uncert_Yukawa = 1E-10
+        elif syst_name == 'BES_corr':
+            self.BES_prior_corr = 1E-10
+        elif syst_name == 'BES_uncorr':
+            self.BES_prior_uncorr = 1E-10
+        elif syst_name == 'BEC_corr':
+            self.BEC_prior_corr = 1E-10
+        elif syst_name == 'BEC_uncorr':
+            self.BEC_prior_uncorr = 1E-10
+        elif syst_name == 'lumi_corr':
+            self.lumi_corr = 1E-10
+        elif syst_name == 'lumi_uncorr':
+            self.lumi_uncorr = 1E-10
+        self.fitParameters()
+        self.addSystToTable(syst_name)
+        self.reinitialiseToNominal()
+
+
+    def reinitialiseToStat(self):
+        self.input_uncert_alphas = 1E-10
+        self.input_uncert_Yukawa = 1E-10
+        self.constrain_Yukawa = True
+        self.BEC_prior_corr = 1E-10
+        self.BEC_prior_uncorr = 1E-10
+        self.BES_prior_corr = 1E-10
+        self.BES_prior_uncorr = 1E-10
+        self.lumi_corr = 1E-10
+        self.lumi_uncorr = 1E-10
+
+    def reinitialiseToNominal(self):
+        self.input_uncert_alphas = uncert_alphas_default
+        self.input_uncert_Yukawa = uncert_yukawa_default
+        self.constrain_Yukawa = True
+        self.setBECpriors(uncert_BEC_default, uncert_BEC_default)
+        self.setBESpriors(uncert_BES_default, uncert_BES_default)
+        self.lumi_corr = uncert_lumi_default
+        self.lumi_uncorr = uncert_lumi_default
+
+
+    def printSystTable(self):
+        f = copy.deepcopy(self)
+        f.syst_mass = dict()
+        f.syst_width = dict()
+        for syst in ['stat', 'total', 'alphaS', 'Yukawa', 'BES_corr', 'BES_uncorr', 'BEC_corr', 'BEC_uncorr', 'lumi_corr', 'lumi_uncorr']:
+            f.estimateSyst(syst) #TODO: automatic list of systematics when nuisances are added
+        
+        total_mass_unc = f.syst_mass.pop('total')
+        total_width_unc = f.syst_width.pop('total')
+
+        print()
+        print(f"{'Systematic':<12} {'Mass [MeV]':<12} {'Width [MeV]':<12}")
+        print("-" * 36)
+        for syst, mass_unc in f.syst_mass.items():
+            width_unc = f.syst_width[syst]
+            print(f"{syst:<12} {mass_unc:<12.1f} {width_unc:<12.1f}")
+        print("-" * 36)
+        print(f"{'total':<12} {total_mass_unc:<12.1f} {total_width_unc:<12.1f}")
+
+        # Generate LaTeX table
+        latex_table = r"""
+        \begin{table}[h!]
+        \centering
+        \begin{tabular}{|l|r|r|}
+        \hline
+        Systematic & Mass Uncertainty (MeV) & Width Uncertainty (MeV) \\
+        \hline
+        """
+
+        # Add each systematic uncertainty (excluding total)
+        for syst, mass_unc in f.syst_mass.items():
+            width_unc = f.syst_width[syst]
+            latex_table += f"{syst} & {mass_unc:.1f} & {width_unc:.1f} \\\\\n\\hline\n"
+
+        # Append the total uncertainty at the bottom
+        latex_table += f"total & {total_mass_unc:.1f} & {total_width_unc:.1f} \\\\\n\\hline\n"
+
+        latex_table += r"""
+        \end{tabular}
+        \caption{Systematic uncertainties on mass and width, with total uncertainty at the bottom.}
+        \label{tab:syst_unc}
+        \end{table}
+        """
+
+        # Save the LaTeX code to a file
+        with open("systematics_table.tex", "w") as f:
+            f.write(latex_table)
+
+
 
 def main():
     parser = argparse.ArgumentParser(description='Specify options')
@@ -1043,6 +1145,7 @@ def main():
     parser.add_argument('--chi2Scan', action='store_true', help='Do chi2 scans')
     parser.add_argument('--BECnuisances', action='store_true', help='add BEC nuisances')
     parser.add_argument('--BESnuisances' , action='store_true', help='add BES nuisances')
+    parser.add_argument('--systTable', action='store_true', help='Produce systematic table')
     args = parser.parse_args()
 
     if (args.BECscans or args.BESscans or args.BECnuisances or args.BESnuisances) and args.scaleVars:
@@ -1059,9 +1162,9 @@ def main():
     f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa, read_scale_vars = args.scaleVars)
     f.initScenario(scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=threshold_lumi, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
     
-    if args.BECnuisances:
+    if args.BECnuisances or args.systTable:
         f.addBECnuisances(prior_uncorr=uncert_BEC_default, prior_corr=uncert_BEC_default)
-    if args.BESnuisances:
+    if args.BESnuisances or args.systTable:
         f.addBESnuisances(uncert_corr=uncert_BES_default, uncert_uncorr=uncert_BES_default)
     f.fitParameters()
     f.getFitResults()
@@ -1086,6 +1189,8 @@ def main():
         f.doYukawaScan() # by default
     if args.chi2Scan:
         f.doChi2Scans()
+    if args.systTable:
+        f.printSystTable()
     
 
 

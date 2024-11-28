@@ -12,3 +12,4 @@ logs
 *.pyc
 *.so
 *.o
+*.tex
