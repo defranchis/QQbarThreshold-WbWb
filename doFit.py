@@ -1097,8 +1097,8 @@ class fit:
         print("-" * 36)
         print(f"{'total exp':<12} {total_mass_unc:<12.1f} {total_width_unc:<12.1f}")
 
-        theory_mass_unc = 30 #hardcoded
-        theory_width_unc = 30 #hardcoded
+        theory_mass_unc = 35 #hardcoded
+        theory_width_unc = 25 #hardcoded
         print(f"{'theory':<12} {theory_mass_unc:<12.0f} {theory_width_unc:<12.0f}")
 
         latex_table = r"""
