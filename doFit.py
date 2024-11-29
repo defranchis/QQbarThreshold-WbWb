@@ -829,13 +829,18 @@ class fit:
         #plt.plot(lumi_uncert_default, dict_res['uncorr'][1][list(np.linspace(0.5, 1.5, 11)).index(1)], 'ro', label=None, markersize=8)
         plt.legend()
         plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-        plt.xlabel('Luminosity uncertainty [%]')
+        plt.xlabel('Integrated luminosity uncertainty [%]')
         plt.ylabel('Impact on fitted parameter [MeV]')    
-        offset = 0.1   
-        plt.text(.96, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.96, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.96, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        #plt.text(.96, 0.07, 'nominal uncorr (corr) uncert. = {:.1f} ({:.2f}) %'.format(self.lumi_uncorr*100,self.lumi_corr*100), fontsize=21, transform=plt.gca().transAxes, ha='right',)
+        offset = 0.45
+        x_pos = 0.05
+        #plt.text(x_pos, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        #plt.text(x_pos, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        #plt.text(x_pos, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        #plt.text(x_pos, 0.07, 'nominal uncorr (corr) uncert. = {:.1f} ({:.2f}) %'.format(self.lumi_uncorr*100,self.lumi_corr*100), fontsize=21, transform=plt.gca().transAxes, ha='right',)
+        plt.text(x_pos, 0.17 + offset, 'WbWb at $N^{3}LO$ + ISR', fontsize=23, transform=plt.gca().transAxes, ha='left')
+        plt.text(x_pos, 0.12 + offset, '+ FCC-ee LS', fontsize=23, transform=plt.gca().transAxes, ha='left')
+
+
         plt.savefig(plot_dir + '/uncert_mass_width_vs_lumi.png')
         plt.savefig(plot_dir + '/uncert_mass_width_vs_lumi.pdf')
         plt.clf()
