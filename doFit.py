@@ -11,6 +11,7 @@ from xsec_calculator.parameter_def import parameters # type: ignore
 import mplhep as hep # type: ignore
 plt.style.use(hep.style.CMS)
 
+
 plot_dir = 'plots/fit'
 indir_BEC = 'BEC_variations' # hardcoded
 
@@ -383,12 +384,11 @@ class fit:
         plt.axhline(1, color='grey', linestyle='--', label='Reference cross section', linewidth=2)
         plt.xlabel('$\sqrt{s}$ [GeV]')
         plt.ylabel('WbWb total cross section ratio')
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
         plt.legend(loc='lower right', fontsize=20)
         if not self.scenario_dict['add_last_ecm']:
-        #if True:
             plt.xlim(339.7, 347)
-        plt.text(.96, 0.45, 'QQbar_Threshold N3LO+ISR', fontsize=22, transform=plt.gca().transAxes, ha='right')
+        plt.text(.96, 0.45, 'QQbar_Threshold $N^{3}LO$+ISR', fontsize=22, transform=plt.gca().transAxes, ha='right')
         plt.text(.96, 0.41, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
         plt.text(.96, 0.36, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
 
@@ -436,11 +436,11 @@ class fit:
         plt.plot(self.beam_energy_res, self.fit_results[self.param_names.index('mass')].s*1E03, 'ro', label='Nominal $m_t$'.format(self.beam_energy_res), markersize=8)
         plt.plot(self.beam_energy_res, self.fit_results[self.param_names.index('width')].s*1E03, 's', color = 'orange', label='Nominal $\Gamma_t$'.format(self.beam_energy_res), markersize=7)
         plt.legend()
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
         plt.xlabel('Beam energy spread [%]')
         plt.ylabel('Statistical uncertainty [MeV]')
 
-        plt.text(.6, 0.65, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.6, 0.65, 'QQbar_Threshold $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(.6, 0.61, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
         plt.text(.6, 0.56, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
 
@@ -519,10 +519,10 @@ class fit:
         plt.plot(l_vars, np.array(l_width) * 1E03, 'g--', label='Shift in fitted $\Gamma_t$', linewidth=2)
         plt.plot(self.parameters.mass_scale, 0, 'ro', label='Nominal fit', markersize=8)
         plt.legend()
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
         plt.xlabel('Renormalisation scale $\mu$ [GeV]')
         plt.ylabel('Shift in fitted parameter [MeV]')
-        plt.text(.6, 0.17, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.6, 0.17, 'QQbar_Threshold $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(.6, 0.13, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
         plt.text(.6, 0.08, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
         plt.savefig(plot_dir + '/uncert_mass_width_vs_scale.png')
@@ -560,52 +560,6 @@ class fit:
         fit_results = f_bec.getFitResults(printout=False)
         return [res.n for res in fit_results[:2]]
     
-
-    def doBECscanCorr(self, min = 0, max = 15, step = 1):
-        variations = np.arange(min,max+step/2,step)
-        l_mass = []
-        l_width = []
-        f = copy.deepcopy(self)
-        f.addBECnuisances(0,0)
-        for var in variations:
-            f.setBECpriors(prior_corr=var, prior_uncorr=0)
-            f.fitParameters(initMinuit=True)
-            fit_results = f.getFitResults(printout=False)
-            l_mass.append(fit_results[self.param_names.index('mass')].s)
-            l_width.append(fit_results[self.param_names.index('width')].s)
-
-        l_mass = np.array(l_mass)
-        l_width = np.array(l_width)
-
-        f.setBECpriors(prior_corr=uncert_BEC_default, prior_uncorr=0)
-        f.fitParameters(initMinuit=True)
-        fit_results = f.getFitResults(printout=False)
-        nominal_mass = fit_results[self.param_names.index('mass')].s
-        nominal_width = fit_results[self.param_names.index('width')].s
-
-        nominal_mass = (nominal_mass**2 - l_mass[0]**2)**.5
-        nominal_width = (nominal_width**2 - l_width[0]**2)**.5
-
-        l_mass = (l_mass**2 - l_mass[0]**2)**.5
-        l_width = (l_width**2 - l_width[0]**2)**.5
-
-
-        plt.plot(variations, l_mass*1E03, 'b-', label='Uncertainty in $m_t$', linewidth=2)
-        plt.plot(variations, l_width*1E03, 'g--', label='Uncertainty in $\Gamma_t$', linewidth=2)
-        plt.plot(uncert_BEC_default, (nominal_mass**2 - l_mass[0]**2)**.5*1E03, 'ro', label='Nominal fit', markersize=8)
-        plt.plot(uncert_BEC_default, (nominal_width**2 - l_width[0]**2)**.5*1E03, 'ro', label='', markersize=8)
-        plt.legend()
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-        plt.xlabel(r'Uncertainty in $\sqrt{s}$ [MeV]')
-        plt.ylabel('Impact on fitted parameter [MeV]')
-        offset = 0.1
-        plt.text(.9, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.9, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.9, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_corr.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_corr.pdf')
-        plt.clf()
-
         
     
     def addBECnuisances(self,prior_uncorr, prior_corr):
@@ -637,63 +591,22 @@ class fit:
         self.BES_prior_corr = uncert_corr / BES_input_var
         self.BES_prior_uncorr = uncert_uncorr / BES_input_var
 
-    def doBECscanUncorr(self, min = 0, max = 30, step = 1):
-        variations = np.arange(min,max+step/2,step)
+    def doBECscan(self, vars, type):
+        if not type in ['uncorr', 'corr']:
+            raise ValueError('Invalid BEC scan type')
         l_mass = []
         l_width = []
+
         f = copy.deepcopy(self)
-        f.addBECnuisances(0,0)
-        for var in variations:
-            f.setBECpriors(prior_uncorr=var, prior_corr=0)
-            f.fitParameters(initMinuit=True)
-            fit_results = f.getFitResults(printout=False)
-            l_mass.append(fit_results[self.param_names.index('mass')].s)
-            l_width.append(fit_results[self.param_names.index('width')].s)
-
-        l_mass = np.array(l_mass)
-        l_width = np.array(l_width)
-
-        plt.plot(variations, l_mass*1E03, 'b-', label='Uncertainty in $m_t$', linewidth=2)
-        plt.plot(variations, l_width*1E03, 'g--', label='Uncertainty in $\Gamma_t$', linewidth=2)
-        plt.legend(loc='upper left')
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-        plt.xlabel('Uncorrelated BEC uncertainty [MeV]')
-        plt.ylabel('Total uncertainty on fitted parameter [MeV]')
-        offset = .3
-        plt.text(.9, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.9, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.9, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_uncorr_total.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_uncorr_total.pdf')
-        plt.clf()
-
-        l_mass = (l_mass**2 - l_mass[0]**2)**.5
-        l_width = (l_width**2 - l_width[0]**2)**.5
-
-        plt.plot(variations, l_mass*1E03, 'b-', label='Uncertainty in $m_t$', linewidth=2)
-        plt.plot(variations, l_width*1E03, 'g--', label='Uncertainty in $\Gamma_t$', linewidth=2)
-        plt.legend(loc='upper left')
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-        plt.xlabel('Uncorrelated BEC uncertainty [MeV]')
-        plt.ylabel('Impact on fitted parameter [MeV]')
-        offset = 0
-        plt.text(.92, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.92, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.92, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_uncorr.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC_uncorr.pdf')
-        plt.clf()
-
-    def doBESscanCorr(self, min = 0, max = 0.03, step = 0.001):
-        variations = np.arange(min,max+step/2,step)
-        l_mass = []
-        l_width = []
-        f = copy.deepcopy(self)
-        f.addBESnuisances(uncert_corr=0, uncert_uncorr=0)
-        for var in variations:
+        do_init = not 'BEC' in self.param_names
+        if do_init:
+            f.addBECnuisances(prior_uncorr=1E-6, prior_corr=1E-6)
+        for var in vars:
             if var < 1E-6:
-                var = 1E-10
-            f.setBESpriors(uncert_corr=var,uncert_uncorr=0)
+                var = 1E-6
+            var_uncorr = var if type == 'uncorr' else 1E-6
+            var_corr = var if type == 'corr' else 1E-6
+            f.setBECpriors(prior_uncorr=var_uncorr, prior_corr=var_corr)
             f.fitParameters(initMinuit=True)
             fit_results = f.getFitResults(printout=False)
             l_mass.append(fit_results[self.param_names.index('mass')].s)
@@ -701,48 +614,63 @@ class fit:
 
         l_mass = np.array(l_mass)
         l_width = np.array(l_width)
+        return l_mass, l_width
 
-        plt.plot(variations*100, l_mass*1E03, 'b-', label='Uncertainty in $m_t$', linewidth=2)
-        plt.plot(variations*100, l_width*1E03, 'g--', label='Uncertainty in $\Gamma_t$', linewidth=2)
+    def doBECscans(self, min=0, max=10, step=0.1):
+        variations = np.arange(min, max + step / 2, step)
+        
+        l_mass_uncorr, l_width_uncorr = self.doBECscan(variations, 'uncorr')
+        l_mass_corr, l_width_corr = self.doBECscan(variations, 'corr')
+
+        l_mass_uncorr = self.getImpactFromUncert(l_mass_uncorr)
+        l_width_uncorr = self.getImpactFromUncert(l_width_uncorr)
+        l_mass_corr = self.getImpactFromUncert(l_mass_corr)
+        l_width_corr = self.getImpactFromUncert(l_width_corr)
+
+        plt.plot(variations, l_mass_uncorr * 1E03, 'b-', label='Impact on $m_t$ (uncorr.)', linewidth=2)
+        plt.plot(variations, l_width_uncorr * 1E03, 'g-', label='Impact on $\Gamma_t$ (uncorr.)', linewidth=2)
+        plt.plot(variations, l_mass_corr * 1E03, 'b--', label='Impact on $m_t$ (corr.)', linewidth=2)
+        plt.plot(variations, l_width_corr * 1E03, 'g--', label='Impact on $\Gamma_t$ (corr.)', linewidth=2)
         plt.legend(loc='upper left')
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-        plt.xlabel('BES uncertainty [%]')
-        plt.ylabel('Total uncertainty on fitted parameter [MeV]')
-        offset = .1
-        plt.text(.9, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.9, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.9, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncert_total.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncert_total.pdf')
-        plt.clf()
-
-        l_mass = (l_mass**2 - np.min(l_mass)**2)**.5
-        l_width = (l_width**2 - l_width[0]**2)**.5
-
-        plt.plot(variations*100, l_mass*1E03, 'b-', label='Uncertainty in $m_t$', linewidth=2)
-        plt.plot(variations*100, l_width*1E03, 'g--', label='Uncertainty in $\Gamma_t$', linewidth=2)
-        plt.legend(loc='upper left')
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-        plt.xlabel('BES uncertainty [%]')
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi'] / 1E03), loc='right', fontsize=20)
+        plt.xlabel('Uncertainty in $\sqrt{s}$ [MeV]')
         plt.ylabel('Impact on fitted parameter [MeV]')
-        offset = .1
-        plt.text(.92, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.92, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.92, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncert.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncert.pdf')
+        plt.text(.05, 0.17 + 0.45, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='left')
+        plt.text(.05, 0.12 + 0.45, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='left')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.pdf')
         plt.clf()
 
-    def doBESscanUncorr(self, min = 0, max = 0.03, step = 0.001):
-        variations = np.arange(min,max+step/2,step)
+        plt.plot(variations, l_mass_uncorr * 1E03, 'b-', label='Impact on $m_t$ (uncorr.)', linewidth=2)
+        plt.plot(variations, l_width_uncorr * 1E03, 'g-', label='Impact on $\Gamma_t$ (uncorr.)', linewidth=2)
+        plt.plot(variations, l_mass_corr * 1E03, 'b--', label='Impact on $m_t$ (corr.)', linewidth=2)
+        plt.plot(variations, l_width_corr * 1E03, 'g--', label='Impact on $\Gamma_t$ (corr.)', linewidth=2)
+        plt.legend(loc='upper left')
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi'] / 1E03), loc='right', fontsize=20)
+        plt.xlabel('Uncertainty in $\sqrt{s}$ [MeV]')
+        plt.ylabel('Impact on fitted parameter [MeV]')
+        plt.text(.05, 0.17 + 0.45, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='left')
+        plt.text(.05, 0.12 + 0.45, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='left')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.pdf')
+        plt.clf()
+
+    def doBESscan(self,vars,type):
+        if not type in ['uncorr','corr']:
+            raise ValueError('Invalid BES scan type')
         l_mass = []
         l_width = []
+
         f = copy.deepcopy(self)
-        f.addBESnuisances(uncert_corr=0, uncert_uncorr=0)
-        for var in variations:
+        do_init = not 'BES' in self.param_names
+        if do_init:
+            f.addBESnuisances(uncert_corr=1E-6, uncert_uncorr=1E-6)
+        for var in vars:
             if var < 1E-6:
-                var = 1E-10
-            f.setBESpriors(uncert_corr=0,uncert_uncorr=var)
+                var = 1E-6
+            var_uncorr = var if type == 'uncorr' else 1E-6
+            var_corr = var if type == 'corr' else 1E-6
+            f.setBESpriors(uncert_corr=var_corr, uncert_uncorr=var_uncorr)
             f.fitParameters(initMinuit=True)
             fit_results = f.getFitResults(printout=False)
             l_mass.append(fit_results[self.param_names.index('mass')].s)
@@ -750,42 +678,42 @@ class fit:
 
         l_mass = np.array(l_mass)
         l_width = np.array(l_width)
+        return l_mass, l_width
 
-        plt.plot(variations*100, l_mass*1E03, 'b-', label='Uncertainty in $m_t$', linewidth=2)
-        plt.plot(variations*100, l_width*1E03, 'g--', label='Uncertainty in $\Gamma_t$', linewidth=2)
+    def getImpactFromUncert(self, l_uncert):
+        l_uncert = np.array(l_uncert)
+        return (l_uncert**2 - l_uncert[0]**2)**.5
+
+
+    def doBESscans(self, min=0, max=0.03, step=0.001):
+        variations = np.arange(min, max + step / 2, step)
+        
+        l_mass_uncorr, l_width_uncorr = self.doBESscan(variations,'uncorr')
+        l_mass_corr, l_width_corr = self.doBESscan(variations,'corr')
+
+        l_mass_uncorr = self.getImpactFromUncert(l_mass_uncorr)
+        l_width_uncorr = self.getImpactFromUncert(l_width_uncorr)
+        l_mass_corr = self.getImpactFromUncert(l_mass_corr)
+        l_width_corr = self.getImpactFromUncert(l_width_corr)
+
+        plt.plot(variations * 100, l_mass_uncorr * 1E03, 'b-', label='Impact on $m_t$ (uncorr.)', linewidth=2)
+        plt.plot(variations * 100, l_width_uncorr * 1E03, 'g-', label='Impact on $\Gamma_t$ (uncorr.)', linewidth=2)
+        plt.plot(variations * 100, l_mass_corr * 1E03, 'b--', label='Impact on $m_t$ (corr.)', linewidth=2)
+        plt.plot(variations * 100, l_width_corr * 1E03, 'g--', label='Impact on $\Gamma_t$ (corr.)', linewidth=2)
         plt.legend(loc='upper left')
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-        plt.xlabel('Uncorrelated BES uncertainty [%]')
-        plt.ylabel('Total uncertainty on fitted parameter [MeV]')
-        offset = .1
-        plt.text(.9, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.9, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.9, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncorr_total.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncorr_total.pdf')
-        plt.clf()
-
-        l_mass = (l_mass**2 - np.min(l_mass)**2)**.5
-        l_width = (l_width**2 - l_width[0]**2)**.5
-
-        plt.plot(variations*100, l_mass*1E03, 'b-', label='Uncertainty in $m_t$', linewidth=2)
-        plt.plot(variations*100, l_width*1E03, 'g--', label='Uncertainty in $\Gamma_t$', linewidth=2)
-        plt.legend(loc='upper left')
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-        plt.xlabel('Uncorrelated BES uncertainty [%]')
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi'] / 1E03), loc='right', fontsize=20)
+        plt.xlabel('BES uncertainty [%]')
         plt.ylabel('Impact on fitted parameter [MeV]')
-        offset = -0.03
-        plt.text(.95, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.95, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.95, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncorr.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES_uncorr.pdf')
+        plt.text(.05, 0.17 + 0.45, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='left')
+        plt.text(.05, 0.12 + 0.45, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='left')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES.pdf')
         plt.clf()
+    
     
     def doLumiScan(self,type,l_lumi):
         if not type in ['uncorr','corr']:
             raise ValueError('Invalid lumi scan type')
-        #l_lumi = np.linspace(0.5, 1.5, 11)*self.lumi_uncorr if type == 'uncorr' else np.linspace(0.5, 1.5, 11)*self.lumi_corr
         l_mass = np.array([])
         l_width = np.array([])
         l_yukawa = np.array([])
@@ -797,18 +725,16 @@ class fit:
             else:
                 f_lumi.lumi_corr = lumi
                 f_lumi.lumi_uncorr = 0
-            #f_lumi.lumi_uncorr = lumi if type == 'uncorr' else self.lumi_uncorr
-            #f_lumi.lumi_corr = lumi if type == 'corr' else self.lumi_corr
-            #f_lumi.update(exclude_stat=True)
-            f_lumi.update()
+
+            f_lumi.fitParameters(initMinuit=True)
             fit_results = f_lumi.getFitResults(printout=False)
             l_mass = np.append(l_mass, fit_results[self.param_names.index('mass')].s*1000)
             l_width = np.append(l_width, fit_results[self.param_names.index('width')].s*1000)
             l_yukawa = np.append(l_yukawa, fit_results[self.param_names.index('yukawa')].s*100)
 
-        l_mass = (l_mass**2 - l_mass[0]**2)**.5
-        l_width = (l_width**2 - l_width[0]**2)**.5
-        l_yukawa = (l_yukawa**2 - l_yukawa[0]**2)**.5
+        l_mass = self.getImpactFromUncert(l_mass)
+        l_width = self.getImpactFromUncert(l_width)
+        l_yukawa = self.getImpactFromUncert(l_yukawa)
         
         return l_mass, l_width, l_yukawa        
 
@@ -825,20 +751,14 @@ class fit:
         plt.plot(l_lumi, dict_res['corr'][0], 'b--', label='Impact on $m_t$ (corr.)', linewidth=2)
         plt.plot(l_lumi, dict_res['corr'][1], 'g--', label='Impact on $\Gamma_t$ (corr.)', linewidth=2)
 
-        #plt.plot(lumi_uncert_default, dict_res['uncorr'][0][list(np.linspace(0.5, 1.5, 11)).index(1)], 'ro', label='Nominal values', markersize=8)
-        #plt.plot(lumi_uncert_default, dict_res['uncorr'][1][list(np.linspace(0.5, 1.5, 11)).index(1)], 'ro', label=None, markersize=8)
         plt.legend()
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
         plt.xlabel('Integrated luminosity uncertainty [%]')
         plt.ylabel('Impact on fitted parameter [MeV]')    
         offset = 0.45
         x_pos = 0.05
-        #plt.text(x_pos, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        #plt.text(x_pos, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        #plt.text(x_pos, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        #plt.text(x_pos, 0.07, 'nominal uncorr (corr) uncert. = {:.1f} ({:.2f}) %'.format(self.lumi_uncorr*100,self.lumi_corr*100), fontsize=21, transform=plt.gca().transAxes, ha='right',)
-        plt.text(x_pos, 0.17 + offset, 'WbWb at $N^{3}LO$ + ISR', fontsize=23, transform=plt.gca().transAxes, ha='left')
-        plt.text(x_pos, 0.12 + offset, '+ FCC-ee LS', fontsize=23, transform=plt.gca().transAxes, ha='left')
+        plt.text(x_pos, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='left')
+        plt.text(x_pos, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='left')
 
 
         plt.savefig(plot_dir + '/uncert_mass_width_vs_lumi.png')
@@ -852,11 +772,11 @@ class fit:
         plt.plot(np.linspace(0.5, 1.5, 11), dict_res['corr'][2], 'r--', label='Impact on $y_t$ (corr)', linewidth=2)
         plt.plot(1, dict_res['uncorr'][2][list(np.linspace(0.5, 1.5, 11)).index(1)], 'ro', label='Nominal value', markersize=8)
         plt.legend()
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.2f} ab$^{{-1}}$)'.format(self.scenario_dict['last_lumi']/1E06), loc='right', fontsize=20)
+        plt.title(r'$\mathit{{Projection}}$ ({:.2f} ab$^{{-1}}$)'.format(self.scenario_dict['last_lumi']/1E06), loc='right', fontsize=20)
         plt.xlabel('Luminosity uncert. / nominal value')
         plt.ylabel('Luminosity uncert. on fitted $y_t$ [%]')
         offset = 0.1
-        plt.text(.96, 0.17 + offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.96, 0.17 + offset, 'QQbar_Threshold $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(.96, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
         plt.text(.96, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
         plt.text(.96, 0.07, 'nominal uncorr (corr) uncert. = {:.3f} ({:.2f}) %'.format(self.lumi_uncorr_ecm[-1]*100,self.lumi_corr*100), fontsize=21, transform=plt.gca().transAxes, ha='right',)
@@ -864,85 +784,48 @@ class fit:
         plt.savefig(plot_dir + '/uncert_yukawa_vs_lumi.pdf')
         plt.clf()
 
-    def doAlphaSscanFixYukawa(self, max_uncert, step, noYukawa, yukawa_uncert):
-        if noYukawa and yukawa_uncert:
-            raise ValueError('Cannot have no Yukawa and Yukawa uncertainty')
-        l_alphas_uncert = np.arange(1E-10, max_uncert+step/2, step)
+    def doAlphaSscans(self, max_uncert = 3E-4, step = 1E-5):
+        l_alphas_uncert = np.arange(1E-10, max_uncert + step / 2, step)
         l_mass = []
         l_width = []
-        yukawa_uncert = yukawa_uncert if not yukawa_uncert is None else self.input_uncert_Yukawa
-        if noYukawa: yukawa_uncert = 1E-10
-        print('Yukawa uncertainty: {}'.format(yukawa_uncert))
         for alphas_u in l_alphas_uncert:
             f_alphas = copy.deepcopy(self)
             f_alphas.input_uncert_alphas = alphas_u
-            f_alphas.input_uncert_Yukawa = yukawa_uncert
-            f_alphas.constrain_Yukawa = True
-            f_alphas.update()
+            f_alphas.fitParameters()
             fit_results = f_alphas.getFitResults(printout=False)
-            l_mass.append(fit_results[self.param_names.index('mass')].s*1000)
-            l_width.append(fit_results[self.param_names.index('width')].s*1000)
-        return l_alphas_uncert, l_mass, l_width, yukawa_uncert
-    
-    def doAlphaSscans(self, max_uncert = 7E-4, step = 1E-5, noYukawa = False, yukawa_uncert = None):
-        l_as, l_m, l_w, yt_unc = self.doAlphaSscanFixYukawa(max_uncert, step, noYukawa = noYukawa, yukawa_uncert = yukawa_uncert)
-        plt.plot(l_as *1E03, l_m, 'b-', label='Impact on $m_t$', linewidth=2)
-        plt.plot(l_as *1E03, l_w, 'g--', label='Impact on $\Gamma_t$', linewidth=2)
-        label_nom = '$y_t$ uncert. {}%'.format(yt_unc*100) if not noYukawa else 'w/o $y_t$'
-        plt.plot(uncert_alphas_default *1E03, l_m[min(range(len(l_as)), key=lambda i: abs(l_as[i] - uncert_alphas_default))], 'ro', label='Nominal fit \n{}'.format(label_nom), markersize=8)
-        plt.plot(uncert_alphas_default *1E03, l_w[min(range(len(l_as)), key=lambda i: abs(l_as[i] - uncert_alphas_default))], 'ro', label='', markersize=8)
+            l_mass.append(fit_results[self.param_names.index('mass')].s * 1000)
+            l_width.append(fit_results[self.param_names.index('width')].s * 1000)
 
+        l_mass = np.array(l_mass)
+        l_width = np.array(l_width)
+
+        l_mass = self.getImpactFromUncert(l_mass)
+        l_width = self.getImpactFromUncert(l_width)
+
+        plt.plot(l_alphas_uncert * 1E03, l_mass, 'b-', label='Impact on $m_t$', linewidth=2)
+        plt.plot(l_alphas_uncert * 1E03, l_width, 'g--', label='Impact on $\Gamma_t$', linewidth=2)
         plt.legend(loc='upper left')
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-        plt.xlabel(r'Uncertainty in $\alpha_S$ [x$10^3$]')
-        plt.ylabel(r'Uncertainty on fitted parameter [MeV]')
-        plt.text(.9, 0.17, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.9, 0.13, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.9, 0.08, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.ylim(min(l_m)-1, max(l_w)+2)
-        outname = 'uncert_mass_width_vs_alphas'
-        if noYukawa: outname += '_noYukawa'
-        elif yt_unc < self.input_uncert_Yukawa: outname += '_optimisticYukawa'
-        else: outname += '_total'
-        plt.savefig(plot_dir + '/{}.png'.format(outname))
-        plt.savefig(plot_dir + '/{}.pdf'.format(outname))
-        plt.clf()
-
-        if noYukawa or yt_unc != self.input_uncert_Yukawa:
-            return
-  
-        l_m = np.array(l_m)
-        l_w = np.array(l_w)
-
-        l_m = (l_m**2 - l_m[0]**2)**.5
-        l_w = (l_w**2 - l_w[0]**2)**.5
-        
-        plt.plot(l_as *1E03, l_m, 'b-', label='Impact on $m_t$', linewidth=2)
-        plt.plot(l_as *1E03, l_w, 'g--', label='Impact on $\Gamma_t$', linewidth=2)
-        plt.plot(uncert_alphas_default *1E03, l_m[min(range(len(l_as)), key=lambda i: abs(l_as[i] - uncert_alphas_default))], 'ro', label='Nominal fit', markersize=8)
-        plt.plot(uncert_alphas_default *1E03, l_w[min(range(len(l_as)), key=lambda i: abs(l_as[i] - uncert_alphas_default))], 'ro', label='', markersize=8)
-        plt.legend(loc='upper left')
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi'] / 1E03), loc='right', fontsize=20)
         plt.xlabel(r'Uncertainty in $\alpha_S$ [x$10^3$]')
         plt.ylabel(r'Impact on fitted parameter [MeV]')
-        plt.text(.9, 0.17, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.9, 0.13, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.9, 0.08, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        outname = 'uncert_mass_width_vs_alphas'
-        plt.savefig(plot_dir + '/{}.png'.format(outname))
-        plt.savefig(plot_dir + '/{}.pdf'.format(outname))
+        offset = 0
+        x_pos = .92
+        plt.text(x_pos, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(x_pos, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_alphas.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_alphas.pdf')
         plt.clf()
             
 
-    def doYukawaScan(self, max_uncert = 0.1, step = 0.001):
-        l_yukawa_uncert = np.arange(0.005, max_uncert+step/2, step)
+    def doYukawaScan(self, max_uncert = 0.05, step = 0.001):
+        l_yukawa_uncert = np.arange(1E-10, max_uncert+step/2, step)
         l_mass = []
         l_width = []
         for yukawa_u in l_yukawa_uncert:
             f_yukawa = copy.deepcopy(self)
             f_yukawa.input_uncert_Yukawa = yukawa_u
             f_yukawa.constrain_Yukawa = True
-            f_yukawa.update()
+            f_yukawa.fitParameters()
             fit_results = f_yukawa.getFitResults(printout=False)
             l_mass.append(fit_results[self.param_names.index('mass')].s*1000)
             l_width.append(fit_results[self.param_names.index('width')].s*1000)
@@ -950,22 +833,18 @@ class fit:
         l_mass = np.array(l_mass)
         l_width = np.array(l_width)
 
-        l_mass = (l_mass**2 - l_mass[0]**2)**.5
-        l_width = (l_width**2 - l_width[0]**2)**.5
+        l_mass = self.getImpactFromUncert(l_mass)
+        l_width = self.getImpactFromUncert(l_width)
 
         plt.plot(l_yukawa_uncert*100, l_mass, 'b-', label='Impact on $m_t$', linewidth=2)
         plt.plot(l_yukawa_uncert*100, l_width, 'g--', label='Impact on $\Gamma_t$', linewidth=2)
-        #label_nom = r'$\alpha_S$ uncert. {}'.format(uncert_alphas_default)
-        plt.plot(self.input_uncert_Yukawa*100, l_mass[min(range(len(l_yukawa_uncert)), key=lambda i: abs(l_yukawa_uncert[i] - self.input_uncert_Yukawa))], 'ro', label='Nominal fit', markersize=8)
-        plt.plot(self.input_uncert_Yukawa*100, l_width[min(range(len(l_yukawa_uncert)), key=lambda i: abs(l_yukawa_uncert[i] - self.input_uncert_Yukawa))], 'ro', label='', markersize=8)
         plt.legend(loc='upper left')
-        plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
         plt.xlabel('Uncertainty in $y_t$ [%]')
         plt.ylabel('Impact on fitted parameter [MeV]')
         offset = 0
-        plt.text(.92, 0.17+offset, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.92, 0.13+offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.92, 0.08+offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.text(.92, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.92, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.savefig(plot_dir + '/uncert_mass_width_vs_yukawa.png')
         plt.savefig(plot_dir + '/uncert_mass_width_vs_yukawa.pdf')
         plt.clf()
@@ -975,16 +854,16 @@ class fit:
             if param == 'yukawa' and self.constrain_Yukawa: continue
             elif param == 'width' and self.SM_width: continue
             elif param == 'alphas': continue
+            elif 'BEC' in param: continue
+            elif 'BES' in param: continue
             l_param = np.linspace(self.minuit.values[i_param]-3*self.minuit.errors[i_param], self.minuit.values[param]+3*self.minuit.errors[i_param], 101)
             l_chi2 = []
             for val in l_param:
                 f = copy.deepcopy(self)
                 f.minuit.fixed[i_param] = True
                 f.minuit.values[i_param] = val
-                #f.update()
                 f.fitParameters(initMinuit=False)
                 l_chi2.append(f.minuit.fval)
-            #plt.plot(l_param, l_chi2, label=param)
             plt.plot(self.getValueFromParameter(l_param, param), l_chi2, label=param)
             plt.xlabel(label_d[param])
             plt.ylabel(r'$\chi^2$')
@@ -992,14 +871,19 @@ class fit:
             plt.savefig(plot_dir + '/chi2_scan_{}.png'.format(param))
             plt.clf()
         # 2D contour plots
+        f = copy.deepcopy(self)
         for i_param, param in enumerate(self.param_names):
             if param == 'yukawa' and self.constrain_Yukawa: continue
             elif param == 'width' and self.SM_width: continue
             elif param == 'alphas': continue
+            elif 'BEC' in param: continue
+            elif 'BES' in param: continue
             for j_param, param2 in enumerate(self.param_names):
                 if param2 == 'yukawa' and self.constrain_Yukawa: continue
                 elif param2 == 'width' and self.SM_width: continue
                 elif param2 == 'alphas': continue
+                elif 'BEC' in param2: continue
+                elif 'BES' in param2: continue
                 if j_param <= i_param: continue
                 l_param = np.linspace(self.minuit.values[i_param]-3*self.minuit.errors[i_param], self.minuit.values[param]+3*self.minuit.errors[i_param], 51)
                 l_param2 = np.linspace(self.minuit.values[j_param]-3*self.minuit.errors[j_param], self.minuit.values[param2]+3*self.minuit.errors[j_param], 51)
@@ -1007,25 +891,26 @@ class fit:
                 for i, val in enumerate(l_param):
                     for j, val2 in enumerate(l_param2):
                         f = copy.deepcopy(self)
-                        f.minuit.fixed[i_param] = True
-                        f.minuit.fixed[j_param] = True
+                        for k in range(0,len(self.param_names)):
+                            f.minuit.fixed[k] = False if k != i_param and k != j_param else True
                         f.minuit.values[i_param] = val
                         f.minuit.values[j_param] = val2
                         f.fitParameters(initMinuit=False)
                         l_chi2[i][j] = f.minuit.fval
                 plt.contour(self.getValueFromParameter(l_param, param), self.getValueFromParameter(l_param2, param2), l_chi2, levels=[self.minuit.fval + 1, self.minuit.fval + 4], colors=['#377eb8', '#4daf4a'], linewidths=2)
-                plt.plot(self.getValueFromParameter(self.minuit.values[i_param], param), self.getValueFromParameter(self.minuit.values[j_param], param2), 'k*', label='Best fit value', markersize=10)
-                plt.plot([], [], color='#377eb8', label='68% CL')
-                plt.plot([], [], color='#4daf4a', label='95% CL')
+                plt.plot(self.getValueFromParameter(self.minuit.values[i_param], param), self.getValueFromParameter(self.minuit.values[j_param], param2), 'k*', label='Best fit value (input)', markersize=10)
+                plt.plot([], [], color='#377eb8', label='68% C.L.')
+                plt.plot([], [], color='#4daf4a', label='95% C.L.')
                 plt.xlabel(label_d[param])
                 plt.ylabel(label_d[param2])
-                plt.title(r'$\mathit{{Preliminary}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
-                plt.text(.95, 0.15, 'QQbar_Threshold N3LO+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+                plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+                plt.text(.95, 0.15, 'QQbar_Threshold $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
                 plt.text(.95, 0.11, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
                 plt.text(.95, 0.06, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
                 plt.legend(loc='upper left')
                 y_offset = -0.003 if param2 == 'width' and param == 'mass' else 0
                 plt.ylim(self.getValueFromParameter(l_param2[0], param2)+y_offset, self.getValueFromParameter(l_param2[-1], param2)+y_offset)
+                plt.xticks(np.round(np.linspace(self.getValueFromParameter(l_param[0], param), self.getValueFromParameter(l_param[-1], param), 5), 2))
                 plt.savefig(plot_dir + '/chi2_scan_{}_{}.png'.format(param,param2))
                 plt.savefig(plot_dir + '/chi2_scan_{}_{}.pdf'.format(param,param2))
                 plt.clf()
@@ -1087,7 +972,7 @@ class fit:
         f = copy.deepcopy(self)
         f.syst_mass = dict()
         f.syst_width = dict()
-        for syst in ['stat', 'total', 'alphaS', 'Yukawa', 'BES_corr', 'BES_uncorr', 'BEC_corr', 'BEC_uncorr', 'lumi_corr', 'lumi_uncorr']:
+        for syst in ['stat', 'total', 'alphaS', 'Yukawa', 'BES_uncorr', 'BES_corr', 'BEC_uncorr', 'BEC_corr', 'lumi_uncorr', 'lumi_corr']:
             f.estimateSyst(syst) #TODO: automatic list of systematics when nuisances are added
         
         total_mass_unc = f.syst_mass.pop('total')
@@ -1147,9 +1032,9 @@ def main():
     parser.add_argument('--sameNevts', action='store_true', help='Same number of events in each ecm')
     parser.add_argument('--BECscans', action='store_true', help='Do beam energy calibration scans')
     parser.add_argument('--BESscans', action='store_true', help='Do beam energy spread scans')
-    parser.add_argument('--lumiscan', action='store_true', help='Do luminosity scan')
+    parser.add_argument('--lumiscans', action='store_true', help='Do luminosity scans')
     parser.add_argument('--alphaSscan', action='store_true', help='Do alphaS scan')
-    parser.add_argument('--chi2Scan', action='store_true', help='Do chi2 scans')
+    parser.add_argument('--chi2scans', action='store_true', help='Do chi2 scans')
     parser.add_argument('--BECnuisances', action='store_true', help='add BEC nuisances')
     parser.add_argument('--BESnuisances' , action='store_true', help='add BES nuisances')
     parser.add_argument('--systTable', action='store_true', help='Produce systematic table')
@@ -1182,18 +1067,16 @@ def main():
         f.doScaleVars()
         f.plotScaleVars() # to be implemented
     if args.BECscans:
-        f.doBECscanCorr()
-        f.doBECscanUncorr()
+        f.doBECscans()
     if args.BESscans:
-        f.doBESscanCorr()
-        f.doBESscanUncorr()
-    if args.lumiscan:
+        f.doBESscans()
+    if args.lumiscans:
         f.doLumiScans()
     if args.alphaSscan:
         f.doAlphaSscans()
         if not args.fitYukawa:
             f.doYukawaScan() # by default
-    if args.chi2Scan:
+    if args.chi2scans:
         f.doChi2Scans()
     if args.systTable:
         f.printSystTable()
