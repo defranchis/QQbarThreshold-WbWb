@@ -498,6 +498,7 @@ class fit:
         l_mass = []
         l_width = []
         for var in self.parameters.scale_vars:
+            if var < 70: continue
             tag_mass = 'scaleM_{:.1f}'.format(var)
             tag_width = 'scaleM_{:.1f}'.format(var)
             if tag_mass not in self.xsec_dict.keys() or tag_width not in self.xsec_dict.keys():
@@ -522,7 +523,7 @@ class fit:
 
         plt.plot(l_vars, np.array(l_mass) * 1E03, 'b-', label='Shift in fitted $m_t$', linewidth=2)
         plt.plot(l_vars, np.array(l_width) * 1E03, 'g--', label='Shift in fitted $\Gamma_t$', linewidth=2)
-        plt.plot(self.parameters.mass_scale, 0, 'ro', label='Nominal fit', markersize=8)
+        plt.plot(self.parameters.mass_scale, 0, 'ro', label='Starting point', markersize=8)
         plt.legend()
         plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
         plt.xlabel('Renormalisation scale $\mu$ [GeV]')
