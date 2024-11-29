@@ -1137,7 +1137,7 @@ def main():
     parser.add_argument('--LSscan', action='store_true', help='Do beam energy resolution scan')
     parser.add_argument('--scaleVars', action='store_true', help='Do scale variations')
     parser.add_argument('--SMwidth', action='store_true', help='Constrain width to SM value')
-    parser.add_argument('--constrainYukawa', action='store_true', help='Constrain Yukawa coupling in fit')
+    parser.add_argument('--fitYukawa', action='store_true', help='Constrain Yukawa coupling in fit')
     parser.add_argument('--lastecm', action='store_true', help='Add last ecm to scenario')
     parser.add_argument('--sameNevts', action='store_true', help='Same number of events in each ecm')
     parser.add_argument('--BECscans', action='store_true', help='Do beam energy calibration scans')
@@ -1161,7 +1161,7 @@ def main():
     threshold_lumi = 0.41 * 1E06 # hardcoded
     above_threshold_lumi = 2.65 * 1E06 # hardcoded
 
-    f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa=args.constrainYukawa, read_scale_vars = args.scaleVars)
+    f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa= not args.fitYukawa, read_scale_vars = args.scaleVars)
     f.initScenario(scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=threshold_lumi, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
     
     if args.BECnuisances or args.systTable:
@@ -1186,9 +1186,8 @@ def main():
         f.doLumiScans()
     if args.alphaSscan:
         f.doAlphaSscans()
-        f.doAlphaSscans(noYukawa=True)
-        f.doAlphaSscans(yukawa_uncert=0.01)
-        f.doYukawaScan() # by default
+        if not args.fitYukawa:
+            f.doYukawaScan() # by default
     if args.chi2Scan:
         f.doChi2Scans()
     if args.systTable:
