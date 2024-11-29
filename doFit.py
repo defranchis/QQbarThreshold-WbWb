@@ -21,9 +21,13 @@ BES_input_var = 0.1 # 10%, for morphing, hardcoded
 uncert_yukawa_default = 0.03 # only when parameter is constrained. hardcoded for now
 uncert_alphas_default =  0.0001 # hardcoded for now
 
-uncert_lumi_default = 1E-3 # hardcoded for now
-uncert_BES_default = 0.01 # hardcoded for now
-uncert_BEC_default = 5 # hardcoded for now
+uncert_lumi_default_uncorr = 1E-3 # hardcoded for now
+uncert_BES_default_uncorr = 0.01 # hardcoded for now
+uncert_BEC_default_uncorr = 5 # hardcoded for now
+
+uncert_lumi_default_corr = uncert_lumi_default_uncorr / 2 # hardcoded for now
+uncert_BES_default_corr = uncert_BES_default_uncorr / 2 # hardcoded for now
+uncert_BEC_default_corr = uncert_BEC_default_uncorr / 2 # hardcoded for now
 
 label_d = {'mass': '$m_t$ [GeV]', 'width': r'$\Gamma_t$'+' [GeV]', 'yukawa': 'y_t', 'alphas': r'\alpha_S'}
 
@@ -53,8 +57,8 @@ class fit:
         self.debug = debug
         self.read_scale_vars = read_scale_vars
         self.last_ecm = 365.0 #hardcoded
-        self.lumi_uncorr = uncert_lumi_default # estimate for full lumi! i.e. 410/fb
-        self.lumi_corr = uncert_lumi_default # estimate for theory cross section uncertainty
+        self.lumi_uncorr = uncert_lumi_default_uncorr # estimate for full lumi! i.e. 410/fb
+        self.lumi_corr = uncert_lumi_default_corr # estimate for theory cross section uncertainty
         self.input_uncert_Yukawa = uncert_yukawa_default
         self.input_uncert_alphas = uncert_alphas_default
         self.BEC_nuisances = False
@@ -400,52 +404,53 @@ class fit:
             plt.savefig(plot_dir + '/fit_scenario_ratio_{}.pdf'.format('pseudo' if not self.asimov else 'asimov'))
         plt.clf()
 
-    def doLSscan (self, min, max, step):
+    def doLSscan (self, min = 0, max = 0.5, step = 0.01):
         if min == 0:
             min = 1E-6
         l_beam_energy_res = np.arange(min,max+step/2,step)
         d = {var : [] for var in self.param_names}
-        params_to_scan = [param for param in self.param_names if param != 'alphas']
+        params_to_scan = [param for param in self.param_names if param != 'alphas' and not 'BEC' in param and not 'BES' in param]
         if self.SM_width:
             params_to_scan.remove('width')
         if self.constrain_Yukawa:
             params_to_scan.remove('yukawa')
+        
         print('\nScanning parameters: {}\n'.format(params_to_scan))
         
+        f = copy.deepcopy(self)
+        f.reinitialiseToStat()
+        f.param_names = [param for param in self.param_names if not 'BEC' in param and not 'BES' in param]
+        f.BEC_nuisances = False
+        f.BES_nuisances = False
         for res in l_beam_energy_res:
-            f = copy.deepcopy(self)
             f.beam_energy_res = res
             f.update()
             fit_results = f.getFitResults(printout=False)
             for i, param in enumerate(params_to_scan):
                 d[param].append(fit_results[i].s)
 
-        for param in params_to_scan:
-            plt.plot(l_beam_energy_res, d[param], 'b-', label='Stat uncertainty in top {}'.format(param))
-            plt.plot(self.beam_energy_res, self.getFitResults(printout=False)[self.param_names.index(param)].s, 'ro', label='nominal (resol/beam = {:.3f}%)'.format(self.beam_energy_res))
-            plt.legend()
-            plt.title('top {}'.format(param))
-            plt.xlabel('Beam energy resolution per beam [%]')
-            plt.ylabel('Stat uncertainty in top {} [MeV]'.format(param))
-            plt.savefig(plot_dir + '/uncert_{}_vs_beam_energy_res.png'.format(param))
-            plt.clf()
-        
+        f.beam_energy_res = self.beam_energy_res
+        f.update()
+        f.fit_results = f.getFitResults(printout=False)
+        mass_nom = f.fit_results[f.param_names.index('mass')].s
+        width_nom = f.fit_results[f.param_names.index('width')].s
+
         plt.figure()
-        plt.plot(l_beam_energy_res, np.array(d['mass'])*1E03, 'b-', label='$m_t$ statistical uncertainty', linewidth=2)
-        plt.plot(l_beam_energy_res, np.array(d['width'])*1E03, 'g--', label='$\Gamma_t$ statistical uncertainty',linewidth=2)
-        plt.plot(self.beam_energy_res, self.fit_results[self.param_names.index('mass')].s*1E03, 'ro', label='Nominal $m_t$'.format(self.beam_energy_res), markersize=8)
-        plt.plot(self.beam_energy_res, self.fit_results[self.param_names.index('width')].s*1E03, 's', color = 'orange', label='Nominal $\Gamma_t$'.format(self.beam_energy_res), markersize=7)
+        plt.plot(l_beam_energy_res, np.array(d['mass'])*1E03, 'b-', label='Stat. uncert. in $m_t$', linewidth=2)
+        plt.plot(l_beam_energy_res, np.array(d['width'])*1E03, 'g--', label='Stat. uncert. in $\Gamma_t$',linewidth=2)
+        plt.plot(self.beam_energy_res, mass_nom*1E03, 'ro', label='Baseilne $m_t$'.format(self.beam_energy_res), markersize=8)
+        plt.plot(self.beam_energy_res, width_nom*1E03, 's', color = 'orange', label='Baseline $\Gamma_t$'.format(self.beam_energy_res), markersize=7)
         plt.legend()
         plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
         plt.xlabel('Beam energy spread [%]')
         plt.ylabel('Statistical uncertainty [MeV]')
 
-        plt.text(.6, 0.65, 'QQbar_Threshold $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.text(.6, 0.61, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-        plt.text(.6, 0.56, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        offset = 0.2
+        plt.text(.95, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.95, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
 
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_beam_energy_res.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_beam_energy_res.pdf')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BER.png')
+        plt.savefig(plot_dir + '/uncert_mass_width_vs_BER.pdf')
 
         plt.clf()
 
@@ -562,8 +567,12 @@ class fit:
     
         
     
-    def addBECnuisances(self,prior_uncorr, prior_corr):
+    def addBECnuisances(self,prior_uncorr = None, prior_corr = None):
         self.BEC_nuisances = True
+        if prior_uncorr is None:
+            prior_uncorr = uncert_BEC_default_uncorr
+        if prior_corr is None:
+            prior_corr = uncert_BEC_default_corr
         self.setBECpriors(prior_uncorr=prior_uncorr, prior_corr=prior_corr)
         for i in range(0,len(self.morph_scenario['BEC'])):
             self.morph_scenario['BEC_bin{}'.format(i)] = self.morph_scenario['BEC'].copy()
@@ -577,8 +586,12 @@ class fit:
         self.BEC_prior_uncorr = prior_uncorr / BEC_input_var
         self.BEC_prior_corr = prior_corr / BEC_input_var
     
-    def addBESnuisances(self, uncert_uncorr, uncert_corr):
+    def addBESnuisances(self, uncert_uncorr = None, uncert_corr = None):
         self.BES_nuisances = True
+        if uncert_uncorr is None:
+            uncert_uncorr = uncert_BES_default_uncorr
+        if uncert_corr is None:
+            uncert_corr = uncert_BES_default_corr
         self.setBESpriors(uncert_corr=uncert_corr, uncert_uncorr=uncert_uncorr)
         for i in range(0,len(self.morph_scenario['BES'])):
             self.morph_scenario['BES_bin{}'.format(i)] = self.morph_scenario['BES'].copy()
@@ -740,7 +753,7 @@ class fit:
 
     def doLumiScans(self, min=0, max=3, points=11):
         dict_res = dict()
-        l_lumi = np.linspace(min,max,points) * uncert_lumi_default
+        l_lumi = np.linspace(min,max,points) * uncert_lumi_default_uncorr
         for type in ['uncorr','corr']:
             l_mass, l_width, l_yukawa = self.doLumiScan(type,l_lumi)
             dict_res[type] = [l_mass, l_width, l_yukawa]
@@ -962,10 +975,10 @@ class fit:
         self.input_uncert_alphas = uncert_alphas_default
         self.input_uncert_Yukawa = uncert_yukawa_default
         self.constrain_Yukawa = True
-        self.setBECpriors(uncert_BEC_default, uncert_BEC_default)
-        self.setBESpriors(uncert_BES_default, uncert_BES_default)
-        self.lumi_corr = uncert_lumi_default
-        self.lumi_uncorr = uncert_lumi_default
+        self.setBECpriors(prior_corr=uncert_BEC_default_corr, prior_uncorr=uncert_BEC_default_uncorr)
+        self.setBESpriors(uncert_corr=uncert_BES_default_corr, uncert_uncorr=uncert_BES_default_uncorr)
+        self.lumi_corr = uncert_lumi_default_corr
+        self.lumi_uncorr = uncert_lumi_default_uncorr
 
 
     def printSystTable(self):
@@ -1055,14 +1068,14 @@ def main():
     f.initScenario(scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=threshold_lumi, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
     
     if args.BECnuisances or args.systTable:
-        f.addBECnuisances(prior_uncorr=uncert_BEC_default, prior_corr=uncert_BEC_default)
+        f.addBECnuisances()
     if args.BESnuisances or args.systTable:
-        f.addBESnuisances(uncert_corr=uncert_BES_default, uncert_uncorr=uncert_BES_default)
+        f.addBESnuisances()
     f.fitParameters()
     f.getFitResults()
     f.plotFitScenario()
     if args.LSscan:
-        f.doLSscan(0,0.5,0.01)
+        f.doLSscan()
     if args.scaleVars:
         f.doScaleVars()
         f.plotScaleVars() # to be implemented
