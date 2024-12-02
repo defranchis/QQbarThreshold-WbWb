@@ -25,6 +25,8 @@ uncert_lumi_default_uncorr = 1E-3 # hardcoded for now
 uncert_BES_default_uncorr = 0.01 # hardcoded for now
 uncert_BEC_default_uncorr = 5 # hardcoded for now
 
+scale_lumi_uncorr = False
+
 uncert_lumi_default_corr = uncert_lumi_default_uncorr / 2 # hardcoded for now
 uncert_BES_default_corr = uncert_BES_default_uncorr / 2 # hardcoded for now
 uncert_BEC_default_corr = uncert_BEC_default_uncorr / 2 # hardcoded for now
@@ -303,6 +305,8 @@ class fit:
     def initMinuit(self, exclude_stat = False):
         cov_stat = np.diag(self.unc_pseudodata_scenario**2)
         factor_thresh = len(self.scenario) if not self.scenario_dict['add_last_ecm'] else len(self.scenario) - 1
+        if not scale_lumi_uncorr:
+            factor_thresh = 1
         self.lumi_uncorr_ecm = np.array([self.lumi_uncorr * factor_thresh**.5 for _ in self.pseudo_data_scenario])
         if self.scenario_dict['add_last_ecm']:
             factor_above_thresh = self.scenario[str(self.last_ecm)]/self.scenario[list(self.scenario.keys())[0]]
