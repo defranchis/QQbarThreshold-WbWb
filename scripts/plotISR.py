@@ -231,7 +231,7 @@ def compareWidthYukawaAlphaS(order,scheme):
     plt.savefig('{}/plot_{}_{}_width.png'.format(plotdir,order, scheme))
     plt.clf()
 
-    reference = 345
+    reference = 0
     for yt in ['0.9', '1.1']:
         df = get_Xsec(order, scheme, '', yt)
         df['ecm'] -= reference
@@ -263,29 +263,35 @@ def compareWidthYukawaAlphaS(order,scheme):
     #plt.axvline(x=345-max_ecm, color='grey', linestyle='dotted',label='')
 
     #plt.axvline(x=max_ecm, color='black', linestyle='dotted',label='$\sqrt{s}$'+'={:.1f} GeV (peak)'.format(max_ecm))
-    plt.axvline(x=340-reference, color='grey', linestyle='dotted',label='NR-QCD validity')
-    plt.axvline(x=344.5-reference, color='grey', linestyle='dotted',label='')
-
-
-
+    if reference != 0:
+        plt.axvline(x=340-reference, color='grey', linestyle='dotted',label='NR-QCD validity')
+        plt.axvline(x=344.5-reference, color='grey', linestyle='dotted',label='')
     
     plt.xticks(np.arange(int(df_nominal['ecm'].min())-2-reference, int(df_nominal['ecm'].max())+2-reference, 2))
     plt.legend()
     plt.ylim(0.95,1.05)
-    addTitles(plt,order,ratio=True)
-    plt.text(0.96, 0.85, 'QQbar_Threshold {}+ISR'.format(order), fontsize=22, transform=plt.gca().transAxes, ha='right')
-    plt.text(0.96, 0.81, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
-    plt.text(0.96, 0.75, 'FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+    addTitles(plt,order,ratio=True,reference=reference)
+    label_order = order
+    if order == 'N3LO':
+        label_order = 'N$^3$LO'
+    offset = 0.07
+    plt.text(0.96, 0.85 + offset, 'QQbar_Threshold {}+ISR'.format(label_order), fontsize=22, transform=plt.gca().transAxes, ha='right')
+    plt.text(0.96, 0.81 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+    plt.text(0.96, 0.75 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
     #plt.grid(True)
+    if reference == 0:
+        plt.xlim(339.8,347.1)
+        plt.xticks(np.arange(340, 348, 1))
     plt.savefig('{}/plot_{}_{}_yukawa_alphaS_ratio.png'.format(plotdir,order, scheme))
     if order == 'N3LO' and scheme == 'PS':
         plt.savefig('{}/plot_{}_{}_yukawa_alphaS_ratio.pdf'.format(plotdir,order, scheme))
     plt.clf()
 
-def addTitles(plt,order,ratio=False):
+def addTitles(plt,order,ratio=False,reference=345):
     plt.legend(loc='lower right')
     #plt.xlabel('$\sqrt{s} - m_{res}$ [GeV]')
-    plt.xlabel('$\sqrt{s}$ - 345 GeV [GeV]')
+    label = '$\sqrt{s}$ '+'- {} GeV [GeV]'.format(reference) if reference != 0 else '$\sqrt{s}$ [GeV]'
+    plt.xlabel(label)
     plt.ylabel('WbWb total cross section {}'.format('ratio' if ratio else '[pb]'))
     plt.title('Preliminary', fontsize=23, loc='right', fontstyle='italic')
     return
