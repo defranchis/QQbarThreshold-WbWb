@@ -634,7 +634,7 @@ class fit:
         l_width = np.array(l_width)
         return l_mass, l_width
 
-    def doBECscans(self, min=0, max=10, step=0.1):
+    def doBECscans(self, min=0, max=10, step=0.5):
         variations = np.arange(min, max + step / 2, step)
         
         l_mass_uncorr, l_width_uncorr = self.doBECscan(variations, 'uncorr')
@@ -645,30 +645,25 @@ class fit:
         l_mass_corr = self.getImpactFromUncert(l_mass_corr)
         l_width_corr = self.getImpactFromUncert(l_width_corr)
 
-        plt.plot(variations, l_mass_uncorr * 1E03, 'b-', label='Impact on $m_t$ (uncorr.)', linewidth=2)
-        plt.plot(variations, l_width_uncorr * 1E03, 'g-', label='Impact on $\Gamma_t$ (uncorr.)', linewidth=2)
-        plt.plot(variations, l_mass_corr * 1E03, 'b--', label='Impact on $m_t$ (corr.)', linewidth=2)
-        plt.plot(variations, l_width_corr * 1E03, 'g--', label='Impact on $\Gamma_t$ (corr.)', linewidth=2)
-        plt.legend(loc='upper left')
-        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi'] / 1E03), loc='right', fontsize=20)
-        plt.xlabel('Uncertainty in $\sqrt{s}$ [MeV]')
-        plt.ylabel('Impact on fitted parameter [MeV]')
-        plt.text(.05, 0.17 + 0.45, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='left')
-        plt.text(.05, 0.12 + 0.45, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='left')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.pdf')
-        plt.clf()
+        l_mass_uncorr_nominal, l_width_uncorr_nominal = self.doBECscan([0,uncert_BEC_default_uncorr], 'uncorr')
+        l_mass_uncorr_nominal = self.getImpactFromUncert(l_mass_uncorr_nominal)
+        l_width_uncorr_nominal = self.getImpactFromUncert(l_width_uncorr_nominal)
 
         plt.plot(variations, l_mass_uncorr * 1E03, 'b-', label='Impact on $m_t$ (uncorr.)', linewidth=2)
         plt.plot(variations, l_width_uncorr * 1E03, 'g-', label='Impact on $\Gamma_t$ (uncorr.)', linewidth=2)
         plt.plot(variations, l_mass_corr * 1E03, 'b--', label='Impact on $m_t$ (corr.)', linewidth=2)
         plt.plot(variations, l_width_corr * 1E03, 'g--', label='Impact on $\Gamma_t$ (corr.)', linewidth=2)
+        
+        plt.plot(uncert_BEC_default_uncorr, l_mass_uncorr_nominal[-1] * 1E03, 'ro', label='Baseline $m_t$ (uncorr.)', markersize=8)
+        plt.plot(uncert_BEC_default_uncorr, l_width_uncorr_nominal[-1] * 1E03, 's', color='orange', label='Baseline $\Gamma_t$ (uncorr.)', markersize=7)
+
         plt.legend(loc='upper left')
         plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi'] / 1E03), loc='right', fontsize=20)
         plt.xlabel('Uncertainty in $\sqrt{s}$ [MeV]')
         plt.ylabel('Impact on fitted parameter [MeV]')
-        plt.text(.05, 0.17 + 0.45, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='left')
-        plt.text(.05, 0.12 + 0.45, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='left')
+        offset = 0.35
+        plt.text(.05, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='left')
+        plt.text(.05, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='left')
         plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.png')
         plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.pdf')
         plt.clf()
