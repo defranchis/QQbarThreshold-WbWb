@@ -961,9 +961,13 @@ class fit:
         fit_results = self.getFitResults(printout=False)
         self.syst_mass[syst_name] = fit_results[self.param_names.index('mass')].s*1000
         self.syst_width[syst_name] = fit_results[self.param_names.index('width')].s*1000
+        if not self.constrain_Yukawa:
+            self.syst_yukawa[syst_name] = fit_results[self.param_names.index('yukawa')].s*100
         if syst_name != 'stat' and syst_name != 'total':
             self.syst_mass[syst_name] = (self.syst_mass['total']**2 - self.syst_mass[syst_name]**2)**.5
             self.syst_width[syst_name] = (self.syst_width['total']**2 - self.syst_width[syst_name]**2)**.5
+            if not self.constrain_Yukawa:
+                self.syst_yukawa[syst_name] = (self.syst_yukawa['total']**2 - self.syst_yukawa[syst_name]**2)**.5
 
     def estimateSyst(self,syst_name):
         if syst_name == 'stat':
@@ -992,7 +996,7 @@ class fit:
     def reinitialiseToStat(self):
         self.input_uncert_alphas = 1E-10
         self.input_uncert_Yukawa = 1E-10
-        self.constrain_Yukawa = True
+        #self.constrain_Yukawa = True
         self.BEC_prior_corr = 1E-10
         self.BEC_prior_uncorr = 1E-10
         self.BES_prior_corr = 1E-10
@@ -1003,7 +1007,7 @@ class fit:
     def reinitialiseToNominal(self):
         self.input_uncert_alphas = uncert_alphas_default
         self.input_uncert_Yukawa = uncert_yukawa_default
-        self.constrain_Yukawa = True
+        #self.constrain_Yukawa = True
         self.setBECpriors(prior_corr=uncert_BEC_default_corr, prior_uncorr=uncert_BEC_default_uncorr)
         self.setBESpriors(uncert_corr=uncert_BES_default_corr, uncert_uncorr=uncert_BES_default_uncorr)
         self.lumi_corr = uncert_lumi_default_corr
@@ -1014,24 +1018,48 @@ class fit:
         f = copy.deepcopy(self)
         f.syst_mass = dict()
         f.syst_width = dict()
-        for syst in ['stat', 'total', 'alphaS', 'Yukawa', 'BES_uncorr', 'BES_corr', 'BEC_uncorr', 'BEC_corr', 'lumi_uncorr', 'lumi_corr']:
-            f.estimateSyst(syst) #TODO: automatic list of systematics when nuisances are added
+        if not self.constrain_Yukawa:
+            f.syst_yukawa = dict()
+        #TODO: automatic list of systematics when nuisances are added
+        syst_list = ['stat','total','alphaS','Yukawa','BES_uncorr','BES_corr','BEC_uncorr','BEC_corr','lumi_uncorr','lumi_corr']
+        if not self.constrain_Yukawa:
+            syst_list.remove('Yukawa')
+        for syst in syst_list:
+            f.estimateSyst(syst) 
         
         total_mass_unc = f.syst_mass.pop('total')
         total_width_unc = f.syst_width.pop('total')
+        if not self.constrain_Yukawa:
+            total_yukawa_unc = f.syst_yukawa.pop('total')
 
-        print()
-        print(f"{'Systematic':<12} {'Mass [MeV]':<12} {'Width [MeV]':<12}")
-        print("-" * 36)
-        for syst, mass_unc in f.syst_mass.items():
-            width_unc = f.syst_width[syst]
-            print(f"{syst:<12} {mass_unc:<12.1f} {width_unc:<12.1f}")
-        print("-" * 36)
-        print(f"{'total exp':<12} {total_mass_unc:<12.1f} {total_width_unc:<12.1f}")
+        if self.constrain_Yukawa:
+            print()
+            print(f"{'Systematic':<12} {'Mass [MeV]':<12} {'Width [MeV]':<12}")
+            print("-" * 36)
+            for syst, mass_unc in f.syst_mass.items():
+                width_unc = f.syst_width[syst]
+                print(f"{syst:<12} {mass_unc:<12.1f} {width_unc:<12.1f}")
+            print("-" * 36)
+            print(f"{'total exp':<12} {total_mass_unc:<12.1f} {total_width_unc:<12.1f}")
 
-        theory_mass_unc = 35 #hardcoded
-        theory_width_unc = 25 #hardcoded
-        print(f"{'theory':<12} {theory_mass_unc:<12.0f} {theory_width_unc:<12.0f}")
+            theory_mass_unc = 35 #hardcoded
+            theory_width_unc = 25 #hardcoded
+            print(f"{'theory':<12} {theory_mass_unc:<12.0f} {theory_width_unc:<12.0f}")
+
+        else:
+            print()
+            print(f"{'Systematic':<12} {'Mass [MeV]':<12} {'Width [MeV]':<12} {'Yukawa [%]':<12}")
+            print("-" * 48)
+            for syst, mass_unc in f.syst_mass.items():
+                width_unc = f.syst_width[syst]
+                yukawa_unc = f.syst_yukawa[syst]
+                print(f"{syst:<12} {mass_unc:<12.1f} {width_unc:<12.1f} {yukawa_unc:<12.1f}")
+            print("-" * 48)
+            print(f"{'total exp':<12} {total_mass_unc:<12.1f} {total_width_unc:<12.1f} {total_yukawa_unc:<12.1f}")
+            theory_mass_unc = 35 #hardcoded
+            theory_width_unc = 25
+            theory_yukawa_unc = 99
+            print(f"{'theory':<12} {theory_mass_unc:<12.0f} {theory_width_unc:<12.0f} {theory_yukawa_unc:<12.0f}")
 
         latex_table = r"""
         \begin{table}[h!]
