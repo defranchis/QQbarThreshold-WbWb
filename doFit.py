@@ -501,29 +501,34 @@ class fit:
         l_vars = []
         l_mass = []
         l_width = []
+        if not self.constrain_Yukawa:
+            l_yukawa = []
         for var in self.parameters.scale_vars:
             if var < 70: continue
-            tag_mass = 'scaleM_{:.1f}'.format(var)
-            tag_width = 'scaleM_{:.1f}'.format(var)
-            if tag_mass not in self.xsec_dict.keys() or tag_width not in self.xsec_dict.keys():
+            mass_scale_tag = 'scaleM_{:.1f}'.format(var)
+            #tag_width = 'scaleM_{:.1f}'.format(var)
+            if mass_scale_tag not in self.xsec_dict.keys():# or tag_width not in self.xsec_dict.keys():
                 print('Skipping {}'.format(var))
                 continue
             l_vars.append(var)
             nominal_scenario = self.getXsecScenario(self.getXsecTemplate())
-            variation_scenario_mass = self.getXsecScenario(self.getXsecTemplate(tag_mass))
-            variation_scenario_width = self.getXsecScenario(self.getXsecTemplate(tag_width))
+            variation_scenario_mass = self.getXsecScenario(self.getXsecTemplate(mass_scale_tag))
+            #variation_scenario_width = self.getXsecScenario(self.getXsecTemplate(tag_width))
             
-            f_mass = copy.deepcopy(self)
-            f_mass.scale_var_scenario = np.array(variation_scenario_mass['xsec']) / np.array(nominal_scenario['xsec'])
-            f_mass.update()
-            fit_results_mass = f_mass.getFitResults(printout=False)
-            l_mass.append(fit_results_mass[self.param_names.index('mass')].n - self.fit_results[self.param_names.index('mass')].n)
+            f_mass_var = copy.deepcopy(self)
+            f_mass_var.scale_var_scenario = np.array(variation_scenario_mass['xsec']) / np.array(nominal_scenario['xsec'])
+            f_mass_var.update()
+            fit_results_mass_var = f_mass_var.getFitResults(printout=False)
+            l_mass.append(fit_results_mass_var[self.param_names.index('mass')].n - self.fit_results[self.param_names.index('mass')].n)
+            l_width.append(fit_results_mass_var[self.param_names.index('width')].n - self.fit_results[self.param_names.index('width')].n)
+            if not self.constrain_Yukawa:
+                l_yukawa.append(fit_results_mass_var[self.param_names.index('yukawa')].n - self.fit_results[self.param_names.index('yukawa')].n)
             
-            f_width = copy.deepcopy(self)
-            f_width.scale_var_scenario = np.array(variation_scenario_width['xsec']) / np.array(nominal_scenario['xsec'])
-            f_width.update()
-            fit_results_width = f_width.getFitResults(printout=False)
-            l_width.append(fit_results_width[self.param_names.index('width')].n - self.fit_results[self.param_names.index('width')].n)
+            #f_width = copy.deepcopy(self)
+            #f_width.scale_var_scenario = np.array(variation_scenario_width['xsec']) / np.array(nominal_scenario['xsec'])
+            #f_width.update()
+            #fit_results_width = f_width.getFitResults(printout=False)
+            #l_width.append(fit_results_width[self.param_names.index('width')].n - self.fit_results[self.param_names.index('width')].n)
 
         plt.plot(l_vars, np.array(l_mass) * 1E03, 'b-', label='Shift in fitted $m_t$', linewidth=2)
         plt.plot(l_vars, np.array(l_width) * 1E03, 'g--', label='Shift in fitted $\Gamma_t$', linewidth=2)
@@ -538,6 +543,21 @@ class fit:
         plt.savefig(plot_dir + '/uncert_mass_width_vs_scale.png')
         plt.savefig(plot_dir + '/uncert_mass_width_vs_scale.pdf')
         plt.clf()
+
+        if not self.constrain_Yukawa:
+            plt.plot(l_vars, np.array(l_yukawa), 'b-', label='Shift in fitted $y_t$', linewidth=2)
+            plt.plot(self.parameters.mass_scale, 0, 'ro', label='Starting point', markersize=8)
+            plt.legend()
+            plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+            plt.xlabel('Renormalisation scale $\mu$ [GeV]')
+            plt.ylabel('Shift in fitted parameter')
+            offset = -.05
+            plt.text(.97, 0.17 + offset , 'QQbar_Threshold $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+            plt.text(.97, 0.13 + offset , '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+            plt.text(.97, 0.08 + offset , '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+            plt.savefig(plot_dir + '/uncert_yukawa_vs_scale.png')
+            plt.savefig(plot_dir + '/uncert_yukawa_vs_scale.pdf')
+            plt.clf()
 
     def plotScaleVars(self): #to be implemented
         pass
@@ -1032,6 +1052,11 @@ class fit:
         if not self.constrain_Yukawa:
             total_yukawa_unc = f.syst_yukawa.pop('total')
 
+
+        theory_mass_unc = 35 #hardcoded
+        theory_width_unc = 25 #hardcoded
+        theory_yukawa_unc = 10 #hardcoded
+
         if self.constrain_Yukawa:
             print()
             print(f"{'Systematic':<12} {'Mass [MeV]':<12} {'Width [MeV]':<12}")
@@ -1042,8 +1067,6 @@ class fit:
             print("-" * 36)
             print(f"{'total exp':<12} {total_mass_unc:<12.1f} {total_width_unc:<12.1f}")
 
-            theory_mass_unc = 35 #hardcoded
-            theory_width_unc = 25 #hardcoded
             print(f"{'theory':<12} {theory_mass_unc:<12.0f} {theory_width_unc:<12.0f}")
 
         else:
@@ -1056,9 +1079,6 @@ class fit:
                 print(f"{syst:<12} {mass_unc:<12.1f} {width_unc:<12.1f} {yukawa_unc:<12.1f}")
             print("-" * 48)
             print(f"{'total exp':<12} {total_mass_unc:<12.1f} {total_width_unc:<12.1f} {total_yukawa_unc:<12.1f}")
-            theory_mass_unc = 35 #hardcoded
-            theory_width_unc = 25
-            theory_yukawa_unc = 99
             print(f"{'theory':<12} {theory_mass_unc:<12.0f} {theory_width_unc:<12.0f} {theory_yukawa_unc:<12.0f}")
 
         latex_table = r"""
