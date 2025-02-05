@@ -408,6 +408,32 @@ class fit:
             plt.savefig(plot_dir + '/fit_scenario_ratio_{}.pdf'.format('pseudo' if not self.asimov else 'asimov'))
         plt.clf()
 
+    def plotParameterVariations(self):
+
+        if not os.path.exists(plot_dir):
+            os.makedirs(plot_dir)
+
+        for param in self.param_names:
+            if param == 'BEC' or param == 'BES':
+                continue
+            plt.figure()
+            xsec_nom = self.getXsecTemplate()
+            plt.plot(xsec_nom['ecm'], np.ones(len(xsec_nom['ecm'])), label='Nominal model', linestyle='--', color=f'C{0}')
+            for i,param in enumerate(['mass', 'width', 'yukawa', 'alphas']):
+                if param not in self.morph_dict:
+                    continue
+                xsec_var = self.getXsecTemplate('{}_var'.format(param))
+                plt.plot(xsec_nom['ecm'], xsec_var['xsec'] / xsec_nom['xsec'], label=label_d[param], color=f'C{i+1}')
+                plt.plot(xsec_nom['ecm'], xsec_nom['xsec'] / xsec_var['xsec'], label=None, linestyle='--', color=f'C{i+1}')
+            plt.xlabel('$\sqrt{s}$ [GeV]')
+            plt.ylabel('Cross section variation')
+            plt.legend()
+            plt.title('Parameter variations normalized to nominal cross section')
+            plt.xlim(340,345)
+
+            plt.savefig(plot_dir + '/param_variations.png')
+
+
     def doLSscan (self, min = 0, max = 0.5, step = 0.01):
         if min == 0:
             min = 1E-6
@@ -1170,6 +1196,7 @@ def main():
         f.doChi2Scans()
     if args.systTable:
         f.printSystTable()
+    f.plotParameterVariations()
     
 
 
