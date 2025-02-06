@@ -14,9 +14,11 @@ plt.style.use(hep.style.CMS)
 
 plot_dir = 'plots/fit'
 indir_BEC = 'BEC_variations' # hardcoded
+indir_sw2 = 'output_sw2' # hardcoded
 
 BEC_input_var = 10 # 10 MeV, for morphing, hardcoded
 BES_input_var = 0.1 # 10%, for morphing, hardcoded
+sw2_input_var = 0.0000025 # for morphing, hardcoded
 
 uncert_yukawa_default = 0.03 # only when parameter is constrained. hardcoded for now
 uncert_alphas_default =  0.0001 # hardcoded for now
@@ -24,6 +26,7 @@ uncert_alphas_default =  0.0001 # hardcoded for now
 uncert_lumi_default_uncorr = 1E-3 # hardcoded for now
 uncert_BES_default_uncorr = 0.01 # hardcoded for now
 uncert_BEC_default_uncorr = 5 # hardcoded for now
+uncert_sw2_default = sw2_input_var # hardcoded for now
 
 scale_lumi_uncorr = False
 
@@ -31,7 +34,7 @@ uncert_lumi_default_corr = uncert_lumi_default_uncorr / 2 # hardcoded for now
 uncert_BES_default_corr = uncert_BES_default_uncorr / 2 # hardcoded for now
 uncert_BEC_default_corr = uncert_BEC_default_uncorr / 2 # hardcoded for now
 
-label_d = {'mass': '$m_t$ [GeV]', 'width': r'$\Gamma_t$'+' [GeV]', 'yukawa': 'y_t', 'alphas': r'\alpha_S'}
+label_d = {'mass': '$m_t$ [GeV]', 'width': r'$\Gamma_t$'+' [GeV]', 'yukawa': 'y_t', 'alphas': r'\alpha_S', 'sw2': r'$sin^2(\theta_W)$'}
 
 
 def formFileTag(mass, width, yukawa, alphas):
@@ -65,6 +68,7 @@ class fit:
         self.input_uncert_alphas = uncert_alphas_default
         self.BEC_nuisances = False
         self.BES_nuisances = False
+        self.sw2_nuisance = False
 
         if self.debug:
             print('Input directory: {}'.format(self.input_dir))
@@ -179,6 +183,9 @@ class fit:
             xsec_var = self.smearCrossSection(tmp)
         elif param == 'BES':
             xsec_var = self.smearCrossSection(self.xsec_dict['nominal'], BES=self.beam_energy_res*(1+BES_input_var))
+        elif param == 'sw2':
+            xsec_var = self.smearCrossSection(self.readScanPerTag('nominal', indir=indir_sw2))
+            self.xsec_dict_smeared['sw2_var'] = xsec_var
         else:
             xsec_var = self.getXsecTemplate('{}_var'.format(param))
         df_morph = pd.DataFrame({'ecm': xsec_nom['ecm'], 'xsec': xsec_var['xsec']/xsec_nom['xsec'] -1})
@@ -191,12 +198,15 @@ class fit:
         if not self.read_scale_vars:
             self.morph_dict['BEC'] = self.morphCrossSection('BEC')
             self.morph_dict['BES'] = self.morphCrossSection('BES')
+        self.morph_dict['sw2'] = self.morphCrossSection('sw2')
 
     def getXsecTemplate(self,tag='nominal'):
         return self.xsec_dict_smeared[tag]
     
     def getValueFromParameter(self,par,par_name):
-        if not 'BEC_bin' in par_name and not 'BES_bin' in par_name and par_name != 'BES' and par_name != 'BEC':
+        if par_name == 'sw2':
+            return par*sw2_input_var
+        elif not 'BEC_bin' in par_name and not 'BES_bin' in par_name and par_name != 'BES' and par_name != 'BEC':
             return self.d_params['nominal'][par_name] + par * (self.d_params['{}_var'.format(par_name)][par_name] - self.d_params['nominal'][par_name])
         return par
     
@@ -257,6 +267,7 @@ class fit:
         if not self.read_scale_vars:
             self.morph_scenario['BEC'] = self.getXsecScenario(self.morph_dict['BEC'])
             self.morph_scenario['BES'] = self.getXsecScenario(self.morph_dict['BES'])
+        self.morph_scenario['sw2'] = self.getXsecScenario(self.morph_dict['sw2'])
 
     def getPhysicalFitParams(self,params):
         if not self.SM_width:
@@ -299,6 +310,9 @@ class fit:
                 self.BES_prior_corr = 1E-6
             BES_index = self.param_names.index('BES')
             chi2 += (params[BES_index]/self.BES_prior_corr)**2
+        if self.sw2_nuisance:
+            sw2_index = self.param_names.index('sw2')
+            chi2 += (params[sw2_index]/self.sw2_prior)**2
         return chi2 + prior_width
     
 
@@ -350,6 +364,8 @@ class fit:
                     pull = unc.ufloat(self.minuit.values[param], self.minuit.errors[param])
                 elif 'BEC_bin' in param or 'BES_bin' in param or param == 'BES' or param == 'BEC':
                     pull = (params_w_cov[i])
+                elif param == 'sw2':
+                    pull = params_w_cov[i]
                 else:
                     pull = (params_w_cov[i] - self.d_params[self.pseudodata_tag][param])
                 print('Pull {}: {:.3f}\n'.format(param, pull.n/pull.s))
@@ -413,25 +429,23 @@ class fit:
         if not os.path.exists(plot_dir):
             os.makedirs(plot_dir)
 
-        for param in self.param_names:
-            if param == 'BEC' or param == 'BES':
+        plt.figure()
+        xsec_nom = self.getXsecTemplate()
+        plt.plot(xsec_nom['ecm'], np.ones(len(xsec_nom['ecm'])), label='Nominal model', linestyle='--', color=f'C{0}')
+        for i, param in enumerate(self.param_names):
+            if 'BEC' in param or 'BES' in param:
                 continue
-            plt.figure()
-            xsec_nom = self.getXsecTemplate()
-            plt.plot(xsec_nom['ecm'], np.ones(len(xsec_nom['ecm'])), label='Nominal model', linestyle='--', color=f'C{0}')
-            for i,param in enumerate(['mass', 'width', 'yukawa', 'alphas']):
-                if param not in self.morph_dict:
-                    continue
-                xsec_var = self.getXsecTemplate('{}_var'.format(param))
-                plt.plot(xsec_nom['ecm'], xsec_var['xsec'] / xsec_nom['xsec'], label=label_d[param], color=f'C{i+1}')
-                plt.plot(xsec_nom['ecm'], xsec_nom['xsec'] / xsec_var['xsec'], label=None, linestyle='--', color=f'C{i+1}')
-            plt.xlabel('$\sqrt{s}$ [GeV]')
-            plt.ylabel('Cross section variation')
-            plt.legend()
-            plt.title('Parameter variations normalized to nominal cross section')
-            plt.xlim(340,345)
+            xsec_var = self.getXsecTemplate('{}_var'.format(param))
+            factor = 1 if param != 'sw2' else 1000
+            plt.plot(xsec_nom['ecm'], (xsec_var['xsec'] / xsec_nom['xsec'] -1)*factor +1, label=label_d[param], color=f'C{i+1}')
+            plt.plot(xsec_nom['ecm'], (xsec_nom['xsec'] / xsec_var['xsec']-1) * factor +1, label=None, linestyle='--', color=f'C{i+1}')
+        plt.xlabel('$\sqrt{s}$ [GeV]')
+        plt.ylabel('Cross section variation')
+        plt.legend()
+        plt.title('Parameter variations normalized to nominal cross section')
+        #plt.xlim(340,345)
 
-            plt.savefig(plot_dir + '/param_variations.png')
+        plt.savefig(plot_dir + '/param_variations.png')
 
 
     def doLSscan (self, min = 0, max = 0.5, step = 0.01):
@@ -636,6 +650,17 @@ class fit:
     def setBECpriors(self, prior_uncorr, prior_corr): # prior in MeV
         self.BEC_prior_uncorr = prior_uncorr / BEC_input_var
         self.BEC_prior_corr = prior_corr / BEC_input_var
+
+    def addSw2nuisance(self, prior=None):
+        if prior is None:
+            prior = uncert_sw2_default
+        self.sw2_nuisance = True
+        self.setSw2prior(prior)
+        self.param_names.append('sw2')
+    
+    def setSw2prior(self, prior):
+        self.sw2_prior = prior/sw2_input_var
+
     
     def addBESnuisances(self, uncert_uncorr = None, uncert_corr = None):
         self.BES_nuisances = True
@@ -1034,6 +1059,8 @@ class fit:
             self.lumi_corr = 1E-10
         elif syst_name == 'lumi_uncorr':
             self.lumi_uncorr = 1E-10
+        elif syst_name == 'sw2':
+            self.sw2_prior = 1E-10
         self.fitParameters()
         self.addSystToTable(syst_name)
         self.reinitialiseToNominal()
@@ -1067,7 +1094,9 @@ class fit:
         if not self.constrain_Yukawa:
             f.syst_yukawa = dict()
         #TODO: automatic list of systematics when nuisances are added
-        syst_list = ['stat','total','alphaS','Yukawa','BES_uncorr','BES_corr','BEC_uncorr','BEC_corr','lumi_uncorr','lumi_corr']
+        syst_list = ['stat','total','alphaS','Yukawa','sw2','BES_uncorr','BES_corr','BEC_uncorr','BEC_corr','lumi_uncorr','lumi_corr']
+        if not self.sw2_nuisance:
+            syst_list.remove('sw2')
         if not self.constrain_Yukawa:
             syst_list.remove('Yukawa')
         for syst in syst_list:
@@ -1144,6 +1173,7 @@ def main():
     parser.add_argument('--scaleVars', action='store_true', help='Do scale variations')
     parser.add_argument('--SMwidth', action='store_true', help='Constrain width to SM value')
     parser.add_argument('--fitYukawa', action='store_true', help='Constrain Yukawa coupling in fit')
+    parser.add_argument('--addSw2', action='store_true', help='Add sw2 nuisance')
     parser.add_argument('--lastecm', action='store_true', help='Add last ecm to scenario')
     parser.add_argument('--sameNevts', action='store_true', help='Same number of events in each ecm')
     parser.add_argument('--BECscans', action='store_true', help='Do beam energy calibration scans')
@@ -1174,6 +1204,9 @@ def main():
         f.addBECnuisances()
     if args.BESnuisances or args.systTable:
         f.addBESnuisances()
+    if args.addSw2:
+        f.addSw2nuisance()
+    f.plotParameterVariations()
     f.fitParameters()
     f.getFitResults()
     f.plotFitScenario()
@@ -1196,7 +1229,6 @@ def main():
         f.doChi2Scans()
     if args.systTable:
         f.printSystTable()
-    f.plotParameterVariations()
     
 
 
