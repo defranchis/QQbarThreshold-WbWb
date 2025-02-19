@@ -22,6 +22,7 @@ sw2_input_var = 0.0000025 # for morphing, hardcoded
 
 uncert_yukawa_default = 0.03 # only when parameter is constrained. hardcoded for now
 uncert_alphas_default =  0.0001 # hardcoded for now
+uncert_SM_width_default = 5 # in MeV, hardcoded for now
 
 uncert_lumi_default_uncorr = 1E-3 # hardcoded for now
 uncert_BES_default_uncorr = 0.01 # hardcoded for now
@@ -66,6 +67,7 @@ class fit:
         self.lumi_corr = uncert_lumi_default_corr # estimate for theory cross section uncertainty
         self.input_uncert_Yukawa = uncert_yukawa_default
         self.input_uncert_alphas = uncert_alphas_default
+        self.input_uncert_SM_width = uncert_SM_width_default
         self.BEC_nuisances = False
         self.BES_nuisances = False
         self.sw2_nuisance = False
@@ -109,16 +111,16 @@ class fit:
             mu = self.parameters.mass_scale
         return scheme_conversion.calculate_width(mt_PS, mu)
 
-    def getWidthN3LO(self, mt_PS, fit_param = 0., th_uncert = 5, mu = None, fix_to_nom_value = True): #theory uncertainty in MeV
+    def getWidthN3LO(self, mt_PS, fit_param_width = 0., th_uncert = 5, mu = None, fix_to_nom_value = True): #theory uncertainty in MeV
         mt_ref = self.d_params['mass_var']['mass']
 
         if fix_to_nom_value:
-            return self.d_params['mass_var']['width'] + 0.0277*(mt_PS - mt_ref) + fit_param*th_uncert*1E-3 #fixing to nominal value +/- theory
+            return self.d_params['mass_var']['width'] + 0.027*(mt_PS - mt_ref) + fit_param_width*th_uncert*1E-3 #fixing to nominal value +/- theory
 
         if mu is None:
             mu = self.parameters.mass_scale
         mt_pole = mt_PS + scheme_conversion.calculate_mt_Pole(mt_ref, mu) - mt_ref # constant
-        return 1.3148 + 0.0277*(mt_pole-172.69) + fit_param*0.005 # QCD calculation at N3LO
+        return 1.3148 + 0.027*(mt_pole-172.69) + fit_param_width*0.005 # QCD calculation at N3LO
 
 
 
@@ -279,7 +281,9 @@ class fit:
         if not self.SM_width:
             return 0
         prior_width = params[self.param_names.index('width')]**2
-        width = self.getWidthN3LO(self.getValueFromParameter(params[self.param_names.index('mass')], 'mass'),params[self.param_names.index('width')])
+        width = self.getWidthN3LO(mt_PS = self.getValueFromParameter(params[self.param_names.index('mass')], 'mass'),
+                                    fit_param_width = params[self.param_names.index('width')],
+                                    th_uncert = self.input_uncert_SM_width)
         params[self.param_names.index('width')] = self.getParameterFromValue(width, 'width')
         return prior_width
 
@@ -968,6 +972,40 @@ class fit:
         plt.savefig(plot_dir + '/uncert_mass_width_vs_yukawa.pdf')
         plt.clf()
 
+    def doWidthScan(self, max_uncert = 10, step = 0.1):
+        if not self.SM_width:
+            raise ValueError('Width scan only for SM width assumption')
+        l_width_uncert = np.arange(1E-10, max_uncert+step/2, step)
+        l_mass = []
+        for width_u in l_width_uncert:
+            f_width = copy.deepcopy(self)
+            f_width.input_uncert_SM_width = width_u
+            f_width.fitParameters()
+            fit_results = f_width.getFitResults(printout=False)
+            l_mass.append(fit_results[self.param_names.index('mass')].s*1000)
+        l_mass = np.array(l_mass)
+    
+        nominal_mass_uncert = self.fit_results[self.param_names.index('mass')].s*1000
+        nominal_with_uncert = self.input_uncert_SM_width
+
+        nominal_impact_mass = (nominal_mass_uncert**2 - l_mass[0]**2)**.5
+
+        l_mass = (l_mass**2 - l_mass[0]**2)**.5
+        plt.plot(l_width_uncert, l_mass, 'b-', label='Impact on fitted $m_t$', linewidth=2)
+        plt.plot(nominal_with_uncert, nominal_impact_mass, 'ro', label=r'$N^{3}LO$ in QCD [arXiv:2309.01937]', markersize=8)
+        plt.legend(loc='upper left')
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi'] / 1E03), loc='right', fontsize=20)
+        plt.xlabel(r'Uncertainty SM prediction for $\Gamma_t$ [MeV]')
+        plt.ylabel(r'Impact on fitted $m_t$ [MeV]')
+        offset = 0
+        x_pos = .92
+        plt.text(x_pos, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(x_pos, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(x_pos, 0.08 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.savefig(plot_dir + '/uncert_mass_vs_width.png')
+        plt.savefig(plot_dir + '/uncert_mass_vs_width.pdf')
+        plt.clf()
+
     def doChi2Scans(self):
         for i_param, param in enumerate(self.param_names):
             if param == 'yukawa' and self.constrain_Yukawa: continue
@@ -1186,6 +1224,7 @@ def main():
     parser.add_argument('--BESscans', action='store_true', help='Do beam energy spread scans')
     parser.add_argument('--lumiscans', action='store_true', help='Do luminosity scans')
     parser.add_argument('--alphaSscan', action='store_true', help='Do alphaS scan')
+    parser.add_argument('--widthscan', action='store_true', help='Do width scan')
     parser.add_argument('--chi2scans', action='store_true', help='Do chi2 scans')
     parser.add_argument('--BECnuisances', action='store_true', help='add BEC nuisances')
     parser.add_argument('--BESnuisances' , action='store_true', help='add BES nuisances')
@@ -1231,6 +1270,8 @@ def main():
         f.doAlphaSscans()
         if not args.fitYukawa:
             f.doYukawaScan() # by default
+    if args.widthscan:
+        f.doWidthScan()
     if args.chi2scans:
         f.doChi2Scans()
     if args.systTable:
