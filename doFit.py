@@ -109,12 +109,18 @@ class fit:
             mu = self.parameters.mass_scale
         return scheme_conversion.calculate_width(mt_PS, mu)
 
-    def getWidthN3LO(self, mt_PS, mu = None, fit_param = 0.):
+    def getWidthN3LO(self, mt_PS, fit_param = 0., th_uncert = 5, mu = None, fix_to_nom_value = True): #theory uncertainty in MeV
+        mt_ref = self.d_params['mass_var']['mass']
+
+        if fix_to_nom_value:
+            return self.d_params['mass_var']['width'] + 0.0277*(mt_PS - mt_ref) + fit_param*th_uncert*1E-3 #fixing to nominal value +/- theory
+
         if mu is None:
             mu = self.parameters.mass_scale
-        mt_ref = self.d_params['nominal']['mass']
         mt_pole = mt_PS + scheme_conversion.calculate_mt_Pole(mt_ref, mu) - mt_ref # constant
-        return 1.3148 + 0.0277*(mt_pole-172.69) + fit_param*0.005
+        return 1.3148 + 0.0277*(mt_pole-172.69) + fit_param*0.005 # QCD calculation at N3LO
+
+
 
     def formFileName(self, tag, scaleM, scaleW):
         infile_tag = formFileTag(*[self.d_params[tag][p] for p in self.param_names])
@@ -1190,8 +1196,8 @@ def main():
         raise ValueError('BEC scan currently incompatible with scale variations')
     if args.alphaSscan and args.lastecm:
         raise ValueError('AlphaS scan currently incompatible with last ecm')
-    if args.SMwidth:
-        raise ValueError('SM width assumption currently not supported') # to be fixed
+    #if args.SMwidth:
+    #    raise ValueError('SM width assumption currently not supported') # to be fixed
     
     
     threshold_lumi = 0.41 * 1E06 # hardcoded
