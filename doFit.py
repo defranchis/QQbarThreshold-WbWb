@@ -96,15 +96,15 @@ class fit:
         if self.debug:
             print('Initialization done')
 
-    def update(self, update_scenario = True, exclude_stat = False):
+    def update(self, update_scenario = True, exclude_stat = False, init_vars = False, pseudo_data = None, initMinuit = False):
         if self.debug:
             print('Updating object')
         self.smearCrossSections()
         self.morphCrossSections()
         if update_scenario:
-            self.createScenario(**self.scenario_dict, init_vars = False)
+            self.createScenario(**self.scenario_dict, init_vars = init_vars, pseudodata=pseudo_data)
         #self.initMinuit(exclude_stat = exclude_stat)
-        self.fitParameters(exclude_stat = exclude_stat)
+        self.fitParameters(exclude_stat = exclude_stat, initMinuit=initMinuit)
 
     def getWidthN2LO(self,mt_PS, mu = None): # TODO: not yet used
         if mu is None:
@@ -127,6 +127,16 @@ class fit:
     def formFileName(self, tag, scaleM, scaleW):
         infile_tag = formFileTag(*[self.d_params[tag][p] for p in self.param_names])
         return 'N3LO_scan_PS_ISR_{}_scaleM{:.1f}_scaleW{:.1f}.txt'.format(infile_tag, scaleM, scaleW)
+    
+    def readXsecFromFile(self,file):
+        f = open(file, 'r')
+        df = pd.read_csv(f, header=None, names=['ecm','xsec'])
+        f.close()
+        return df
+
+    def readXsecFromFileSmeared(self,file):
+        df = self.readXsecFromFile(file)
+        return self.smearCrossSection(df)
 
     def readScanPerTag(self, tag, scaleM = None, scaleW = None, indir = None):
         if scaleM is None:
@@ -138,10 +148,7 @@ class fit:
         filename = os.path.join(indir, self.formFileName(tag, scaleM, scaleW))
         if not os.path.exists(filename):
             raise ValueError('File {} not found'.format(filename))
-        f = open(filename, 'r')
-        df = pd.read_csv(f, header=None, names=['ecm','xsec'])
-        f.close()
-        return df
+        return self.readXsecFromFile(filename)
           
     def readCrossSections(self):
         self.xsec_dict = {}
@@ -173,7 +180,7 @@ class fit:
         if BES is None: BES = self.beam_energy_res
         last_ecm_xsec = ecmToString(float(xsec['ecm'].iloc[-1]))
         xsec_to_smear = xsec[:-1] if last_ecm_xsec == ecmToString(self.last_ecm) else xsec
-        xsec_smeared = convoluteXsecGauss(xsec_to_smear,BES)
+        xsec_smeared = convoluteXsecGauss(xsec_to_smear,BES,peak_ecm = 345) #hardcoded
         if last_ecm_xsec == ecmToString(self.last_ecm):
             xsec_smeared = pd.concat([xsec_smeared, xsec[-1:]])
         return xsec_smeared
@@ -246,9 +253,9 @@ class fit:
             add_last_ecm = False
         self.scenario_dict = {'scan_list': scan_list, 'total_lumi': total_lumi, 'last_lumi': last_lumi, 'add_last_ecm': add_last_ecm, 'same_evts': same_evts}
         self.createScenario(**self.scenario_dict)
-    
 
-    def createScenario(self, scan_list , total_lumi, last_lumi, add_last_ecm, same_evts, init_vars = True):
+
+    def createScenario(self, scan_list , total_lumi, last_lumi, add_last_ecm, same_evts, init_vars = True, pseudodata = None):
         if self.debug:
             print('Creating threshold scan scenario')
 
@@ -263,7 +270,8 @@ class fit:
         self.xsec_scenario = self.getXsecScenario(self.getXsecTemplate()) # just nominal for now
         if init_vars:
             self.scale_var_scenario = np.ones(len(self.xsec_scenario['xsec']))
-        self.pseudo_data_scenario = np.array(self.getXsecScenario(self.getXsecTemplate(self.pseudodata_tag))['xsec'])
+        pseudodata = self.getXsecTemplate(self.pseudodata_tag) if pseudodata is None else pseudodata
+        self.pseudo_data_scenario = self.getXsecScenario(pseudodata)['xsec']
         if same_evts:
             overall_factor = total_lumi / np.sum(np.array([1/sigma for sigma in self.pseudo_data_scenario]))
             self.scenario = {ecm: overall_factor/sigma for ecm, sigma in zip(self.scenario.keys(), self.pseudo_data_scenario)}
@@ -1006,6 +1014,77 @@ class fit:
         plt.savefig(plot_dir + '/uncert_mass_vs_width.pdf')
         plt.clf()
 
+    def doTrueValueScan(self):
+
+        indir = 'output_pseudo'
+        all_files = os.listdir(indir)
+        all_files.sort()
+        result_dict_baseline = dict()
+        result_dict_coarse = dict()
+        result_dict_baseline_width = dict()
+        result_dict_coarse_width = dict()
+
+        for file in all_files:
+            mass = file.split('_')[4].replace('mass','')
+            f_shift = copy.deepcopy(self)
+            pseudo_data = self.readXsecFromFileSmeared(os.path.join(indir,file))
+            f_shift.update(update_scenario=True, init_vars = True, pseudo_data = pseudo_data, initMinuit = True)
+            fit_results = f_shift.getFitResults(printout=False)
+            bias = fit_results[self.param_names.index('mass')].n - float(mass)
+            mass_uncert = fit_results[self.param_names.index('mass')].s
+            if abs(bias) > mass_uncert * .7:
+                continue
+            result_dict_baseline[mass] = mass_uncert * 1000
+            result_dict_baseline_width[mass] = fit_results[self.param_names.index('width')].s*1000
+
+            scan_min = 340.5
+            scan_max = 345
+            scan_step = 1
+            scan_list = [ecmToString(e) for e in np.arange(scan_min,scan_max+scan_step/2,scan_step)]
+            f_shift.scenario_dict['scan_list'] = scan_list
+
+            #f_shift.BES_prior_uncorr /= 2**.5
+            #f_shift.BEC_prior_uncorr /= 2**.5
+            f_shift.lumi_uncorr /= 2**.5
+            
+            f_shift.update(update_scenario=True, init_vars = True, pseudo_data = pseudo_data, initMinuit = True)
+            fit_results = f_shift.getFitResults(printout=False)
+            result_dict_coarse[mass] = fit_results[self.param_names.index('mass')].s*1000
+            result_dict_coarse_width[mass] = fit_results[self.param_names.index('width')].s*1000
+
+        masses = np.array([float(key) for key in result_dict_baseline.keys()])
+        errs = np.array([val for val in result_dict_baseline.values()])
+        errs_coarse = np.array([val for val in result_dict_coarse.values()])
+        plt.plot(masses, errs, 'b-', label='Uncerainty in $m_t$', linewidth=2)
+        plt.plot(masses, errs_coarse, 'g--', label='Uncertainty in $m_t$ (coarse scan)', linewidth=2)
+        plt.xlabel('True value of $m_t$ [GeV]')
+        plt.ylabel('Uncertainty in fitted $m_t$ [MeV]')
+        plt.legend()
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        offset = 0
+        plt.text(.92, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.92, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.savefig(plot_dir + '/uncert_mass_vs_true_mass.png')
+        plt.savefig(plot_dir + '/uncert_mass_vs_true_mass.pdf')
+        plt.clf()        
+
+        masses = np.array([float(key) for key in result_dict_baseline_width.keys()])
+        errs = np.array([val for val in result_dict_baseline_width.values()])
+        errs_coarse = np.array([val for val in result_dict_coarse_width.values()])
+        plt.plot(masses, errs, 'b-', label='Uncerainty in $\Gamma_t$', linewidth=2)
+        plt.plot(masses, errs_coarse, 'g--', label='Uncerainty in $\Gamma_t$ (coarse scan)', linewidth=2)
+        plt.xlabel('True value of $m_t$ [GeV]')
+        plt.ylabel('Uncertainty in fitted $\Gamma_t$ [MeV]')
+        plt.legend()
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        offset = 0
+        plt.text(.92, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.92, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.savefig(plot_dir + '/uncert_width_vs_true_mass.png')
+        plt.savefig(plot_dir + '/uncert_width_vs_true_mass.pdf')
+        plt.clf()
+
+
     def doChi2Scans(self):
         for i_param, param in enumerate(self.param_names):
             if param == 'yukawa' and self.constrain_Yukawa: continue
@@ -1226,6 +1305,7 @@ def main():
     parser.add_argument('--alphaSscan', action='store_true', help='Do alphaS scan')
     parser.add_argument('--widthscan', action='store_true', help='Do width scan')
     parser.add_argument('--chi2scans', action='store_true', help='Do chi2 scans')
+    parser.add_argument('--truevaluescan', action='store_true', help='Do true value scan')
     parser.add_argument('--BECnuisances', action='store_true', help='add BEC nuisances')
     parser.add_argument('--BESnuisances' , action='store_true', help='add BES nuisances')
     parser.add_argument('--systTable', action='store_true', help='Produce systematic table')
@@ -1272,6 +1352,8 @@ def main():
             f.doYukawaScan() # by default
     if args.widthscan:
         f.doWidthScan()
+    if args.truevaluescan:
+        f.doTrueValueScan()
     if args.chi2scans:
         f.doChi2Scans()
     if args.systTable:
