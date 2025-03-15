@@ -213,7 +213,8 @@ class fit:
         if not self.read_scale_vars:
             self.morph_dict['BEC'] = self.morphCrossSection('BEC')
             self.morph_dict['BES'] = self.morphCrossSection('BES')
-        self.morph_dict['sw2'] = self.morphCrossSection('sw2')
+        if not self.read_scale_vars:
+            self.morph_dict['sw2'] = self.morphCrossSection('sw2')
 
     def getXsecTemplate(self,tag='nominal'):
         return self.xsec_dict_smeared[tag]
@@ -284,7 +285,8 @@ class fit:
         if not self.read_scale_vars:
             self.morph_scenario['BEC'] = self.getXsecScenario(self.morph_dict['BEC'])
             self.morph_scenario['BES'] = self.getXsecScenario(self.morph_dict['BES'])
-        self.morph_scenario['sw2'] = self.getXsecScenario(self.morph_dict['sw2'])
+        if not self.read_scale_vars:
+            self.morph_scenario['sw2'] = self.getXsecScenario(self.morph_dict['sw2'])
 
     def getPhysicalFitParams(self,params):
         if not self.SM_width:
@@ -420,9 +422,9 @@ class fit:
 
         plt.clf()
         plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario/self.getXsecScenario(xsec_nom)['xsec'], yerr=self.unc_pseudodata_scenario/self.getXsecScenario(xsec_nom)['xsec'], 
-                     fmt='.', label = 'Pseudodata (stat)' if not self.asimov else 'Asimov data (stat)', linewidth=2, markersize=10)
+                     fmt='.', label = 'Pseudodata' if not self.asimov else 'Asimov data', linewidth=2, markersize=10)
         plt.plot(xsec_nom['ecm'],xsec_fit['xsec']/xsec_nom['xsec'], label='Fitted cross section', linewidth=2)
-        plt.fill_between(xsec_nom['ecm'], (xsec_fit['xsec']-xsec_fit['unc'])/xsec_nom['xsec'], (xsec_fit['xsec']+xsec_fit['unc'])/xsec_nom['xsec'], alpha=0.5, label='Parametric uncertainty (stat)')
+        plt.fill_between(xsec_nom['ecm'], (xsec_fit['xsec']-xsec_fit['unc'])/xsec_nom['xsec'], (xsec_fit['xsec']+xsec_fit['unc'])/xsec_nom['xsec'], alpha=0.5, label='Post-fit uncertainty')
         plt.plot(xsec_pseudodata['ecm'], xsec_pseudodata['xsec']/xsec_nom['xsec'], label='Pseudodata cross section' if not self.asimov else 'Asimov cross section', linestyle='--', linewidth=2)
         plt.axhline(1, color='grey', linestyle='--', label='Reference cross section', linewidth=2)
         plt.xlabel('$\sqrt{s}$ [GeV]')
@@ -430,13 +432,13 @@ class fit:
         plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
         plt.legend(loc='lower right', fontsize=20)
         if not self.scenario_dict['add_last_ecm']:
-            plt.xlim(339.7, 347)
+            plt.xlim(339.7, 347.3)
         plt.text(.96, 0.45, 'QQbar_Threshold $N^{3}LO$+ISR', fontsize=22, transform=plt.gca().transAxes, ha='right')
         plt.text(.96, 0.41, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
         plt.text(.96, 0.36, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
 
-        plt.text(.35, 0.935, '$m_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('mass')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.text(.35, 0.885, '$\Gamma_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('width')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
+        # plt.text(.35, 0.935, '$m_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('mass')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
+        # plt.text(.35, 0.885, '$\Gamma_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('width')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
 
         plt.savefig(plot_dir + '/fit_scenario_ratio_{}.png'.format('pseudo' if not self.asimov else 'asimov'))
         if not self.asimov:
@@ -487,13 +489,13 @@ class fit:
         f.BES_nuisances = False
         for res in l_beam_energy_res:
             f.beam_energy_res = res
-            f.update()
+            f.update(initMinuit=True)
             fit_results = f.getFitResults(printout=False)
             for i, param in enumerate(params_to_scan):
                 d[param].append(fit_results[i].s)
 
         f.beam_energy_res = self.beam_energy_res
-        f.update()
+        f.update(initMinuit=True)
         f.fit_results = f.getFitResults(printout=False)
         mass_nom = f.fit_results[f.param_names.index('mass')].s
         width_nom = f.fit_results[f.param_names.index('width')].s
@@ -785,9 +787,8 @@ class fit:
 
     def getImpactFromUncert(self, l_uncert):
         l_uncert = np.array(l_uncert)
-        return (l_uncert**2 - l_uncert[0]**2)**.5
-
-
+        return np.maximum(l_uncert**2 - l_uncert[0]**2, 0)**.5
+    
     def doBESscans(self, min=0, max=0.03, step=0.001):
         variations = np.arange(min, max + step / 2, step)
         
