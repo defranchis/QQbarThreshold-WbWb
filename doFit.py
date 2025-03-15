@@ -276,6 +276,7 @@ class fit:
             overall_factor = total_lumi / np.sum(np.array([1/sigma for sigma in self.pseudo_data_scenario]))
             self.scenario = {ecm: overall_factor/sigma for ecm, sigma in zip(self.scenario.keys(), self.pseudo_data_scenario)}
         self.unc_pseudodata_scenario = (np.array(self.pseudo_data_scenario)/np.array(list(self.scenario.values())))**.5
+        self.unc_pseudodata_scenario *= 1.2 #hardcoded
         if not self.asimov:
             np.random.seed(42)
             self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
