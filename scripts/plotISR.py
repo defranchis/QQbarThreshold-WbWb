@@ -67,7 +67,7 @@ def doPlotScheme(scheme):
 
     plt.xlabel('$\sqrt{s}$ [GeV]')
     plt.ylabel('WbWb total cross section [pb]')
-    plt.title('Preliminary', fontsize=23, loc='right', fontstyle='italic')
+    # plt.title('Preliminary', fontsize=23, loc='right', fontstyle='italic')
     plt.savefig('{}/plot_{}.png'.format(plotdir,scheme))
     plt.savefig('{}/plot_{}.pdf'.format(plotdir,scheme))
     plt.clf()
@@ -293,7 +293,7 @@ def addTitles(plt,order,ratio=False,reference=345):
     label = '$\sqrt{s}$ '+'- {} GeV [GeV]'.format(reference) if reference != 0 else '$\sqrt{s}$ [GeV]'
     plt.xlabel(label)
     plt.ylabel('WbWb total cross section {}'.format('ratio' if ratio else '[pb]'))
-    plt.title('Preliminary', fontsize=23, loc='right', fontstyle='italic')
+    # plt.title('Preliminary', fontsize=23, loc='right', fontstyle='italic')
     return
 
 def main():

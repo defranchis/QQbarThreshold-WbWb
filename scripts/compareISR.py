@@ -90,7 +90,7 @@ def main():
     plt.xlabel('$\sqrt{s}$ [GeV]')
     plt.xlim(339, 352)
     plt.ylabel('WbWb total cross section [pb]')
-    plt.title('Preliminary', fontsize=23, loc='right', fontstyle='italic')
+    # plt.title('Preliminary', fontsize=23, loc='right', fontstyle='italic')
 
     plt.text(0.95, 0.37, 'QQbar_Threshold N3LO', fontsize=23, transform=plt.gca().transAxes, ha='right')
     plt.text(0.95, 0.33, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
