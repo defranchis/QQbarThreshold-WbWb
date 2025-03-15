@@ -1165,10 +1165,70 @@ class fit:
             if not self.constrain_Yukawa:
                 self.syst_yukawa[syst_name] = (self.syst_yukawa['total']**2 - self.syst_yukawa[syst_name]**2)**.5
 
+    def estimateStatComponent(self, breakdown_parametric = False):
+
+        self.reinitialiseToStat()
+        if not breakdown_parametric:
+            self.fitParameters()
+            self.addSystToTable('stat')
+            return
+            
+        free_params = ['mass','width']
+        if not self.constrain_Yukawa:
+            free_params.append('yukawa')
+        syst_name = 'stat'
+        stat_dict = {}
+        for param in free_params:
+            self.minuit.fixed = [True]*len(self.param_names)
+            self.minuit.fixed[self.param_names.index(param)] = False
+            self.fitParameters(initMinuit=False)
+            stat = self.getFitResults(printout=False)[self.param_names.index(param)].s
+            if param == 'mass':
+                self.syst_mass[syst_name] = stat*1000
+            elif param == 'width':
+                self.syst_width[syst_name] = stat*1000
+            else:
+                self.syst_yukawa[syst_name] = stat*100
+            stat_dict[param] = stat
+
+        self.reinitialiseToNominal()
+
+        for param in free_params:
+            self.minuit.fixed = [False]*len(self.param_names)
+            self.minuit.fixed[self.param_names.index(param)] = True
+            self.fitParameters(initMinuit=False)
+            results = self.getFitResults(printout=False)
+
+            for other_param in free_params:
+                if param == other_param:
+                    continue
+                uncert = results[self.param_names.index(other_param)].s * (1000 if other_param != 'yukawa' else 100)
+                
+                if other_param == 'mass':
+                    stat_dict['mass_'+param] = (self.syst_mass['total']**2 - uncert**2)**.5
+                elif other_param == 'width':
+                    stat_dict['width_'+param] = (self.syst_width['total']**2 - uncert**2)**.5
+                elif other_param == 'yukawa':
+                    stat_dict['yukawa_'+param] = (self.syst_yukawa['total']**2 - uncert**2)**.5
+
+
+        for param in free_params:
+            nan = float('nan')
+            self.syst_mass[param] = stat_dict['mass_'+param]  if param != 'mass' else nan
+            self.syst_width[param] = stat_dict['width_'+param] if param != 'width' else nan
+            if not self.constrain_Yukawa:
+                self.syst_yukawa[param] = stat_dict['yukawa_'+param] if param != 'yukawa' else nan
+
+        self.minuit.fixed = [False]*len(self.param_names)   
+        self.reinitialiseToNominal()
+
     def estimateSyst(self,syst_name):
+
         if syst_name == 'stat':
-            self.reinitialiseToStat()
-        elif syst_name == 'alphaS':
+            self.estimateStatComponent(breakdown_parametric=not self.constrain_Yukawa)
+            return
+        
+        if syst_name == 'alphaS':
             self.input_uncert_alphas = 1E-10
         elif syst_name == 'Yukawa':
             self.input_uncert_Yukawa = 1E-10
@@ -1219,7 +1279,7 @@ class fit:
         if not self.constrain_Yukawa:
             f.syst_yukawa = dict()
         #TODO: automatic list of systematics when nuisances are added
-        syst_list = ['stat','total','alphaS','Yukawa','sw2','BES_uncorr','BES_corr','BEC_uncorr','BEC_corr','lumi_uncorr','lumi_corr']
+        syst_list = ['total','stat','alphaS','Yukawa','sw2','BES_uncorr','BES_corr','BEC_uncorr','BEC_corr','lumi_uncorr','lumi_corr']
         if not self.sw2_nuisance:
             syst_list.remove('sw2')
         if not self.constrain_Yukawa:
