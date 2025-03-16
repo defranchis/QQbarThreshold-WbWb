@@ -1171,6 +1171,7 @@ class fit:
         if not breakdown_parametric:
             self.fitParameters()
             self.addSystToTable('stat')
+            self.reinitialiseToNominal()
             return
             
         free_params = ['mass','width']
