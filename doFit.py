@@ -1372,6 +1372,7 @@ def main():
     parser.add_argument('--BECnuisances', action='store_true', help='add BEC nuisances')
     parser.add_argument('--BESnuisances' , action='store_true', help='add BES nuisances')
     parser.add_argument('--systTable', action='store_true', help='Produce systematic table')
+    parser.add_argument('--twopoints', action='store_true', help='Two points scan')
     args = parser.parse_args()
 
     if (args.BECscans or args.BESscans or args.BECnuisances or args.BESnuisances) and args.scaleVars:
@@ -1386,7 +1387,11 @@ def main():
     above_threshold_lumi = 2.65 * 1E06 # hardcoded
 
     f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa= not args.fitYukawa, read_scale_vars = args.scaleVars)
-    f.initScenario(scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=threshold_lumi, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
+    if args.twopoints:
+        f.initScenario(scan_min=342, scan_max=344, scan_step=1.5, total_lumi=threshold_lumi/100, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
+    else: # default scenario
+        f.initScenario(scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=threshold_lumi, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
+
     
     if args.BECnuisances or args.systTable:
         f.addBECnuisances()
