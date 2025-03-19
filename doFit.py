@@ -45,7 +45,7 @@ def ecmToString(ecm):
     return '{:.1f}'.format(ecm)
 
 class fit:
-    def __init__(self, beam_energy_res = 0.23, smearXsec = True, SM_width = False, input_dir= None, debug = False, asimov = True, 
+    def __init__(self, beam_energy_res = 0.186, smearXsec = True, SM_width = False, input_dir= None, debug = False, asimov = True, 
                 constrain_Yukawa = False, read_scale_vars = False) -> None:
         if input_dir is None:
             self.input_dir = 'output_full' if not read_scale_vars else 'output_alternative'
@@ -65,7 +65,7 @@ class fit:
         self.last_ecm = 365.0 #hardcoded
         self.lumi_uncorr = uncert_lumi_default_uncorr # estimate for full lumi! i.e. 410/fb
         self.lumi_corr = uncert_lumi_default_corr # estimate for theory cross section uncertainty
-        self.input_uncert_Yukawa = uncert_yukawa_default
+        self.input_uncert_Yukawa = uncert_yukawa_default if not self.SM_width else 1E-10
         self.input_uncert_alphas = uncert_alphas_default
         self.input_uncert_SM_width = uncert_SM_width_default
         self.BEC_nuisances = False
@@ -1299,7 +1299,7 @@ class fit:
 
     def reinitialiseToNominal(self):
         self.input_uncert_alphas = uncert_alphas_default
-        self.input_uncert_Yukawa = uncert_yukawa_default
+        self.input_uncert_Yukawa = uncert_yukawa_default if not self.SM_width else 1E-10
         #self.constrain_Yukawa = True
         self.setBECpriors(prior_corr=uncert_BEC_default_corr, prior_uncorr=uncert_BEC_default_uncorr)
         self.setBESpriors(uncert_corr=uncert_BES_default_corr, uncert_uncorr=uncert_BES_default_uncorr)
@@ -1325,8 +1325,8 @@ class fit:
         total_mass_unc = f.syst_mass.pop('total')
         total_width_unc = f.syst_width.pop('total')
         if not self.constrain_Yukawa:
-            total_yukawa_unc = f.syst_yukawa.pop('total')
-
+            yukawa_central_value = self.fit_results[self.param_names.index('yukawa')].n
+            total_yukawa_unc = f.syst_yukawa.pop('total') / yukawa_central_value
 
         theory_mass_unc = 35 #hardcoded
         theory_width_unc = 25 #hardcoded
@@ -1344,13 +1344,14 @@ class fit:
 
             print(f"{'theory':<12} {theory_mass_unc:<12.0f} {theory_width_unc:<12.0f}")
 
+
         else:
             print()
             print(f"{'Systematic':<12} {'Mass [MeV]':<12} {'Width [MeV]':<12} {'Yukawa [%]':<12}")
             print("-" * 48)
             for syst, mass_unc in f.syst_mass.items():
                 width_unc = f.syst_width[syst]
-                yukawa_unc = f.syst_yukawa[syst]
+                yukawa_unc = f.syst_yukawa[syst]/yukawa_central_value
                 print(f"{syst:<12} {mass_unc:<12.1f} {width_unc:<12.1f} {yukawa_unc:<12.1f}")
             print("-" * 48)
             print(f"{'total exp':<12} {total_mass_unc:<12.1f} {total_width_unc:<12.1f} {total_yukawa_unc:<12.1f}")

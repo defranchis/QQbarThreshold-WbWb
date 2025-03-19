@@ -7,7 +7,7 @@ import mplhep as hep
 plt.style.use(hep.style.CMS)
 
 smearing = True
-beam_energy_res = 0.23 # per beam, in percent
+beam_energy_res = 0.184 # per beam, in percent
 
 orders = ['NLO', 'NNLO', 'N3LO']
 #schemes = ['MS', 'PS']

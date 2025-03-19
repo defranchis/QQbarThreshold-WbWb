@@ -80,7 +80,7 @@ def main():
 
     df = get_Xsec('N3LO','PS')
     df_ISR = get_Xsec_ISR('N3LO','PS')
-    beam_energy_res = 0.23 # per beam, in percent
+    beam_energy_res = 0.184 # per beam, in percent
     df_ISR_conv = convoluteXsecGauss(df_ISR, beam_energy_res)
     fig, ax  = plt.subplots()
     plt.plot(df['ecm'], df['xsec'], label='N$^3$LO', linestyle=':', linewidth=4)
