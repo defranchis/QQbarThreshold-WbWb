@@ -236,12 +236,12 @@ def compareWidthYukawaAlphaS(order,scheme):
         df = get_Xsec(order, scheme, '', yt)
         df['ecm'] -= reference
         ratio = df['xsec'] / df_nominal['xsec']
-        plt.plot(df['ecm'], ratio, label='$y_t \pm {:.0f}\%$'.format((float(yt)-1)*100) if float(yt) > 1 else '', color = 'blue', linestyle='dashed' if float(yt) < 1 else 'solid', linewidth=2)  
+        plt.plot(df['ecm'], ratio, label=r'$y_t \pm {:.0f}\%$'.format((float(yt)-1)*100) if float(yt) > 1 else '', color = 'blue', linestyle='dashed' if float(yt) < 1 else 'solid', linewidth=2)  
     for alphaS in ['Up', 'Down']:
         df = get_Xsec(order, scheme, width='', yukawa='', alphaS=alphaS)
         df['ecm'] -= reference
         ratio = df['xsec'] / df_nominal['xsec']
-        plt.plot(df['ecm'], ratio, label=r'$\alpha_S \pm 0.0002$' if alphaS=='Up' else '', color='orange', linestyle='dashed' if alphaS == 'Down' else 'solid', linewidth=2)
+        plt.plot(df['ecm'], ratio, label=r'$\alpha_S (m_Z^2)\pm 0.0002$' if alphaS=='Up' else '', color='orange', linestyle='dashed' if alphaS == 'Down' else 'solid', linewidth=2)
     for width in ['1.28', '1.38']:
         df = get_Xsec(order, scheme, width=width)
         df['ecm'] -= reference
@@ -251,7 +251,7 @@ def compareWidthYukawaAlphaS(order,scheme):
         df = get_Xsec(order, scheme, mass=mass)
         df['ecm'] -= reference
         ratio = df['xsec'] / df_nominal['xsec']
-        plt.plot(df['ecm'], ratio, label='$m_t \pm {:.0f}~MeV$'.format((float(mass)-float(central_mass[scheme]))*1000) if float(mass) > float(central_mass[scheme]) else '', color='green', linestyle='dashed' if float(mass) < float(central_mass[scheme]) else 'solid', linewidth=2)
+        plt.plot(df['ecm'], ratio, label=r'$m_t^{PS}'+' \pm {:.0f}~MeV$'.format((float(mass)-float(central_mass[scheme]))*1000) if float(mass) > float(central_mass[scheme]) else '', color='green', linestyle='dashed' if float(mass) < float(central_mass[scheme]) else 'solid', linewidth=2)
         if float(mass) > float(central_mass[scheme]):
             min_ratio = ratio.min()
             min_ratio_ecm = df.loc[ratio == min_ratio, 'ecm'].values[0]

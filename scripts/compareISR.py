@@ -83,16 +83,16 @@ def main():
     beam_energy_res = 0.23 # per beam, in percent
     df_ISR_conv = convoluteXsecGauss(df_ISR, beam_energy_res)
     fig, ax  = plt.subplots()
-    plt.plot(df['ecm'], df['xsec'], label='N3LO', linestyle=':', linewidth=4)
-    plt.plot(df_ISR['ecm'], df_ISR['xsec'], label='N3LO+ISR', linestyle='--', linewidth=3)
-    plt.plot(df_ISR_conv['ecm'], df_ISR_conv['xsec'], label='N3LO+ISR+BES', linestyle='-', linewidth=3)
+    plt.plot(df['ecm'], df['xsec'], label='N$^3$LO', linestyle=':', linewidth=4)
+    plt.plot(df_ISR['ecm'], df_ISR['xsec'], label='N$^3$LO+ISR', linestyle='--', linewidth=3)
+    plt.plot(df_ISR_conv['ecm'], df_ISR_conv['xsec'], label='N$^3$LO+ISR+BES', linestyle='-', linewidth=3)
     plt.legend(loc='lower right', fontsize=23)
     plt.xlabel('$\sqrt{s}$ [GeV]')
     plt.xlim(339, 352)
     plt.ylabel('WbWb total cross section [pb]')
     # plt.title('Preliminary', fontsize=23, loc='right', fontstyle='italic')
 
-    plt.text(0.95, 0.37, 'QQbar_Threshold N3LO', fontsize=23, transform=plt.gca().transAxes, ha='right')
+    plt.text(0.95, 0.37, 'QQbar_Threshold N$^3$LO', fontsize=23, transform=plt.gca().transAxes, ha='right')
     plt.text(0.95, 0.33, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
     plt.text(0.95, 0.27, 'FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
 
