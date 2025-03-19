@@ -932,7 +932,7 @@ class fit:
 
         plt.legend(loc='upper left')
         plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi'] / 1E03), loc='right', fontsize=20)
-        plt.xlabel(r'Uncertainty in $\alpha_S$ [x$10^3$]')
+        plt.xlabel(r'Uncertainty in $\alpha_\mathrm{S} (m_\mathrm{Z}^2) [x10^3]$')
         plt.ylabel(r'Impact on fitted parameter [MeV]')
         offset = 0
         x_pos = .92
@@ -981,6 +981,36 @@ class fit:
         plt.savefig(plot_dir + '/uncert_mass_width_vs_yukawa.png')
         plt.savefig(plot_dir + '/uncert_mass_width_vs_yukawa.pdf')
         plt.clf()
+
+    def doYukawaTheoryScan(self, max_shift = 0.01, step = .001):
+        xsec_shifts = np.arange(-max_shift, max_shift + step/2, step) + 1
+        f_shift = copy.deepcopy(self)
+        
+        l_yukawa = []
+        for shift in xsec_shifts:
+            f_shift.scale_var_scenario[-1] *= shift
+            f_shift.fitParameters()
+            fit_results = f_shift.getFitResults(printout=False)
+            l_yukawa.append(fit_results[self.param_names.index('yukawa')].n - self.fit_results[self.param_names.index('yukawa')].n)
+            f_shift.scale_var_scenario[-1] /= shift
+
+        l_yukawa = np.array(l_yukawa)
+        plt.plot(xsec_shifts, l_yukawa, 'b-', label='Shift in fitted $y_t$', linewidth=2)
+        plt.plot(1, 0, 'ro', label='Starting point', markersize=8)
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        plt.legend()
+        plt.xlabel('Shift in cross section')
+        plt.ylabel('Shift in fitted $y_t$')
+        offset_x = -.37
+        offset_y = 0
+        plt.text(.97 + offset_x, 0.17 + offset_y , 'QQbar_Threshold $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.97 + offset_x, 0.13 + offset_y , '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
+        plt.text(.97 + offset_x, 0.08 + offset_y , '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
+        plt.savefig(plot_dir + '/uncert_yukawa_vs_xsec_shift.png')
+        plt.savefig(plot_dir + '/uncert_yukawa_vs_xsec_shift.pdf')
+        plt.clf()
+
+        return
 
     def doWidthScan(self, max_uncert = 10, step = 0.1):
         if not self.SM_width:
@@ -1170,6 +1200,10 @@ class fit:
         self.reinitialiseToStat()
         if not breakdown_parametric:
             self.fitParameters()
+            params_w_cov = self.getFitResults(printout=False)
+            corr_matrix = np.round(unc.correlation_matrix(params_w_cov), 2)
+            corr = corr_matrix[self.param_names.index('mass'), self.param_names.index('width')]
+            print('\nStat-only correlation between mass and width: {:.2f}\n'.format(corr))
             self.addSystToTable('stat')
             self.reinitialiseToNominal()
             return
@@ -1366,6 +1400,7 @@ def main():
     parser.add_argument('--BESscans', action='store_true', help='Do beam energy spread scans')
     parser.add_argument('--lumiscans', action='store_true', help='Do luminosity scans')
     parser.add_argument('--alphaSscan', action='store_true', help='Do alphaS scan')
+    parser.add_argument('--yukawaThScan', action='store_true', help='Do yukawa theory scan')
     parser.add_argument('--widthscan', action='store_true', help='Do width scan')
     parser.add_argument('--chi2scans', action='store_true', help='Do chi2 scans')
     parser.add_argument('--truevaluescan', action='store_true', help='Do true value scan')
@@ -1381,6 +1416,8 @@ def main():
         raise ValueError('AlphaS scan currently incompatible with last ecm')
     #if args.SMwidth:
     #    raise ValueError('SM width assumption currently not supported') # to be fixed
+    if args.yukawaThScan and not args.lastecm:
+        raise ValueError('Yukawa theory scan requires last ecm')
     
     
     threshold_lumi = 0.41 * 1E06 # hardcoded
@@ -1418,6 +1455,8 @@ def main():
         f.doAlphaSscans()
         if not args.fitYukawa:
             f.doYukawaScan() # by default
+    if args.yukawaThScan:
+        f.doYukawaTheoryScan()
     if args.widthscan:
         f.doWidthScan()
     if args.truevaluescan:
