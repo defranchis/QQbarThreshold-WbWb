@@ -19,7 +19,7 @@ plt.plot(x_values, y_values, label=r'All parametric uncertainties (FCC-ee)', lin
 plt.plot(x_values, y_values_EM, label=r'Improved $\alpha_\mathrm{EM}$ (FCC-ee)', linewidth=2, linestyle='--', color='C0')
 plt.plot(x_values, y_values_mt, label=r'$m_\mathrm{t}$ uncertainty only', linewidth=2)
 
-plt.axhline(y=0.18, color='gray', linestyle='--', label=r'$m_\mathrm{W}$ experimental (FCC-ee)', linewidth=2)
+plt.axhline(y=0.24, color='gray', linestyle='--', label=r'$m_\mathrm{W}$ experimental (FCC-ee)', linewidth=2)
 plt.axvline(x=250, color='r', linestyle='--', label=r'$m_\mathrm{t}$ experimental (HL-LHC)', linewidth=2)
                                                                                                                             
 
