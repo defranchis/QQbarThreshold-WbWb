@@ -65,7 +65,7 @@ class fit:
         self.last_ecm = 365.0 #hardcoded
         self.lumi_uncorr = uncert_lumi_default_uncorr # estimate for full lumi! i.e. 410/fb
         self.lumi_corr = uncert_lumi_default_corr # estimate for theory cross section uncertainty
-        self.input_uncert_Yukawa = uncert_yukawa_default if not self.SM_width else 1E-10
+        self.input_uncert_Yukawa = uncert_yukawa_default #if not self.SM_width else 1E-10
         self.input_uncert_alphas = uncert_alphas_default
         self.input_uncert_SM_width = uncert_SM_width_default
         self.BEC_nuisances = False
@@ -1299,7 +1299,7 @@ class fit:
 
     def reinitialiseToNominal(self):
         self.input_uncert_alphas = uncert_alphas_default
-        self.input_uncert_Yukawa = uncert_yukawa_default if not self.SM_width else 1E-10
+        self.input_uncert_Yukawa = uncert_yukawa_default #if not self.SM_width else 1E-10
         #self.constrain_Yukawa = True
         self.setBECpriors(prior_corr=uncert_BEC_default_corr, prior_uncorr=uncert_BEC_default_uncorr)
         self.setBESpriors(uncert_corr=uncert_BES_default_corr, uncert_uncorr=uncert_BES_default_uncorr)
@@ -1428,7 +1428,7 @@ def main():
     if args.twopoints:
         f.initScenario(scan_min=342, scan_max=344, scan_step=1.5, total_lumi=threshold_lumi/100, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
     else: # default scenario
-        f.initScenario(scan_min=340.5, scan_max=345, scan_step=.5, total_lumi=threshold_lumi, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
+        f.initScenario(scan_min=340, scan_max=344.5, scan_step=.5, total_lumi=threshold_lumi, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
 
     
     if args.BECnuisances or args.systTable:
