@@ -19,13 +19,18 @@ plt.plot(x_values, y_values, label=r'All parametric uncertainties (FCC-ee)', lin
 plt.plot(x_values, y_values_EM, label=r'Improved $\alpha_\mathrm{EM}$ (FCC-ee)', linewidth=2, linestyle='--', color='C0')
 plt.plot(x_values, y_values_mt, label=r'$m_\mathrm{t}$ uncertainty only', linewidth=2)
 
-plt.axhline(y=0.24, color='gray', linestyle='--', label=r'$m_\mathrm{W}$ experimental (FCC-ee)', linewidth=2)
-plt.axvline(x=250, color='r', linestyle='--', label=r'$m_\mathrm{t}$ experimental (HL-LHC)', linewidth=2)
+plt.text(90, 0.26, r'$m_\mathrm{W}$ at FCC-ee (exp)', fontsize=24, color='black', va='bottom')
+plt.text(255, 0.5, r'$m_\mathrm{t}$ at HL-LHC (exp)', fontsize=24, color='black', ha='left', rotation='vertical')
+plt.axhline(y=0.24, color='gray', linestyle='--', linewidth=2)
+plt.axvline(x=250, color='r', linestyle='--', linewidth=2)
+#plt.axhline(y=0.24, color='gray', linestyle='--', label=r'$m_\mathrm{W}$ experimental (FCC-ee)', linewidth=2)
+#plt.axvline(x=250, color='r', linestyle='--', label=r'$m_\mathrm{t}$ experimental (HL-LHC)', linewidth=2)
                                                                                                                             
 
 plt.ylabel(r'$m_\mathrm{W}$ uncertainty [MeV]')
 plt.xlabel(r'$m_\mathrm{t}$ uncertainty [MeV]')
 plt.legend(loc='upper left')
 
+print("saving...")
 plt.savefig('plots/mt_mW_uncert.png')
 plt.savefig('plots/mt_mW_uncert.pdf')
