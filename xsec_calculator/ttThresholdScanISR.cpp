@@ -78,11 +78,14 @@ constexpr std::array<double, n_sqrt_s_values> sqrt_s_values = generate_sqrt_s_va
 template<size_t Index, size_t N>
 struct sqrt_s_loop {
     static void compute_xsec(QQt::pert_order::order order, float mass, float width, 
-                    float mass_scale, float width_scale, float Yukawa, float as_var, std::ofstream & outputFile){
+                    float mass_scale, float width_scale, float Yukawa, float as_var, std::ofstream & outputFile, bool oneS_mass = false) {
                       
         if (Index < N){
             constexpr double sqrt_s = sqrt_s_values[Index];
             QQt::options opt = QQt::top_options();
+            if (oneS_mass) {
+                opt.mass_scheme = {QQt::OneSshift};
+            }
             //opt.mass_scheme = {QQt::PSshift, 50.};
             opt.Yukawa_factor = Yukawa;
             opt.alpha_s_mZ = opt.alpha_s_mZ + as_var;
@@ -103,27 +106,28 @@ struct sqrt_s_loop {
             outputFile << sqrt_s << ", " << xsec << '\n';  
             outputFile.flush();
         }
-        sqrt_s_loop<Index+1, N>::compute_xsec(order, mass, width, mass_scale, width_scale, Yukawa, as_var, outputFile);
+        sqrt_s_loop<Index+1, N>::compute_xsec(order, mass, width, mass_scale, width_scale, Yukawa, as_var, outputFile, oneS_mass);
     
     }
 };
 
 template<size_t N>
 struct sqrt_s_loop<N, N> {
-    static void compute_xsec(QQt::pert_order::order, float, float, float, float, float, float, std::ofstream &){
+    static void compute_xsec(QQt::pert_order::order, float, float, float, float, float, float, std::ofstream &, bool) {
         // Base case: do nothing when Index equals N (end of recursion)
     }
 };
 
-std::string formFileName (std::string outdir, QQt::pert_order::order order, float mass, float width, float Yukawa, float as_var, float mass_scale, float width_scale){
-    std::string filename = outdir + "/" + order_to_string(order) + "_scan_PS_ISR";
+std::string formFileName (std::string outdir, QQt::pert_order::order order, float mass, float width, float Yukawa, float as_var, float mass_scale, float width_scale, bool oneS_mass){
+    std::string suffix = oneS_mass ? "_scan_1S_ISR" : "_scan_PS_ISR";
+    std::string filename = outdir + "/" + order_to_string(order) + suffix;
     filename += "_mass" + floatToString(mass,2) + "_width" + floatToString(width, 2) + "_yukawa" + floatToString(Yukawa, 2) + "_asVar" + floatToString(as_var, 4) + 
     "_scaleM" + floatToString(mass_scale, 1) + "_scaleW" + floatToString(width_scale, 1);
     filename += ".txt";
     return filename;
 }
 
-void do_scan(int order, float PS_mass, float width, float mass_scale, float width_scale, float Yukawa, float as_var, std::string outdir){
+void do_scan(int order, float PS_mass, float width, float mass_scale, float width_scale, float Yukawa, float as_var, std::string outdir, bool oneS_mass) {
     
     QQt::load_grid(QQt::grid_directory() + "ttbar_grid.tsv");
 
@@ -137,9 +141,9 @@ void do_scan(int order, float PS_mass, float width, float mass_scale, float widt
     constexpr size_t sqrt_s_count = sqrt_s_values.size();
     std::cout << "Scan for order: " << order_to_string(int_to_order(order)) << ", PS mass: " << PS_mass << ", width: " << width << ", mass scale: " << mass_scale << ", width scale: " << width_scale << ", Yukawa: " << Yukawa << ", alpha_s variation: " << as_var << std::endl;
 
-    std::string filename = formFileName(outdir, pert_ord, PS_mass, width, Yukawa, as_var, mass_scale, width_scale);
+    std::string filename = formFileName(outdir, pert_ord, PS_mass, width, Yukawa, as_var, mass_scale, width_scale, oneS_mass);
     std::ofstream outputFile(filename);
-    sqrt_s_loop<0, sqrt_s_count>::compute_xsec(pert_ord, PS_mass, width, mass_scale, width_scale, Yukawa, as_var, outputFile);
+    sqrt_s_loop<0, sqrt_s_count>::compute_xsec(pert_ord, PS_mass, width, mass_scale, width_scale, Yukawa, as_var, outputFile, oneS_mass);
     outputFile.close();
 
     return;
@@ -147,5 +151,5 @@ void do_scan(int order, float PS_mass, float width, float mass_scale, float widt
 
 PYBIND11_MODULE(xsec_calc, m) {
     m.def("do_scan", &do_scan, py::arg("order") = 3, py::arg("PS_mass") = 171.5, py::arg("width") = 1.33,  py::arg("mass_scale") = 80., py::arg("width_scale") = 350., 
-            py::arg("yukawa") = 1., py::arg("as_var") = 0., py::arg("outdir")="output");
+            py::arg("yukawa") = 1., py::arg("as_var") = 0., py::arg("outdir")="output", py::arg("oneS_mass") = false);
 }

@@ -1,9 +1,9 @@
 import numpy as np
 
 class parameters:
-    def __init__(self, do_scale_vars):
+    def __init__(self, do_scale_vars = False, oneS_mass = False):
         self.order = 3
-        self.mass = 171.5
+        self.mass = 171.5 if not oneS_mass else 171.9
         self.width = 1.33
         self.yukawa = 1.0
         self.alphas = 0.

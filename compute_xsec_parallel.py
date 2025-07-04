@@ -4,14 +4,15 @@ import multiprocessing, argparse, time, sys, copy
 import numpy as np
 
 class XsecCalculator:
-    def __init__(self, doScaleVars=False, outdir='output', n_cores=6, nominal=False, pseudo_data=False):
+    def __init__(self, doScaleVars=False, outdir='output', n_cores=6, nominal=False, pseudo_data=False, oneS_mass=False):
         self.doScaleVars = doScaleVars
         self.outdir = outdir
         self.n_cores = n_cores
-        self.params = parameters(doScaleVars)
+        self.params = parameters(do_scale_vars=doScaleVars, oneS_mass=oneS_mass)
         self.d = self.params.getDict()
         self.nominal = nominal
         self.pseudo_data = pseudo_data
+        self.oneS_mass = oneS_mass
 
 
     def calculate_xsec(self, key, mass_scale=None, width_scale=None, param_dict = None):
@@ -23,7 +24,7 @@ class XsecCalculator:
             param_dict = self.d
         print(f"Calculating cross section for {key}...")
         xsec_calc.do_scan(order=self.params.order, PS_mass=param_dict[key]['mass'], width=param_dict[key]['width'], mass_scale=mass_scale, width_scale=width_scale,
-                          yukawa=param_dict[key]['yukawa'], as_var=param_dict[key]['alphas'], outdir=self.outdir)
+                          yukawa=param_dict[key]['yukawa'], as_var=param_dict[key]['alphas'], outdir=self.outdir, oneS_mass=self.oneS_mass)
                 
 
     def run_calculations(self):
@@ -84,6 +85,7 @@ def main():
     parser.add_argument('--outdir', type=str, default='output')
     parser.add_argument('--nominal', action='store_true')
     parser.add_argument('--pseudodata', action='store_true')
+    parser.add_argument('--oneS', action='store_true', help='1S mass definition')
 
     args = parser.parse_args()
 
@@ -93,7 +95,7 @@ def main():
     if args.pseudodata and (args.nominal or args.doScaleVars):
         print("Warning: will not run pseudo data when nominal or scale variations are set to True.")
 
-    xsec_calculator = XsecCalculator(doScaleVars=args.doScaleVars, outdir=args.outdir, n_cores=args.ncores, nominal=args.nominal, pseudo_data=args.pseudodata)
+    xsec_calculator = XsecCalculator(doScaleVars=args.doScaleVars, outdir=args.outdir, n_cores=args.ncores, nominal=args.nominal, pseudo_data=args.pseudodata, oneS_mass=args.oneS)
     xsec_calculator.run_calculations()
 
 if __name__ == '__main__':
