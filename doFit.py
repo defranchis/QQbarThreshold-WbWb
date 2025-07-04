@@ -12,7 +12,6 @@ import mplhep as hep # type: ignore
 plt.style.use(hep.style.CMS)
 
 
-plot_dir = 'plots/fit'
 indir_BEC = 'BEC_variations' # hardcoded
 indir_sw2 = 'output_sw2' # hardcoded
 
@@ -46,11 +45,14 @@ def ecmToString(ecm):
 
 class fit:
     def __init__(self, beam_energy_res = 0.186, smearXsec = True, SM_width = False, input_dir= None, debug = False, asimov = True, 
-                constrain_Yukawa = False, read_scale_vars = False) -> None:
-        if input_dir is None:
-            self.input_dir = 'output_full' if not read_scale_vars else 'output_alternative'
+                constrain_Yukawa = False, read_scale_vars = False, oneS_mass = False) -> None:
+        self.oneS_mass = oneS_mass
+        self.plot_dir = 'plots/fit_1S' if oneS_mass else 'plots/fit'
+        if input_dir is None:          
+            if self.oneS_mass: self.input_dir = 'output_scale_1S' if read_scale_vars else 'output_1S'
+            else: self.input_dir = 'output_full' if not read_scale_vars else 'output_alternative'
         else: self.input_dir = input_dir
-        self.parameters = parameters(read_scale_vars)
+        self.parameters = parameters(do_scale_vars=read_scale_vars, oneS_mass=oneS_mass)
         self.d_params = self.parameters.getDict()
         self.param_names = list(self.d_params['nominal'].keys())
         self.SM_width = SM_width
@@ -126,7 +128,8 @@ class fit:
 
     def formFileName(self, tag, scaleM, scaleW):
         infile_tag = formFileTag(*[self.d_params[tag][p] for p in self.param_names])
-        return 'N3LO_scan_PS_ISR_{}_scaleM{:.1f}_scaleW{:.1f}.txt'.format(infile_tag, scaleM, scaleW)
+        scheme = '1S' if self.oneS_mass else 'PS'
+        return 'N3LO_scan_{}_ISR_{}_scaleM{:.1f}_scaleW{:.1f}.txt'.format(scheme,infile_tag, scaleM, scaleW)
     
     def readXsecFromFile(self,file):
         f = open(file, 'r')
@@ -210,10 +213,9 @@ class fit:
         self.morph_dict = {}
         for param in self.param_names:
             self.morph_dict[param] = self.morphCrossSection(param)
-        if not self.read_scale_vars:
+        if not self.read_scale_vars and not self.oneS_mass:
             self.morph_dict['BEC'] = self.morphCrossSection('BEC')
             self.morph_dict['BES'] = self.morphCrossSection('BES')
-        if not self.read_scale_vars:
             self.morph_dict['sw2'] = self.morphCrossSection('sw2')
 
     def getXsecTemplate(self,tag='nominal'):
@@ -282,10 +284,9 @@ class fit:
             np.random.seed(42)
             self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
         self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param]) for param in self.param_names}
-        if not self.read_scale_vars:
+        if not self.read_scale_vars and not self.oneS_mass:
             self.morph_scenario['BEC'] = self.getXsecScenario(self.morph_dict['BEC'])
             self.morph_scenario['BES'] = self.getXsecScenario(self.morph_dict['BES'])
-        if not self.read_scale_vars:
             self.morph_scenario['sw2'] = self.getXsecScenario(self.morph_dict['sw2'])
 
     def getPhysicalFitParams(self,params):
@@ -389,7 +390,10 @@ class fit:
                     pull = params_w_cov[i]
                 else:
                     pull = (params_w_cov[i] - self.d_params[self.pseudodata_tag][param])
-                print('Pull {}: {:.3f}\n'.format(param, pull.n/pull.s))
+                print('Pull {}: {:.3f}'.format(param, pull.n/pull.s))
+                if param == 'mass':
+                    print('uncertainty in mass: {:.2f} MeV'.format(params_w_cov[i].s*1E03))
+                print()
 
         if printout:
             print('Correlation matrix:')
@@ -402,8 +406,8 @@ class fit:
     
     
     def plotFitScenario(self):
-        if not os.path.exists(plot_dir):
-            os.makedirs(plot_dir)
+        if not os.path.exists(self.plot_dir):
+            os.makedirs(self.plot_dir)
 
         plt.figure()
         plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario,yerr=self.unc_pseudodata_scenario,fmt='.',label='Pseudo data' if not self.asimov else 'Asimov data')
@@ -418,7 +422,7 @@ class fit:
         plt.xlabel('Ecm [GeV]')
         plt.ylabel('Cross section [pb]')
         plt.legend()
-        plt.savefig(plot_dir + '/fit_scenario_{}.png'.format('pseudo' if not self.asimov else 'asimov'))
+        plt.savefig(self.plot_dir + '/fit_scenario_{}.png'.format('pseudo' if not self.asimov else 'asimov'))
 
         plt.clf()
         plt.errorbar(self.xsec_scenario['ecm'],self.pseudo_data_scenario/self.getXsecScenario(xsec_nom)['xsec'], yerr=self.unc_pseudodata_scenario/self.getXsecScenario(xsec_nom)['xsec'], 
@@ -440,15 +444,15 @@ class fit:
         # plt.text(.35, 0.935, '$m_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('mass')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
         # plt.text(.35, 0.885, '$\Gamma_t$ (stat) = {:.0f} MeV'.format(self.fit_results[self.param_names.index('width')].s*1E03), fontsize=21, transform=plt.gca().transAxes, ha='right')
 
-        plt.savefig(plot_dir + '/fit_scenario_ratio_{}.png'.format('pseudo' if not self.asimov else 'asimov'))
+        plt.savefig(self.plot_dir + '/fit_scenario_ratio_{}.png'.format('pseudo' if not self.asimov else 'asimov'))
         if not self.asimov:
-            plt.savefig(plot_dir + '/fit_scenario_ratio_{}.pdf'.format('pseudo' if not self.asimov else 'asimov'))
+            plt.savefig(self.plot_dir + '/fit_scenario_ratio_{}.pdf'.format('pseudo' if not self.asimov else 'asimov'))
         plt.clf()
 
     def plotParameterVariations(self):
 
-        if not os.path.exists(plot_dir):
-            os.makedirs(plot_dir)
+        if not os.path.exists(self.plot_dir):
+            os.makedirs(self.plot_dir)
 
         plt.figure()
         xsec_nom = self.getXsecTemplate()
@@ -466,7 +470,7 @@ class fit:
         plt.title('Parameter variations normalized to nominal cross section')
         #plt.xlim(340,345)
 
-        plt.savefig(plot_dir + '/param_variations.png')
+        plt.savefig(self.plot_dir + '/param_variations.png')
 
 
     def doLSscan (self, min = 0, max = 0.5, step = 0.01):
@@ -514,8 +518,8 @@ class fit:
         plt.text(.95, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(.95, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
 
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BER.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BER.pdf')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_BER.png')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_BER.pdf')
 
         plt.clf()
 
@@ -555,7 +559,7 @@ class fit:
             plt.title('top {} vs {} scale'.format(param, scale_param))
             plt.xlabel('{} scale [GeV]'.format(scale_param))
             plt.ylabel('Shift in fitted top {} [MeV]'.format(param))
-            plt.savefig(plot_dir + '/uncert_{}_vs_{}_scale.png'.format(param,scale_param))
+            plt.savefig(self.plot_dir + '/uncert_{}_vs_{}_scale.png'.format(param,scale_param))
             plt.clf()
                 
     def doScaleVars(self): # thanks Copilot
@@ -601,8 +605,8 @@ class fit:
         plt.text(.6, 0.17, 'QQbar_Threshold $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(.6, 0.13, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
         plt.text(.6, 0.08, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_scale.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_scale.pdf')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_scale.png')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_scale.pdf')
         plt.clf()
 
         if not self.constrain_Yukawa:
@@ -616,8 +620,8 @@ class fit:
             plt.text(.97, 0.17 + offset , 'QQbar_Threshold $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
             plt.text(.97, 0.13 + offset , '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
             plt.text(.97, 0.08 + offset , '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-            plt.savefig(plot_dir + '/uncert_yukawa_vs_scale.png')
-            plt.savefig(plot_dir + '/uncert_yukawa_vs_scale.pdf')
+            plt.savefig(self.plot_dir + '/uncert_yukawa_vs_scale.png')
+            plt.savefig(self.plot_dir + '/uncert_yukawa_vs_scale.pdf')
             plt.clf()
 
     def plotScaleVars(self): #to be implemented
@@ -756,8 +760,8 @@ class fit:
         offset = 0.35
         plt.text(.05, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='left')
         plt.text(.05, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='left')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BEC.pdf')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_BEC.png')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_BEC.pdf')
         plt.clf()
 
     def doBESscan(self,vars,type):
@@ -818,8 +822,8 @@ class fit:
         offset = 0.35
         plt.text(.05, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='left')
         plt.text(.05, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='left')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_BES.pdf')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_BES.png')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_BES.pdf')
         plt.clf()
     
     
@@ -878,8 +882,8 @@ class fit:
         plt.text(x_pos, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
 
 
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_lumi.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_lumi.pdf')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_lumi.png')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_lumi.pdf')
         plt.clf()
 
         if not self.scenario_dict['add_last_ecm']:
@@ -897,8 +901,8 @@ class fit:
         plt.text(.96, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
         plt.text(.96, 0.08 + offset, '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
         plt.text(.96, 0.07, 'nominal uncorr (corr) uncert. = {:.3f} ({:.2f}) %'.format(self.lumi_uncorr_ecm[-1]*100,self.lumi_corr*100), fontsize=21, transform=plt.gca().transAxes, ha='right',)
-        plt.savefig(plot_dir + '/uncert_yukawa_vs_lumi.png')
-        plt.savefig(plot_dir + '/uncert_yukawa_vs_lumi.pdf')
+        plt.savefig(self.plot_dir + '/uncert_yukawa_vs_lumi.png')
+        plt.savefig(self.plot_dir + '/uncert_yukawa_vs_lumi.pdf')
         plt.clf()
 
     def doAlphaSscans(self, max_uncert = 3E-4, step = 1E-5):
@@ -938,8 +942,8 @@ class fit:
         x_pos = .92
         plt.text(x_pos, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(x_pos, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_alphas.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_alphas.pdf')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_alphas.png')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_alphas.pdf')
         plt.clf()
             
 
@@ -978,8 +982,8 @@ class fit:
         offset = 0
         plt.text(.92, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(.92, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_yukawa.png')
-        plt.savefig(plot_dir + '/uncert_mass_width_vs_yukawa.pdf')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_yukawa.png')
+        plt.savefig(self.plot_dir + '/uncert_mass_width_vs_yukawa.pdf')
         plt.clf()
 
     def doYukawaTheoryScan(self, max_shift = 0.01, step = .001):
@@ -1006,8 +1010,8 @@ class fit:
         plt.text(.97 + offset_x, 0.17 + offset_y , 'QQbar_Threshold $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(.97 + offset_x, 0.13 + offset_y , '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
         plt.text(.97 + offset_x, 0.08 + offset_y , '+ FCC-ee BES', fontsize=21, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_yukawa_vs_xsec_shift.png')
-        plt.savefig(plot_dir + '/uncert_yukawa_vs_xsec_shift.pdf')
+        plt.savefig(self.plot_dir + '/uncert_yukawa_vs_xsec_shift.png')
+        plt.savefig(self.plot_dir + '/uncert_yukawa_vs_xsec_shift.pdf')
         plt.clf()
 
         return
@@ -1042,8 +1046,8 @@ class fit:
         plt.text(x_pos, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(x_pos, 0.13 + offset, '[JHEP 02 (2018) 125]', fontsize=18, transform=plt.gca().transAxes, ha='right')
         plt.text(x_pos, 0.08 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_mass_vs_width.png')
-        plt.savefig(plot_dir + '/uncert_mass_vs_width.pdf')
+        plt.savefig(self.plot_dir + '/uncert_mass_vs_width.png')
+        plt.savefig(self.plot_dir + '/uncert_mass_vs_width.pdf')
         plt.clf()
 
     def doTrueValueScan(self):
@@ -1096,8 +1100,8 @@ class fit:
         offset = 0
         plt.text(.92, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(.92, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_mass_vs_true_mass.png')
-        plt.savefig(plot_dir + '/uncert_mass_vs_true_mass.pdf')
+        plt.savefig(self.plot_dir + '/uncert_mass_vs_true_mass.png')
+        plt.savefig(self.plot_dir + '/uncert_mass_vs_true_mass.pdf')
         plt.clf()        
 
         masses = np.array([float(key) for key in result_dict_baseline_width.keys()])
@@ -1112,8 +1116,8 @@ class fit:
         offset = 0
         plt.text(.92, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
         plt.text(.92, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
-        plt.savefig(plot_dir + '/uncert_width_vs_true_mass.png')
-        plt.savefig(plot_dir + '/uncert_width_vs_true_mass.pdf')
+        plt.savefig(self.plot_dir + '/uncert_width_vs_true_mass.png')
+        plt.savefig(self.plot_dir + '/uncert_width_vs_true_mass.pdf')
         plt.clf()
 
 
@@ -1136,7 +1140,7 @@ class fit:
             plt.xlabel(label_d[param])
             plt.ylabel(r'$\chi^2$')
             plt.legend()
-            plt.savefig(plot_dir + '/chi2_scan_{}.png'.format(param))
+            plt.savefig(self.plot_dir + '/chi2_scan_{}.png'.format(param))
             plt.clf()
         # 2D contour plots
         f = copy.deepcopy(self)
@@ -1179,8 +1183,8 @@ class fit:
                 y_offset = -0.003 if param2 == 'width' and param == 'mass' else 0
                 plt.ylim(self.getValueFromParameter(l_param2[0], param2)+y_offset, self.getValueFromParameter(l_param2[-1], param2)+y_offset)
                 plt.xticks(np.round(np.linspace(self.getValueFromParameter(l_param[0], param), self.getValueFromParameter(l_param[-1], param), 5), 2))
-                plt.savefig(plot_dir + '/chi2_scan_{}_{}.png'.format(param,param2))
-                plt.savefig(plot_dir + '/chi2_scan_{}_{}.pdf'.format(param,param2))
+                plt.savefig(self.plot_dir + '/chi2_scan_{}_{}.png'.format(param,param2))
+                plt.savefig(self.plot_dir + '/chi2_scan_{}_{}.pdf'.format(param,param2))
                 plt.clf()
 
     def addSystToTable(self,syst_name):
@@ -1409,6 +1413,7 @@ def main():
     parser.add_argument('--BESnuisances' , action='store_true', help='add BES nuisances')
     parser.add_argument('--systTable', action='store_true', help='Produce systematic table')
     parser.add_argument('--twopoints', action='store_true', help='Two points scan')
+    parser.add_argument('--oneS', action='store_true', help='1S mass scheme')
     args = parser.parse_args()
 
     if (args.BECscans or args.BESscans or args.BECnuisances or args.BESnuisances) and args.scaleVars:
@@ -1424,7 +1429,7 @@ def main():
     threshold_lumi = 0.41 * 1E06 # hardcoded
     above_threshold_lumi = 2.65 * 1E06 # hardcoded
 
-    f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa= not args.fitYukawa, read_scale_vars = args.scaleVars)
+    f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa= not args.fitYukawa, read_scale_vars = args.scaleVars, oneS_mass=args.oneS)
     if args.twopoints:
         f.initScenario(scan_min=342, scan_max=344, scan_step=1.5, total_lumi=threshold_lumi/100, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
     else: # default scenario
