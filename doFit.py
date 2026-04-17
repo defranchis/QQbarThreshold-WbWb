@@ -45,7 +45,7 @@ def ecmToString(ecm):
 
 class fit:
     def __init__(self, beam_energy_res = 0.186, smearXsec = True, SM_width = False, input_dir= None, debug = False, asimov = True, 
-                constrain_Yukawa = False, read_scale_vars = False, oneS_mass = False) -> None:
+                constrain_Yukawa = False, read_scale_vars = False, oneS_mass = False, shiftScan = False) -> None:
         self.oneS_mass = oneS_mass
         self.plot_dir = 'plots/fit_1S' if oneS_mass else 'plots/fit'
         if input_dir is None:          
@@ -73,6 +73,7 @@ class fit:
         self.BEC_nuisances = False
         self.BES_nuisances = False
         self.sw2_nuisance = False
+        self.shiftScan = shiftScan
 
         if self.debug:
             print('Input directory: {}'.format(self.input_dir))
@@ -213,7 +214,7 @@ class fit:
         self.morph_dict = {}
         for param in self.param_names:
             self.morph_dict[param] = self.morphCrossSection(param)
-        if not self.read_scale_vars and not self.oneS_mass:
+        if not self.read_scale_vars and not self.oneS_mass and not self.shiftScan:
             self.morph_dict['BEC'] = self.morphCrossSection('BEC')
             self.morph_dict['BES'] = self.morphCrossSection('BES')
             self.morph_dict['sw2'] = self.morphCrossSection('sw2')
@@ -284,7 +285,7 @@ class fit:
             np.random.seed(42)
             self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
         self.morph_scenario = {param: self.getXsecScenario(self.morph_dict[param]) for param in self.param_names}
-        if not self.read_scale_vars and not self.oneS_mass:
+        if not self.read_scale_vars and not self.oneS_mass and not self.shiftScan:
             self.morph_scenario['BEC'] = self.getXsecScenario(self.morph_dict['BEC'])
             self.morph_scenario['BES'] = self.getXsecScenario(self.morph_dict['BES'])
             self.morph_scenario['sw2'] = self.getXsecScenario(self.morph_dict['sw2'])
@@ -1385,8 +1386,47 @@ class fit:
         \end{table}
         """
 
-        with open("systematics_table.tex", "w") as f:
-            f.write(latex_table)
+        with open("systematics_table.tex", "w") as file:
+            file.write(latex_table)
+        
+
+    def doShiftScan(self, max_abs_shift_neg = 2, max_abs_shift_pos = 2.5, step = 0.1):
+        scan_list = np.array(self.scenario_dict['scan_list'], dtype=float)
+        shift_values = np.arange(-max_abs_shift_neg, max_abs_shift_pos + step/2, step)
+        l_mass = []
+        l_width = []
+        for shift in shift_values:
+            f_shift = copy.deepcopy(self)
+            scan_list_shifted = scan_list + shift
+            f_shift.scenario_dict['scan_list'] = [ecmToString(e) for e in scan_list_shifted]
+            f_shift.update(update_scenario=True, init_vars=True, initMinuit=True)
+            f_shift.fitParameters()
+            fit_results = f_shift.getFitResults(printout=False)
+            l_mass.append(fit_results[self.param_names.index('mass')].s)
+            l_width.append(fit_results[self.param_names.index('width')].s)
+
+        l_mass = np.array(l_mass)
+        l_width = np.array(l_width)
+
+        nominal_mass = self.fit_results[self.param_names.index('mass')].s
+        nominal_width = self.fit_results[self.param_names.index('width')].s
+
+        l_mass = (l_mass/nominal_mass - 1) * 100
+        l_width = (l_width/nominal_width - 1) * 100
+
+        plt.plot(shift_values, l_mass, 'b-', label='$m_t$', linewidth=2)
+        plt.plot(shift_values, l_width, 'g--', label='$\Gamma_t$', linewidth=2)
+        plt.xlabel('Shift in scan range [GeV]')
+        plt.ylabel('Relative increase in uncertainty [%]')
+        plt.legend()
+        plt.title(r'$\mathit{{Projection}}$ ({:.0f} fb$^{{-1}}$)'.format(self.scenario_dict['total_lumi']/1E03), loc='right', fontsize=20)
+        offset = .7
+        plt.text(.85, 0.17 + offset, 'WbWb at $N^{3}LO$+ISR', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.text(.85, 0.12 + offset, '+ FCC-ee BES', fontsize=23, transform=plt.gca().transAxes, ha='right')
+        plt.axhline(0, color='gray', linestyle='--', linewidth=1)
+        plt.savefig(self.plot_dir + '/shift_scan.png')
+        plt.savefig(self.plot_dir + '/shift_scan.pdf')
+        plt.clf()
 
 
 
@@ -1414,6 +1454,7 @@ def main():
     parser.add_argument('--systTable', action='store_true', help='Produce systematic table')
     parser.add_argument('--twopoints', action='store_true', help='Two points scan')
     parser.add_argument('--oneS', action='store_true', help='1S mass scheme')
+    parser.add_argument('--shiftScan', action='store_true', help='do scan of shift in scan range')
     args = parser.parse_args()
 
     if (args.BECscans or args.BESscans or args.BECnuisances or args.BESnuisances) and args.scaleVars:
@@ -1429,7 +1470,7 @@ def main():
     threshold_lumi = 0.41 * 1E06 # hardcoded
     above_threshold_lumi = 2.65 * 1E06 # hardcoded
 
-    f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa= not args.fitYukawa, read_scale_vars = args.scaleVars, oneS_mass=args.oneS)
+    f = fit(debug=args.debug, asimov=not args.pseudo, SM_width=args.SMwidth, constrain_Yukawa= not args.fitYukawa, read_scale_vars = args.scaleVars, oneS_mass=args.oneS, shiftScan=args.shiftScan)
     if args.twopoints:
         f.initScenario(scan_min=342, scan_max=344, scan_step=1.5, total_lumi=threshold_lumi/100, last_lumi=above_threshold_lumi, add_last_ecm = args.lastecm, same_evts = args.sameNevts)
     else: # default scenario
@@ -1471,6 +1512,8 @@ def main():
         f.doChi2Scans()
     if args.systTable:
         f.printSystTable()
+    if args.shiftScan:
+        f.doShiftScan()
     
 
 

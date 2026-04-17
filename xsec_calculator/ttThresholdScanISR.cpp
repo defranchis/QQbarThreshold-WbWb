@@ -52,7 +52,7 @@ std::string floatToString(float value, int n_decimals) {
     return oss.str();
 }
 
-constexpr double sqrt_s_min = 340.0;
+constexpr double sqrt_s_min = 337.0;
 constexpr double sqrt_s_max = 350.0;
 constexpr double sqrt_s_step = 0.1;
 constexpr double sqrt_s_last = 365.0; // additional point above last point of threshold scan
