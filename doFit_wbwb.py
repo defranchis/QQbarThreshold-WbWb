@@ -48,9 +48,10 @@ def parse_args():
                         help="scan the ecm shift of the whole scan grid (needs templates outside the original ecm range)")
     parser.add_argument("--systTable", action="store_true", help="produce the systematic-uncertainty table")
     parser.add_argument("--noPlots", action="store_true", help="skip the diagnostic plots")
-    parser.add_argument("--parallel", type=int, default=1, metavar="N",
+    parser.add_argument("--parallel", type=int, default=6, metavar="N",
                         help="run the requested scans in parallel with up to N worker processes "
-                             "(systTable runs sequentially after scans complete)")
+                             "(default: 6; pass --parallel 1 to force sequential; systTable always "
+                             "runs sequentially after scans complete)")
     return parser.parse_args()
 
 
