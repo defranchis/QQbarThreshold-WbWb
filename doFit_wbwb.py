@@ -21,6 +21,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description="WbWb threshold fit")
     # Fit configuration
     parser.add_argument("--pseudo", action="store_true", help="use pseudo-experiment toy data (default: Asimov)")
+    parser.add_argument("--legacyPseudoRng", action="store_true",
+                        help="(--pseudo only) restore the pre-fix RNG behaviour where every "
+                             "create_scenario call re-seeds the global MT19937 to 42 — same noise every call; "
+                             "kept for byte-reproducing prior pseudo runs only")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--SMwidth", action="store_true", help="constrain width to the SM/QCD prediction")
     parser.add_argument("--fitYukawa", action="store_true", help="float Yukawa (default: constrained)")
@@ -79,6 +83,7 @@ def main():
         read_scale_vars=args.scaleVars,
         mass_scheme="1S" if args.oneS else card.MASS_SCHEME,
         shift_scan=args.shiftScan,
+        legacy_pseudo_rng=args.legacyPseudoRng,
         debug=args.debug,
     )
 

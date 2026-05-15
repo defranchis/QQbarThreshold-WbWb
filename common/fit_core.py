@@ -111,6 +111,7 @@ class FitCore:
         read_scale_vars=False,
         mass_scheme=None,
         shift_scan=False,
+        legacy_pseudo_rng=False,
         debug=False,
     ):
         self.card = card
@@ -124,6 +125,14 @@ class FitCore:
         # (see scan_shift) the BEC/BES/sw2 templates would have to be
         # interpolated; skip building them entirely instead.
         self.shift_scan = shift_scan
+        # Pseudo-data RNG. Default: one PCG64 stream seeded with 42, advanced
+        # per ``create_scenario`` call so repeated scenario builds get
+        # independent noise realisations. ``legacy_pseudo_rng=True`` falls
+        # back to the historical pattern (global ``np.random.seed(42)`` then
+        # ``np.random.normal``, every call) which gives every call the *same*
+        # noise — kept only for byte-reproducing pre-fix pseudo runs.
+        self.legacy_pseudo_rng = legacy_pseudo_rng
+        self._rng = None if legacy_pseudo_rng else np.random.default_rng(42)
 
         # Mass scheme & input/plot directories ------------------------------
         self.mass_scheme = mass_scheme if mass_scheme is not None else card.MASS_SCHEME
@@ -413,8 +422,16 @@ class FitCore:
         unc_stat *= self.card.SCENARIO["stat_inflation"]
         self.unc_pseudodata_scenario = unc_stat
         if not self.asimov:
-            np.random.seed(42)
-            self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
+            if self.legacy_pseudo_rng:
+                # Historical (buggy) behaviour: re-seed the global MT19937
+                # stream on every call, so every create_scenario draws the
+                # same noise. See __init__ docstring.
+                np.random.seed(42)
+                self.pseudo_data_scenario = np.random.normal(
+                    self.pseudo_data_scenario, self.unc_pseudodata_scenario)
+            else:
+                self.pseudo_data_scenario = self._rng.normal(
+                    self.pseudo_data_scenario, self.unc_pseudodata_scenario)
 
         self.morph_scenario = {p: self.slice_to_scenario(self.morph_dict[p]) for p in self.param_names}
         for extra in ("BEC", "BES", "sw2"):
