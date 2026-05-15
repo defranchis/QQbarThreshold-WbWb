@@ -192,6 +192,16 @@ class FitCore:
         self.input_uncert_yukawa = priors.get("yukawa", {}).get("default", _OFF)
         self.input_uncert_alphas = priors.get("alphas", {}).get("default", _OFF)
         self.input_uncert_SM_width = priors.get("SM_width", {}).get("default", _OFF)
+        # Gaussian-constraint centres for the alphas (always on) and Yukawa
+        # (when constrain_yukawa=True) terms in ``chi2``. Default to the
+        # pseudodata "true" value (Asimov-self-consistent: constraint centred
+        # at the truth, no bias on the fit minimum). Override per-constraint
+        # via ``card.PRIORS["alphas"]["center"]`` / ``["yukawa"]["center"]``
+        # for SM-centred / bias / real-data analyses.
+        self.alphas_center = priors.get("alphas", {}).get(
+            "center", self.d_params[self.pseudodata_tag]["alphas"])
+        self.yukawa_center = priors.get("yukawa", {}).get(
+            "center", self.d_params[self.pseudodata_tag]["yukawa"])
         lumi = priors["lumi"]
         self.lumi_uncorr = lumi["uncorr"]
         self.lumi_corr = lumi["corr"]
@@ -467,7 +477,19 @@ class FitCore:
         """Chi2 evaluated by Minuit. Requires :meth:`init_minuit` to have
         run — it consumes pre-built caches (``_cov_factor``, ``_morph_matrix``,
         ``_xsec_base``, ``_idx``) that don't exist until init_minuit
-        constructs them."""
+        constructs them.
+
+        The αₛ constraint (always on) and the Yukawa constraint (under
+        ``constrain_yukawa=True``) are Gaussian penalties centred at
+        ``self.alphas_center`` / ``self.yukawa_center``. By default these
+        are the pseudodata "true" values — Asimov-self-consistent (fit, data,
+        and constraint all sit at the pseudo point so no bias on the fit
+        minimum). Set ``card.PRIORS["alphas"]["center"]`` /
+        ``["yukawa"]["center"]`` to override (e.g. SM-centred = 0.1184 / 1.0
+        for real-data analysis or bias studies). Read the resulting Asimov
+        uncertainty as "achievable resolution with an external constraint
+        of that width centred at the chosen value".
+        """
         # physical_fit_params runs first because subclasses (e.g. WbWbFit
         # with SM_width) may rewrite params in place before the template
         # is applied.
@@ -480,12 +502,12 @@ class FitCore:
         # alpha_s constraint (always on)
         u_as = self.input_uncert_alphas / self.parameters.step("alphas")
         chi2_val += ((params[self._idx["alphas"]]
-                      - self.param_from_value(self.d_params[self.pseudodata_tag]["alphas"], "alphas")) / u_as) ** 2
+                      - self.param_from_value(self.alphas_center, "alphas")) / u_as) ** 2
 
         if self.constrain_yukawa and "yukawa" in self._idx:
             u_y = self.input_uncert_yukawa / self.parameters.step("yukawa")
             chi2_val += ((params[self._idx["yukawa"]]
-                          - self.param_from_value(self.d_params[self.pseudodata_tag]["yukawa"], "yukawa")) / u_y) ** 2
+                          - self.param_from_value(self.yukawa_center, "yukawa")) / u_y) ** 2
 
         if self.bec_nuisances:
             chi2_val += self._nuisance_prior(params, "BEC")
