@@ -18,7 +18,7 @@ class WbWbFit(FitCore):
         i_width = self._idx["width"]
         i_mass = self._idx["mass"]
         prior_width = params[i_width] ** 2
-        width = self._width_n3lo(
+        width = self._width_n3lo_local_linearisation(
             mt_PS=self.value_from_param(params[i_mass], "mass"),
             theory_knob=params[i_width],
             th_uncert_mev=self.input_uncert_SM_width,
@@ -26,20 +26,48 @@ class WbWbFit(FitCore):
         params[i_width] = self.param_from_value(width, "width")
         return prior_width
 
-    def _width_n3lo(self, mt_PS, theory_knob=0.0, th_uncert_mev=5.0, fix_to_nom=True):
-        """N3LO top width vs PS mass.
+    # ------------------------------------------------------------------
+    # SM Γ_t vs PS mass — two forms of the same N3LO prediction.
+    # ``physical_fit_params`` calls the *local-linearisation* form; the
+    # *pole-form* is the original parity-with-doFit version and is kept here
+    # as a reference (no live call site).
+    # ------------------------------------------------------------------
+    def _width_n3lo_local_linearisation(self, mt_PS, theory_knob=0.0, th_uncert_mev=5.0):
+        """N3LO top width vs PS mass, **linearised around the pseudodata
+        anchor** ``(mt_pseudo, Γ_pseudo)`` taken from the ``mass_var`` tag in
+        the card's parameter dict.
 
-        With ``fix_to_nom=True`` (the historical default), the relation is
-        anchored to the pseudodata point and only the slope (0.027 GeV/GeV)
-        and the theory shift (``th_uncert_mev`` MeV) survive.
+        Returns ``Γ_pseudo + 0.027 · (mt_PS − mt_pseudo) + knob · th_uncert``.
+
+        Valid whenever the pseudodata mass sits within a few hundred MeV of
+        the SM prediction so the linear slope (0.027 GeV/GeV) captures the
+        whole relation. ``th_uncert_mev`` is the symmetric theory band on
+        Γ_SM (default 5 MeV per arXiv:2309.01937) modulated by the floating
+        ``theory_knob`` (= the fit's width parameter, Gaussian-priored at
+        zero with width 1).
         """
         mt_ref = self.d_params["mass_var"]["mass"]
-        if fix_to_nom:
-            return (self.d_params["mass_var"]["width"]
-                    + 0.027 * (mt_PS - mt_ref)
-                    + theory_knob * th_uncert_mev * 1e-3)
-        # Full conversion path (unused by default, kept for parity with the
-        # original code).
+        return (self.d_params["mass_var"]["width"]
+                + 0.027 * (mt_PS - mt_ref)
+                + theory_knob * th_uncert_mev * 1e-3)
+
+    def _width_n3lo_pole_form(self, mt_PS, theory_knob=0.0):
+        """N3LO top width vs **pole** mass, anchored at the absolute SM
+        prediction ``(m_pole, Γ) = (172.69 GeV, 1.3148 GeV)``.
+
+        Returns ``1.3148 + 0.027 · (mt_pole − 172.69) + knob · 5 MeV``.
+
+        Needs a PS→pole conversion (via ``utils_convert.scheme_conversion``)
+        because the SM prediction is anchored in pole mass; therefore more
+        expensive than the linearised form and requires the converter to be
+        importable.
+
+        Currently **no live call site** — kept as a reference for the case
+        where the linearisation anchor drifts away from the SM (e.g. running
+        with a ``mass_var`` central value far from 172.69 GeV). Re-wire
+        ``physical_fit_params`` to call this if that becomes the use case.
+        """
         import utils_convert.scheme_conversion as scheme_conversion  # type: ignore
+        mt_ref = self.d_params["mass_var"]["mass"]
         mt_pole = mt_PS + scheme_conversion.calculate_mt_Pole(mt_ref, self.mass_scale) - mt_ref
         return 1.3148 + 0.027 * (mt_pole - 172.69) + theory_knob * 0.005
