@@ -9,7 +9,6 @@ The hardcoded ``syst_list`` of the original has been replaced by
 nuisances were actually added).
 """
 
-import copy
 import os
 
 from common.fit_core import _OFF, quadrature_subtract
@@ -138,19 +137,32 @@ def estimate_systematic(fit, name, syst_mass, syst_width, syst_yukawa,
 # Orchestration: build the table, print, write LaTeX
 # ---------------------------------------------------------------------------
 def print_syst_table(fit, *, latex_path="systematics_table.tex"):
-    work = copy.deepcopy(fit)
+    """Iterate the configured systematics, capturing each one's quadrature
+    contribution to the total uncertainty.
 
+    Mutates ``fit`` in place (priors + ``fit.minuit``). ``estimate_systematic``
+    restores the priors after each entry via ``reinitialise_to_nominal``;
+    a final ``fit_parameters()`` in the ``finally`` block puts ``fit.minuit``
+    back to its pre-call nominal-migrad state.
+    """
     syst_mass, syst_width = {}, {}
-    syst_yukawa = None if work.constrain_yukawa else {}
+    syst_yukawa = None if fit.constrain_yukawa else {}
 
-    for syst in systematic_list(work):
-        # Subtle: the parametric stat breakdown needs to know whether Yukawa
-        # is constrained, *not* whether we track it as a syst.
-        if syst == "stat":
-            estimate_systematic(work, syst, syst_mass, syst_width, syst_yukawa,
-                                breakdown_parametric=not work.constrain_yukawa)
-        else:
-            estimate_systematic(work, syst, syst_mass, syst_width, syst_yukawa)
+    try:
+        for syst in systematic_list(fit):
+            # Subtle: the parametric stat breakdown needs to know whether Yukawa
+            # is constrained, *not* whether we track it as a syst.
+            if syst == "stat":
+                estimate_systematic(fit, syst, syst_mass, syst_width, syst_yukawa,
+                                    breakdown_parametric=not fit.constrain_yukawa)
+            else:
+                estimate_systematic(fit, syst, syst_mass, syst_width, syst_yukawa)
+    finally:
+        # estimate_systematic / _estimate_stat leave fit.minuit at the last
+        # iteration's migrad result; rerun the nominal fit so fit.minuit is
+        # bit-identical to its pre-call state.
+        fit.reinitialise_to_nominal()
+        fit.fit_parameters()
 
     total_mass = syst_mass.pop("total")
     total_width = syst_width.pop("total")

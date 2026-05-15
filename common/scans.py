@@ -177,27 +177,57 @@ def scan_bes(fit, *, lo=0, hi=0.03, step=0.001):
 # Luminosity
 # ---------------------------------------------------------------------------
 def scan_lumi(fit, *, lo=0, hi=3, points=11):
-    """``doLumiScans`` — sweep both correlation patterns of the lumi unc."""
+    """``doLumiScans`` — sweep both correlation patterns of the lumi unc.
+
+    ``lumi_uncorr`` / ``lumi_corr`` feed only ``_build_cov``; everything else
+    (morph matrix, scenario tensors, smeared templates) is constant across
+    the scan. Mutate the lumi attrs + cov caches on ``fit``, run a fresh
+    local Minuit per grid point on ``fit.chi2``, restore on exit.
+    """
     base = fit.card.PRIORS["lumi"]["uncorr"]
     l_lumi = np.linspace(lo, hi, points) * base
+    # Cold-start (start=zeros) matches the deepcopy version's init_minuit so
+    # hesse cov is bit-identical. Warm-starting from fit.minuit.values
+    # converges to the same minimum but gives ~1e-4 different uncertainties.
+    start = np.zeros(len(fit.param_names))
+    track_yukawa = "yukawa" in fit.param_names
+    saved = (fit.lumi_uncorr, fit.lumi_corr,
+             fit.cov, fit._cov_factor, fit.lumi_uncorr_ecm)
     res = {}
-    for direction in ("uncorr", "corr"):
-        l_mass, l_width, l_yuk = [], [], []
-        for lumi in l_lumi:
-            work = copy.deepcopy(fit)
-            if direction == "uncorr":
-                work.lumi_uncorr = lumi
-                work.lumi_corr = 0
-            else:
-                work.lumi_corr = lumi
-                work.lumi_uncorr = 0
-            work.fit_parameters(init_minuit=True)
-            fr = work.fit_results(printout=False)
-            l_mass.append(fr[fit._idx["mass"]].s * 1000)
-            l_width.append(fr[fit._idx["width"]].s * 1000)
-            if "yukawa" in fit.param_names:
-                l_yuk.append(fr[fit._idx["yukawa"]].s * 100)
-        res[direction] = (_impact(l_mass), _impact(l_width), _impact(l_yuk))
+    l_mass0, l_width0 = [], []
+    try:
+        for direction in ("uncorr", "corr"):
+            l_mass, l_width, l_yuk = [], [], []
+            for lumi in l_lumi:
+                if direction == "uncorr":
+                    fit.lumi_uncorr = lumi
+                    fit.lumi_corr = 0
+                else:
+                    fit.lumi_corr = lumi
+                    fit.lumi_uncorr = 0
+                fit._build_cov()
+                m = iminuit.Minuit(fit.chi2, start, name=fit.param_names)
+                m.errordef = 1
+                m.migrad()
+                fr = fit.results_from_minuit(m)
+                l_mass.append(fr[fit._idx["mass"]].s * 1000)
+                l_width.append(fr[fit._idx["width"]].s * 1000)
+                if track_yukawa:
+                    l_yuk.append(fr[fit._idx["yukawa"]].s * 100)
+            res[direction] = (_impact(l_mass), _impact(l_width), _impact(l_yuk))
+
+        for lumi in (0, base):
+            fit.lumi_uncorr = lumi
+            fit.lumi_corr = 0
+            fit._build_cov()
+            m = iminuit.Minuit(fit.chi2, start, name=fit.param_names)
+            m.errordef = 1
+            m.migrad()
+            fr = fit.results_from_minuit(m)
+            l_mass0.append(fr[fit._idx["mass"]].s * 1000)
+            l_width0.append(fr[fit._idx["width"]].s * 1000)
+    finally:
+        fit.lumi_uncorr, fit.lumi_corr, fit.cov, fit._cov_factor, fit.lumi_uncorr_ecm = saved
 
     base_pct = l_lumi * 100
     plt.plot(base_pct, res["uncorr"][0], "b-", label=r"Impact on $m_t$ (uncorr.)", linewidth=2)
@@ -205,16 +235,6 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
     plt.plot(base_pct, res["corr"][0], "b--", label=r"Impact on $m_t$ (corr.)", linewidth=2)
     plt.plot(base_pct, res["corr"][1], "g--", label=r"Impact on $\Gamma_t$ (corr.)", linewidth=2)
 
-    # Baseline single-point reference
-    l_mass0, l_width0 = [], []
-    for lumi in (0, base):
-        work = copy.deepcopy(fit)
-        work.lumi_uncorr = lumi
-        work.lumi_corr = 0
-        work.fit_parameters(init_minuit=True)
-        fr = work.fit_results(printout=False)
-        l_mass0.append(fr[fit._idx["mass"]].s * 1000)
-        l_width0.append(fr[fit._idx["width"]].s * 1000)
     impact_mass = _impact(l_mass0)
     impact_width = _impact(l_width0)
     plt.plot(base * 100, impact_mass[-1], "ro", label=r"Baseline $m_t$ (uncorr.)", markersize=8)
@@ -420,31 +440,43 @@ def scan_width(fit, *, hi=10, step=0.1):
 # Scale variation
 # ---------------------------------------------------------------------------
 def scan_scale_vars(fit):
-    """``doScaleVars`` — sweep the renormalisation scale and read fitted shift."""
+    """``doScaleVars`` — sweep the renormalisation scale and read fitted shift.
+
+    ``scale_var_scenario`` feeds only ``_xsec_base`` in ``_build_chi2_caches``.
+    Mutate both on ``fit``, run a fresh local Minuit per scale, restore on exit.
+    """
     l_vars, l_mass, l_width = [], [], []
     track_yukawa = not fit.constrain_yukawa and "yukawa" in fit.param_names
     l_yuk = [] if track_yukawa else None
-    for v in fit.scale_vars:
-        if v < 70:
-            continue
-        tag = f"scaleM_{v:.1f}"
-        if tag not in fit.xsec_dict:
-            continue
-        l_vars.append(v)
-        nominal_scen = fit.slice_to_scenario(fit.template())
-        var_scen = fit.slice_to_scenario(fit.template(tag))
+    saved = (fit.scale_var_scenario, fit._xsec_base)
+    # See scan_lumi for why we cold-start (start=zeros) instead of warm-starting.
+    start = np.zeros(len(fit.param_names))
+    try:
+        for v in fit.scale_vars:
+            if v < 70:
+                continue
+            tag = f"scaleM_{v:.1f}"
+            if tag not in fit.xsec_dict:
+                continue
+            l_vars.append(v)
+            nominal_scen = fit.slice_to_scenario(fit.template())
+            var_scen = fit.slice_to_scenario(fit.template(tag))
 
-        work = copy.deepcopy(fit)
-        work.scale_var_scenario = np.array(var_scen["xsec"]) / np.array(nominal_scen["xsec"])
-        work.update()
-        fr = work.fit_results(printout=False)
-        l_mass.append(fr[fit._idx["mass"]].n
-                      - fit.last_fit_results[fit._idx["mass"]].n)
-        l_width.append(fr[fit._idx["width"]].n
-                       - fit.last_fit_results[fit._idx["width"]].n)
-        if track_yukawa:
-            l_yuk.append(fr[fit._idx["yukawa"]].n
-                         - fit.last_fit_results[fit._idx["yukawa"]].n)
+            fit.scale_var_scenario = np.array(var_scen["xsec"]) / np.array(nominal_scen["xsec"])
+            fit._xsec_base = np.asarray(fit.xsec_scenario["xsec"]) * np.asarray(fit.scale_var_scenario)
+            m = iminuit.Minuit(fit.chi2, start, name=fit.param_names)
+            m.errordef = 1
+            m.migrad()
+            fr = fit.results_from_minuit(m)
+            l_mass.append(fr[fit._idx["mass"]].n
+                          - fit.last_fit_results[fit._idx["mass"]].n)
+            l_width.append(fr[fit._idx["width"]].n
+                           - fit.last_fit_results[fit._idx["width"]].n)
+            if track_yukawa:
+                l_yuk.append(fr[fit._idx["yukawa"]].n
+                             - fit.last_fit_results[fit._idx["yukawa"]].n)
+    finally:
+        fit.scale_var_scenario, fit._xsec_base = saved
 
     plt.plot(l_vars, np.array(l_mass) * 1e3, "b-",
              label=r"Shift in fitted $m_t$", linewidth=2)
@@ -474,33 +506,59 @@ def scan_scale_vars(fit):
 # True-value scan
 # ---------------------------------------------------------------------------
 def scan_true_value(fit):
-    """``doTrueValueScan`` — fit each pseudo-data template in ``INPUT_DIRS.pseudo``."""
+    """``doTrueValueScan`` — fit each pseudo-data template in ``INPUT_DIRS.pseudo``.
+
+    Mutate ``scenario_dict[scan_list]`` + ``lumi_uncorr`` per iteration
+    (baseline + coarse sub-scan) and feed each file's smeared template as
+    ``create_scenario`` pseudodata. Use a fresh local Minuit; restore on exit.
+    """
     indir = fit.card.INPUT_DIRS["pseudo"]
     results_baseline = {}
     results_coarse = {}
     results_baseline_width = {}
     results_coarse_width = {}
 
-    for fname in sorted(os.listdir(indir)):
-        mass = fname.split("_")[4].replace("mass", "")
-        work = copy.deepcopy(fit)
-        pseudo = work.smear(work.read_xsec(os.path.join(indir, fname)))
-        work.update(update_scenario=True, init_vars=True, pseudo_data=pseudo)
-        fr = work.fit_results(printout=False)
-        bias = fr[fit._idx["mass"]].n - float(mass)
-        mass_unc = fr[fit._idx["mass"]].s
-        if abs(bias) > mass_unc * 0.7:
-            continue
-        results_baseline[mass] = mass_unc * 1000
-        results_baseline_width[mass] = fr[fit._idx["width"]].s * 1000
+    saved_scan_list = list(fit.scenario_dict["scan_list"])
+    saved_lumi_uncorr = fit.lumi_uncorr
+    # See scan_lumi for why we cold-start (start=zeros) instead of warm-starting.
+    start = np.zeros(len(fit.param_names))
 
-        coarse_scan = [ecm_to_str(e) for e in np.arange(340.5, 345 + 0.5, 1.0)]
-        work.scenario_dict["scan_list"] = coarse_scan
-        work.lumi_uncorr /= 2 ** 0.5
-        work.update(update_scenario=True, init_vars=True, pseudo_data=pseudo)
-        fr = work.fit_results(printout=False)
-        results_coarse[mass] = fr[fit._idx["mass"]].s * 1000
-        results_coarse_width[mass] = fr[fit._idx["width"]].s * 1000
+    def _fit_once(pseudo):
+        fit.create_scenario(**fit.scenario_dict, init_vars=True, pseudodata=pseudo)
+        fit._build_cov()
+        fit._build_chi2_caches()
+        m = iminuit.Minuit(fit.chi2, start, name=fit.param_names)
+        m.errordef = 1
+        m.migrad()
+        return fit.results_from_minuit(m)
+
+    try:
+        for fname in sorted(os.listdir(indir)):
+            mass = fname.split("_")[4].replace("mass", "")
+            pseudo = fit.smear(fit.read_xsec(os.path.join(indir, fname)))
+
+            fit.scenario_dict["scan_list"] = saved_scan_list
+            fit.lumi_uncorr = saved_lumi_uncorr
+            fr = _fit_once(pseudo)
+            bias = fr[fit._idx["mass"]].n - float(mass)
+            mass_unc = fr[fit._idx["mass"]].s
+            if abs(bias) > mass_unc * 0.7:
+                continue
+            results_baseline[mass] = mass_unc * 1000
+            results_baseline_width[mass] = fr[fit._idx["width"]].s * 1000
+
+            coarse_scan = [ecm_to_str(e) for e in np.arange(340.5, 345 + 0.5, 1.0)]
+            fit.scenario_dict["scan_list"] = coarse_scan
+            fit.lumi_uncorr = saved_lumi_uncorr / 2 ** 0.5
+            fr = _fit_once(pseudo)
+            results_coarse[mass] = fr[fit._idx["mass"]].s * 1000
+            results_coarse_width[mass] = fr[fit._idx["width"]].s * 1000
+    finally:
+        fit.scenario_dict["scan_list"] = saved_scan_list
+        fit.lumi_uncorr = saved_lumi_uncorr
+        fit.create_scenario(**fit.scenario_dict, init_vars=True)
+        fit._build_cov()
+        fit._build_chi2_caches()
 
     masses = np.array([float(k) for k in results_baseline.keys()])
     for label, ylabel, baseline_d, coarse_d in (
@@ -552,14 +610,29 @@ def scan_shift(fit, *, max_abs_shift_neg=2.0, max_abs_shift_pos=2.5, step=0.1):
             f"Alternatively, reduce ``max_abs_shift_neg`` / ``max_abs_shift_pos`` "
             f"so that the shifted ecms stay inside the existing template range."
         )
+    saved_scan_list = list(fit.scenario_dict["scan_list"])
+    # See scan_lumi for why we cold-start (start=zeros) instead of warm-starting.
+    start = np.zeros(len(fit.param_names))
     l_mass, l_width = [], []
-    for shift in shifts:
-        work = copy.deepcopy(fit)
-        work.scenario_dict["scan_list"] = [ecm_to_str(e) for e in scan_list + shift]
-        work.update(update_scenario=True, init_vars=True)
-        fr = work.fit_results(printout=False)
-        l_mass.append(fr[fit._idx["mass"]].s)
-        l_width.append(fr[fit._idx["width"]].s)
+    try:
+        for shift in shifts:
+            fit.scenario_dict["scan_list"] = [ecm_to_str(e) for e in scan_list + shift]
+            fit.create_scenario(**fit.scenario_dict, init_vars=True)
+            fit._build_cov()
+            fit._build_chi2_caches()
+            m = iminuit.Minuit(fit.chi2, start, name=fit.param_names)
+            m.errordef = 1
+            m.migrad()
+            fr = fit.results_from_minuit(m)
+            l_mass.append(fr[fit._idx["mass"]].s)
+            l_width.append(fr[fit._idx["width"]].s)
+    finally:
+        # Restore scenario tensors + chi2 caches in place; fit.minuit was
+        # never touched.
+        fit.scenario_dict["scan_list"] = saved_scan_list
+        fit.create_scenario(**fit.scenario_dict, init_vars=True)
+        fit._build_cov()
+        fit._build_chi2_caches()
     l_mass = np.array(l_mass)
     l_width = np.array(l_width)
 
