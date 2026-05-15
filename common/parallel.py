@@ -1,20 +1,24 @@
 """Fork-based parallel dispatcher for the scan helpers.
 
-Each scan helper is self-contained — it reads from ``fit`` (without mutating
-it, see the audit in /tmp/audit_scans.py) and writes a plot file under
-``fit.plot_dir``. That makes parallelisation trivial under ``fork``: child
-processes inherit ``fit`` from the parent's memory, do their work, exit.
-No pickling, no shared mutable state.
+Each scan helper is self-contained — it reads from ``fit`` without mutating
+it (see ``scripts/audit_scans.py`` for the per-scan invariant check) and
+writes a plot file under ``fit.plot_dir``. That makes parallelisation
+trivial under ``fork``: child processes inherit ``fit`` from the parent's
+memory, do their work, exit. No pickling, no shared mutable state.
 
 Why ``multiprocessing.Process`` rather than ``Pool`` / ``ProcessPoolExecutor``:
-the latter route tasks through a queue, which serialises arguments via
-``pickle`` — and ``iminuit.Minuit`` (held on ``fit.minuit``) wraps a C++
-object whose pickling is fragile. With ``fork`` and a bare ``Process``,
-``self._target`` lives in inherited memory and is never pickled.
+both of those route tasks through a queue that pickles its arguments,
+which would force two awkward changes here — the inline ``lambda``\\s in
+``doFit_wbwb.py`` that capture ``fit`` aren't picklable, and the
+``FitCore`` itself carries enough state (smeared DataFrames, the cached
+morph matrix, the Minuit object) that round-tripping it through a
+queue per dispatch would dwarf the scan work. With ``fork`` and a bare
+``Process``, ``self._target`` lives in inherited memory and is never
+serialised.
 """
 
 import multiprocessing as mp
-import time
+from multiprocessing.connection import wait
 
 
 def run_parallel(jobs, max_workers=6):
@@ -45,14 +49,18 @@ def run_parallel(jobs, max_workers=6):
         raise ValueError("max_workers must be >= 1")
 
     ctx = mp.get_context("fork")
-    procs = []      # all spawned, for final join + exit-code check
-    active = []     # currently running
+    procs = []
+    active = []
 
     for job in jobs:
         while len(active) >= max_workers:
-            _reap_finished(active)
-            if len(active) >= max_workers:
-                time.sleep(0.05)
+            # Block until at least one child exits — no polling needed,
+            # the kernel wakes us via the sentinel pipes.
+            wait([p.sentinel for p in active])
+            active = [p for p in active if p.is_alive()]
+            for p in procs:
+                if p not in active and p.exitcode is None:
+                    p.join()
         p = ctx.Process(target=job)
         p.start()
         procs.append(p)
@@ -65,10 +73,3 @@ def run_parallel(jobs, max_workers=6):
     if failures:
         names = ", ".join(f"pid={p.pid} exitcode={p.exitcode}" for p in failures)
         raise RuntimeError(f"{len(failures)} scan worker(s) failed: {names}")
-
-
-def _reap_finished(active):
-    for p in list(active):
-        if not p.is_alive():
-            p.join()
-            active.remove(p)

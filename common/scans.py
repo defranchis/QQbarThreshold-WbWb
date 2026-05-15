@@ -62,8 +62,8 @@ def scan_beam_resolution(fit, *, lo=0.0, hi=0.5, step=0.01):
     work.beam_energy_res = fit.beam_energy_res
     work.update(init_minuit=True)
     work.last_fit_results = work.fit_results(printout=False)
-    mass_nom = work.last_fit_results[work.param_names.index("mass")].s
-    width_nom = work.last_fit_results[work.param_names.index("width")].s
+    mass_nom = work.last_fit_results[work._idx["mass"]].s
+    width_nom = work.last_fit_results[work._idx["width"]].s
 
     plt.figure()
     plt.plot(grid, np.array(results["mass"]) * 1e3, "b-",
@@ -109,8 +109,8 @@ def _scan_nuisance(fit, kind, variations, *, axis_unit, axis_label, baseline_unc
             getattr(work, setter)(**{kw_uncorr: v_uncorr, kw_corr: v_corr})
             work.fit_parameters(init_minuit=True)
             fr = work.fit_results(printout=False)
-            l_mass.append(fr[fit.param_names.index("mass")].s)
-            l_width.append(fr[fit.param_names.index("width")].s)
+            l_mass.append(fr[fit._idx["mass"]].s)
+            l_width.append(fr[fit._idx["width"]].s)
         results[direction]["mass"] = _impact(l_mass)
         results[direction]["width"] = _impact(l_width)
 
@@ -129,8 +129,8 @@ def _scan_nuisance(fit, kind, variations, *, axis_unit, axis_label, baseline_unc
         getattr(work, setter)(**{kw_uncorr: v, kw_corr: 1e-6})
         work.fit_parameters(init_minuit=True)
         fr = work.fit_results(printout=False)
-        base_mass.append(fr[fit.param_names.index("mass")].s)
-        base_width.append(fr[fit.param_names.index("width")].s)
+        base_mass.append(fr[fit._idx["mass"]].s)
+        base_width.append(fr[fit._idx["width"]].s)
     base["mass"] = _impact(base_mass)
     base["width"] = _impact(base_width)
 
@@ -193,10 +193,10 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
                 work.lumi_uncorr = 0
             work.fit_parameters(init_minuit=True)
             fr = work.fit_results(printout=False)
-            l_mass.append(fr[fit.param_names.index("mass")].s * 1000)
-            l_width.append(fr[fit.param_names.index("width")].s * 1000)
+            l_mass.append(fr[fit._idx["mass"]].s * 1000)
+            l_width.append(fr[fit._idx["width"]].s * 1000)
             if "yukawa" in fit.param_names:
-                l_yuk.append(fr[fit.param_names.index("yukawa")].s * 100)
+                l_yuk.append(fr[fit._idx["yukawa"]].s * 100)
         res[direction] = (_impact(l_mass), _impact(l_width), _impact(l_yuk))
 
     base_pct = l_lumi * 100
@@ -213,8 +213,8 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
         work.lumi_corr = 0
         work.fit_parameters(init_minuit=True)
         fr = work.fit_results(printout=False)
-        l_mass0.append(fr[fit.param_names.index("mass")].s * 1000)
-        l_width0.append(fr[fit.param_names.index("width")].s * 1000)
+        l_mass0.append(fr[fit._idx["mass"]].s * 1000)
+        l_width0.append(fr[fit._idx["width"]].s * 1000)
     impact_mass = _impact(l_mass0)
     impact_width = _impact(l_width0)
     plt.plot(base * 100, impact_mass[-1], "ro", label=r"Baseline $m_t$ (uncorr.)", markersize=8)
@@ -259,13 +259,13 @@ def scan_alphas(fit, *, hi=3e-4, step=1e-5):
         work.input_uncert_alphas = u
         work.fit_parameters()
         fr = work.fit_results(printout=False)
-        l_mass.append(fr[fit.param_names.index("mass")].s * 1000)
-        l_width.append(fr[fit.param_names.index("width")].s * 1000)
+        l_mass.append(fr[fit._idx["mass"]].s * 1000)
+        l_width.append(fr[fit._idx["width"]].s * 1000)
     l_mass = np.array(l_mass)
     l_width = np.array(l_width)
 
-    nominal_mass = fit.last_fit_results[fit.param_names.index("mass")].s * 1000
-    nominal_width = fit.last_fit_results[fit.param_names.index("width")].s * 1000
+    nominal_mass = fit.last_fit_results[fit._idx["mass"]].s * 1000
+    nominal_width = fit.last_fit_results[fit._idx["width"]].s * 1000
     nominal_mass = quadrature_subtract(nominal_mass, l_mass[0])
     nominal_width = quadrature_subtract(nominal_width, l_width[0])
 
@@ -299,13 +299,13 @@ def scan_yukawa_constraint(fit, *, hi=0.05, step=0.001):
         work.constrain_yukawa = True
         work.fit_parameters()
         fr = work.fit_results(printout=False)
-        l_mass.append(fr[fit.param_names.index("mass")].s * 1000)
-        l_width.append(fr[fit.param_names.index("width")].s * 1000)
+        l_mass.append(fr[fit._idx["mass"]].s * 1000)
+        l_width.append(fr[fit._idx["width"]].s * 1000)
     l_mass = np.array(l_mass)
     l_width = np.array(l_width)
 
-    nominal_mass = fit.last_fit_results[fit.param_names.index("mass")].s * 1000
-    nominal_width = fit.last_fit_results[fit.param_names.index("width")].s * 1000
+    nominal_mass = fit.last_fit_results[fit._idx["mass"]].s * 1000
+    nominal_width = fit.last_fit_results[fit._idx["width"]].s * 1000
     nominal_mass = quadrature_subtract(nominal_mass, l_mass[0])
     nominal_width = quadrature_subtract(nominal_width, l_width[0])
 
@@ -335,8 +335,8 @@ def scan_yukawa_theory(fit, *, max_shift=0.01, step=0.001):
         work.scale_var_scenario[-1] *= s
         work.fit_parameters()
         fr = work.fit_results(printout=False)
-        l_yuk.append(fr[fit.param_names.index("yukawa")].n
-                     - fit.last_fit_results[fit.param_names.index("yukawa")].n)
+        l_yuk.append(fr[fit._idx["yukawa"]].n
+                     - fit.last_fit_results[fit._idx["yukawa"]].n)
         work.scale_var_scenario[-1] /= s
 
     plt.plot(shifts, l_yuk, "b-", label=r"Shift in fitted $y_t$", linewidth=2)
@@ -362,10 +362,10 @@ def scan_width(fit, *, hi=10, step=0.1):
         work.input_uncert_SM_width = u
         work.fit_parameters()
         fr = work.fit_results(printout=False)
-        l_mass.append(fr[fit.param_names.index("mass")].s * 1000)
+        l_mass.append(fr[fit._idx["mass"]].s * 1000)
     l_mass = np.array(l_mass)
 
-    nominal_mass = fit.last_fit_results[fit.param_names.index("mass")].s * 1000
+    nominal_mass = fit.last_fit_results[fit._idx["mass"]].s * 1000
     baseline = fit.input_uncert_SM_width
     impact = quadrature_subtract(nominal_mass, l_mass[0])
     l_mass = _impact(l_mass)
@@ -403,13 +403,13 @@ def scan_scale_vars(fit):
         work.scale_var_scenario = np.array(var_scen["xsec"]) / np.array(nominal_scen["xsec"])
         work.update()
         fr = work.fit_results(printout=False)
-        l_mass.append(fr[fit.param_names.index("mass")].n
-                      - fit.last_fit_results[fit.param_names.index("mass")].n)
-        l_width.append(fr[fit.param_names.index("width")].n
-                       - fit.last_fit_results[fit.param_names.index("width")].n)
+        l_mass.append(fr[fit._idx["mass"]].n
+                      - fit.last_fit_results[fit._idx["mass"]].n)
+        l_width.append(fr[fit._idx["width"]].n
+                       - fit.last_fit_results[fit._idx["width"]].n)
         if track_yukawa:
-            l_yuk.append(fr[fit.param_names.index("yukawa")].n
-                         - fit.last_fit_results[fit.param_names.index("yukawa")].n)
+            l_yuk.append(fr[fit._idx["yukawa"]].n
+                         - fit.last_fit_results[fit._idx["yukawa"]].n)
 
     plt.plot(l_vars, np.array(l_mass) * 1e3, "b-",
              label=r"Shift in fitted $m_t$", linewidth=2)
@@ -452,20 +452,20 @@ def scan_true_value(fit):
         pseudo = work.smear(work.read_xsec(os.path.join(indir, fname)))
         work.update(update_scenario=True, init_vars=True, pseudo_data=pseudo, init_minuit=True)
         fr = work.fit_results(printout=False)
-        bias = fr[fit.param_names.index("mass")].n - float(mass)
-        mass_unc = fr[fit.param_names.index("mass")].s
+        bias = fr[fit._idx["mass"]].n - float(mass)
+        mass_unc = fr[fit._idx["mass"]].s
         if abs(bias) > mass_unc * 0.7:
             continue
         results_baseline[mass] = mass_unc * 1000
-        results_baseline_width[mass] = fr[fit.param_names.index("width")].s * 1000
+        results_baseline_width[mass] = fr[fit._idx["width"]].s * 1000
 
         coarse_scan = [ecm_to_str(e) for e in np.arange(340.5, 345 + 0.5, 1.0)]
         work.scenario_dict["scan_list"] = coarse_scan
         work.lumi_uncorr /= 2 ** 0.5
         work.update(update_scenario=True, init_vars=True, pseudo_data=pseudo, init_minuit=True)
         fr = work.fit_results(printout=False)
-        results_coarse[mass] = fr[fit.param_names.index("mass")].s * 1000
-        results_coarse_width[mass] = fr[fit.param_names.index("width")].s * 1000
+        results_coarse[mass] = fr[fit._idx["mass"]].s * 1000
+        results_coarse_width[mass] = fr[fit._idx["width"]].s * 1000
 
     masses = np.array([float(k) for k in results_baseline.keys()])
     for label, ylabel, baseline_d, coarse_d in (
@@ -523,13 +523,13 @@ def scan_shift(fit, *, max_abs_shift_neg=2.0, max_abs_shift_pos=2.5, step=0.1):
         work.scenario_dict["scan_list"] = [ecm_to_str(e) for e in scan_list + shift]
         work.update(update_scenario=True, init_vars=True, init_minuit=True)
         fr = work.fit_results(printout=False)
-        l_mass.append(fr[fit.param_names.index("mass")].s)
-        l_width.append(fr[fit.param_names.index("width")].s)
+        l_mass.append(fr[fit._idx["mass"]].s)
+        l_width.append(fr[fit._idx["width"]].s)
     l_mass = np.array(l_mass)
     l_width = np.array(l_width)
 
-    nominal_mass = fit.last_fit_results[fit.param_names.index("mass")].s
-    nominal_width = fit.last_fit_results[fit.param_names.index("width")].s
+    nominal_mass = fit.last_fit_results[fit._idx["mass"]].s
+    nominal_width = fit.last_fit_results[fit._idx["width"]].s
 
     rel_mass = (l_mass / nominal_mass - 1) * 100
     rel_width = (l_width / nominal_width - 1) * 100
@@ -583,7 +583,7 @@ def scan_chi2(fit):
         return m.fval
 
     for p in keys:
-        i = fit.param_names.index(p)
+        i = fit._idx[p]
         grid = np.linspace(fit.minuit.values[i] - 3 * fit.minuit.errors[i],
                            fit.minuit.values[i] + 3 * fit.minuit.errors[i], 101)
         l_chi2 = [profile_chi2([i], [v]) for v in grid]
@@ -594,11 +594,11 @@ def scan_chi2(fit):
         save_figure(fit.plot_dir, f"chi2_scan_{p}", also_pdf=False)
 
     for ia, pa in enumerate(keys):
-        ia_full = fit.param_names.index(pa)
+        ia_full = fit._idx[pa]
         for ib, pb in enumerate(keys):
             if ib <= ia:
                 continue
-            ib_full = fit.param_names.index(pb)
+            ib_full = fit._idx[pb]
             gA = np.linspace(fit.minuit.values[ia_full] - 3 * fit.minuit.errors[ia_full],
                              fit.minuit.values[ia_full] + 3 * fit.minuit.errors[ia_full], 51)
             gB = np.linspace(fit.minuit.values[ib_full] - 3 * fit.minuit.errors[ib_full],

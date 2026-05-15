@@ -149,6 +149,16 @@ class FitCore:
         self.bes_prior_uncorr = self.bes_prior_corr = None
         self.sw2_prior = None
 
+        # chi2 hot-path caches — populated by init_minuit. Listed here so
+        # that AttributeError-style failures from calling chi2 before
+        # init_minuit show a clear "this attribute is None" instead.
+        self._idx = None
+        self._bec_bin_idx = None
+        self._bes_bin_idx = None
+        self._xsec_base = None
+        self._morph_matrix = None
+        self._cov_factor = None
+
         # Build templates --------------------------------------------------
         if debug:
             print(f"Input directory: {self.input_dir}")
@@ -380,13 +390,17 @@ class FitCore:
                 self.morph_scenario[extra] = self.slice_to_scenario(self.morph_dict[extra])
 
     def slice_to_scenario(self, df):
-        keep = {float(e) for e in self.scenario.keys()}
-        return df[[float(e) in keep for e in df["ecm"]]]
+        keep = [float(e) for e in self.scenario.keys()]
+        return df[df["ecm"].isin(keep)]
 
     # ------------------------------------------------------------------
     # Chi2 + Minuit
     # ------------------------------------------------------------------
     def chi2(self, params):
+        """Chi2 evaluated by Minuit. Requires :meth:`init_minuit` to have
+        run — it consumes pre-built caches (``_cov_factor``, ``_morph_matrix``,
+        ``_xsec_base``, ``_idx``) that don't exist until init_minuit
+        constructs them."""
         # physical_fit_params runs first because subclasses (e.g. WbWbFit
         # with SM_width) may rewrite params in place before the template
         # is applied.

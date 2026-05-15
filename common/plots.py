@@ -146,7 +146,7 @@ def _fit_xsec_with_uncert(fit):
     for name in fit.param_names:
         if "BEC_bin" in name or "BES_bin" in name or name in ("BES", "BEC"):
             continue
-        p = params[fit.param_names.index(name)]
+        p = params[fit._idx[name]]
         th = th * (1 + p * np.array(fit.morph_dict[name]["xsec"]))
     return pd.DataFrame({"ecm": fit.l_ecm,
                          "xsec": [t.n for t in th],

@@ -50,10 +50,10 @@ _TURN_OFF = {
 
 def _capture(fit, syst_mass, syst_width, syst_yukawa, name):
     res = fit.fit_results(printout=False)
-    syst_mass[name] = res[fit.param_names.index("mass")].s * 1000
-    syst_width[name] = res[fit.param_names.index("width")].s * 1000
+    syst_mass[name] = res[fit._idx["mass"]].s * 1000
+    syst_width[name] = res[fit._idx["width"]].s * 1000
     if syst_yukawa is not None:
-        syst_yukawa[name] = res[fit.param_names.index("yukawa")].s * 100
+        syst_yukawa[name] = res[fit._idx["yukawa"]].s * 100
 
 
 def _subtract_from_total(d, name):
@@ -77,9 +77,9 @@ def _estimate_stat(fit, syst_mass, syst_width, syst_yukawa, breakdown_parametric
     stat_dict = {}
     for p in free_params:
         fit.minuit.fixed = [True] * len(fit.param_names)
-        fit.minuit.fixed[fit.param_names.index(p)] = False
+        fit.minuit.fixed[fit._idx[p]] = False
         fit.fit_parameters(init_minuit=False)
-        stat = fit.fit_results(printout=False)[fit.param_names.index(p)].s
+        stat = fit.fit_results(printout=False)[fit._idx[p]].s
         if p == "mass":
             syst_mass["stat"] = stat * 1000
         elif p == "width":
@@ -91,13 +91,13 @@ def _estimate_stat(fit, syst_mass, syst_width, syst_yukawa, breakdown_parametric
     fit.reinitialise_to_nominal()
     for p in free_params:
         fit.minuit.fixed = [False] * len(fit.param_names)
-        fit.minuit.fixed[fit.param_names.index(p)] = True
+        fit.minuit.fixed[fit._idx[p]] = True
         fit.fit_parameters(init_minuit=False)
         res = fit.fit_results(printout=False)
         for other in free_params:
             if other == p:
                 continue
-            unc = res[fit.param_names.index(other)].s * (1000 if other != "yukawa" else 100)
+            unc = res[fit._idx[other]].s * (1000 if other != "yukawa" else 100)
             tgt = {"mass": syst_mass, "width": syst_width, "yukawa": syst_yukawa}[other]
             stat_dict[f"{other}_{p}"] = float(quadrature_subtract(tgt["total"], unc))
 
@@ -157,7 +157,7 @@ def print_syst_table(fit, *, latex_path="systematics_table.tex"):
     yukawa_central = None
     total_yukawa = None
     if syst_yukawa is not None:
-        yukawa_central = fit.last_fit_results[fit.param_names.index("yukawa")].n
+        yukawa_central = fit.last_fit_results[fit._idx["yukawa"]].n
         total_yukawa = syst_yukawa.pop("total") / yukawa_central
 
     th = fit.card.THEORY_UNC
