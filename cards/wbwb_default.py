@@ -52,7 +52,11 @@ SCENARIO = {
     "scan_step":  0.5,
     "total_lumi":     0.41e6,   # /pb, full integrated lumi for the scan
     "last_lumi":      2.65e6,   # /pb, lumi at the LAST_ECM point
-    "stat_inflation": 1.2,      # ad-hoc inflation of statistical uncertainty
+    # Inflate the per-point stat uncertainty (so the stat cov by 1.44x) to
+    # account for selection-efficiency / b-tag / single-top-contamination
+    # effects measured in dedicated detector-level studies for the WbWb
+    # final state. WbWb-specific — the WW card uses 1.0.
+    "stat_inflation": 1.2,
 }
 
 # Alternative coarse two-point scan (selected by --twopoints in the entry script)
