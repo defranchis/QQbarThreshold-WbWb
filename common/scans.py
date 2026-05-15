@@ -54,13 +54,13 @@ def scan_beam_resolution(fit, *, lo=0.0, hi=0.5, step=0.01):
     work.bes_nuisances = False
     for res in grid:
         work.beam_energy_res = res
-        work.update(init_minuit=True)
+        work.update()
         fr = work.fit_results(printout=False)
         for i, p in enumerate(scan_keys):
             results[p].append(fr[i].s)
 
     work.beam_energy_res = fit.beam_energy_res
-    work.update(init_minuit=True)
+    work.update()
     work.last_fit_results = work.fit_results(printout=False)
     mass_nom = work.last_fit_results[work._idx["mass"]].s
     width_nom = work.last_fit_results[work._idx["width"]].s
@@ -485,7 +485,7 @@ def scan_true_value(fit):
         mass = fname.split("_")[4].replace("mass", "")
         work = copy.deepcopy(fit)
         pseudo = work.smear(work.read_xsec(os.path.join(indir, fname)))
-        work.update(update_scenario=True, init_vars=True, pseudo_data=pseudo, init_minuit=True)
+        work.update(update_scenario=True, init_vars=True, pseudo_data=pseudo)
         fr = work.fit_results(printout=False)
         bias = fr[fit._idx["mass"]].n - float(mass)
         mass_unc = fr[fit._idx["mass"]].s
@@ -497,7 +497,7 @@ def scan_true_value(fit):
         coarse_scan = [ecm_to_str(e) for e in np.arange(340.5, 345 + 0.5, 1.0)]
         work.scenario_dict["scan_list"] = coarse_scan
         work.lumi_uncorr /= 2 ** 0.5
-        work.update(update_scenario=True, init_vars=True, pseudo_data=pseudo, init_minuit=True)
+        work.update(update_scenario=True, init_vars=True, pseudo_data=pseudo)
         fr = work.fit_results(printout=False)
         results_coarse[mass] = fr[fit._idx["mass"]].s * 1000
         results_coarse_width[mass] = fr[fit._idx["width"]].s * 1000
@@ -556,7 +556,7 @@ def scan_shift(fit, *, max_abs_shift_neg=2.0, max_abs_shift_pos=2.5, step=0.1):
     for shift in shifts:
         work = copy.deepcopy(fit)
         work.scenario_dict["scan_list"] = [ecm_to_str(e) for e in scan_list + shift]
-        work.update(update_scenario=True, init_vars=True, init_minuit=True)
+        work.update(update_scenario=True, init_vars=True)
         fr = work.fit_results(printout=False)
         l_mass.append(fr[fit._idx["mass"]].s)
         l_width.append(fr[fit._idx["width"]].s)

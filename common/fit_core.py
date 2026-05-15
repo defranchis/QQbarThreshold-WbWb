@@ -474,7 +474,13 @@ class FitCore:
         self.minuit.migrad()
 
     def update(self, update_scenario=True, exclude_stat=False, init_vars=False,
-               pseudo_data=None, init_minuit=False):
+               pseudo_data=None, init_minuit=True):
+        # init_minuit defaults to True because update() typically follows a
+        # change to state that feeds the chi2 caches (smeared templates,
+        # morph_scenario, scale_var_scenario, scenario tensors). Skipping
+        # init_minuit would leave _xsec_base / _morph_matrix / _cov_factor
+        # stale relative to the new state. Pass init_minuit=False only if
+        # you know nothing chi2-relevant has changed.
         self._smear_cross_sections()
         self._morph_cross_sections()
         if update_scenario:
