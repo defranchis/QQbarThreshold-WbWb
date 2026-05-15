@@ -195,7 +195,6 @@ class FitCore:
         lumi = priors["lumi"]
         self.lumi_uncorr = lumi["uncorr"]
         self.lumi_corr = lumi["corr"]
-        self.scale_lumi_uncorr = lumi.get("scale_uncorr", False)
         self.input_var = card.INPUT_VAR
 
         # Nuisance toggles -------------------------------------------------
@@ -515,31 +514,33 @@ class FitCore:
         """Rebuild ``cov`` / ``_cov_factor`` / ``lumi_uncorr_ecm`` from the
         current ``lumi_uncorr`` / ``lumi_corr`` / scenario state.
 
-        The per-ECM uncorr lumi-uncertainty array ``lumi_uncorr_ecm`` starts
-        from the card-level ``lumi_uncorr`` figure (calibrated for the
-        default equal-lumi-per-threshold scenario) and applies two
-        adjustments:
+        ``lumi_uncorr_ecm`` is the per-ECM uncorr lumi-uncertainty array.
+        Threshold points all get the card-level ``lumi.uncorr`` figure (it
+        is by convention a per-ECM-point fractional uncertainty). When
+        ``add_last_ecm=True``, the above-threshold entry is divided by
+        ``sqrt(factor_above)``, where ``factor_above`` is the ratio of the
+        above-threshold-point lumi to the per-threshold lumi — so the
+        larger lumi at that point gives a proportionally smaller per-point
+        uncertainty.
 
-        * ``scale_lumi_uncorr=True`` (card flag ``lumi.scale_uncorr``)
-          multiplies every threshold-point entry by ``sqrt(N_threshold)`` —
-          for scenarios with unequal lumi distribution across the threshold
-          ECMs.
-        * ``add_last_ecm=True`` divides the above-threshold entry by
-          ``sqrt(factor_above * factor_thresh)`` where ``factor_above`` is
-          the ratio of the above-threshold-point lumi to the per-threshold
-          lumi, so the larger lumi at that point yields a proportionally
-          smaller per-point uncertainty.
+        TODO: re-introduce a way to rescale ``lumi.uncorr`` when the
+        scenario's total lumi / N differs from the calibration assumption.
+        The previous ``scale_uncorr`` card flag did this by multiplying by
+        sqrt(N_threshold) — it was removed because it was dead code (always
+        False) and its semantics weren't pinned down. A proper rewrite
+        should compute the per-point scaling from the actual per-point
+        lumi (``self.scenario`` values) against a card-declared
+        calibration reference, so it works for ``same_evts=True`` and
+        custom scenarios too.
 
         Called by ``init_minuit`` but also directly by scans that mutate the
         lumi covariance without needing a fresh ``minuit`` (e.g.
         ``scan_lumi``)."""
         cov_stat = np.diag(self.unc_pseudodata_scenario ** 2)
-        n_thresh = len(self.scenario) if not self.scenario_dict["add_last_ecm"] else len(self.scenario) - 1
-        factor_thresh = n_thresh if self.scale_lumi_uncorr else 1
-        lumi_uncorr_ecm = np.array([self.lumi_uncorr * factor_thresh ** 0.5 for _ in self.pseudo_data_scenario])
+        lumi_uncorr_ecm = np.full(len(self.pseudo_data_scenario), self.lumi_uncorr, dtype=float)
         if self.scenario_dict["add_last_ecm"]:
             factor_above = self.scenario[ecm_to_str(self.last_ecm)] / self.scenario[list(self.scenario.keys())[0]]
-            lumi_uncorr_ecm[-1] = self.lumi_uncorr / (factor_above * factor_thresh) ** 0.5
+            lumi_uncorr_ecm[-1] = self.lumi_uncorr / factor_above ** 0.5
         self.lumi_uncorr_ecm = lumi_uncorr_ecm
 
         cov_lumi_uncorr = np.diag(self.pseudo_data_scenario * lumi_uncorr_ecm) ** 2

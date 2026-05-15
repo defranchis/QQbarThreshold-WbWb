@@ -84,21 +84,16 @@ INPUT_VAR = {
 # ---------------------------------------------------------------------------
 # Notes:
 #   * `lumi.uncorr`: per-ECM-point uncorrelated luminosity uncertainty
-#     (fractional), calibrated assuming the default equal-lumi-per-threshold
-#     scenario. `lumi.corr`: fully-correlated uncertainty applied identically
-#     at every ECM point.
-#   * `lumi.scale_uncorr=True` scales the per-point uncorr lumi uncertainty by
-#     sqrt(N_threshold_points) — intended for custom scenarios with unequal
-#     lumi distribution across the threshold ECMs. Default False; in the
-#     default equal-lumi scenario no scaling is needed (the above-threshold
-#     point under `--lastecm` is always adjusted separately by sqrt of the
-#     lumi ratio).
+#     (fractional). `lumi.corr`: fully-correlated luminosity uncertainty
+#     (fractional), applied identically at every ECM point. The above-
+#     threshold point (when `add_last_ecm=True`) gets its uncorr entry
+#     divided by sqrt(L_above / L_threshold) automatically.
 #   * BES/BEC also have correlated and uncorrelated components.
 PRIORS = {
     "yukawa":    {"default": 0.03},          # used only when Yukawa is constrained
     "alphas":    {"default": 1.0e-4},
     "SM_width":  {"default": 5.0},           # MeV, theory unc. on SM width prediction
-    "lumi":      {"uncorr": 1.0e-3, "corr": 5.0e-4, "scale_uncorr": False},
+    "lumi":      {"uncorr": 1.0e-3, "corr": 5.0e-4},
     "BES":       {"uncorr": 0.01,   "corr": 5.0e-3},
     "BEC":       {"uncorr": 5.0,    "corr": 2.5},     # MeV
     "sw2":       {"default": 2.5e-6},
