@@ -15,8 +15,8 @@ class WbWbFit(FitCore):
     def physical_fit_params(self, params):
         if not self.sm_width:
             return 0.0
-        i_width = self.param_names.index("width")
-        i_mass = self.param_names.index("mass")
+        i_width = self._idx["width"]
+        i_mass = self._idx["mass"]
         prior_width = params[i_width] ** 2
         width = self._width_n3lo(
             mt_PS=self.value_from_param(params[i_mass], "mass"),

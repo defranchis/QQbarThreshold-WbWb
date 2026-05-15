@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 import scipy
 import uncertainties as unc
+from scipy.linalg import cho_factor, cho_solve
 
 from common.parameters import Parameters
 from common.smearing import convolute_gauss
@@ -370,23 +371,23 @@ class FitCore:
     # Chi2 + Minuit
     # ------------------------------------------------------------------
     def chi2(self, params):
-        th_xsec = np.array(self.xsec_scenario["xsec"]) * self.scale_var_scenario
+        # physical_fit_params runs first because subclasses (e.g. WbWbFit
+        # with SM_width) may rewrite params in place before the template
+        # is applied.
         prior_extra = self.physical_fit_params(params)
-
-        for i, name in enumerate(self.param_names):
-            th_xsec = th_xsec * (1 + params[i] * np.array(self.morph_scenario[name]["xsec"]))
+        th_xsec = self._xsec_base * np.prod(1 + params[:, None] * self._morph_matrix, axis=0)
 
         res = self.pseudo_data_scenario - th_xsec
-        chi2_val = float(res @ np.linalg.solve(self.cov, res))
+        chi2_val = float(res @ cho_solve(self._cov_factor, res))
 
         # alpha_s constraint (always on)
         u_as = self.input_uncert_alphas / self.parameters.step("alphas")
-        chi2_val += ((params[self.param_names.index("alphas")]
+        chi2_val += ((params[self._idx["alphas"]]
                       - self.param_from_value(self.d_params[self.pseudodata_tag]["alphas"], "alphas")) / u_as) ** 2
 
-        if self.constrain_yukawa and "yukawa" in self.param_names:
+        if self.constrain_yukawa and "yukawa" in self._idx:
             u_y = self.input_uncert_yukawa / self.parameters.step("yukawa")
-            chi2_val += ((params[self.param_names.index("yukawa")]
+            chi2_val += ((params[self._idx["yukawa"]]
                           - self.param_from_value(self.d_params[self.pseudodata_tag]["yukawa"], "yukawa")) / u_y) ** 2
 
         if self.bec_nuisances:
@@ -394,17 +395,16 @@ class FitCore:
         if self.bes_nuisances:
             chi2_val += self._nuisance_prior(params, "BES")
         if self.sw2_nuisance:
-            sw2_idx = self.param_names.index("sw2")
-            chi2_val += (params[sw2_idx] / max(self.sw2_prior, _PRIOR_FLOOR)) ** 2
+            chi2_val += (params[self._idx["sw2"]] / max(self.sw2_prior, _PRIOR_FLOOR)) ** 2
 
         return chi2_val + prior_extra
 
     def _nuisance_prior(self, params, kind):
         prior_u = max(getattr(self, f"{kind.lower()}_prior_uncorr"), _PRIOR_FLOOR)
         prior_c = max(getattr(self, f"{kind.lower()}_prior_corr"), _PRIOR_FLOOR)
-        bin_idx = [i for i, p in enumerate(self.param_names) if f"{kind}_bin" in p]
+        bin_idx = self._bec_bin_idx if kind == "BEC" else self._bes_bin_idx
         bin_params = params[bin_idx]
-        corr_idx = self.param_names.index(kind)
+        corr_idx = self._idx[kind]
         return float(np.sum((bin_params / prior_u) ** 2) + (params[corr_idx] / prior_c) ** 2)
 
     def init_minuit(self, exclude_stat=False):
@@ -420,8 +420,23 @@ class FitCore:
         cov_lumi_uncorr = np.diag(self.pseudo_data_scenario * lumi_uncorr_ecm) ** 2
         cov_lumi_corr = np.outer(self.pseudo_data_scenario, self.pseudo_data_scenario) * self.lumi_corr ** 2
         self.cov = cov_lumi_uncorr + cov_lumi_corr + (0 if exclude_stat else cov_stat)
+        # Pre-factor the (constant within migrad) covariance once; chi2 then
+        # does a cheap triangular solve per call instead of a fresh LU.
+        self._cov_factor = cho_factor(self.cov)
         self.minuit = iminuit.Minuit(self.chi2, np.zeros(len(self.param_names)), name=self.param_names)
         self.minuit.errordef = 1
+        # Index caches consumed by chi2 / _nuisance_prior / subclass hooks.
+        # Built here because param_names is final by the time migrad starts
+        # (add_*_nuisances mutate it; init_minuit always runs afterwards).
+        self._idx = {name: i for i, name in enumerate(self.param_names)}
+        self._bec_bin_idx = [i for i, p in enumerate(self.param_names) if "BEC_bin" in p]
+        self._bes_bin_idx = [i for i, p in enumerate(self.param_names) if "BES_bin" in p]
+        # Vectorised chi2 inputs: stack all morph templates into one ndarray
+        # so the per-call loop becomes a single np.prod.
+        self._xsec_base = np.asarray(self.xsec_scenario["xsec"]) * np.asarray(self.scale_var_scenario)
+        self._morph_matrix = np.stack([
+            np.asarray(self.morph_scenario[name]["xsec"]) for name in self.param_names
+        ])
 
     def fit_parameters(self, exclude_stat=False, init_minuit=True):
         if init_minuit:
