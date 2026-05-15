@@ -11,6 +11,7 @@ BEC and BES nuisance sweeps share a single :func:`_scan_nuisance` helper.
 import copy
 import os
 
+import iminuit
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -561,21 +562,31 @@ def _scan_keys(fit):
 
 
 def scan_chi2(fit):
-    """``doChi2Scans`` — 1D and 2D chi2 profile scans for the floating parameters."""
+    """``doChi2Scans`` — 1D and 2D chi2 profile scans for the floating parameters.
+
+    Builds a fresh :class:`iminuit.Minuit` per grid point on the shared
+    ``fit.chi2`` callable instead of ``deepcopy(fit)`` — the FitCore state
+    (cov factor, morph matrix, smeared templates) is read-only inside
+    ``chi2``, so cloning the whole object per iteration is wasted work.
+    """
     labels = fit.card.PARAM_LABELS
     keys = _scan_keys(fit)
+    start = list(fit.minuit.values)  # warm-start every profile fit from the global best
+
+    def profile_chi2(fixed_idx, fixed_val):
+        m = iminuit.Minuit(fit.chi2, start, name=fit.param_names)
+        m.errordef = 1
+        for k, v in zip(fixed_idx, fixed_val):
+            m.values[k] = v
+            m.fixed[k] = True
+        m.migrad()
+        return m.fval
 
     for p in keys:
         i = fit.param_names.index(p)
         grid = np.linspace(fit.minuit.values[i] - 3 * fit.minuit.errors[i],
                            fit.minuit.values[i] + 3 * fit.minuit.errors[i], 101)
-        l_chi2 = []
-        for v in grid:
-            work = copy.deepcopy(fit)
-            work.minuit.fixed[i] = True
-            work.minuit.values[i] = v
-            work.fit_parameters(init_minuit=False)
-            l_chi2.append(work.minuit.fval)
+        l_chi2 = [profile_chi2([i], [v]) for v in grid]
         plt.plot(fit.value_from_param(grid, p), l_chi2, label=p)
         plt.xlabel(labels.get(p, p))
         plt.ylabel(r"$\chi^2$")
@@ -592,16 +603,10 @@ def scan_chi2(fit):
                              fit.minuit.values[ia_full] + 3 * fit.minuit.errors[ia_full], 51)
             gB = np.linspace(fit.minuit.values[ib_full] - 3 * fit.minuit.errors[ib_full],
                              fit.minuit.values[ib_full] + 3 * fit.minuit.errors[ib_full], 51)
-            grid_chi2 = np.zeros((len(gA), len(gB)))
-            for i, va in enumerate(gA):
-                for j, vb in enumerate(gB):
-                    work = copy.deepcopy(fit)
-                    for k in range(len(fit.param_names)):
-                        work.minuit.fixed[k] = (k == ia_full or k == ib_full)
-                    work.minuit.values[ia_full] = va
-                    work.minuit.values[ib_full] = vb
-                    work.fit_parameters(init_minuit=False)
-                    grid_chi2[i][j] = work.minuit.fval
+            grid_chi2 = np.array([
+                [profile_chi2([ia_full, ib_full], [va, vb]) for vb in gB]
+                for va in gA
+            ])
             plt.contour(fit.value_from_param(gA, pa),
                         fit.value_from_param(gB, pb),
                         grid_chi2,
