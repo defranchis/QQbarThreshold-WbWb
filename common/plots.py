@@ -48,14 +48,9 @@ def process_annotation(card, *, ax=None, x=0.92, y=0.17, ha="right", offset=0.0,
                 transform=ax.transAxes, ha=ha)
 
 
-def ensure_dir(path):
-    if not os.path.isdir(path):
-        os.makedirs(path)
-
-
 def save_figure(plot_dir, name, *, also_pdf=True, clf=True):
     """Save ``<plot_dir>/<name>.png`` and (optionally) the matching ``.pdf``."""
-    ensure_dir(plot_dir)
+    os.makedirs(plot_dir, exist_ok=True)
     plt.savefig(os.path.join(plot_dir, f"{name}.png"))
     if also_pdf:
         plt.savefig(os.path.join(plot_dir, f"{name}.pdf"))
@@ -68,8 +63,6 @@ def save_figure(plot_dir, name, *, also_pdf=True, clf=True):
 # ---------------------------------------------------------------------------
 def plot_fit_scenario(fit):
     """Pseudo/asimov data vs. fitted lineshape (and ratio panel)."""
-    ensure_dir(fit.plot_dir)
-
     suffix = "asimov" if fit.asimov else "pseudo"
     xsec_nom = fit.template()
     xsec_pseudo = fit.template(fit.pseudodata_tag)
@@ -93,7 +86,7 @@ def plot_fit_scenario(fit):
 
     # Ratio to nominal -------------------------------------------------------
     plt.figure()
-    nom_at_scenario = fit._slice_to_scenario(xsec_nom)["xsec"]
+    nom_at_scenario = fit.slice_to_scenario(xsec_nom)["xsec"]
     plt.errorbar(fit.xsec_scenario["ecm"],
                  fit.pseudo_data_scenario / nom_at_scenario,
                  yerr=fit.unc_pseudodata_scenario / nom_at_scenario,
@@ -120,7 +113,6 @@ def plot_fit_scenario(fit):
 
 def plot_parameter_variations(fit):
     """Per-parameter variation templates, normalised to the nominal lineshape."""
-    ensure_dir(fit.plot_dir)
     plt.figure()
     xsec_nom = fit.template()
     plt.plot(xsec_nom["ecm"], np.ones(len(xsec_nom["ecm"])),

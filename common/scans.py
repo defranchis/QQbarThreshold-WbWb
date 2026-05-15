@@ -4,9 +4,8 @@ Each scan takes a configured :class:`FitCore` instance, sweeps one knob,
 and produces a diagnostic plot in ``fit.plot_dir``. All scans are free
 functions so they can be opted into independently from the entry script.
 
-The scans here mirror the methods of the same names on the original
-``fit`` class. Implementation is intentionally line-by-line equivalent so
-that the validation against the original tree is straightforward.
+Most scans mirror methods of the same names on the original ``fit`` class;
+BEC and BES nuisance sweeps share a single :func:`_scan_nuisance` helper.
 """
 
 import copy
@@ -15,7 +14,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from common.fit_core import FitCore, ecm_to_str
+from common.fit_core import ecm_to_str, quadrature_subtract
 from common.plots import (
     process_annotation,
     projection_title,
@@ -23,12 +22,11 @@ from common.plots import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 def _impact(arr):
+    """``sqrt(arr[i]**2 - arr[0]**2)`` elementwise — the "impact relative to
+    the no-syst baseline" pattern."""
     arr = np.asarray(arr)
-    return np.maximum(arr ** 2 - arr[0] ** 2, 0) ** 0.5
+    return quadrature_subtract(arr, arr[0])
 
 
 # ---------------------------------------------------------------------------
@@ -267,8 +265,8 @@ def scan_alphas(fit, *, hi=3e-4, step=1e-5):
 
     nominal_mass = fit.last_fit_results[fit.param_names.index("mass")].s * 1000
     nominal_width = fit.last_fit_results[fit.param_names.index("width")].s * 1000
-    nominal_mass = (nominal_mass ** 2 - l_mass[0] ** 2) ** 0.5
-    nominal_width = (nominal_width ** 2 - l_width[0] ** 2) ** 0.5
+    nominal_mass = quadrature_subtract(nominal_mass, l_mass[0])
+    nominal_width = quadrature_subtract(nominal_width, l_width[0])
 
     l_mass = _impact(l_mass)
     l_width = _impact(l_width)
@@ -307,8 +305,8 @@ def scan_yukawa_constraint(fit, *, hi=0.05, step=0.001):
 
     nominal_mass = fit.last_fit_results[fit.param_names.index("mass")].s * 1000
     nominal_width = fit.last_fit_results[fit.param_names.index("width")].s * 1000
-    nominal_mass = (nominal_mass ** 2 - l_mass[0] ** 2) ** 0.5
-    nominal_width = (nominal_width ** 2 - l_width[0] ** 2) ** 0.5
+    nominal_mass = quadrature_subtract(nominal_mass, l_mass[0])
+    nominal_width = quadrature_subtract(nominal_width, l_width[0])
 
     l_mass = _impact(l_mass)
     l_width = _impact(l_width)
@@ -368,8 +366,8 @@ def scan_width(fit, *, hi=10, step=0.1):
 
     nominal_mass = fit.last_fit_results[fit.param_names.index("mass")].s * 1000
     baseline = fit.input_uncert_SM_width
-    impact = (nominal_mass ** 2 - l_mass[0] ** 2) ** 0.5
-    l_mass = (l_mass ** 2 - l_mass[0] ** 2) ** 0.5
+    impact = quadrature_subtract(nominal_mass, l_mass[0])
+    l_mass = _impact(l_mass)
 
     plt.plot(grid, l_mass, "b-", label=r"Impact on fitted $m_t$", linewidth=2)
     plt.plot(baseline, impact, "ro",
@@ -397,8 +395,8 @@ def scan_scale_vars(fit):
         if tag not in fit.xsec_dict:
             continue
         l_vars.append(v)
-        nominal_scen = fit._slice_to_scenario(fit.template())
-        var_scen = fit._slice_to_scenario(fit.template(tag))
+        nominal_scen = fit.slice_to_scenario(fit.template())
+        var_scen = fit.slice_to_scenario(fit.template(tag))
 
         work = copy.deepcopy(fit)
         work.scale_var_scenario = np.array(var_scen["xsec"]) / np.array(nominal_scen["xsec"])
@@ -450,7 +448,7 @@ def scan_true_value(fit):
     for fname in sorted(os.listdir(indir)):
         mass = fname.split("_")[4].replace("mass", "")
         work = copy.deepcopy(fit)
-        pseudo = work.smear(work._read_xsec(os.path.join(indir, fname)))
+        pseudo = work.smear(work.read_xsec(os.path.join(indir, fname)))
         work.update(update_scenario=True, init_vars=True, pseudo_data=pseudo, init_minuit=True)
         fr = work.fit_results(printout=False)
         bias = fr[fit.param_names.index("mass")].n - float(mass)
@@ -570,7 +568,7 @@ def scan_chi2(fit):
     for p in keys:
         i = fit.param_names.index(p)
         grid = np.linspace(fit.minuit.values[i] - 3 * fit.minuit.errors[i],
-                           fit.minuit.values[p] + 3 * fit.minuit.errors[i], 101)
+                           fit.minuit.values[i] + 3 * fit.minuit.errors[i], 101)
         l_chi2 = []
         for v in grid:
             work = copy.deepcopy(fit)
@@ -591,9 +589,9 @@ def scan_chi2(fit):
                 continue
             ib_full = fit.param_names.index(pb)
             gA = np.linspace(fit.minuit.values[ia_full] - 3 * fit.minuit.errors[ia_full],
-                             fit.minuit.values[pa] + 3 * fit.minuit.errors[ia_full], 51)
+                             fit.minuit.values[ia_full] + 3 * fit.minuit.errors[ia_full], 51)
             gB = np.linspace(fit.minuit.values[ib_full] - 3 * fit.minuit.errors[ib_full],
-                             fit.minuit.values[pb] + 3 * fit.minuit.errors[ib_full], 51)
+                             fit.minuit.values[ib_full] + 3 * fit.minuit.errors[ib_full], 51)
             grid_chi2 = np.zeros((len(gA), len(gB)))
             for i, va in enumerate(gA):
                 for j, vb in enumerate(gB):

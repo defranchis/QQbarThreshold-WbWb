@@ -12,9 +12,7 @@ nuisances were actually added).
 import copy
 import os
 
-import numpy as np
-
-from common.fit_core import _OFF
+from common.fit_core import _OFF, quadrature_subtract
 
 
 # ---------------------------------------------------------------------------
@@ -58,10 +56,10 @@ def _capture(fit, syst_mass, syst_width, syst_yukawa, name):
         syst_yukawa[name] = res[fit.param_names.index("yukawa")].s * 100
 
 
-def _quadrature_subtract(d, name):
+def _subtract_from_total(d, name):
     if name in ("stat", "total"):
         return
-    d[name] = (d["total"] ** 2 - d[name] ** 2) ** 0.5
+    d[name] = float(quadrature_subtract(d["total"], d[name]))
 
 
 def _estimate_stat(fit, syst_mass, syst_width, syst_yukawa, breakdown_parametric):
@@ -101,7 +99,7 @@ def _estimate_stat(fit, syst_mass, syst_width, syst_yukawa, breakdown_parametric
                 continue
             unc = res[fit.param_names.index(other)].s * (1000 if other != "yukawa" else 100)
             tgt = {"mass": syst_mass, "width": syst_width, "yukawa": syst_yukawa}[other]
-            stat_dict[f"{other}_{p}"] = (tgt["total"] ** 2 - unc ** 2) ** 0.5
+            stat_dict[f"{other}_{p}"] = float(quadrature_subtract(tgt["total"], unc))
 
     for p in free_params:
         nan = float("nan")
@@ -129,10 +127,10 @@ def estimate_systematic(fit, name, syst_mass, syst_width, syst_yukawa,
     setattr(fit, attr, off_value)
     fit.fit_parameters()
     _capture(fit, syst_mass, syst_width, syst_yukawa, name)
-    _quadrature_subtract(syst_mass, name)
-    _quadrature_subtract(syst_width, name)
+    _subtract_from_total(syst_mass, name)
+    _subtract_from_total(syst_width, name)
     if syst_yukawa is not None:
-        _quadrature_subtract(syst_yukawa, name)
+        _subtract_from_total(syst_yukawa, name)
     fit.reinitialise_to_nominal()
 
 

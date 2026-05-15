@@ -36,6 +36,17 @@ def ecm_to_str(ecm):
     return f"{ecm:.1f}"
 
 
+def quadrature_subtract(total, partial):
+    """Return ``sqrt(total**2 - partial**2)`` (clipped at zero), elementwise.
+
+    Works for both scalar and array inputs; the "impact in quadrature" pattern
+    that recurs across scans and the syst table.
+    """
+    total = np.asarray(total)
+    partial = np.asarray(partial)
+    return np.sqrt(np.maximum(total ** 2 - partial ** 2, 0))
+
+
 # ---------------------------------------------------------------------------
 # Floor used whenever a prior collapses to zero. Mirrors the 1E-6 floor in
 # the original code's chi2 to keep the constraints well-defined when a syst
@@ -61,8 +72,6 @@ class FitCore:
         generator,
         *,
         input_dir=None,
-        smear_xsec=None,
-        beam_energy_res=None,
         sm_width=False,
         asimov=True,
         constrain_yukawa=False,
@@ -115,8 +124,8 @@ class FitCore:
         self.scale_vars = self.parameters.scale_vars
 
         # Beam-energy spectrum ---------------------------------------------
-        self.beam_energy_res = beam_energy_res if beam_energy_res is not None else card.BEAM_ENERGY_RES
-        self.smear_xsec = card.SMEAR_XSEC if smear_xsec is None else smear_xsec
+        self.beam_energy_res = card.BEAM_ENERGY_RES
+        self.smear_xsec = card.SMEAR_XSEC
         self.peak_ecm = card.PEAK_ECM
         self.last_ecm = card.LAST_ECM
 
@@ -187,7 +196,7 @@ class FitCore:
     # ------------------------------------------------------------------
     # File I/O & templates
     # ------------------------------------------------------------------
-    def _read_xsec(self, path):
+    def read_xsec(self, path):
         if not os.path.exists(path):
             raise FileNotFoundError(f"Cross-section template not found: {path}")
         with open(path) as fh:
@@ -205,11 +214,11 @@ class FitCore:
             values, mass_scale=mass_scale, width_scale=width_scale,
             mass_scheme=self.mass_scheme, indir=indir,
         )
-        return self._read_xsec(path)
+        return self.read_xsec(path)
 
     def _read_cross_sections(self):
         self.xsec_dict = {tag: self._scan_for_tag(tag) for tag in self.parameters.tags}
-        self.l_ecm = self.xsec_dict[self.parameters.tags[0]]["ecm"].astype(str).tolist()
+        self.l_ecm = [ecm_to_str(e) for e in self.xsec_dict[self.parameters.tags[0]]["ecm"]]
         if not self.read_scale_vars:
             return
         for scale in self.scale_vars:
@@ -326,13 +335,13 @@ class FitCore:
                 raise ValueError(f"Scenario ecm {ecm} not in template ecm list")
         self.scenario = dict(sorted(scenario_dict.items(), key=lambda kv: float(kv[0])))
 
-        self.xsec_scenario = self._slice_to_scenario(self.template())
+        self.xsec_scenario = self.slice_to_scenario(self.template())
         if init_vars:
             self.scale_var_scenario = np.ones(len(self.xsec_scenario["xsec"]))
 
         if pseudodata is None:
             pseudodata = self.template(self.pseudodata_tag)
-        self.pseudo_data_scenario = self._slice_to_scenario(pseudodata)["xsec"]
+        self.pseudo_data_scenario = self.slice_to_scenario(pseudodata)["xsec"]
 
         if same_evts:
             overall_factor = total_lumi / np.sum([1 / sigma for sigma in self.pseudo_data_scenario])
@@ -348,12 +357,12 @@ class FitCore:
             np.random.seed(42)
             self.pseudo_data_scenario = np.random.normal(self.pseudo_data_scenario, self.unc_pseudodata_scenario)
 
-        self.morph_scenario = {p: self._slice_to_scenario(self.morph_dict[p]) for p in self.param_names}
+        self.morph_scenario = {p: self.slice_to_scenario(self.morph_dict[p]) for p in self.param_names}
         for extra in ("BEC", "BES", "sw2"):
             if extra in self.morph_dict:
-                self.morph_scenario[extra] = self._slice_to_scenario(self.morph_dict[extra])
+                self.morph_scenario[extra] = self.slice_to_scenario(self.morph_dict[extra])
 
-    def _slice_to_scenario(self, df):
+    def slice_to_scenario(self, df):
         keep = [float(e) for e in self.scenario.keys()]
         return df[[float(e) in keep for e in df["ecm"]]]
 
@@ -558,8 +567,3 @@ class FitCore:
             )
         self.lumi_corr = self.card.PRIORS["lumi"]["corr"]
         self.lumi_uncorr = self.card.PRIORS["lumi"]["uncorr"]
-
-    @staticmethod
-    def impact_from_uncert(arr):
-        arr = np.asarray(arr)
-        return np.maximum(arr ** 2 - arr[0] ** 2, 0) ** 0.5
