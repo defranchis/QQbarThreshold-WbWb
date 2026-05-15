@@ -60,8 +60,40 @@ _OFF = 1.0e-10
 class FitCore:
     """Generic threshold-scan fit.
 
-    Subclass per process and override :meth:`physical_fit_params` (and other
-    hooks) for any process-specific constraints.
+    Construction goes through three explicit steps; each populates a distinct
+    family of attributes that the later steps (and ``chi2`` / scans / the
+    syst table) consume. Skipping or reordering them is a setup bug.
+
+    1. ``__init__(card, generator, ...)`` — read the card, build the
+       parameter grid, load and smear and morph the input cross-section
+       templates. Populates ``param_names``, ``parameters``, ``d_params``,
+       ``xsec_dict``, ``xsec_dict_smeared``, ``morph_dict``, ``_bec_raw``,
+       ``_sw2_raw``, plus card-derived scalars (scales, priors, BES, lumi,
+       last_ecm). Nuisance toggles (``bec_nuisances``, ``bes_nuisances``,
+       ``sw2_nuisance``) start False.
+
+    2. ``init_scenario(...)`` (or ``init_scenario_custom``) — pick the ecm
+       grid, total lumi, optional above-threshold point, and Asimov /
+       pseudo-data flavour. Populates ``scenario_dict``, ``scenario``,
+       ``xsec_scenario``, ``scale_var_scenario``, ``pseudo_data_scenario``,
+       ``unc_pseudodata_scenario``, ``morph_scenario``. Between this step
+       and step 3 the ``add_bec_nuisances`` / ``add_bes_nuisances`` /
+       ``add_sw2_nuisance`` methods may extend ``param_names`` and
+       ``morph_scenario`` with nuisance bins.
+
+    3. ``init_minuit(...)`` — invoked implicitly by ``fit_parameters`` and
+       ``update``. Builds the chi2 hot-path caches (``cov``, ``_cov_factor``,
+       ``lumi_uncorr_ecm``, ``_idx``, ``_bec_bin_idx``, ``_bes_bin_idx``,
+       ``_xsec_base``, ``_morph_matrix``) and the Minuit instance
+       ``minuit``. After this step ``chi2`` is callable and
+       ``fit_parameters`` / ``fit_results`` work.
+
+    ``update()`` re-runs smearing, morphing, scenario building, and
+    ``init_minuit``; call it after mutating any input that feeds the chi2
+    cache.
+
+    Subclass per process and override :meth:`physical_fit_params` (and any
+    other hook) for process-specific constraints between fit parameters.
     """
 
     # ------------------------------------------------------------------
@@ -438,6 +470,18 @@ class FitCore:
         return float(np.sum((bin_params / prior_u) ** 2) + (params[corr_idx] / prior_c) ** 2)
 
     def init_minuit(self, exclude_stat=False):
+        self._build_cov(exclude_stat=exclude_stat)
+        self._build_chi2_caches()
+        self.minuit = iminuit.Minuit(self.chi2, np.zeros(len(self.param_names)), name=self.param_names)
+        self.minuit.errordef = 1
+
+    def _build_cov(self, exclude_stat=False):
+        """Rebuild ``cov`` / ``_cov_factor`` / ``lumi_uncorr_ecm`` from the
+        current ``lumi_uncorr`` / ``lumi_corr`` / scenario state.
+
+        Called by ``init_minuit`` but also directly by scans that mutate the
+        lumi covariance without needing a fresh ``minuit`` (e.g.
+        ``scan_lumi``)."""
         cov_stat = np.diag(self.unc_pseudodata_scenario ** 2)
         n_thresh = len(self.scenario) if not self.scenario_dict["add_last_ecm"] else len(self.scenario) - 1
         factor_thresh = n_thresh if self.scale_lumi_uncorr else 1
@@ -453,11 +497,17 @@ class FitCore:
         # Pre-factor the (constant within migrad) covariance once; chi2 then
         # does a cheap triangular solve per call instead of a fresh LU.
         self._cov_factor = cho_factor(self.cov)
-        self.minuit = iminuit.Minuit(self.chi2, np.zeros(len(self.param_names)), name=self.param_names)
-        self.minuit.errordef = 1
-        # Index caches consumed by chi2 / _nuisance_prior / subclass hooks.
-        # Built here because param_names is final by the time migrad starts
-        # (add_*_nuisances mutate it; init_minuit always runs afterwards).
+
+    def _build_chi2_caches(self):
+        """Rebuild the chi2 hot-path caches (``_idx``, ``_bec_bin_idx``,
+        ``_bes_bin_idx``, ``_xsec_base``, ``_morph_matrix``) from
+        ``param_names`` / ``xsec_scenario`` / ``scale_var_scenario`` /
+        ``morph_scenario``.
+
+        Called by ``init_minuit`` and by scans that mutate one of those
+        inputs (e.g. ``scan_scale_vars`` rebuilding ``_xsec_base``)."""
+        # param_names is final by the time migrad starts (add_*_nuisances
+        # mutate it; init_minuit always runs afterwards).
         self._idx = {name: i for i, name in enumerate(self.param_names)}
         self._bec_bin_idx = [i for i, p in enumerate(self.param_names) if "BEC_bin" in p]
         self._bes_bin_idx = [i for i, p in enumerate(self.param_names) if "BES_bin" in p]
@@ -467,6 +517,21 @@ class FitCore:
         self._morph_matrix = np.stack([
             np.asarray(self.morph_scenario[name]["xsec"]) for name in self.param_names
         ])
+
+    def results_from_minuit(self, minuit):
+        """Compute physical (``value_from_param``-converted) fit-results from
+        a Minuit instance.
+
+        Scans that mutate ``fit`` in place and run a fresh local Minuit on
+        ``fit.chi2`` (the same pattern as ``scan_chi2``) use this helper to
+        read results without touching ``self.minuit`` — which keeps the
+        per-scan state-isolation invariant satisfied.
+        """
+        vals = [minuit.values[p] for p in self.param_names]
+        params_w_cov = list(unc.correlated_values(vals, minuit.covariance))
+        self.physical_fit_params(params_w_cov)
+        return [self.value_from_param(p, name)
+                for p, name in zip(params_w_cov, self.param_names)]
 
     def fit_parameters(self, exclude_stat=False, init_minuit=True):
         if init_minuit:
