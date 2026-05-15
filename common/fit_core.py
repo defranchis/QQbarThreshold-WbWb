@@ -21,6 +21,7 @@ file-name tweaks) are exposed as hooks on subclasses.
 
 import copy
 import os
+import sys
 
 import iminuit
 import numpy as np
@@ -55,6 +56,21 @@ def quadrature_subtract(total, partial):
 # ---------------------------------------------------------------------------
 _PRIOR_FLOOR = 1.0e-6
 _OFF = 1.0e-10
+
+
+def _warn_if_invalid(minuit):
+    """Print a one-line stderr warning when migrad did not converge or hesse
+    failed. Consumers (``fit_params_with_cov`` / ``results_from_minuit``) call
+    this before reading ``minuit.covariance`` — otherwise the post-fit
+    uncertainties propagate silently from a garbage covariance.
+
+    Warn-and-continue (rather than raise) because scans that sweep across
+    edge cases (e.g. ``scan_lumi`` at ``lumi=0``) routinely hit non-converged
+    fits and still need to plot the rest of the curve.
+    """
+    if not minuit.valid:
+        print(f"WARNING: minuit fit not valid (fval={minuit.fval:.3g}); "
+              "uncertainties may be unreliable", file=sys.stderr)
 
 
 class FitCore:
@@ -544,6 +560,7 @@ class FitCore:
         read results without touching ``self.minuit`` — which keeps the
         per-scan state-isolation invariant satisfied.
         """
+        _warn_if_invalid(minuit)
         vals = [minuit.values[p] for p in self.param_names]
         params_w_cov = list(unc.correlated_values(vals, minuit.covariance))
         self.physical_fit_params(params_w_cov)
@@ -573,6 +590,7 @@ class FitCore:
     # Results
     # ------------------------------------------------------------------
     def fit_params_with_cov(self):
+        _warn_if_invalid(self.minuit)
         vals = [self.minuit.values[p] for p in self.param_names]
         params_w_cov = list(unc.correlated_values(vals, self.minuit.covariance))
         self.physical_fit_params(params_w_cov)
