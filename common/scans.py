@@ -251,16 +251,28 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
 # alpha_s
 # ---------------------------------------------------------------------------
 def scan_alphas(fit, *, hi=3e-4, step=1e-5):
-    """``doAlphaSscans`` — sweep the externally-imposed alpha_s prior."""
+    """``doAlphaSscans`` — sweep the externally-imposed alpha_s prior.
+
+    ``input_uncert_alphas`` feeds only the chi2 alpha_s constraint term — not
+    cov, not the morph matrix — so we mutate ``fit`` in place and rebuild a
+    fresh local Minuit per grid point instead of cloning the whole FitCore.
+    """
     grid = np.arange(1e-10, hi + step / 2, step)
+    start = list(fit.minuit.values)
+    step_mass = fit.parameters.step("mass")
+    step_width = fit.parameters.step("width")
+    saved = fit.input_uncert_alphas
     l_mass, l_width = [], []
-    for u in grid:
-        work = copy.deepcopy(fit)
-        work.input_uncert_alphas = u
-        work.fit_parameters()
-        fr = work.fit_results(printout=False)
-        l_mass.append(fr[fit._idx["mass"]].s * 1000)
-        l_width.append(fr[fit._idx["width"]].s * 1000)
+    try:
+        for u in grid:
+            fit.input_uncert_alphas = u
+            m = iminuit.Minuit(fit.chi2, start, name=fit.param_names)
+            m.errordef = 1
+            m.migrad()
+            l_mass.append(step_mass * m.errors[fit._idx["mass"]] * 1000)
+            l_width.append(step_width * m.errors[fit._idx["width"]] * 1000)
+    finally:
+        fit.input_uncert_alphas = saved
     l_mass = np.array(l_mass)
     l_width = np.array(l_width)
 
@@ -290,17 +302,31 @@ def scan_alphas(fit, *, hi=3e-4, step=1e-5):
 # Yukawa
 # ---------------------------------------------------------------------------
 def scan_yukawa_constraint(fit, *, hi=0.05, step=0.001):
-    """``doYukawaScan`` — sweep the Yukawa prior strength."""
+    """``doYukawaScan`` — sweep the Yukawa prior strength.
+
+    Like :func:`scan_alphas`, ``input_uncert_yukawa`` only feeds the chi2
+    constraint term, so we mutate ``fit`` in place and use a fresh local
+    Minuit per grid point.
+    """
     grid = np.arange(1e-10, hi + step / 2, step)
+    start = list(fit.minuit.values)
+    step_mass = fit.parameters.step("mass")
+    step_width = fit.parameters.step("width")
+    saved_unc = fit.input_uncert_yukawa
+    saved_constrain = fit.constrain_yukawa
     l_mass, l_width = [], []
-    for u in grid:
-        work = copy.deepcopy(fit)
-        work.input_uncert_yukawa = u
-        work.constrain_yukawa = True
-        work.fit_parameters()
-        fr = work.fit_results(printout=False)
-        l_mass.append(fr[fit._idx["mass"]].s * 1000)
-        l_width.append(fr[fit._idx["width"]].s * 1000)
+    try:
+        fit.constrain_yukawa = True
+        for u in grid:
+            fit.input_uncert_yukawa = u
+            m = iminuit.Minuit(fit.chi2, start, name=fit.param_names)
+            m.errordef = 1
+            m.migrad()
+            l_mass.append(step_mass * m.errors[fit._idx["mass"]] * 1000)
+            l_width.append(step_width * m.errors[fit._idx["width"]] * 1000)
+    finally:
+        fit.input_uncert_yukawa = saved_unc
+        fit.constrain_yukawa = saved_constrain
     l_mass = np.array(l_mass)
     l_width = np.array(l_width)
 
@@ -353,16 +379,25 @@ def scan_yukawa_theory(fit, *, max_shift=0.01, step=0.001):
 # Width (only meaningful with --SMwidth)
 # ---------------------------------------------------------------------------
 def scan_width(fit, *, hi=10, step=0.1):
+    """Sweep the SM-width theory uncertainty. Only the WbWb-specific
+    ``physical_fit_params`` hook reads ``input_uncert_SM_width``, so we
+    mutate ``fit`` in place and use a fresh local Minuit per grid point."""
     if not fit.sm_width:
         raise ValueError("scan_width requires sm_width=True")
     grid = np.arange(1e-10, hi + step / 2, step)
+    start = list(fit.minuit.values)
+    step_mass = fit.parameters.step("mass")
+    saved = fit.input_uncert_SM_width
     l_mass = []
-    for u in grid:
-        work = copy.deepcopy(fit)
-        work.input_uncert_SM_width = u
-        work.fit_parameters()
-        fr = work.fit_results(printout=False)
-        l_mass.append(fr[fit._idx["mass"]].s * 1000)
+    try:
+        for u in grid:
+            fit.input_uncert_SM_width = u
+            m = iminuit.Minuit(fit.chi2, start, name=fit.param_names)
+            m.errordef = 1
+            m.migrad()
+            l_mass.append(step_mass * m.errors[fit._idx["mass"]] * 1000)
+    finally:
+        fit.input_uncert_SM_width = saved
     l_mass = np.array(l_mass)
 
     nominal_mass = fit.last_fit_results[fit._idx["mass"]].s * 1000
