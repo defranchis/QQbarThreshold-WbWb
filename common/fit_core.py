@@ -515,6 +515,21 @@ class FitCore:
         """Rebuild ``cov`` / ``_cov_factor`` / ``lumi_uncorr_ecm`` from the
         current ``lumi_uncorr`` / ``lumi_corr`` / scenario state.
 
+        The per-ECM uncorr lumi-uncertainty array ``lumi_uncorr_ecm`` starts
+        from the card-level ``lumi_uncorr`` figure (calibrated for the
+        default equal-lumi-per-threshold scenario) and applies two
+        adjustments:
+
+        * ``scale_lumi_uncorr=True`` (card flag ``lumi.scale_uncorr``)
+          multiplies every threshold-point entry by ``sqrt(N_threshold)`` —
+          for scenarios with unequal lumi distribution across the threshold
+          ECMs.
+        * ``add_last_ecm=True`` divides the above-threshold entry by
+          ``sqrt(factor_above * factor_thresh)`` where ``factor_above`` is
+          the ratio of the above-threshold-point lumi to the per-threshold
+          lumi, so the larger lumi at that point yields a proportionally
+          smaller per-point uncertainty.
+
         Called by ``init_minuit`` but also directly by scans that mutate the
         lumi covariance without needing a fresh ``minuit`` (e.g.
         ``scan_lumi``)."""

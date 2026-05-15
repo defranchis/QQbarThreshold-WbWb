@@ -62,6 +62,8 @@ INPUT_VAR = {
 # Prior uncertainties for the nuisance parameters
 # ---------------------------------------------------------------------------
 # BES/BEC/lumi structure is shared with WbWb; default numbers differ.
+# See `cards/wbwb_default.py` for the meaning of `lumi.uncorr` / `lumi.corr` /
+# `lumi.scale_uncorr`.
 PRIORS = {
     "alphas":   {"default": 1.0e-4},
     "lumi":     {"uncorr": 1.0e-3, "corr": 5.0e-4, "scale_uncorr": False},

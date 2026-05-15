@@ -83,9 +83,17 @@ INPUT_VAR = {
 # Prior uncertainties for the nuisance parameters
 # ---------------------------------------------------------------------------
 # Notes:
-#   * `lumi.scale_uncorr` mirrors the old `scale_lumi_uncorr` flag — when True,
-#     the per-point uncorrelated lumi uncertainty is scaled by sqrt(N_points).
-#   * BES/BEC/lumi have correlated and uncorrelated components.
+#   * `lumi.uncorr`: per-ECM-point uncorrelated luminosity uncertainty
+#     (fractional), calibrated assuming the default equal-lumi-per-threshold
+#     scenario. `lumi.corr`: fully-correlated uncertainty applied identically
+#     at every ECM point.
+#   * `lumi.scale_uncorr=True` scales the per-point uncorr lumi uncertainty by
+#     sqrt(N_threshold_points) — intended for custom scenarios with unequal
+#     lumi distribution across the threshold ECMs. Default False; in the
+#     default equal-lumi scenario no scaling is needed (the above-threshold
+#     point under `--lastecm` is always adjusted separately by sqrt of the
+#     lumi ratio).
+#   * BES/BEC also have correlated and uncorrelated components.
 PRIORS = {
     "yukawa":    {"default": 0.03},          # used only when Yukawa is constrained
     "alphas":    {"default": 1.0e-4},
