@@ -160,10 +160,31 @@ class FitCore:
             print(f"Asimov fit: {self.asimov}")
 
         self._read_cross_sections()
+        self._read_aux_templates()
         self._smear_cross_sections()
         self._morph_cross_sections()
         if debug:
             print("Initialization done")
+
+    def _read_aux_templates(self):
+        """Pre-load raw BEC and sw2 template DataFrames once.
+
+        These are re-smeared on every ``update()`` (e.g. when beam_energy_res
+        changes in scan_beam_resolution), but the on-disk content never
+        changes — cache the raw read so we don't re-touch the filesystem
+        on every iteration.
+        """
+        self._bec_raw = None
+        self._sw2_raw = None
+        if self.read_scale_vars or self.mass_scheme == "1S" or self.shift_scan:
+            return
+        bec = self._scan_for_tag(
+            "nominal",
+            indir=os.path.join(self.card.INPUT_DIRS["BEC"], self._bec_var_dir(self.input_var["BEC"])),
+        )
+        bec["ecm"] = bec["ecm"].round(1)
+        self._bec_raw = bec
+        self._sw2_raw = self._scan_for_tag("nominal", indir=self.card.INPUT_DIRS["sw2"])
 
     # ------------------------------------------------------------------
     # Copy semantics — the steering card is a module and can't be pickled,
@@ -259,16 +280,11 @@ class FitCore:
         """Return DataFrame with the relative variation (xsec_var/xsec_nom - 1)."""
         xsec_nom = self.template()
         if param == "BEC":
-            varied = self._scan_for_tag(
-                "nominal",
-                indir=os.path.join(self.card.INPUT_DIRS["BEC"], self._bec_var_dir(self.input_var["BEC"])),
-            )
-            varied["ecm"] = varied["ecm"].round(1)
-            xsec_var = self.smear(varied)
+            xsec_var = self.smear(self._bec_raw)
         elif param == "BES":
             xsec_var = self.smear(self.xsec_dict["nominal"], bes=self.beam_energy_res * (1 + self.input_var["BES"]))
         elif param == "sw2":
-            xsec_var = self.smear(self._scan_for_tag("nominal", indir=self.card.INPUT_DIRS["sw2"]))
+            xsec_var = self.smear(self._sw2_raw)
             self.xsec_dict_smeared["sw2_var"] = xsec_var
         else:
             xsec_var = self.template(f"{param}_var")
@@ -364,7 +380,7 @@ class FitCore:
                 self.morph_scenario[extra] = self.slice_to_scenario(self.morph_dict[extra])
 
     def slice_to_scenario(self, df):
-        keep = [float(e) for e in self.scenario.keys()]
+        keep = {float(e) for e in self.scenario.keys()}
         return df[[float(e) in keep for e in df["ecm"]]]
 
     # ------------------------------------------------------------------

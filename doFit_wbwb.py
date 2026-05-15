@@ -10,6 +10,7 @@ import argparse
 
 from cards import wbwb_default as card
 from common import scans
+from common.parallel import run_parallel
 from common.plots import plot_fit_scenario, plot_parameter_variations
 from common.systematics import print_syst_table
 from process.wbwb.fit import WbWbFit
@@ -47,6 +48,9 @@ def parse_args():
                         help="scan the ecm shift of the whole scan grid (needs templates outside the original ecm range)")
     parser.add_argument("--systTable", action="store_true", help="produce the systematic-uncertainty table")
     parser.add_argument("--noPlots", action="store_true", help="skip the diagnostic plots")
+    parser.add_argument("--parallel", type=int, default=1, metavar="N",
+                        help="run the requested scans in parallel with up to N worker processes "
+                             "(systTable runs sequentially after scans complete)")
     return parser.parse_args()
 
 
@@ -105,30 +109,42 @@ def main():
         plot_fit_scenario(fit)
 
     # ---- scans ------------------------------------------------------------
+    # Build the requested scans as zero-arg callables capturing fit by
+    # closure. They neither mutate fit nor depend on each other (see
+    # /tmp/audit_scans.py), so the order is irrelevant and they're
+    # safe to run in parallel.
+    scan_jobs = []
     if args.LSscan:
-        scans.scan_beam_resolution(fit)
+        scan_jobs.append(lambda: scans.scan_beam_resolution(fit))
     if args.scaleVarsScan:
-        scans.scan_scale_vars(fit)
+        scan_jobs.append(lambda: scans.scan_scale_vars(fit))
     if args.BECscans:
-        scans.scan_bec(fit)
+        scan_jobs.append(lambda: scans.scan_bec(fit))
     if args.BESscans:
-        scans.scan_bes(fit)
+        scan_jobs.append(lambda: scans.scan_bes(fit))
     if args.lumiscans:
-        scans.scan_lumi(fit)
+        scan_jobs.append(lambda: scans.scan_lumi(fit))
     if args.alphaSscan:
-        scans.scan_alphas(fit)
+        scan_jobs.append(lambda: scans.scan_alphas(fit))
         if not args.fitYukawa:
-            scans.scan_yukawa_constraint(fit)
+            scan_jobs.append(lambda: scans.scan_yukawa_constraint(fit))
     if args.yukawaThScan:
-        scans.scan_yukawa_theory(fit)
+        scan_jobs.append(lambda: scans.scan_yukawa_theory(fit))
     if args.widthscan:
-        scans.scan_width(fit)
+        scan_jobs.append(lambda: scans.scan_width(fit))
     if args.truevaluescan:
-        scans.scan_true_value(fit)
+        scan_jobs.append(lambda: scans.scan_true_value(fit))
     if args.chi2scans:
-        scans.scan_chi2(fit)
+        scan_jobs.append(lambda: scans.scan_chi2(fit))
     if args.shiftScan:
-        scans.scan_shift(fit)
+        scan_jobs.append(lambda: scans.scan_shift(fit))
+
+    if args.parallel > 1 and len(scan_jobs) > 1:
+        run_parallel(scan_jobs, max_workers=args.parallel)
+    else:
+        for job in scan_jobs:
+            job()
+
     if args.systTable:
         print_syst_table(fit)
 
