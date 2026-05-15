@@ -66,6 +66,8 @@ def _check_args(args):
         raise ValueError("alpha_s scan is incompatible with last-ecm point")
     if args.yukawaThScan and not args.lastecm:
         raise ValueError("Yukawa theory-shift scan requires --lastecm")
+    if args.lastecm and not args.fitYukawa:
+        raise ValueError("--lastecm is incompatible with the Yukawa constraint; pass --fitYukawa to float Yukawa")
 
 
 def main():

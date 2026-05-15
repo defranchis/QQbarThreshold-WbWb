@@ -395,8 +395,11 @@ class FitCore:
 
     def init_scenario_custom(self, scan_list, total_lumi, last_lumi, add_last_ecm, same_evts=False):
         if self.constrain_yukawa and add_last_ecm:
-            print("\nWarning: Yukawa constraint + last-ecm point unsupported; disabling last_ecm.\n")
-            add_last_ecm = False
+            raise ValueError(
+                "Yukawa constraint + last-ecm point unsupported; "
+                "pass constrain_yukawa=False (--fitYukawa) to float Yukawa, "
+                "or set add_last_ecm=False (drop --lastecm) to skip the above-threshold point."
+            )
         self.scenario_dict = {
             "scan_list": scan_list,
             "total_lumi": total_lumi,

@@ -159,7 +159,7 @@ SPECS = [
         lambda f: scans.scan_alphas(f, hi=2e-4, step=1e-4)),
     ("scan_yukawa_constraint", {},
         lambda f: scans.scan_yukawa_constraint(f, hi=0.02, step=0.01)),
-    ("scan_yukawa_theory",     {"last_ecm": True},
+    ("scan_yukawa_theory",     {"last_ecm": True, "constrain_yukawa": False},
         lambda f: scans.scan_yukawa_theory(f, max_shift=0.005, step=0.005)),
     ("scan_width",             {"sm_width": True},
         lambda f: scans.scan_width(f, hi=5, step=2.5)),
