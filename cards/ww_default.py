@@ -77,12 +77,12 @@ PRIORS = {
 SYSTEMATICS = {
     "alphas": {"type": "constraint", "always_on": True},
     "BEC":    {"type": "binned",
-               "source": {"kind": "template_dir", "path": "BEC_variations",
+               "source": {"kind": "template_dir",
                           "var_subdir": True, "snap_to_grid": True}},
     "BES":    {"type": "binned",
                "source": {"kind": "smear_shift"}},
     "sw2":    {"type": "global",
-               "source": {"kind": "template_dir", "path": "output_sw2"}},
+               "source": {"kind": "template_dir"}},
 }
 
 # Canonical row order in the systematics table (see cards/wbwb_default.py

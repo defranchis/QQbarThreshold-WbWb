@@ -129,7 +129,7 @@ class FitCore:
 
     3. ``init_minuit(...)`` — invoked implicitly by ``fit_parameters`` and
        ``update``. Builds the chi2 hot-path caches (``cov``, ``_cov_factor``,
-       ``lumi_uncorr_ecm``, ``_idx``, ``_bec_bin_idx``, ``_bes_bin_idx``,
+       ``lumi_uncorr_ecm``, ``_idx``, ``_per_kind_bin_idx``,
        ``_xsec_base``, ``_morph_matrix``) and the Minuit instance
        ``minuit``. After this step ``chi2`` is callable and
        ``fit_parameters`` / ``fit_results`` work.
@@ -170,20 +170,13 @@ class FitCore:
         self.asimov = asimov
         self.read_scale_vars = read_scale_vars
         self.sm_width = sm_width
-        # constrain_yukawa is consumed by the _constraints build below; once
-        # _constraints exists, the @property of the same name proxies into
-        # _constraints["yukawa"]["active"].
         _constrain_yukawa = constrain_yukawa
-        # When the scan list is going to be shifted off the original grid
-        # (see scan_shift) the BEC/BES/sw2 templates would have to be
-        # interpolated; skip building them entirely instead.
+        # shift_scan moves the scan list off the original ECM grid, so the
+        # BEC/BES/sw2 templates would need interpolation — skip them instead.
         self.shift_scan = shift_scan
-        # Pseudo-data RNG. Default: one PCG64 stream seeded with 42, advanced
-        # per ``create_scenario`` call so repeated scenario builds get
-        # independent noise realisations. ``legacy_pseudo_rng=True`` falls
-        # back to the historical pattern (global ``np.random.seed(42)`` then
-        # ``np.random.normal``, every call) which gives every call the *same*
-        # noise — kept only for byte-reproducing pre-fix pseudo runs.
+        # legacy_pseudo_rng=True restores the global np.random.seed(42)
+        # pattern that gave every create_scenario call the *same* noise;
+        # kept only for byte-reproducing pre-fix pseudo runs.
         self.legacy_pseudo_rng = legacy_pseudo_rng
         self._rng = None if legacy_pseudo_rng else np.random.default_rng(42)
 
@@ -232,16 +225,12 @@ class FitCore:
         self.lumi_corr = card.PRIORS["lumi"]["corr"]
         self.input_var = card.INPUT_VAR
 
-        # 1-D Gaussian-constraint registry. One entry per
-        # ``SYSTEMATICS[type=constraint]`` whose parameter is part of
-        # this fit. Sigma comes from ``card.PRIORS[name]``; centre
-        # defaults to the pseudodata "true" value (override per-entry
-        # via ``SYSTEMATICS[name]["center"]``). The ``active`` flag is
-        # set here (no special-case in the chi2 hot path): always_on=True
-        # → always active; always_on=False → today the only such entry
-        # is yukawa, gated by the WbWb-specific ``constrain_yukawa``
-        # constructor flag (``--fitYukawa`` toggles it off, letting
-        # Yukawa float as a parameter of interest).
+        # 1-D Gaussian-constraint registry. Centre defaults to the
+        # pseudodata "true" value; override per-entry via
+        # ``SYSTEMATICS[name]["center"]``. The yukawa entry's active flag
+        # is gated by the WbWb-specific ``constrain_yukawa`` constructor
+        # kwarg (``--fitYukawa`` toggles it off, letting Yukawa float as
+        # a parameter of interest).
         self._constraints = {}
         for name, spec in self._systematics_meta["constraint"].items():
             if name not in self.parameters.names:
@@ -255,25 +244,18 @@ class FitCore:
                 "active": active,
             }
 
-        # Nuisance toggles -------------------------------------------------
-        # Active nuisances (kinds toggled on by add_{binned,global}_nuisance).
         self._active_binned_nuisances = set()
         self._active_global_nuisances = set()
-        # Per-kind fit-space priors. Binned entries store
-        # ``{"uncorr": float, "corr": float}``; global entries store
-        # ``{"prior": float}``. Populated by set_{binned,global}_nuisance_priors.
         self._nuisance_priors = {}
-        # ``param_idx -> (kind, bin_idx_in_morph_scenario[kind])`` for per-bin
-        # nuisance params registered by ``_expand_per_bin_nuisance``. Single
-        # source of truth — readers don't re-parse the "BEC_bin{i}" name.
+        # param_idx -> (kind, bin_idx_in_morph_scenario[kind]) — populated
+        # by _expand_per_bin_nuisance. Avoids re-parsing "BEC_bin{i}" names.
         self._per_bin_meta = {}
 
         # chi2 hot-path caches — populated by init_minuit. Listed here so
         # that AttributeError-style failures from calling chi2 before
         # init_minuit show a clear "this attribute is None" instead.
         self._idx = None
-        self._bec_bin_idx = None
-        self._bes_bin_idx = None
+        self._per_kind_bin_idx = None
         self._xsec_base = None
         self._morph_matrix = None
         self._cov_factor = None
@@ -322,7 +304,7 @@ class FitCore:
             source = spec["source"]
             if source["kind"] != "template_dir":
                 continue
-            path = source["path"]
+            path = self.card.INPUT_DIRS[kind]
             if source.get("var_subdir"):
                 path = os.path.join(path, self._bec_var_dir(self.input_var[kind]))
             raw = self._scan_for_tag("nominal", indir=path)
@@ -345,12 +327,7 @@ class FitCore:
                 clone.__dict__[k] = copy.deepcopy(v, memo)
         return clone
 
-    # ------------------------------------------------------------------
-    # WbWb-specific Yukawa-as-nuisance toggle. Proxies into
-    # ``_constraints["yukawa"]["active"]`` so scans and external callers
-    # that mutate ``fit.constrain_yukawa`` (e.g. ``scan_yukawa_constraint``)
-    # take effect on the next chi2 call without any hot-path special case.
-    # ------------------------------------------------------------------
+    # WbWb-specific Yukawa-as-nuisance toggle (proxy for chi2 active flag).
     @property
     def constrain_yukawa(self):
         return self._constraints.get("yukawa", {}).get("active", False)
@@ -426,9 +403,6 @@ class FitCore:
         if bes is None:
             bes = self.beam_energy_res
         if bes == 0:
-            # No beam-energy spread → smearing is a no-op. Saves the
-            # find_peak + convolute_gauss work and matches the legacy
-            # SMEAR_XSEC=False short-circuit.
             return xsec
         last_ecm_xsec = ecm_to_str(float(xsec["ecm"].iloc[-1]))
         last_is_overflow = last_ecm_xsec == ecm_to_str(self.last_ecm)
@@ -692,7 +666,7 @@ class FitCore:
         priors = self._nuisance_priors[kind]
         prior_u = max(priors["uncorr"], _PRIOR_FLOOR)
         prior_c = max(priors["corr"], _PRIOR_FLOOR)
-        bin_idx = self._bec_bin_idx if kind == "BEC" else self._bes_bin_idx
+        bin_idx = self._per_kind_bin_idx[kind]
         bin_params = params[bin_idx]
         corr_idx = self._idx[kind]
         return float(np.sum((bin_params / prior_u) ** 2) + (params[corr_idx] / prior_c) ** 2)
@@ -744,18 +718,18 @@ class FitCore:
         self._cov_factor = cho_factor(self.cov)
 
     def _build_chi2_caches(self):
-        """Rebuild the chi2 hot-path caches (``_idx``, ``_bec_bin_idx``,
-        ``_bes_bin_idx``, ``_xsec_base``, ``_morph_matrix``) from
-        ``param_names`` / ``xsec_scenario`` / ``scale_var_scenario`` /
-        ``morph_scenario``.
+        """Rebuild the chi2 hot-path caches (``_idx``, ``_per_kind_bin_idx``,
+        ``_xsec_base``, ``_morph_matrix``) from ``param_names`` /
+        ``xsec_scenario`` / ``scale_var_scenario`` / ``morph_scenario``.
 
         Called by ``init_minuit`` and by scans that mutate one of those
         inputs (e.g. ``scan_scale_vars`` rebuilding ``_xsec_base``)."""
         # param_names is final by the time migrad starts (add_*_nuisances
         # mutate it; init_minuit always runs afterwards).
         self._idx = {name: i for i, name in enumerate(self.param_names)}
-        self._bec_bin_idx = [i for i, (k, _) in self._per_bin_meta.items() if k == "BEC"]
-        self._bes_bin_idx = [i for i, (k, _) in self._per_bin_meta.items() if k == "BES"]
+        self._per_kind_bin_idx = {}
+        for i, (k, _) in self._per_bin_meta.items():
+            self._per_kind_bin_idx.setdefault(k, []).append(i)
         # Vectorised chi2 inputs: stack all morph templates into one ndarray
         # so the per-call loop becomes a single np.prod. Per-bin BEC/BES
         # rows are sparse (one-hot at the bin's own ECM) — synthesise from

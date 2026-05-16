@@ -144,7 +144,6 @@ def _scan_nuisance(fit, kind, variations, *, axis_unit, axis_label):
             results[direction]["mass"] = _impact(l_mass)
             results[direction]["width"] = _impact(l_width)
 
-        # Baseline single-point reference (uncorr at card default, corr at 1e-6)
         base_mass, base_width = [], []
         for v in (0, baseline_uncorr):
             v = max(v, 1e-6)
@@ -350,11 +349,7 @@ def scan_alphas(fit, *, hi=3e-4, step=1e-5):
 
 
 def scan_yukawa_constraint(fit, *, hi=0.05, step=0.001):
-    """``doYukawaScan`` — sweep the Yukawa prior width.
-
-    Force-enables the Yukawa constraint for the scan duration so the
-    sweep is meaningful even when the caller invoked the fit with
-    ``--fitYukawa`` (which gates it off in the chi² loop)."""
+    """``doYukawaScan`` — sweep the Yukawa prior width."""
     saved_constrain = fit.constrain_yukawa
     try:
         fit.constrain_yukawa = True
