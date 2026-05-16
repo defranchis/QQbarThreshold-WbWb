@@ -101,58 +101,60 @@ def scan_beam_resolution(fit, *, lo=0.0, hi=0.5, step=0.01):
 
 
 # ---------------------------------------------------------------------------
-# Nuisance-prior scans (BEC / BES)
+# Nuisance-prior scans (binned: BEC / BES)
 # ---------------------------------------------------------------------------
-def _scan_nuisance(fit, kind, variations, *, axis_unit, axis_label, baseline_uncorr):
-    """Generic per-correlation BEC / BES sweep."""
-    setter = {"BEC": "set_bec_priors", "BES": "set_bes_priors"}[kind]
-    flag_attr = {"BEC": "bec_nuisances", "BES": "bes_nuisances"}[kind]
-    kw_uncorr = "prior_uncorr" if kind == "BEC" else "uncert_uncorr"
-    kw_corr = "prior_corr" if kind == "BEC" else "uncert_corr"
+def _scan_nuisance(fit, kind, variations, *, axis_unit, axis_label):
+    """Generic binned-nuisance prior sweep.
+
+    For a binned nuisance ``kind`` in ``card.BINNED_NUISANCES`` (already
+    activated via ``add_binned_nuisance``), sweep its ``priors.uncorr``
+    and ``priors.corr`` in turn over ``variations`` (in physical units)
+    and plot the mass / width impact.
+
+    Mutates ``fit._nuisance_priors[kind]`` in place, runs a fresh local
+    Minuit (cold-start) per grid point on ``fit.chi2``, restores on exit.
+    """
+    if kind not in fit._active_binned_nuisances:
+        raise ValueError(
+            f"_scan_nuisance({kind!r}) needs the nuisance active — "
+            f"call fit.add_binned_nuisance({kind!r}) first."
+        )
+    baseline_uncorr = fit.card.BINNED_NUISANCES[kind]["priors"]["uncorr"]
+    saved_priors = dict(fit._nuisance_priors[kind])
+    start = np.zeros(len(fit.param_names))
+
+    def _fit(uncorr, corr):
+        fit.set_binned_nuisance_priors(kind, uncorr=uncorr, corr=corr)
+        m = _run_local_migrad(fit, start)
+        fr = fit.results_from_minuit(m)
+        return fr[fit._idx["mass"]].s, fr[fit._idx["width"]].s
 
     results = {"uncorr": {}, "corr": {}}
-    for direction in ("uncorr", "corr"):
-        l_mass, l_width = [], []
-        work = copy.deepcopy(fit)
-        if not getattr(fit, flag_attr):
-            if kind == "BEC":
-                work.add_bec_nuisances(prior_uncorr=1e-6, prior_corr=1e-6)
-            else:
-                work.add_bes_nuisances(uncert_uncorr=1e-6, uncert_corr=1e-6)
-        for v in variations:
-            if v < 1e-6:
-                v = 1e-6
-            v_uncorr = v if direction == "uncorr" else 1e-6
-            v_corr = v if direction == "corr" else 1e-6
-            getattr(work, setter)(**{kw_uncorr: v_uncorr, kw_corr: v_corr})
-            work.fit_parameters(init_minuit=True)
-            fr = work.fit_results(printout=False)
-            l_mass.append(fr[fit._idx["mass"]].s)
-            l_width.append(fr[fit._idx["width"]].s)
-        results[direction]["mass"] = _impact(l_mass)
-        results[direction]["width"] = _impact(l_width)
+    try:
+        for direction in ("uncorr", "corr"):
+            l_mass, l_width = [], []
+            for v in variations:
+                v = max(v, 1e-6)
+                v_uncorr = v if direction == "uncorr" else 1e-6
+                v_corr = v if direction == "corr" else 1e-6
+                mass_s, width_s = _fit(v_uncorr, v_corr)
+                l_mass.append(mass_s)
+                l_width.append(width_s)
+            results[direction]["mass"] = _impact(l_mass)
+            results[direction]["width"] = _impact(l_width)
 
-    # Baseline single-point reference
-    base = {}
-    work = copy.deepcopy(fit)
-    if not getattr(fit, flag_attr):
-        if kind == "BEC":
-            work.add_bec_nuisances(prior_uncorr=1e-6, prior_corr=1e-6)
-        else:
-            work.add_bes_nuisances(uncert_uncorr=1e-6, uncert_corr=1e-6)
-    base_mass, base_width = [], []
-    for v in (0, baseline_uncorr):
-        if v < 1e-6:
-            v = 1e-6
-        getattr(work, setter)(**{kw_uncorr: v, kw_corr: 1e-6})
-        work.fit_parameters(init_minuit=True)
-        fr = work.fit_results(printout=False)
-        base_mass.append(fr[fit._idx["mass"]].s)
-        base_width.append(fr[fit._idx["width"]].s)
-    base["mass"] = _impact(base_mass)
-    base["width"] = _impact(base_width)
+        # Baseline single-point reference (uncorr at card default, corr at 1e-6)
+        base_mass, base_width = [], []
+        for v in (0, baseline_uncorr):
+            v = max(v, 1e-6)
+            mass_s, width_s = _fit(v, 1e-6)
+            base_mass.append(mass_s)
+            base_width.append(width_s)
+        base_mass = _impact(base_mass)
+        base_width = _impact(base_width)
+    finally:
+        fit._nuisance_priors[kind] = saved_priors
 
-    # Plot ------------------------------------------------------------------
     x = variations * axis_unit
     plt.plot(x, results["uncorr"]["mass"] * 1e3, "b-",
              label=r"Impact on $m_t$ (uncorr.)", linewidth=2)
@@ -162,9 +164,9 @@ def _scan_nuisance(fit, kind, variations, *, axis_unit, axis_label, baseline_unc
              label=r"Impact on $m_t$ (corr.)", linewidth=2)
     plt.plot(x, results["corr"]["width"] * 1e3, "g--",
              label=r"Impact on $\Gamma_t$ (corr.)", linewidth=2)
-    plt.plot(baseline_uncorr * axis_unit, base["mass"][-1] * 1e3, "ro",
+    plt.plot(baseline_uncorr * axis_unit, base_mass[-1] * 1e3, "ro",
              label=r"Baseline $m_t$ (uncorr.)", markersize=8)
-    plt.plot(baseline_uncorr * axis_unit, base["width"][-1] * 1e3, "s", color="orange",
+    plt.plot(baseline_uncorr * axis_unit, base_width[-1] * 1e3, "s", color="orange",
              label=r"Baseline $\Gamma_t$ (uncorr.)", markersize=7)
 
     plt.legend(loc="upper left")
@@ -179,16 +181,14 @@ def scan_bec(fit, *, lo=0, hi=10, step=0.5):
     variations = np.arange(lo, hi + step / 2, step)
     _scan_nuisance(fit, "BEC", variations,
                    axis_unit=1.0,
-                   axis_label=r"Uncertainty in $\sqrt{s}$ [MeV]",
-                   baseline_uncorr=fit.card.PRIORS["BEC"]["uncorr"])
+                   axis_label=r"Uncertainty in $\sqrt{s}$ [MeV]")
 
 
 def scan_bes(fit, *, lo=0, hi=0.03, step=0.001):
     variations = np.arange(lo, hi + step / 2, step)
     _scan_nuisance(fit, "BES", variations,
                    axis_unit=100.0,
-                   axis_label="BES uncertainty [%]",
-                   baseline_uncorr=fit.card.PRIORS["BES"]["uncorr"])
+                   axis_label="BES uncertainty [%]")
 
 
 # ---------------------------------------------------------------------------

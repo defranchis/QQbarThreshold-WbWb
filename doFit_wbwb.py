@@ -100,9 +100,9 @@ def main():
         same_evts=args.sameNevts,
     )
 
-    if args.BECnuisances or args.systTable:
+    if args.BECnuisances or args.BECscans or args.systTable:
         fit.add_bec_nuisances()
-    if args.BESnuisances or args.systTable:
+    if args.BESnuisances or args.BESscans or args.systTable:
         fit.add_bes_nuisances()
     if args.addSw2:
         fit.add_sw2_nuisance()
