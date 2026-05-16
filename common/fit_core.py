@@ -200,23 +200,29 @@ class FitCore:
 
         # Priors -----------------------------------------------------------
         priors = card.PRIORS
-        self.input_uncert_yukawa = priors.get("yukawa", {}).get("default", _OFF)
-        self.input_uncert_alphas = priors.get("alphas", {}).get("default", _OFF)
         self.input_uncert_SM_width = priors.get("SM_width", {}).get("default", _OFF)
-        # Gaussian-constraint centres for the alphas (always on) and Yukawa
-        # (when constrain_yukawa=True) terms in ``chi2``. Default to the
-        # pseudodata "true" value (Asimov-self-consistent: constraint centred
-        # at the truth, no bias on the fit minimum). Override per-constraint
-        # via ``card.PRIORS["alphas"]["center"]`` / ``["yukawa"]["center"]``
-        # for SM-centred / bias / real-data analyses.
-        self.alphas_center = priors.get("alphas", {}).get(
-            "center", self.d_params[self.pseudodata_tag]["alphas"])
-        self.yukawa_center = priors.get("yukawa", {}).get(
-            "center", self.d_params[self.pseudodata_tag]["yukawa"])
         lumi = priors["lumi"]
         self.lumi_uncorr = lumi["uncorr"]
         self.lumi_corr = lumi["corr"]
         self.input_var = card.INPUT_VAR
+
+        # 1-D Gaussian-constraint registry, built from card.CONSTRAINTS.
+        # Each entry holds its current sigma (mutable for the syst-table
+        # flow via the legacy `input_uncert_X` property shims) and centre
+        # (resolved once from the pseudodata "true" value if the card
+        # doesn't specify one). Entries whose parameter is not part of
+        # this fit (e.g. yukawa for WW) are skipped. The yukawa entry is
+        # gated by ``self.constrain_yukawa`` in ``chi2`` until commit 7
+        # generalises CLI gating.
+        self._constraints = {}
+        for name, spec in card.CONSTRAINTS.items():
+            if name not in self.parameters.names:
+                continue
+            self._constraints[name] = {
+                "sigma":     spec["sigma"],
+                "center":    spec.get("center", self.d_params[self.pseudodata_tag][name]),
+                "always_on": spec["always_on"],
+            }
 
         # Nuisance toggles -------------------------------------------------
         self.bec_nuisances = False
@@ -297,6 +303,43 @@ class FitCore:
             else:
                 clone.__dict__[k] = copy.deepcopy(v, memo)
         return clone
+
+    # ------------------------------------------------------------------
+    # Compatibility shims for the legacy ``input_uncert_X`` / ``X_center``
+    # attribute names. They proxy to ``self._constraints[X]``. Used by
+    # ``scan_alphas`` / ``scan_yukawa_constraint`` / ``systematics._TURN_OFF`` /
+    # ``reinitialise_to_*`` until commits 3 and 7 rewrite those paths to
+    # use ``self._constraints`` directly.
+    # ------------------------------------------------------------------
+    @property
+    def input_uncert_alphas(self):
+        return self._constraints["alphas"]["sigma"]
+
+    @input_uncert_alphas.setter
+    def input_uncert_alphas(self, v):
+        self._constraints["alphas"]["sigma"] = v
+
+    @property
+    def input_uncert_yukawa(self):
+        if "yukawa" in self._constraints:
+            return self._constraints["yukawa"]["sigma"]
+        return _OFF
+
+    @input_uncert_yukawa.setter
+    def input_uncert_yukawa(self, v):
+        if "yukawa" in self._constraints:
+            self._constraints["yukawa"]["sigma"] = v
+        # silently dropped when yukawa is not a constraint (e.g. the WW card)
+
+    @property
+    def alphas_center(self):
+        return self._constraints["alphas"]["center"]
+
+    @property
+    def yukawa_center(self):
+        if "yukawa" in self._constraints:
+            return self._constraints["yukawa"]["center"]
+        return 0.0
 
     # ------------------------------------------------------------------
     # Hooks for subclasses
@@ -557,15 +600,17 @@ class FitCore:
         res = self.pseudo_data_scenario - th_xsec
         chi2_val = float(res @ cho_solve(self._cov_factor, res))
 
-        # alpha_s constraint (always on)
-        u_as = self.input_uncert_alphas / self.parameters.step("alphas")
-        chi2_val += ((params[self._idx["alphas"]]
-                      - self.param_from_value(self.alphas_center, "alphas")) / u_as) ** 2
-
-        if self.constrain_yukawa and "yukawa" in self._idx:
-            u_y = self.input_uncert_yukawa / self.parameters.step("yukawa")
-            chi2_val += ((params[self._idx["yukawa"]]
-                          - self.param_from_value(self.yukawa_center, "yukawa")) / u_y) ** 2
+        # 1-D Gaussian constraints (driven by card.CONSTRAINTS via
+        # self._constraints). The yukawa entry is gated by
+        # self.constrain_yukawa as long as the entry script wires
+        # --fitYukawa that way (transitional; commit 7 generalises CLI
+        # gating).
+        for name, c in self._constraints.items():
+            if not c["always_on"] and name == "yukawa" and not self.constrain_yukawa:
+                continue
+            sigma_fs = c["sigma"] / self.parameters.step(name)
+            chi2_val += ((params[self._idx[name]]
+                          - self.param_from_value(c["center"], name)) / sigma_fs) ** 2
 
         if self.bec_nuisances:
             chi2_val += self._nuisance_prior(params, "BEC")
@@ -824,9 +869,9 @@ class FitCore:
         self.lumi_uncorr = _OFF
 
     def reinitialise_to_nominal(self):
-        self.input_uncert_alphas = self.card.PRIORS["alphas"]["default"]
-        if "yukawa" in self.card.PRIORS:
-            self.input_uncert_yukawa = self.card.PRIORS["yukawa"]["default"]
+        self.input_uncert_alphas = self.card.CONSTRAINTS["alphas"]["sigma"]
+        if "yukawa" in self.card.CONSTRAINTS:
+            self.input_uncert_yukawa = self.card.CONSTRAINTS["yukawa"]["sigma"]
         if self.bec_nuisances:
             self.set_bec_priors(
                 prior_uncorr=self.card.PRIORS["BEC"]["uncorr"],
