@@ -558,13 +558,13 @@ class FitCore:
         corr_idx = self._idx[kind]
         return float(np.sum((bin_params / prior_u) ** 2) + (params[corr_idx] / prior_c) ** 2)
 
-    def init_minuit(self, exclude_stat=False):
-        self._build_cov(exclude_stat=exclude_stat)
+    def init_minuit(self):
+        self._build_cov()
         self._build_chi2_caches()
         self.minuit = iminuit.Minuit(self.chi2, np.zeros(len(self.param_names)), name=self.param_names)
         self.minuit.errordef = 1
 
-    def _build_cov(self, exclude_stat=False):
+    def _build_cov(self):
         """Rebuild ``cov`` / ``_cov_factor`` / ``lumi_uncorr_ecm`` from the
         current ``lumi_uncorr`` / ``lumi_corr`` / scenario state.
 
@@ -599,7 +599,7 @@ class FitCore:
 
         cov_lumi_uncorr = np.diag(self.pseudo_data_scenario * lumi_uncorr_ecm) ** 2
         cov_lumi_corr = np.outer(self.pseudo_data_scenario, self.pseudo_data_scenario) * self.lumi_corr ** 2
-        self.cov = cov_lumi_uncorr + cov_lumi_corr + (0 if exclude_stat else cov_stat)
+        self.cov = cov_lumi_uncorr + cov_lumi_corr + cov_stat
         # Pre-factor the (constant within migrad) covariance once; chi2 then
         # does a cheap triangular solve per call instead of a fresh LU.
         self._cov_factor = cho_factor(self.cov)
@@ -640,12 +640,12 @@ class FitCore:
         return [self.value_from_param(p, name)
                 for p, name in zip(resolved_params, self.param_names)]
 
-    def fit_parameters(self, exclude_stat=False, init_minuit=True):
+    def fit_parameters(self, init_minuit=True):
         if init_minuit:
-            self.init_minuit(exclude_stat=exclude_stat)
+            self.init_minuit()
         self.minuit.migrad()
 
-    def update(self, update_scenario=True, exclude_stat=False, init_vars=False,
+    def update(self, update_scenario=True, init_vars=False,
                pseudo_data=None, init_minuit=True):
         # init_minuit defaults to True because update() typically follows a
         # change to state that feeds the chi2 caches (smeared templates,
@@ -657,7 +657,7 @@ class FitCore:
         self._morph_cross_sections()
         if update_scenario:
             self.create_scenario(**self.scenario_dict, init_vars=init_vars, pseudodata=pseudo_data)
-        self.fit_parameters(exclude_stat=exclude_stat, init_minuit=init_minuit)
+        self.fit_parameters(init_minuit=init_minuit)
 
     # ------------------------------------------------------------------
     # Results
