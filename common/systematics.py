@@ -173,12 +173,10 @@ def print_syst_table(fit, *, latex_path="systematics_table.tex"):
     syst = {poi: {} for poi in fit.tracked_pois()}
 
     try:
+        breakdown = fit.stat_breakdown_default()
         for s in systematic_list(fit):
-            # Subtle: the parametric stat breakdown needs to know whether Yukawa
-            # is constrained, *not* whether we track it as a syst.
             if s == "stat":
-                estimate_systematic(fit, s, syst,
-                                    breakdown_parametric=not fit.constrain_yukawa)
+                estimate_systematic(fit, s, syst, breakdown_parametric=breakdown)
             else:
                 estimate_systematic(fit, s, syst)
     finally:

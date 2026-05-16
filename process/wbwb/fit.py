@@ -4,13 +4,63 @@ Adds the SM-width constraint hook used when ``--SMwidth`` is set: the top
 width is rewritten from the floating mass via the N3LO QCD relation, and
 the "theory" parameter is given a Gaussian prior centred at one with width
 ``input_uncert_SM_width`` (in MeV).
+
+Also owns the Yukawa-as-nuisance toggle (``constrain_yukawa`` kwarg +
+property): WbWb treats yukawa as either a free POI or a Gaussian-priored
+nuisance depending on whether the above-threshold ECM point is included
+(see ``_validate_scenario``). The mechanism is WbWb-specific — no other
+process in the framework has this dual-use top yukawa parameter.
 """
+
+import uncertainties as unc
 
 from common.fit_core import FitCore
 
 
 class WbWbFit(FitCore):
     """FitCore + the SM-width / Yukawa pieces that only make sense for top."""
+
+    def __init__(self, *args, constrain_yukawa=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "yukawa" in self._constraints:
+            self._constraints["yukawa"]["active"] = constrain_yukawa
+
+    @property
+    def constrain_yukawa(self):
+        return self._constraints["yukawa"]["active"]
+
+    @constrain_yukawa.setter
+    def constrain_yukawa(self, v):
+        self._constraints["yukawa"]["active"] = v
+
+    def _validate_scenario(self, add_last_ecm):
+        if self.constrain_yukawa and add_last_ecm:
+            raise ValueError(
+                "Yukawa constraint + last-ecm point unsupported; "
+                "pass constrain_yukawa=False (--fitYukawa) to float Yukawa, "
+                "or set add_last_ecm=False (drop --lastecm) to skip the above-threshold point."
+            )
+
+    def _print_param_extras(self, name, val):
+        if name == "width" and self.sm_width:
+            print("including theory uncertainty in SM relation")
+            print(f"fitted theory parameter = {self.minuit.values[name]:.2f} +/- "
+                  f"{self.minuit.errors[name]:.2f} (constrained to 1)")
+        if name == "yukawa" and self.constrain_yukawa:
+            print(f"constrained with uncertainty {self._constraints['yukawa']['sigma']:.3f}")
+
+    def _pull_for(self, name, val):
+        # Under SM_width the width fit parameter is a dimensionless theory
+        # knob constrained to 1, not the physical Γ_t — pull from the raw
+        # minuit value/error instead of value_from_param(val).
+        if name == "width" and self.sm_width:
+            return unc.ufloat(self.minuit.values[name], self.minuit.errors[name])
+        return super()._pull_for(name, val)
+
+    def stat_breakdown_default(self):
+        # Skip the per-POI stat breakdown when yukawa is held constrained;
+        # the breakdown is uninformative in that regime.
+        return not self.constrain_yukawa
 
     def physical_fit_params(self, params):
         """Resolve the SM-width relation when ``--SMwidth`` is active.

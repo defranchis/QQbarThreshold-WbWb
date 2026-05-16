@@ -49,7 +49,6 @@ def main():
         input_dir=args.inputDir,
         sm_width=False,
         asimov=not args.pseudo,
-        constrain_yukawa=False,
         read_scale_vars=args.scaleVars,
         mass_scheme=card.MASS_SCHEME,
         debug=args.debug,

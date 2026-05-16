@@ -153,7 +153,6 @@ class FitCore:
         input_dir=None,
         sm_width=False,
         asimov=True,
-        constrain_yukawa=False,
         read_scale_vars=False,
         mass_scheme=None,
         shift_scan=False,
@@ -170,7 +169,6 @@ class FitCore:
         self.asimov = asimov
         self.read_scale_vars = read_scale_vars
         self.sm_width = sm_width
-        _constrain_yukawa = constrain_yukawa
         # shift_scan moves the scan list off the original ECM grid, so the
         # BEC/BES/sw2 templates would need interpolation — skip them instead.
         self.shift_scan = shift_scan
@@ -227,21 +225,17 @@ class FitCore:
 
         # 1-D Gaussian-constraint registry. Centre defaults to the
         # pseudodata "true" value; override per-entry via
-        # ``SYSTEMATICS[name]["center"]``. The yukawa entry's active flag
-        # is gated by the WbWb-specific ``constrain_yukawa`` constructor
-        # kwarg (``--fitYukawa`` toggles it off, letting Yukawa float as
-        # a parameter of interest).
+        # ``SYSTEMATICS[name]["center"]``. Entries with ``always_on=False``
+        # start inactive — process subclasses (or entry scripts) flip
+        # ``_constraints[name]["active"]`` after construction.
         self._constraints = {}
         for name, spec in self._systematics_meta["constraint"].items():
             if name not in self.parameters.names:
                 continue
-            active = spec["always_on"]
-            if not active and name == "yukawa":
-                active = _constrain_yukawa
             self._constraints[name] = {
                 "sigma":  card.PRIORS[name],
                 "center": spec.get("center", self.d_params[self.pseudodata_tag][name]),
-                "active": active,
+                "active": spec["always_on"],
             }
 
         self._active_binned_nuisances = set()
@@ -266,7 +260,6 @@ class FitCore:
             print(f"Parameters: {self.param_names}")
             print(f"Beam energy resolution: {self.beam_energy_res}")
             print(f"Constrain width to SM value: {self.sm_width}")
-            print(f"Constrain Yukawa: {self.constrain_yukawa}")
             print(f"Asimov fit: {self.asimov}")
 
         self._read_cross_sections()
@@ -327,18 +320,6 @@ class FitCore:
                 clone.__dict__[k] = copy.deepcopy(v, memo)
         return clone
 
-    # WbWb-specific Yukawa-as-nuisance toggle (proxy for chi2 active flag).
-    # Getter reads False on cards with no yukawa constraint (WW) so
-    # common/ readers can treat "no yukawa" as "not constrained" without
-    # checking the card type. Setter raises in that case — assigning to a
-    # non-existent toggle is a real bug at the call site.
-    @property
-    def constrain_yukawa(self):
-        return self._constraints.get("yukawa", {}).get("active", False)
-    @constrain_yukawa.setter
-    def constrain_yukawa(self, v):
-        self._constraints["yukawa"]["active"] = v
-
     def tracked_pois(self):
         """POIs from ``card.POI_DISPLAY`` that are free in this fit. Skips
         entries currently held as a constrained nuisance (e.g. yukawa
@@ -370,6 +351,34 @@ class FitCore:
         Default: no relations to resolve, no extra prior.
         """
         return params, 0.0
+
+    def _validate_scenario(self, add_last_ecm):
+        """Hook: process subclasses can reject scenario combinations that
+        don't make physical sense (e.g. WbWb raises when the Yukawa
+        constraint is on AND ``add_last_ecm`` is set). Default: accept."""
+        pass
+
+    def _print_param_extras(self, name, val):
+        """Hook: process subclasses print extra annotation lines after the
+        ``Fitted {name}`` line. Default: no extras."""
+        pass
+
+    def _pull_for(self, name, val):
+        """Pull value to compare with its hesse uncertainty. Default
+        formula is ``val - pseudodata`` for free POIs and the raw
+        parameter value for nuisances. Subclasses can override for
+        parameters whose pull semantics differ (e.g. WbWb's SM-width
+        theory knob, constrained to 1 by convention)."""
+        if name in self._systematics_meta["global"] or self._is_bin_nuisance(name):
+            return val
+        return val - self.d_params[self.pseudodata_tag][name]
+
+    def stat_breakdown_default(self):
+        """Whether ``print_syst_table`` should compute the per-POI stat
+        breakdown. Default: ``True`` (do the breakdown). Subclasses can
+        override — WbWb returns False when yukawa is constrained, since
+        the per-POI breakdown is mostly noise in that regime."""
+        return True
 
     # ------------------------------------------------------------------
     # File I/O & templates
@@ -528,12 +537,7 @@ class FitCore:
                          for e in np.arange(scan_min, scan_max + scan_step / 2, scan_step)]
         elif any(x is not None for x in (scan_min, scan_max, scan_step)):
             raise ValueError("init_scenario: pass scan_list= XOR scan_min=/scan_max=/scan_step=.")
-        if self.constrain_yukawa and add_last_ecm:
-            raise ValueError(
-                "Yukawa constraint + last-ecm point unsupported; "
-                "pass constrain_yukawa=False (--fitYukawa) to float Yukawa, "
-                "or set add_last_ecm=False (drop --lastecm) to skip the above-threshold point."
-            )
+        self._validate_scenario(add_last_ecm)
         self.scenario_dict = {
             "scan_list": scan_list,
             "total_lumi": total_lumi,
@@ -636,16 +640,13 @@ class FitCore:
         the linearity assumption is implicit; deviations from it would
         show up as a non-quadratic chi² far from the minimum.
 
-        The αₛ constraint (always on) and the Yukawa constraint (under
-        ``constrain_yukawa=True``) are Gaussian penalties centred at
-        ``self.alphas_center`` / ``self.yukawa_center``. By default these
-        are the pseudodata "true" values — Asimov-self-consistent (fit, data,
-        and constraint all sit at the pseudo point so no bias on the fit
-        minimum). Set ``card.SYSTEMATICS["alphas"]["center"]`` /
-        ``["yukawa"]["center"]`` to override (e.g. SM-centred = 0.1184 / 1.0
-        for real-data analysis or bias studies). Read the resulting Asimov
-        uncertainty as "achievable resolution with an external constraint
-        of that width centred at the chosen value".
+        Active 1-D Gaussian constraints (entries in ``self._constraints``
+        with ``active=True``) add ``((param - centre) / sigma)²`` penalty
+        terms. Centres default to the pseudodata "true" values —
+        Asimov-self-consistent (fit, data, and constraint all sit at the
+        pseudo point so no bias on the fit minimum). Set
+        ``card.SYSTEMATICS[name]["center"]`` to override (e.g. SM-centred
+        for real-data analysis or bias studies).
         """
         # physical_fit_params runs first because subclasses (e.g. WbWbFit
         # with SM_width) resolve cross-parameter relations on the dependent
@@ -833,19 +834,9 @@ class FitCore:
             else:
                 unit = " GeV" if name in ("mass", "width") else ""
                 print(f"Fitted {name}: {val:.3f}{unit}")
-                if name == "width" and self.sm_width:
-                    print("including theory uncertainty in SM relation")
-                    print(f"fitted theory parameter = {self.minuit.values[name]:.2f} +/- "
-                          f"{self.minuit.errors[name]:.2f} (constrained to 1)")
-                if name == "yukawa" and self.constrain_yukawa:
-                    print(f"constrained with uncertainty {self._constraints['yukawa']['sigma']:.3f}")
+                self._print_param_extras(name, val)
 
-            if name == "width" and self.sm_width:
-                pull = unc.ufloat(self.minuit.values[name], self.minuit.errors[name])
-            elif name in self._systematics_meta["global"] or self._is_bin_nuisance(name):
-                pull = val
-            else:
-                pull = val - self.d_params[self.pseudodata_tag][name]
+            pull = self._pull_for(name, val)
             print(f"Pull {name}: {pull.n / pull.s:.3f}")
             if name == "mass":
                 print(f"uncertainty in mass: {val.s * 1e3:.2f} MeV")
