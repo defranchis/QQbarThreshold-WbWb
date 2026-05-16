@@ -103,22 +103,23 @@ INPUT_VAR = {
 # Priors / systematics schema
 # ---------------------------------------------------------------------------
 # All prior magnitudes that FitCore consumes are collected in PRIORS for
-# quick review. The structured sections below (CONSTRAINTS,
-# BINNED_NUISANCES, GLOBAL_NUISANCES, LUMI_PRIORS, SM_WIDTH_UNCERT_MEV)
-# add the non-numeric metadata (always_on flag, source descriptor, etc.)
-# and reference PRIORS values — so the actual numbers live in exactly
-# one place.
+# quick review. SYSTEMATICS carries the non-numeric metadata (type +
+# source descriptor + always_on flag) keyed by the same names. The two
+# dicts are physically separate — numbers in one place, metadata in the
+# other — so drift is impossible by construction.
 #
 # Notes per entry:
-#   * "alphas", "yukawa": 1-D Gaussian-constraint sigma.
-#   * "BEC", "BES": per-ECM binned nuisance — `uncorr` prior constrains
-#     the per-bin parameters; `corr` constrains the fully-correlated
-#     parameter that perturbs every ECM identically.
-#   * "sw2": global (single-parameter) nuisance prior.
+#   * "alphas", "yukawa": 1-D Gaussian-constraint sigma — paired with a
+#     `type: constraint` entry in SYSTEMATICS.
+#   * "BEC", "BES": per-ECM binned nuisance — `uncorr` constrains the
+#     per-bin parameters; `corr` constrains the fully-correlated
+#     parameter perturbing every ECM. SYSTEMATICS gives `type: binned`.
+#   * "sw2": global (single-parameter) nuisance — `type: global`.
 #   * "lumi": fractional luminosity uncertainty (uncorr + corr) — feeds
-#     the cov matrix in FitCore._build_cov, not a chi² penalty term.
+#     the cov matrix in FitCore._build_cov, not a chi² penalty term, so
+#     no SYSTEMATICS entry.
 #   * "SM_width": WbWb-specific theory band on Γ_SM (MeV), used by
-#     WbWbFit.physical_fit_params under --SMwidth.
+#     WbWbFit.physical_fit_params under --SMwidth. No SYSTEMATICS entry.
 PRIORS = {
     "alphas":   1.0e-4,
     "yukawa":   0.03,
@@ -129,36 +130,29 @@ PRIORS = {
     "SM_width": 5.0,                                    # MeV, arXiv:2309.01937
 }
 
-# 1-D Gaussian penalty terms. ``always_on=True`` → applied
-# unconditionally. ``always_on=False`` → an entry-script flag decides
-# (today: --fitYukawa gates Yukawa). Optional per-entry ``center``
-# field defaults to the pseudodata "true" value.
-CONSTRAINTS = {
-    "alphas": {"sigma": PRIORS["alphas"], "always_on": True},
-    "yukawa": {"sigma": PRIORS["yukawa"], "always_on": False},
+# Per-systematic metadata, keyed by the same names as PRIORS.
+#   * type=constraint: 1-D Gaussian penalty on a single fit parameter.
+#     always_on=True → applied unconditionally; always_on=False → an
+#     entry-script flag decides (today: --fitYukawa gates Yukawa).
+#     Optional `center` field defaults to the pseudodata "true" value.
+#   * type=binned: per-ECM nuisance; expands into N+1 fit parameters
+#     (N per-ECM-bin + 1 fully-correlated).
+#   * type=global: single fit parameter perturbing all ECMs identically.
+# `source["kind"]` dispatches in FitCore._morph_one:
+#   * template_dir: load pre-computed variation templates from a dir.
+#     BEC sets var_subdir + snap_to_grid for the C++-side quirks.
+#   * smear_shift: re-smear the nominal with bes*(1 + INPUT_VAR[kind]).
+SYSTEMATICS = {
+    "alphas": {"type": "constraint", "always_on": True},
+    "yukawa": {"type": "constraint", "always_on": False},
+    "BEC":    {"type": "binned",
+               "source": {"kind": "template_dir", "path": "BEC_variations",
+                          "var_subdir": True, "snap_to_grid": True}},
+    "BES":    {"type": "binned",
+               "source": {"kind": "smear_shift"}},
+    "sw2":    {"type": "global",
+               "source": {"kind": "template_dir", "path": "output_sw2"}},
 }
-
-# Per-ECM binned nuisances. ``source["kind"]`` dispatches in
-# FitCore._morph_one: ``template_dir`` loads pre-computed variations
-# from a directory; ``smear_shift`` re-smears the nominal with
-# bes*(1 + INPUT_VAR[kind]). BEC's two quirks (``var_subdir``,
-# ``snap_to_grid``) are encoded in the source descriptor.
-BINNED_NUISANCES = {
-    "BEC": {"source": {"kind": "template_dir", "path": "BEC_variations",
-                       "var_subdir": True, "snap_to_grid": True},
-            "priors": PRIORS["BEC"]},
-    "BES": {"source": {"kind": "smear_shift"},
-            "priors": PRIORS["BES"]},
-}
-
-# Single-parameter (global, non-binned) nuisances.
-GLOBAL_NUISANCES = {
-    "sw2": {"source": {"kind": "template_dir", "path": "output_sw2"},
-            "prior": PRIORS["sw2"]},
-}
-
-LUMI_PRIORS = PRIORS["lumi"]
-SM_WIDTH_UNCERT_MEV = PRIORS["SM_width"]
 
 # Canonical row order in the systematics table — looked up by
 # ``systematics.systematic_list`` to keep the printed / LaTeX-written

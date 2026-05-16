@@ -75,24 +75,16 @@ PRIORS = {
     # TODO: sin2thetaW / alphaEM once their priors are pinned down.
 }
 
-CONSTRAINTS = {
-    "alphas": {"sigma": PRIORS["alphas"], "always_on": True},
+SYSTEMATICS = {
+    "alphas": {"type": "constraint", "always_on": True},
+    "BEC":    {"type": "binned",
+               "source": {"kind": "template_dir", "path": "BEC_variations",
+                          "var_subdir": True, "snap_to_grid": True}},
+    "BES":    {"type": "binned",
+               "source": {"kind": "smear_shift"}},
+    "sw2":    {"type": "global",
+               "source": {"kind": "template_dir", "path": "output_sw2"}},
 }
-
-BINNED_NUISANCES = {
-    "BEC": {"source": {"kind": "template_dir", "path": "BEC_variations",
-                       "var_subdir": True, "snap_to_grid": True},
-            "priors": PRIORS["BEC"]},
-    "BES": {"source": {"kind": "smear_shift"},
-            "priors": PRIORS["BES"]},
-}
-
-GLOBAL_NUISANCES = {
-    "sw2": {"source": {"kind": "template_dir", "path": "output_sw2"},
-            "prior": PRIORS["sw2"]},
-}
-
-LUMI_PRIORS = PRIORS["lumi"]
 
 # Canonical row order in the systematics table (see cards/wbwb_default.py
 # for the convention). No yukawa rows for WW; future WW-specific

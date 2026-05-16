@@ -106,10 +106,11 @@ def scan_beam_resolution(fit, *, lo=0.0, hi=0.5, step=0.01):
 def _scan_nuisance(fit, kind, variations, *, axis_unit, axis_label):
     """Generic binned-nuisance prior sweep.
 
-    For a binned nuisance ``kind`` in ``card.BINNED_NUISANCES`` (already
-    activated via ``add_binned_nuisance``), sweep its ``priors.uncorr``
-    and ``priors.corr`` in turn over ``variations`` (in physical units)
-    and plot the mass / width impact.
+    For a binned nuisance ``kind`` (registered in ``card.SYSTEMATICS``
+    with ``type=binned`` and already activated via ``add_binned_nuisance``),
+    sweep its ``PRIORS[kind]["uncorr"]`` and ``PRIORS[kind]["corr"]`` in
+    turn over ``variations`` (in physical units) and plot the mass / width
+    impact.
 
     Mutates ``fit._nuisance_priors[kind]`` in place, runs a fresh local
     Minuit (cold-start) per grid point on ``fit.chi2``, restores on exit.
@@ -119,7 +120,7 @@ def _scan_nuisance(fit, kind, variations, *, axis_unit, axis_label):
             f"_scan_nuisance({kind!r}) needs the nuisance active — "
             f"call fit.add_binned_nuisance({kind!r}) first."
         )
-    baseline_uncorr = fit.card.BINNED_NUISANCES[kind]["priors"]["uncorr"]
+    baseline_uncorr = fit.card.PRIORS[kind]["uncorr"]
     saved_priors = dict(fit._nuisance_priors[kind])
     start = np.zeros(len(fit.param_names))
 
@@ -202,7 +203,7 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
     the scan. Mutate the lumi attrs + cov caches on ``fit``, run a fresh
     local Minuit per grid point on ``fit.chi2``, restore on exit.
     """
-    base = fit.card.LUMI_PRIORS["uncorr"]
+    base = fit.card.PRIORS["lumi"]["uncorr"]
     l_lumi = np.linspace(lo, hi, points) * base
     # Cold-start every grid-point migrad (start=zeros) — hesse cov depends
     # on the start vector and warm-starting gives ~1e-4 different

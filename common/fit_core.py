@@ -69,48 +69,23 @@ _PRIOR_FLOOR = 1.0e-6
 _OFF = 1.0e-10
 
 
-def _assert_card_priors_consistent(card):
-    """Verify the structured sections (CONSTRAINTS / BINNED_NUISANCES /
-    GLOBAL_NUISANCES / LUMI_PRIORS / SM_WIDTH_UNCERT_MEV) reference the
-    same prior magnitudes as ``card.PRIORS``. Catches the editing-mistake
-    failure mode where someone updates a value in one place and forgets
-    the other; loads cleanly when the structured sections were built by
-    referencing PRIORS directly (the documented pattern).
+_KNOWN_SYST_TYPES = {"constraint", "binned", "global"}
 
-    Scalars are compared by value (``==``); per-kind nested dicts must be
-    the *same Python object* (``is``) so mutations via either accessor
-    propagate to both.
-    """
-    P = card.PRIORS
-    for name, c in card.CONSTRAINTS.items():
-        if c["sigma"] != P[name]:
+
+def _split_systematics_by_type(card):
+    """Group ``card.SYSTEMATICS`` entries by their ``type`` so FitCore can
+    iterate "all binned nuisances" / "all constraints" without re-filtering
+    on every call. Raises on unknown types so a typo doesn't silently
+    disappear from the chi²."""
+    out = {t: {} for t in _KNOWN_SYST_TYPES}
+    for name, spec in card.SYSTEMATICS.items():
+        t = spec["type"]
+        if t not in _KNOWN_SYST_TYPES:
             raise ValueError(
-                f"Card inconsistency: CONSTRAINTS[{name!r}]['sigma']={c['sigma']!r} "
-                f"differs from PRIORS[{name!r}]={P[name]!r}."
+                f"Unknown SYSTEMATICS type {t!r} for {name!r} (allowed: {sorted(_KNOWN_SYST_TYPES)})."
             )
-    for kind, spec in card.BINNED_NUISANCES.items():
-        if spec["priors"] is not P[kind]:
-            raise ValueError(
-                f"Card inconsistency: BINNED_NUISANCES[{kind!r}]['priors'] is not "
-                f"the same dict object as PRIORS[{kind!r}] — reference it directly."
-            )
-    for kind, spec in card.GLOBAL_NUISANCES.items():
-        if spec["prior"] != P[kind]:
-            raise ValueError(
-                f"Card inconsistency: GLOBAL_NUISANCES[{kind!r}]['prior']={spec['prior']!r} "
-                f"differs from PRIORS[{kind!r}]={P[kind]!r}."
-            )
-    if card.LUMI_PRIORS is not P["lumi"]:
-        raise ValueError(
-            "Card inconsistency: LUMI_PRIORS is not the same dict object as "
-            "PRIORS['lumi'] — reference it directly."
-        )
-    sm = getattr(card, "SM_WIDTH_UNCERT_MEV", None)
-    if sm is not None and sm != P.get("SM_width"):
-        raise ValueError(
-            f"Card inconsistency: SM_WIDTH_UNCERT_MEV={sm!r} differs from "
-            f"PRIORS.get('SM_width')={P.get('SM_width')!r}."
-        )
+        out[t][name] = spec
+    return out
 
 
 def _warn_if_invalid(minuit):
@@ -186,7 +161,10 @@ class FitCore:
         debug=False,
     ):
         self.card = card
-        _assert_card_priors_consistent(card)
+        # Group SYSTEMATICS by type once; downstream code reads
+        # self._systematics_meta["binned" / "global" / "constraint"]
+        # instead of separate top-level card dicts.
+        self._systematics_meta = _split_systematics_by_type(card)
         self.generator = generator
         self.debug = debug
         self.asimov = asimov
@@ -250,34 +228,30 @@ class FitCore:
         # WbWb-specific theory-uncertainty band on the SM Γ_t prediction
         # (MeV); read by WbWbFit.physical_fit_params under SM_width=True.
         # WW card lacks it, fall back to _OFF.
-        self.input_uncert_SM_width = getattr(card, "SM_WIDTH_UNCERT_MEV", _OFF)
-        self.lumi_uncorr = card.LUMI_PRIORS["uncorr"]
-        self.lumi_corr = card.LUMI_PRIORS["corr"]
+        self.input_uncert_SM_width = card.PRIORS.get("SM_width", _OFF)
+        self.lumi_uncorr = card.PRIORS["lumi"]["uncorr"]
+        self.lumi_corr = card.PRIORS["lumi"]["corr"]
         self.input_var = card.INPUT_VAR
 
-        # 1-D Gaussian-constraint registry, built from card.CONSTRAINTS.
-        # Each entry holds its current sigma (mutable for the syst-table
-        # flow via the legacy `input_uncert_X` property shims), centre
-        # (resolved once from the pseudodata "true" value if the card
-        # doesn't specify one), and an `active` flag — chi2 skips
-        # inactive entries (no special-case in the hot path). Entries
-        # whose parameter is not part of this fit (e.g. yukawa for WW)
-        # are skipped here.
-        #
-        # ``always_on=True`` in the card means active unconditionally.
-        # The only ``always_on=False`` entry today is yukawa, gated by
-        # the WbWb-specific ``constrain_yukawa`` constructor flag
-        # (``--fitYukawa`` toggles it off — letting Yukawa float as a
-        # parameter of interest instead of a constrained nuisance).
+        # 1-D Gaussian-constraint registry. One entry per
+        # ``SYSTEMATICS[type=constraint]`` whose parameter is part of
+        # this fit. Sigma comes from ``card.PRIORS[name]``; centre
+        # defaults to the pseudodata "true" value (override per-entry
+        # via ``SYSTEMATICS[name]["center"]``). The ``active`` flag is
+        # set here (no special-case in the chi2 hot path): always_on=True
+        # → always active; always_on=False → today the only such entry
+        # is yukawa, gated by the WbWb-specific ``constrain_yukawa``
+        # constructor flag (``--fitYukawa`` toggles it off, letting
+        # Yukawa float as a parameter of interest).
         self._constraints = {}
-        for name, spec in card.CONSTRAINTS.items():
+        for name, spec in self._systematics_meta["constraint"].items():
             if name not in self.parameters.names:
                 continue
             active = spec["always_on"]
             if not active and name == "yukawa":
                 active = _constrain_yukawa
             self._constraints[name] = {
-                "sigma":  spec["sigma"],
+                "sigma":  card.PRIORS[name],
                 "center": spec.get("center", self.d_params[self.pseudodata_tag][name]),
                 "active": active,
             }
@@ -325,10 +299,10 @@ class FitCore:
     def _read_aux_templates(self):
         """Pre-load raw nuisance template DataFrames once.
 
-        Iterates ``card.BINNED_NUISANCES`` + ``card.GLOBAL_NUISANCES`` and
-        loads the entries whose ``source["kind"]`` is ``"template_dir"``.
-        Cached so ``update()`` (called e.g. by scan_beam_resolution) doesn't
-        re-read the filesystem; the on-disk content never changes.
+        Iterates the binned + global SYSTEMATICS specs and loads the ones
+        whose ``source["kind"]`` is ``"template_dir"``. Cached so
+        ``update()`` (called e.g. by scan_beam_resolution) doesn't re-read
+        the filesystem; the on-disk content never changes.
 
         BEC-style sources may set:
         * ``var_subdir=True`` — the actual templates live in a subdir
@@ -344,8 +318,9 @@ class FitCore:
         self._nuisance_morph_raw = {}
         if self.read_scale_vars or self.mass_scheme == "1S" or self.shift_scan:
             return
-        for kind, spec in {**self.card.BINNED_NUISANCES,
-                           **self.card.GLOBAL_NUISANCES}.items():
+        nuisance_specs = {**self._systematics_meta["binned"],
+                          **self._systematics_meta["global"]}
+        for kind, spec in nuisance_specs.items():
             source = spec["source"]
             if source["kind"] != "template_dir":
                 continue
@@ -478,7 +453,7 @@ class FitCore:
         Dispatches on the parameter kind:
         * parameter-of-interest (mass / width / yukawa / ...): variation
           template lives in ``xsec_dict_smeared[f"{param}_var"]``;
-        * nuisance kind (``card.BINNED_NUISANCES`` or ``GLOBAL_NUISANCES``):
+        * nuisance kind (binned or global, found via ``SYSTEMATICS``):
           variation computed from ``source["kind"]`` — ``template_dir``
           loads a pre-cached smeared variation, ``smear_shift`` re-smears
           the nominal with a shifted beam-energy resolution.
@@ -490,8 +465,8 @@ class FitCore:
         if param in self.parameters.names:
             xsec_var = self.template(f"{param}_var")
         else:
-            spec = (self.card.BINNED_NUISANCES.get(param) or
-                    self.card.GLOBAL_NUISANCES.get(param))
+            spec = (self._systematics_meta["binned"].get(param) or
+                    self._systematics_meta["global"].get(param))
             if spec is None:
                 raise ValueError(f"Unknown morph parameter: {param!r}")
             source = spec["source"]
@@ -503,7 +478,7 @@ class FitCore:
                                       bes=self.beam_energy_res * (1 + self.input_var[param]))
             else:
                 raise ValueError(f"Unknown nuisance source kind: {kind!r}")
-            if param in self.card.GLOBAL_NUISANCES:
+            if param in self._systematics_meta["global"]:
                 self.xsec_dict_smeared[f"{param}_var"] = xsec_var
         return pd.DataFrame({"ecm": xsec_nom["ecm"],
                              "xsec": xsec_var["xsec"] / xsec_nom["xsec"] - 1})
@@ -511,7 +486,7 @@ class FitCore:
     def _morph_cross_sections(self):
         self.morph_dict = {p: self._morph_one(p) for p in self.param_names}
         if not self.read_scale_vars and self.mass_scheme != "1S" and not self.shift_scan:
-            for kind in (*self.card.BINNED_NUISANCES, *self.card.GLOBAL_NUISANCES):
+            for kind in (*self._systematics_meta["binned"], *self._systematics_meta["global"]):
                 self.morph_dict[kind] = self._morph_one(kind)
 
     @staticmethod
@@ -636,7 +611,7 @@ class FitCore:
                     self.pseudo_data_scenario, self.unc_pseudodata_scenario)
 
         self.morph_scenario = {p: self.slice_to_scenario(self.morph_dict[p]) for p in self.param_names}
-        for kind in (*self.card.BINNED_NUISANCES, *self.card.GLOBAL_NUISANCES):
+        for kind in (*self._systematics_meta["binned"], *self._systematics_meta["global"]):
             if kind in self.morph_dict:
                 self.morph_scenario[kind] = self.slice_to_scenario(self.morph_dict[kind])
 
@@ -677,7 +652,7 @@ class FitCore:
         ``self.alphas_center`` / ``self.yukawa_center``. By default these
         are the pseudodata "true" values — Asimov-self-consistent (fit, data,
         and constraint all sit at the pseudo point so no bias on the fit
-        minimum). Set ``card.CONSTRAINTS["alphas"]["center"]`` /
+        minimum). Set ``card.SYSTEMATICS["alphas"]["center"]`` /
         ``["yukawa"]["center"]`` to override (e.g. SM-centred = 0.1184 / 1.0
         for real-data analysis or bias studies). Read the resulting Asimov
         uncertainty as "achievable resolution with an external constraint
@@ -694,7 +669,7 @@ class FitCore:
         res = self.pseudo_data_scenario - th_xsec
         chi2_val = float(res @ cho_solve(self._cov_factor, res))
 
-        # 1-D Gaussian constraints (driven by card.CONSTRAINTS via
+        # 1-D Gaussian constraints (driven by card.SYSTEMATICS via
         # self._constraints). The ``active`` flag is set at __init__
         # time so the hot path is name-agnostic.
         for name, c in self._constraints.items():
@@ -893,17 +868,18 @@ class FitCore:
         self.last_fit_results = params_w_cov
 
     # ------------------------------------------------------------------
-    # Nuisance management — data-driven via card.BINNED_NUISANCES /
-    # card.GLOBAL_NUISANCES. Entry scripts call
+    # Nuisance management — data-driven via card.SYSTEMATICS (binned /
+    # global entries) + card.PRIORS. Entry scripts call
     # add_binned_nuisance("BEC") / add_global_nuisance("sw2") / etc.
     # ------------------------------------------------------------------
     def add_binned_nuisance(self, kind, *, prior_uncorr=None, prior_corr=None):
         """Activate the binned nuisance ``kind`` (must appear in
-        ``card.BINNED_NUISANCES``): adds N + 1 fit parameters
-        (``{kind}_bin0`` … ``{kind}_binN`` plus the correlated ``{kind}``)
-        and sets its Gaussian priors. Priors default to the card values."""
+        ``card.SYSTEMATICS`` with ``type=binned``): adds N + 1 fit
+        parameters (``{kind}_bin0`` … ``{kind}_binN`` plus the correlated
+        ``{kind}``) and sets its Gaussian priors. Priors default to
+        ``card.PRIORS[kind]``."""
         self._active_binned_nuisances.add(kind)
-        card_priors = self.card.BINNED_NUISANCES[kind]["priors"]
+        card_priors = self.card.PRIORS[kind]
         if prior_uncorr is None:
             prior_uncorr = card_priors["uncorr"]
         if prior_corr is None:
@@ -919,12 +895,12 @@ class FitCore:
 
     def add_global_nuisance(self, kind, *, prior=None):
         """Activate the global (non-binned) nuisance ``kind`` (must appear
-        in ``card.GLOBAL_NUISANCES``): adds a single fit parameter named
-        ``kind`` and sets its Gaussian prior. Prior defaults to the card
-        value."""
+        in ``card.SYSTEMATICS`` with ``type=global``): adds a single fit
+        parameter named ``kind`` and sets its Gaussian prior. Prior
+        defaults to ``card.PRIORS[kind]``."""
         self._active_global_nuisances.add(kind)
         if prior is None:
-            prior = self.card.GLOBAL_NUISANCES[kind]["prior"]
+            prior = self.card.PRIORS[kind]
         self.set_global_nuisance_prior(kind, prior=prior)
         self.param_names.append(kind)
 
@@ -959,11 +935,11 @@ class FitCore:
 
     def reinitialise_to_nominal(self):
         for name, c in self._constraints.items():
-            c["sigma"] = self.card.CONSTRAINTS[name]["sigma"]
+            c["sigma"] = self.card.PRIORS[name]
         for kind in self._active_binned_nuisances:
-            card_priors = self.card.BINNED_NUISANCES[kind]["priors"]
+            card_priors = self.card.PRIORS[kind]
             self.set_binned_nuisance_priors(kind, uncorr=card_priors["uncorr"], corr=card_priors["corr"])
         for kind in self._active_global_nuisances:
-            self.set_global_nuisance_prior(kind, prior=self.card.GLOBAL_NUISANCES[kind]["prior"])
-        self.lumi_corr = self.card.LUMI_PRIORS["corr"]
-        self.lumi_uncorr = self.card.LUMI_PRIORS["uncorr"]
+            self.set_global_nuisance_prior(kind, prior=self.card.PRIORS[kind])
+        self.lumi_corr = self.card.PRIORS["lumi"]["corr"]
+        self.lumi_uncorr = self.card.PRIORS["lumi"]["uncorr"]
