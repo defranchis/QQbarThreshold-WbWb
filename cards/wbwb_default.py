@@ -148,7 +148,23 @@ SYSTEMATICS = {
 SYST_TABLE_ORDER = ["alphas", "yukawa", "sw2", "BES", "BEC", "lumi"]
 
 # ---------------------------------------------------------------------------
+# Parameters of interest displayed by the syst-table machinery.
+# ---------------------------------------------------------------------------
+# Each entry: ``scale`` rescales the raw uncertainty into ``unit``;
+# ``relative=True`` additionally divides by the fitted central value
+# (used for fractional uncertainties like Yukawa %). Iteration order
+# fixes column order. Constraint-active POIs (e.g. yukawa with
+# --fitYukawa not set) are filtered out at runtime — they are nuisances,
+# not POIs to track.
+POI_DISPLAY = {
+    "mass":   {"unit": "MeV", "scale": 1000},
+    "width":  {"unit": "MeV", "scale": 1000},
+    "yukawa": {"unit": "%",   "scale": 100, "relative": True},
+}
+
+# ---------------------------------------------------------------------------
 # Theory-uncertainty quotes for the systematic-table row "theory"
+# (in the same display units as ``POI_DISPLAY``).
 # ---------------------------------------------------------------------------
 THEORY_UNC = {
     "mass":   35.0,   # MeV

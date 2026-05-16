@@ -6,7 +6,9 @@ of that systematic in quadrature against the total uncertainty.
 
 The hardcoded ``syst_list`` of the original has been replaced by
 :func:`systematic_list`, which derives the list from the fit state (which
-nuisances were actually added).
+nuisances were actually added). The set of POIs whose impact is tracked
+is read from ``card.POI_DISPLAY`` — adding a new POI is a card-only
+edit.
 """
 
 import os
@@ -52,6 +54,16 @@ def systematic_list(fit):
     return ["total", "stat", *ordered, *extras]
 
 
+def _tracked_pois(fit):
+    """POIs declared in ``card.POI_DISPLAY`` that are free in this fit.
+    A POI listed in ``_constraints`` with ``active=True`` is treated as a
+    constrained nuisance and skipped — its central is the constraint
+    centre, not a fit result of interest."""
+    return [poi for poi in fit.card.POI_DISPLAY
+            if poi in fit.param_names
+            and not (poi in fit._constraints and fit._constraints[poi]["active"])]
+
+
 # ---------------------------------------------------------------------------
 # Per-syst evaluation
 # ---------------------------------------------------------------------------
@@ -83,44 +95,42 @@ def _turn_off(fit, name):
     raise ValueError(f"Unknown systematic: {name}")
 
 
-def _capture(fit, syst_mass, syst_width, syst_yukawa, name):
+def _capture(fit, syst, name):
+    """Record this iteration's per-POI uncertainty into ``syst[poi][name]``.
+
+    Stored values are in display units (raw uncert * POI_DISPLAY[poi].scale);
+    the optional ``relative`` divide-by-central is applied at print time.
+    Quadrature subtraction works on these because (c·a)² − (c·b)² = c²(a²−b²).
+    """
     res = fit.fit_results(printout=False)
-    syst_mass[name] = res[fit._idx["mass"]].s * 1000
-    syst_width[name] = res[fit._idx["width"]].s * 1000
-    if syst_yukawa is not None:
-        syst_yukawa[name] = res[fit._idx["yukawa"]].s * 100
+    for poi in syst:
+        scale = fit.card.POI_DISPLAY[poi]["scale"]
+        syst[poi][name] = res[fit._idx[poi]].s * scale
 
 
-def _subtract_from_total(d, name):
+def _subtract_from_total(syst, name):
     if name in ("stat", "total"):
         return
-    d[name] = float(quadrature_subtract(d["total"], d[name]))
+    for poi in syst:
+        syst[poi][name] = float(quadrature_subtract(syst[poi]["total"], syst[poi][name]))
 
 
-def _estimate_stat(fit, syst_mass, syst_width, syst_yukawa, breakdown_parametric):
+def _estimate_stat(fit, syst, breakdown_parametric):
     fit.reinitialise_to_stat()
     if not breakdown_parametric:
         fit.fit_parameters()
-        _capture(fit, syst_mass, syst_width, syst_yukawa, "stat")
+        _capture(fit, syst, "stat")
         fit.reinitialise_to_nominal()
         return
 
-    free_params = ["mass", "width"]
-    if syst_yukawa is not None:
-        free_params.append("yukawa")
-
+    free_params = list(syst.keys())
     stat_dict = {}
     for p in free_params:
         fit.minuit.fixed = [True] * len(fit.param_names)
         fit.minuit.fixed[fit._idx[p]] = False
         fit.fit_parameters(init_minuit=False)
         stat = fit.fit_results(printout=False)[fit._idx[p]].s
-        if p == "mass":
-            syst_mass["stat"] = stat * 1000
-        elif p == "width":
-            syst_width["stat"] = stat * 1000
-        else:
-            syst_yukawa["stat"] = stat * 100
+        syst[p]["stat"] = stat * fit.card.POI_DISPLAY[p]["scale"]
         stat_dict[p] = stat
 
     fit.reinitialise_to_nominal()
@@ -132,37 +142,29 @@ def _estimate_stat(fit, syst_mass, syst_width, syst_yukawa, breakdown_parametric
         for other in free_params:
             if other == p:
                 continue
-            unc = res[fit._idx[other]].s * (1000 if other != "yukawa" else 100)
-            tgt = {"mass": syst_mass, "width": syst_width, "yukawa": syst_yukawa}[other]
-            stat_dict[f"{other}_{p}"] = float(quadrature_subtract(tgt["total"], unc))
+            unc = res[fit._idx[other]].s * fit.card.POI_DISPLAY[other]["scale"]
+            stat_dict[f"{other}_{p}"] = float(quadrature_subtract(syst[other]["total"], unc))
 
     for p in free_params:
-        nan = float("nan")
-        syst_mass[p] = stat_dict[f"mass_{p}"] if p != "mass" else nan
-        syst_width[p] = stat_dict[f"width_{p}"] if p != "width" else nan
-        if syst_yukawa is not None:
-            syst_yukawa[p] = stat_dict[f"yukawa_{p}"] if p != "yukawa" else nan
+        for poi in free_params:
+            syst[poi][p] = stat_dict[f"{poi}_{p}"] if p != poi else float("nan")
 
     fit.minuit.fixed = [False] * len(fit.param_names)
     fit.reinitialise_to_nominal()
 
 
-def estimate_systematic(fit, name, syst_mass, syst_width, syst_yukawa,
-                        breakdown_parametric=False):
+def estimate_systematic(fit, name, syst, breakdown_parametric=False):
     if name == "stat":
-        _estimate_stat(fit, syst_mass, syst_width, syst_yukawa, breakdown_parametric)
+        _estimate_stat(fit, syst, breakdown_parametric)
         return
     if name == "total":
         fit.fit_parameters()
-        _capture(fit, syst_mass, syst_width, syst_yukawa, "total")
+        _capture(fit, syst, "total")
         return
     _turn_off(fit, name)
     fit.fit_parameters()
-    _capture(fit, syst_mass, syst_width, syst_yukawa, name)
-    _subtract_from_total(syst_mass, name)
-    _subtract_from_total(syst_width, name)
-    if syst_yukawa is not None:
-        _subtract_from_total(syst_yukawa, name)
+    _capture(fit, syst, name)
+    _subtract_from_total(syst, name)
     fit.reinitialise_to_nominal()
 
 
@@ -171,25 +173,24 @@ def estimate_systematic(fit, name, syst_mass, syst_width, syst_yukawa,
 # ---------------------------------------------------------------------------
 def print_syst_table(fit, *, latex_path="systematics_table.tex"):
     """Iterate the configured systematics, capturing each one's quadrature
-    contribution to the total uncertainty.
+    contribution to the total uncertainty on each POI in ``card.POI_DISPLAY``.
 
     Mutates ``fit`` in place (priors + ``fit.minuit``). ``estimate_systematic``
     restores the priors after each entry via ``reinitialise_to_nominal``;
     a final ``fit_parameters()`` in the ``finally`` block puts ``fit.minuit``
     back to its pre-call nominal-migrad state.
     """
-    syst_mass, syst_width = {}, {}
-    syst_yukawa = None if fit.constrain_yukawa else {}
+    syst = {poi: {} for poi in _tracked_pois(fit)}
 
     try:
-        for syst in systematic_list(fit):
+        for s in systematic_list(fit):
             # Subtle: the parametric stat breakdown needs to know whether Yukawa
             # is constrained, *not* whether we track it as a syst.
-            if syst == "stat":
-                estimate_systematic(fit, syst, syst_mass, syst_width, syst_yukawa,
+            if s == "stat":
+                estimate_systematic(fit, s, syst,
                                     breakdown_parametric=not fit.constrain_yukawa)
             else:
-                estimate_systematic(fit, syst, syst_mass, syst_width, syst_yukawa)
+                estimate_systematic(fit, s, syst)
     finally:
         # estimate_systematic / _estimate_stat leave fit.minuit at the last
         # iteration's migrad result; rerun the nominal fit so fit.minuit is
@@ -197,69 +198,80 @@ def print_syst_table(fit, *, latex_path="systematics_table.tex"):
         fit.reinitialise_to_nominal()
         fit.fit_parameters()
 
-    total_mass = syst_mass.pop("total")
-    total_width = syst_width.pop("total")
-    yukawa_central = None
-    total_yukawa = None
-    if syst_yukawa is not None:
-        yukawa_central = fit.last_fit_results[fit._idx["yukawa"]].n
-        total_yukawa = syst_yukawa.pop("total") / yukawa_central
+    totals = {poi: syst[poi].pop("total") for poi in syst}
+    centrals = {poi: fit.last_fit_results[fit._idx[poi]].n for poi in syst}
 
-    th = fit.card.THEORY_UNC
-
-    if syst_yukawa is None:
-        _print_no_yukawa(syst_mass, syst_width, total_mass, total_width, th)
-    else:
-        _print_with_yukawa(syst_mass, syst_width, syst_yukawa,
-                           total_mass, total_width, total_yukawa,
-                           yukawa_central, th)
-
+    _print_table(fit.card, syst, totals, centrals)
     if latex_path:
-        _write_latex(syst_mass, syst_width, total_mass, total_width, th, latex_path)
+        _write_latex(fit.card, syst, totals, centrals, latex_path)
 
 
-def _print_no_yukawa(syst_mass, syst_width, total_mass, total_width, th):
+def _display(raw, disp, central):
+    """Apply the optional relative-mode divide-by-central. ``raw`` is
+    already pre-scaled (see ``_capture``)."""
+    if disp.get("relative"):
+        return raw / central
+    return raw
+
+
+def _print_table(card, syst, totals, centrals):
+    pois = list(syst.keys())
+    sep_len = 12 * (1 + len(pois))
+    headers = [f"{poi.capitalize()} [{card.POI_DISPLAY[poi]['unit']}]" for poi in pois]
     print()
-    print(f"{'Systematic':<12} {'Mass [MeV]':<12} {'Width [MeV]':<12}")
-    print("-" * 36)
-    for syst, mass_unc in syst_mass.items():
-        print(f"{syst:<12} {mass_unc:<12.1f} {syst_width[syst]:<12.1f}")
-    print("-" * 36)
-    print(f"{'total exp':<12} {total_mass:<12.1f} {total_width:<12.1f}")
-    print(f"{'theory':<12} {th['mass']:<12.0f} {th['width']:<12.0f}")
+    print(f"{'Systematic':<12} " + " ".join(f"{h:<12}" for h in headers))
+    print("-" * sep_len)
+    if pois:
+        for s in next(iter(syst.values())):
+            cells = " ".join(
+                f"{_display(syst[poi][s], card.POI_DISPLAY[poi], centrals[poi]):<12.1f}"
+                for poi in pois)
+            print(f"{s:<12} {cells}")
+    print("-" * sep_len)
+    total_cells = " ".join(
+        f"{_display(totals[poi], card.POI_DISPLAY[poi], centrals[poi]):<12.1f}"
+        for poi in pois)
+    print(f"{'total exp':<12} {total_cells}")
+    theory = card.THEORY_UNC
+    theory_cells = " ".join(f"{theory.get(poi, 0):<12.0f}" for poi in pois)
+    print(f"{'theory':<12} {theory_cells}")
 
 
-def _print_with_yukawa(syst_mass, syst_width, syst_yukawa,
-                        total_mass, total_width, total_yukawa,
-                        yukawa_central, th):
-    print()
-    print(f"{'Systematic':<12} {'Mass [MeV]':<12} {'Width [MeV]':<12} {'Yukawa [%]':<12}")
-    print("-" * 48)
-    for syst, mass_unc in syst_mass.items():
-        y_unc = syst_yukawa[syst] / yukawa_central
-        print(f"{syst:<12} {mass_unc:<12.1f} {syst_width[syst]:<12.1f} {y_unc:<12.1f}")
-    print("-" * 48)
-    print(f"{'total exp':<12} {total_mass:<12.1f} {total_width:<12.1f} {total_yukawa:<12.1f}")
-    print(f"{'theory':<12} {th['mass']:<12.0f} {th['width']:<12.0f} {th.get('yukawa', 0):<12.0f}")
-
-
-def _write_latex(syst_mass, syst_width, total_mass, total_width, th, path):
+def _write_latex(card, syst, totals, centrals, path):
+    pois = list(syst.keys())
+    cols = "|l|" + "r|" * len(pois)
+    header_cells = " & ".join(
+        f"{poi.capitalize()} Uncertainty ({card.POI_DISPLAY[poi]['unit']})"
+        for poi in pois)
     lines = [
         r"\begin{table}[h!]",
         r"\centering",
-        r"\begin{tabular}{|l|r|r|}",
+        rf"\begin{{tabular}}{{{cols}}}",
         r"\hline",
-        r"Systematic & Mass Uncertainty (MeV) & Width Uncertainty (MeV) \\",
+        f"Systematic & {header_cells} \\\\",
         r"\hline",
     ]
-    for syst, mass_unc in syst_mass.items():
-        lines.append(f"{syst} & {mass_unc:.1f} & {syst_width[syst]:.1f} \\\\")
+    if pois:
+        for s in next(iter(syst.values())):
+            row = " & ".join(
+                f"{_display(syst[poi][s], card.POI_DISPLAY[poi], centrals[poi]):.1f}"
+                for poi in pois)
+            lines.append(f"{s} & {row} \\\\")
     lines.append(r"\hline")
-    lines.append(f"total & {total_mass:.1f} & {total_width:.1f} \\\\")
-    lines.append(f"theory & {th['mass']:.0f} & {th['width']:.0f} \\\\")
+    total_row = " & ".join(
+        f"{_display(totals[poi], card.POI_DISPLAY[poi], centrals[poi]):.1f}"
+        for poi in pois)
+    lines.append(f"total & {total_row} \\\\")
+    theory = card.THEORY_UNC
+    theory_row = " & ".join(f"{theory.get(poi, 0):.0f}" for poi in pois)
+    lines.append(f"theory & {theory_row} \\\\")
     lines.append(r"\hline")
     lines.append(r"\end{tabular}")
-    lines.append(r"\caption{Systematic uncertainties on mass and width.}")
+    if len(pois) > 2:
+        poi_caption = ", ".join(pois[:-1]) + ", and " + pois[-1]
+    else:
+        poi_caption = " and ".join(pois) if pois else "(none)"
+    lines.append(rf"\caption{{Systematic uncertainties on {poi_caption}.}}")
     lines.append(r"\label{tab:syst_unc}")
     lines.append(r"\end{table}")
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)

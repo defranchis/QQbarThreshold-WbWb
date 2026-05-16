@@ -92,7 +92,17 @@ SYSTEMATICS = {
 SYST_TABLE_ORDER = ["alphas", "sw2", "BES", "BEC", "lumi"]
 
 # ---------------------------------------------------------------------------
+# Parameters of interest displayed by the syst-table machinery
+# (see cards/wbwb_default.py for the schema).
+# ---------------------------------------------------------------------------
+POI_DISPLAY = {
+    "mass":  {"unit": "MeV", "scale": 1000},
+    "width": {"unit": "MeV", "scale": 1000},
+}
+
+# ---------------------------------------------------------------------------
 # Theory-uncertainty quotes for the systematic-table row "theory"
+# (in the same display units as ``POI_DISPLAY``).
 # ---------------------------------------------------------------------------
 THEORY_UNC = {
     "mass":  3.0,    # MeV — PLACEHOLDER
