@@ -27,16 +27,21 @@ WW_threshold/
 │   ├── plots.py            - shared plot decoration + the two top-level
 │                              diagnostic plots (fit_scenario,
 │                              parameter_variations)
-│   ├── scans.py            - LS / BEC / BES / lumi / alphaS / Yukawa /
-│                              yukawa-theory / width / scale / shift /
-│                              chi2 / true-value scans
+│   ├── scans.py            - process-agnostic scans: LS / BEC / BES / lumi /
+│                              alphaS / width / scale / shift / chi2 /
+│                              true-value (one impact line per POI)
 │   ├── systematics.py      - print_syst_table (text + LaTeX)
 │   └── parallel.py         - fork-based scan dispatcher
 ├── process/
 │   ├── wbwb/
 │   │   ├── generator.py    - thin wrapper around xsec_calculator.xsec_calc
 │   │   │                     (QQbar_threshold N3LO+ISR tt)
-│   │   └── fit.py          - WbWbFit subclass with the SM-width hook
+│   │   ├── fit.py          - WbWbFit subclass: SM-width hook,
+│   │   │                     constrain_yukawa property, scenario validator,
+│   │   │                     pull / print-extra overrides
+│   │   └── scans.py        - WbWb-only scans: yukawa-constraint,
+│   │                         yukawa-theory, lumi-yukawa-ratio,
+│   │                         scale-vars-yukawa
 │   └── ww/                 - placeholders; do_scan raises NotImplementedError
 ├── scripts/
 │   ├── _audit_common.py    - shared build_fit + SCAN_SPECS for the harness
@@ -251,11 +256,34 @@ actually fit) and those currently treated as constrained nuisances
 for POIs whose uncertainty is naturally quoted as a fraction of the
 central value (divide-by-central applied at display time).
 
-Two WbWb-specific scan panels are kept as special cases (different
-x-axis / different normalisation from the generic main panels):
-`scan_lumi`'s yukawa-vs-lumi-ratio panel and `scan_scale_vars`'s
-yukawa-shift panel. Both fire whenever `yukawa` is in `param_names`
-plus the relevant scenario flag (`add_last_ecm` for the former).
+WbWb-specific scans (yukawa-constraint sweep, yukawa-theory shift,
+the legacy yukawa-vs-lumi-ratio panel, the yukawa-shift-vs-scale
+panel) live in `process/wbwb/scans.py`. They consume the
+`fit.constrain_yukawa` property + the `_constraints["yukawa"]` store —
+both defined on `WbWbFit`, not `FitCore`. Adding analogous scans for
+a third process means a new `process/X/scans.py` and entry-script
+imports; `common/` stays untouched.
+
+**Process subclass hooks** (in `common/fit_core.py`): for cross-POI
+relations or process-specific output, subclass `FitCore` and override
+any of:
+
+* `physical_fit_params(params)` — resolve cross-parameter relations
+  inside chi² (WbWb uses this for the SM-width hook).
+* `_validate_scenario(add_last_ecm)` — raise if the requested
+  scenario combination doesn't make physical sense.
+* `_print_param_extras(name, val)` — print annotation lines after the
+  `Fitted <name>` line (WbWb uses this for SM-width theory parameter
+  + Yukawa-constraint info).
+* `_pull_for(name, val)` — custom pull formula for parameters whose
+  semantics differ from the standard `val - pseudodata` (WbWb uses
+  it for the SM-width theory knob).
+* `stat_breakdown_default()` — whether `print_syst_table` should
+  compute the per-POI stat breakdown. Default `True`; WbWb returns
+  `not self.constrain_yukawa`.
+
+All hooks have sensible defaults in `FitCore`, so a no-op subclass
+(`class WWFit(FitCore): pass`) Just Works.
 
 ## Cross-section templates
 
@@ -280,7 +308,7 @@ text files only.
   (multiplicative morphing — valid in the small-variation regime, which
   this fit lives in: |p_i| ~ O(1), |morph_i| ~ O(few %)). Gaussian
   constraints declared in `card.SYSTEMATICS` (today: αₛ unconditionally,
-  yukawa when `constrain_yukawa=True`) are added in quadrature.
+  yukawa when `WbWbFit.constrain_yukawa=True`) are added in quadrature.
 - **Constraint centring**: by default the αₛ / Yukawa priors are centred
   on the pseudodata "true" value (Asimov-self-consistent: data, fit, and
   constraint all sit at the pseudo point, no bias at the minimum).
