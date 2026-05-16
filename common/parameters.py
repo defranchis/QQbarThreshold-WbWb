@@ -31,17 +31,6 @@ class Parameters:
         self.names = list(self._raw.keys())
         self.scale_vars = list(scale_vars) if scale_vars else []
         self._dict = self._build_dict()
-        # Fail fast if a parameter's variation rounds to zero — would
-        # silently produce NaN/inf via param_from_value's division by step().
-        # Catches both "variation=0" and "variation < 10^-round_dec" cases.
-        for n in self.names:
-            if self.step(n) == 0:
-                raise ValueError(
-                    f"Parameter '{n}' has step=0 after rounding "
-                    f"(variation={self._raw[n]['variation']}, "
-                    f"round_dec={self._raw[n]['round_dec']}). "
-                    f"Either increase variation or decrease round_dec in the card."
-                )
 
     # ------------------------------------------------------------------
     # Construction
@@ -58,7 +47,17 @@ class Parameters:
         out = {"nominal": nominal, "pseudodata": pseudo}
         for n in self.names:
             varied = dict(nominal)
-            varied[n] = self._round(n, self._raw[n]["nominal"] + self._raw[n]["variation"])
+            variation = self._raw[n]["variation"]
+            varied[n] = self._round(n, self._raw[n]["nominal"] + variation)
+            # Fail fast: a variation that rounds away (literal 0 or
+            # < 10^-round_dec) gives step=0 → param_from_value silently
+            # produces NaN/inf for that parameter downstream.
+            if varied[n] == nominal[n]:
+                raise ValueError(
+                    f"Parameter '{n}' has step=0 after rounding "
+                    f"(variation={variation}, round_dec={self._raw[n]['round_dec']}). "
+                    f"Either increase variation or decrease round_dec in the card."
+                )
             out[f"{n}_var"] = varied
         return out
 

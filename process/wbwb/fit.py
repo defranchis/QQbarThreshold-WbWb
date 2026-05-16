@@ -22,22 +22,21 @@ class WbWbFit(FitCore):
         penalty (its only constraint, since no data term references it
         directly).
 
-        Returns ``(resolved_params, prior_extra)``. The input is left
-        untouched; the rewrite happens on a fresh copy.
+        The caller pre-copies ``params`` (see ``FitCore.physical_fit_params``
+        docstring), so we mutate it in place.
         """
         if not self.sm_width:
             return params, 0.0
-        resolved_params = params.copy()
         i_width = self._idx["width"]
         i_mass = self._idx["mass"]
-        prior_width = resolved_params[i_width] ** 2
+        prior_width = params[i_width] ** 2
         width = self._width_n3lo_local_linearisation(
-            mt_PS=self.value_from_param(resolved_params[i_mass], "mass"),
-            theory_knob=resolved_params[i_width],
+            mt_PS=self.value_from_param(params[i_mass], "mass"),
+            theory_knob=params[i_width],
             th_uncert_mev=self.input_uncert_SM_width,
         )
-        resolved_params[i_width] = self.param_from_value(width, "width")
-        return resolved_params, prior_width
+        params[i_width] = self.param_from_value(width, "width")
+        return params, prior_width
 
     # ------------------------------------------------------------------
     # SM Γ_t vs PS mass — two forms of the same N3LO prediction.
@@ -73,12 +72,8 @@ class WbWbFit(FitCore):
         Needs a PS→pole conversion (via ``utils_convert.scheme_conversion``)
         because the SM prediction is anchored in pole mass; therefore more
         expensive than the linearised form and requires the converter to be
-        importable.
-
-        Currently **no live call site** — kept as a reference for the case
-        where the linearisation anchor drifts away from the SM (e.g. running
-        with a ``mass_var`` central value far from 172.69 GeV). Re-wire
-        ``physical_fit_params`` to call this if that becomes the use case.
+        importable. Use when the linearisation anchor (``mass_var``) drifts
+        away from the SM — re-wire ``physical_fit_params`` to call this.
         """
         import utils_convert.scheme_conversion as scheme_conversion  # type: ignore
         mt_ref = self.d_params["mass_var"]["mass"]

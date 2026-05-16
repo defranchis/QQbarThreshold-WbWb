@@ -225,6 +225,10 @@ class FitCore:
         self.bec_prior_uncorr = self.bec_prior_corr = None
         self.bes_prior_uncorr = self.bes_prior_corr = None
         self.sw2_prior = None
+        # ``param_idx -> (kind, bin_idx_in_morph_scenario[kind])`` for per-bin
+        # nuisance params registered by ``_expand_per_bin_nuisance``. Single
+        # source of truth — readers don't re-parse the "BEC_bin{i}" name.
+        self._per_bin_meta = {}
 
         # chi2 hot-path caches — populated by init_minuit. Listed here so
         # that AttributeError-style failures from calling chi2 before
@@ -305,12 +309,14 @@ class FitCore:
         * ``resolved_params`` — the parameter vector after any
           inter-parameter relations have been resolved (e.g. for WbWb with
           ``--SMwidth``, the width entry is overwritten with the value
-          derived from mass + floating theory_knob). Subclasses that rewrite
-          entries **must return a fresh copy** of ``params`` rather than
-          mutate it in place — the input may be Minuit's own state array.
+          derived from mass + floating theory_knob).
         * ``prior_extra`` — extra Gaussian-prior contribution to chi² beyond
           what ``FitCore.chi2`` already accounts for (typically a prior on
           the otherwise-unconstrained theory knob).
+
+        Callers (``chi2``, ``fit_params_with_cov``, ``results_from_minuit``)
+        pre-copy ``params`` so subclass overrides are free to mutate it in
+        place — they never touch Minuit's own state array.
 
         Default: no relations to resolve, no extra prior.
         """
@@ -409,10 +415,16 @@ class FitCore:
     # ------------------------------------------------------------------
     # Parameter <-> value conversion
     # ------------------------------------------------------------------
+    @staticmethod
+    def _is_bin_nuisance(name):
+        """True for BEC/BES per-bin or correlated parameters — those whose
+        fit-space value is the parameter itself (no nominal+step rescaling)."""
+        return name in ("BEC", "BES") or name.startswith(("BEC_bin", "BES_bin"))
+
     def value_from_param(self, par, name):
         if name == "sw2":
             return par * self.input_var["sw2"]
-        if "BEC_bin" in name or "BES_bin" in name or name in ("BES", "BEC"):
+        if self._is_bin_nuisance(name):
             return par
         return self.d_params["nominal"][name] + par * self.parameters.step(name)
 
@@ -535,11 +547,11 @@ class FitCore:
         of that width centred at the chosen value".
         """
         # physical_fit_params runs first because subclasses (e.g. WbWbFit
-        # with SM_width) resolve cross-parameter relations and return a
-        # fresh array with the dependent entries (e.g. width) overwritten.
-        # The template uses the resolved values; the prior terms below
-        # stay on the raw free params from Minuit.
-        resolved_params, prior_extra = self.physical_fit_params(params)
+        # with SM_width) resolve cross-parameter relations on the dependent
+        # entries (e.g. width). Pre-copy so the override can mutate without
+        # touching Minuit's state array; the template uses the resolved
+        # values, the prior terms below stay on the raw free params.
+        resolved_params, prior_extra = self.physical_fit_params(params.copy())
         th_xsec = self._xsec_base * np.prod(1 + resolved_params[:, None] * self._morph_matrix, axis=0)
 
         res = self.pseudo_data_scenario - th_xsec
@@ -629,27 +641,35 @@ class FitCore:
         # param_names is final by the time migrad starts (add_*_nuisances
         # mutate it; init_minuit always runs afterwards).
         self._idx = {name: i for i, name in enumerate(self.param_names)}
-        self._bec_bin_idx = [i for i, p in enumerate(self.param_names) if "BEC_bin" in p]
-        self._bes_bin_idx = [i for i, p in enumerate(self.param_names) if "BES_bin" in p]
+        self._bec_bin_idx = [i for i, (k, _) in self._per_bin_meta.items() if k == "BEC"]
+        self._bes_bin_idx = [i for i, (k, _) in self._per_bin_meta.items() if k == "BES"]
         # Vectorised chi2 inputs: stack all morph templates into one ndarray
         # so the per-call loop becomes a single np.prod. Per-bin BEC/BES
-        # rows are sparse (one-hot at the bin's own ECM) — synthesise them
-        # here from morph_scenario[kind] rather than holding N sparse copies
-        # of the base morph in morph_scenario (was O(N²) and pandas-warning
-        # territory; see _expand_per_bin_nuisance).
+        # rows are sparse (one-hot at the bin's own ECM) — synthesise from
+        # _per_bin_meta + morph_scenario[kind] rather than holding N sparse
+        # copies of the base morph in morph_scenario.
         self._xsec_base = np.asarray(self.xsec_scenario["xsec"]) * np.asarray(self.scale_var_scenario)
         n_ecm = len(self._xsec_base)
         rows = []
-        for name in self.param_names:
-            if name.startswith(("BEC_bin", "BES_bin")):
-                kind, bin_str = name.split("_bin")
-                bin_idx = int(bin_str)
+        for i, name in enumerate(self.param_names):
+            meta = self._per_bin_meta.get(i)
+            if meta is not None:
+                kind, bin_idx = meta
                 sparse = np.zeros(n_ecm)
                 sparse[bin_idx] = np.asarray(self.morph_scenario[kind]["xsec"])[bin_idx]
                 rows.append(sparse)
             else:
                 rows.append(np.asarray(self.morph_scenario[name]["xsec"]))
         self._morph_matrix = np.stack(rows)
+
+    def rebuild_chi2_state(self, *, init_vars=True, pseudodata=None):
+        """Re-run ``create_scenario`` from the current ``scenario_dict``,
+        then rebuild the cov and chi2-cache derivations. For scans that
+        mutate ``scenario_dict`` in place — restores ``fit`` to a consistent
+        state for the next chi² evaluation without touching ``fit.minuit``."""
+        self.create_scenario(**self.scenario_dict, init_vars=init_vars, pseudodata=pseudodata)
+        self._build_cov()
+        self._build_chi2_caches()
 
     def results_from_minuit(self, minuit):
         """Compute physical (``value_from_param``-converted) fit-results from
@@ -721,7 +741,7 @@ class FitCore:
 
             if name == "width" and self.sm_width:
                 pull = unc.ufloat(self.minuit.values[name], self.minuit.errors[name])
-            elif "BEC_bin" in name or "BES_bin" in name or name in ("BES", "BEC", "sw2"):
+            elif name == "sw2" or self._is_bin_nuisance(name):
                 pull = val
             else:
                 pull = val - self.d_params[self.pseudodata_tag][name]
@@ -778,17 +798,13 @@ class FitCore:
 
     def _expand_per_bin_nuisance(self, kind):
         """Register N + 1 nuisance parameter names for ``kind`` ∈ {BEC, BES}:
-        one per-ECM-bin parameter (each affects only its own ECM via the
-        nuisance morph at that bin) plus a fully-correlated parameter
-        (affects every ECM identically).
-
-        The per-bin morph rows are synthesised on the fly in
-        ``_build_chi2_caches`` from ``morph_scenario[kind]``; we don't
-        materialise N sparse copies of the base morph here — that was
-        O(N²) memory and triggered pandas SettingWithCopyWarning on the
-        ``.iloc[j] = 0`` writes."""
+        one per-ECM-bin parameter plus a fully-correlated parameter. Stores
+        the ``(kind, bin_idx)`` metadata for each per-bin entry so the
+        sparse one-hot morph rows can be synthesised in
+        ``_build_chi2_caches`` without re-parsing the names."""
         nbins = len(self.morph_scenario[kind])
         for i in range(nbins):
+            self._per_bin_meta[len(self.param_names)] = (kind, i)
             self.param_names.append(f"{kind}_bin{i}")
         self.param_names.append(kind)
 

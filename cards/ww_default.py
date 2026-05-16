@@ -46,7 +46,7 @@ SCENARIO = {
     "total_lumi":     12.0e6,   # /pb — FCC-ee WW threshold lumi (PLACEHOLDER)
     "last_lumi":      5.0e6,
     # No inflation by default; revisit once a WW detector-level study yields
-    # a measured factor (the WbWb card uses 1.2 from dedicated studies).
+    # a measured factor.
     "stat_inflation": 1.0,
 }
 

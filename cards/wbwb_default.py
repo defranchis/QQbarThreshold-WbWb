@@ -55,7 +55,7 @@ SCENARIO = {
     # Inflate the per-point stat uncertainty (so the stat cov by 1.44x) to
     # account for selection-efficiency / b-tag / single-top-contamination
     # effects measured in dedicated detector-level studies for the WbWb
-    # final state. WbWb-specific — the WW card uses 1.0.
+    # final state.
     "stat_inflation": 1.2,
 }
 

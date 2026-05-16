@@ -16,71 +16,20 @@ Plot output is redirected to a tempdir so we don't clobber the real
 """
 import contextlib
 import io
-import os
-import sys
 import tempfile
-import types
 
 import numpy as np
 
-# Allow the script to be invoked from anywhere as long as the project
-# root sits on the parent directory of this file's parent.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from cards import wbwb_default as base_card
-from common import scans
-from common.systematics import print_syst_table
-from process.wbwb.fit import WbWbFit
-from process.wbwb.generator import WbWbGenerator
+from _audit_common import build_fit, make_pseudo_subset, make_scan_specs
 
 
 PLOT_TMP = tempfile.mkdtemp(prefix="audit_plots_")
 # scan_true_value walks every file under INPUT_DIRS["pseudo"]; symlink only a
-# few of them into a tempdir so the audit stays under a minute.
-PSEUDO_TMP = tempfile.mkdtemp(prefix="audit_pseudo_")
-_pseudo_src = base_card.INPUT_DIRS["pseudo"]
-if os.path.isdir(_pseudo_src):
-    for _f in sorted(os.listdir(_pseudo_src))[:3]:
-        os.symlink(os.path.abspath(os.path.join(_pseudo_src, _f)),
-                   os.path.join(PSEUDO_TMP, _f))
-
-
-def build_fit(*, with_bec=False, with_bes=False, with_sw2=False,
-              sm_width=False, constrain_yukawa=True,
-              last_ecm=False, scale_vars=False, shift_scan=False):
-    # Shallow-clone the card and override the plot dir so we don't touch real plots/.
-    card = types.ModuleType("card_audit")
-    card.__dict__.update(base_card.__dict__)
-    card.PLOT_DIR = PLOT_TMP
-
-    gen = WbWbGenerator(order=card.ORDER, isr=True)
-    fit = WbWbFit(
-        card, gen,
-        sm_width=sm_width,
-        asimov=True,
-        constrain_yukawa=constrain_yukawa,
-        read_scale_vars=scale_vars,
-        shift_scan=shift_scan,
-    )
-    fit.init_scenario(
-        scan_min=card.SCENARIO["scan_min"],
-        scan_max=card.SCENARIO["scan_max"],
-        scan_step=card.SCENARIO["scan_step"],
-        total_lumi=card.SCENARIO["total_lumi"],
-        last_lumi=card.SCENARIO["last_lumi"],
-        add_last_ecm=last_ecm,
-        same_evts=False,
-    )
-    if with_bec:
-        fit.add_bec_nuisances()
-    if with_bes:
-        fit.add_bes_nuisances()
-    if with_sw2:
-        fit.add_sw2_nuisance()
-    fit.fit_parameters()
-    with contextlib.redirect_stdout(io.StringIO()):
-        fit.fit_results()
-    return fit
+# few of them into a tempdir so the audit stays under a minute. The audit
+# doesn't care if these files cause bias-filter rejections — it only checks
+# state isolation, not numerical fit success.
+PSEUDO_TMP = make_pseudo_subset("audit_pseudo_")
+SCAN_SPECS = make_scan_specs(PSEUDO_TMP)
 
 
 def snapshot(fit):
@@ -125,38 +74,6 @@ def diff_snapshots(s1, s2):
     return drifts
 
 
-def _scan_true_value_with_subset(fit):
-    """Drive ``scan_true_value`` against the symlinked PSEUDO_TMP subset
-    instead of the full 100+ pseudodata files."""
-    saved = fit.card.INPUT_DIRS["pseudo"]
-    fit.card.INPUT_DIRS = dict(fit.card.INPUT_DIRS, pseudo=PSEUDO_TMP)
-    try:
-        scans.scan_true_value(fit)
-    finally:
-        fit.card.INPUT_DIRS = dict(fit.card.INPUT_DIRS, pseudo=saved)
-
-
-SCAN_SPECS = [
-    # (name, build_kwargs, callable)
-    ("scan_beam_resolution", {}, lambda f: scans.scan_beam_resolution(f, lo=0.1, hi=0.2, step=0.05)),
-    ("scan_bec",             {"with_bec": True}, lambda f: scans.scan_bec(f, lo=0, hi=2, step=1.0)),
-    ("scan_bes",             {"with_bes": True}, lambda f: scans.scan_bes(f, lo=0, hi=0.01, step=0.005)),
-    ("scan_lumi",            {}, lambda f: scans.scan_lumi(f, lo=0, hi=2, points=3)),
-    ("scan_alphas",          {}, lambda f: scans.scan_alphas(f, hi=2e-4, step=1e-4)),
-    ("scan_yukawa_constraint", {}, lambda f: scans.scan_yukawa_constraint(f, hi=0.02, step=0.01)),
-    ("scan_yukawa_theory",   {"last_ecm": True, "constrain_yukawa": False},
-        lambda f: scans.scan_yukawa_theory(f, max_shift=0.005, step=0.005)),
-    ("scan_width",           {"sm_width": True}, lambda f: scans.scan_width(f, hi=5, step=2.5)),
-    ("scan_chi2",            {}, lambda f: scans.scan_chi2(f)),
-    ("scan_scale_vars",      {"scale_vars": True}, lambda f: scans.scan_scale_vars(f)),
-    ("scan_shift",           {"shift_scan": True},
-        lambda f: scans.scan_shift(f, max_abs_shift_neg=0, max_abs_shift_pos=0.5, step=0.5)),
-    ("scan_true_value",      {}, _scan_true_value_with_subset),
-    ("print_syst_table",     {"with_bec": True, "with_bes": True},
-        lambda f: print_syst_table(f, latex_path="")),
-]
-
-
 def main():
     print(f"plots redirected to {PLOT_TMP}")
     print()
@@ -166,7 +83,7 @@ def main():
     overall_ok = True
     for name, kwargs, call in SCAN_SPECS:
         try:
-            fit = build_fit(**kwargs)
+            fit = build_fit(PLOT_TMP, **kwargs)
         except Exception as exc:
             print(f"{name:<28s} SKIP             build_fit failed: {exc}")
             continue
