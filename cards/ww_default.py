@@ -96,8 +96,8 @@ SYST_TABLE_ORDER = ["alphas", "sw2", "BES", "BEC", "lumi"]
 # (see cards/wbwb_default.py for the schema).
 # ---------------------------------------------------------------------------
 POI_DISPLAY = {
-    "mass":  {"unit": "MeV", "scale": 1000},
-    "width": {"unit": "MeV", "scale": 1000},
+    "mass":  {"symbol": r"m_W",      "unit": "MeV", "scale": 1000},
+    "width": {"symbol": r"\Gamma_W", "unit": "MeV", "scale": 1000},
 }
 
 # ---------------------------------------------------------------------------

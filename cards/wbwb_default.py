@@ -157,9 +157,9 @@ SYST_TABLE_ORDER = ["alphas", "yukawa", "sw2", "BES", "BEC", "lumi"]
 # --fitYukawa not set) are filtered out at runtime — they are nuisances,
 # not POIs to track.
 POI_DISPLAY = {
-    "mass":   {"unit": "MeV", "scale": 1000},
-    "width":  {"unit": "MeV", "scale": 1000},
-    "yukawa": {"unit": "%",   "scale": 100, "relative": True},
+    "mass":   {"symbol": r"m_t",      "unit": "MeV", "scale": 1000},
+    "width":  {"symbol": r"\Gamma_t", "unit": "MeV", "scale": 1000},
+    "yukawa": {"symbol": r"y_t",      "unit": "%",   "scale": 100, "relative": True},
 }
 
 # ---------------------------------------------------------------------------

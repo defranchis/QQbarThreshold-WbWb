@@ -165,9 +165,9 @@ SYST_TABLE_ORDER = ["alphas", "yukawa", "sw2", "BES", "BEC", "lumi"]
 # uncertainty by the fitted central value (fractional uncertainty); the
 # default is absolute scaling.
 POI_DISPLAY = {
-    "mass":   {"unit": "MeV", "scale": 1000},
-    "width":  {"unit": "MeV", "scale": 1000},
-    "yukawa": {"unit": "%",   "scale": 100, "relative": True},
+    "mass":   {"symbol": r"m_t",      "unit": "MeV", "scale": 1000},
+    "width":  {"symbol": r"\Gamma_t", "unit": "MeV", "scale": 1000},
+    "yukawa": {"symbol": r"y_t",      "unit": "%",   "scale": 100, "relative": True},
 }
 
 INPUT_DIRS = {"nominal": "output_full", "BEC": "BEC_variations", ...}
@@ -227,20 +227,35 @@ that needs to know about the new kind.
 or a hypothetical fourth POI on top of the WbWb default):
 
 ```python
-POI_DISPLAY["my_poi"] = {"unit": "MeV", "scale": 1000}
+POI_DISPLAY["my_poi"] = {"symbol": r"\mu", "unit": "MeV", "scale": 1000}
 THEORY_UNC["my_poi"]  = 5.0   # MeV, optional
 ```
 
-`print_syst_table` picks it up automatically — one new column in both
-the printed table and the LaTeX file. POIs filtered out at runtime:
-those not in `PARAMETERS` (so not actually fit) and those currently
-treated as constrained nuisances (e.g. `yukawa` under `--fitYukawa` not
-set). Use `"relative": True` for POIs whose uncertainty is naturally
-quoted as a fraction of the central value.
+Both the syst-table (`print_syst_table`) and the scan-impact plot
+helpers in `common/scans.py` pick it up automatically:
 
-Scan plot helpers in `common/scans.py` still hardcode mass + width
-impact lines — generalising those is the open follow-up once a real
-non-WbWb pipeline drives the plot-layout requirements.
+* `print_syst_table` adds one column per POI in the printed table and
+  LaTeX file.
+* `scan_alphas` / `scan_bec` / `scan_bes` / `scan_lumi` /
+  `scan_beam_resolution` / `scan_scale_vars` / `scan_true_value` /
+  `scan_shift` / `scan_chi2` iterate `fit.tracked_pois()` and emit one
+  line per POI per panel. POIs sharing a unit go on the same panel
+  (e.g. `mass + width` in MeV); separate units get their own panels
+  (e.g. `yukawa` in %). Filenames follow the convention
+  `uncert_<pois>_vs_<scan-axis>` — recovers the legacy
+  `uncert_mass_width_vs_alphas` on WbWb-default.
+
+POIs filtered out at runtime: those not in `PARAMETERS` (so not
+actually fit) and those currently treated as constrained nuisances
+(e.g. `yukawa` under `--fitYukawa` not set). Use `"relative": True`
+for POIs whose uncertainty is naturally quoted as a fraction of the
+central value (divide-by-central applied at display time).
+
+Two WbWb-specific scan panels are kept as special cases (different
+x-axis / different normalisation from the generic main panels):
+`scan_lumi`'s yukawa-vs-lumi-ratio panel and `scan_scale_vars`'s
+yukawa-shift panel. Both fire whenever `yukawa` is in `param_names`
+plus the relevant scenario flag (`add_last_ecm` for the former).
 
 ## Cross-section templates
 

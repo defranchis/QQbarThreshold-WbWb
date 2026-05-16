@@ -54,16 +54,6 @@ def systematic_list(fit):
     return ["total", "stat", *ordered, *extras]
 
 
-def _tracked_pois(fit):
-    """POIs declared in ``card.POI_DISPLAY`` that are free in this fit.
-    A POI listed in ``_constraints`` with ``active=True`` is treated as a
-    constrained nuisance and skipped — its central is the constraint
-    centre, not a fit result of interest."""
-    return [poi for poi in fit.card.POI_DISPLAY
-            if poi in fit.param_names
-            and not (poi in fit._constraints and fit._constraints[poi]["active"])]
-
-
 # ---------------------------------------------------------------------------
 # Per-syst evaluation
 # ---------------------------------------------------------------------------
@@ -180,7 +170,7 @@ def print_syst_table(fit, *, latex_path="systematics_table.tex"):
     a final ``fit_parameters()`` in the ``finally`` block puts ``fit.minuit``
     back to its pre-call nominal-migrad state.
     """
-    syst = {poi: {} for poi in _tracked_pois(fit)}
+    syst = {poi: {} for poi in fit.tracked_pois()}
 
     try:
         for s in systematic_list(fit):

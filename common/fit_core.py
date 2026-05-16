@@ -339,6 +339,14 @@ class FitCore:
     def constrain_yukawa(self, v):
         self._constraints["yukawa"]["active"] = v
 
+    def tracked_pois(self):
+        """POIs from ``card.POI_DISPLAY`` that are free in this fit. Skips
+        entries currently held as a constrained nuisance (e.g. yukawa
+        under the WbWb default, where ``--fitYukawa`` is not set)."""
+        return [poi for poi in self.card.POI_DISPLAY
+                if poi in self.param_names
+                and not (poi in self._constraints and self._constraints[poi]["active"])]
+
     # ------------------------------------------------------------------
     # Hooks for subclasses
     # ------------------------------------------------------------------
