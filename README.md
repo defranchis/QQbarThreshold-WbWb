@@ -160,6 +160,16 @@ SYSTEMATICS = {
 # are shorthand for both ${name}_uncorr and ${name}_corr in that order.
 SYST_TABLE_ORDER = ["alphas", "yukawa", "sw2", "BES", "BEC", "lumi"]
 
+# Parameters of interest displayed by the syst-table machinery.
+# Column order = dict insertion order. `relative=True` divides the raw
+# uncertainty by the fitted central value (fractional uncertainty); the
+# default is absolute scaling.
+POI_DISPLAY = {
+    "mass":   {"unit": "MeV", "scale": 1000},
+    "width":  {"unit": "MeV", "scale": 1000},
+    "yukawa": {"unit": "%",   "scale": 100, "relative": True},
+}
+
 INPUT_DIRS = {"nominal": "output_full", "BEC": "BEC_variations", ...}
 THEORY_UNC = {"mass": 35.0, "width": 25.0, "yukawa": 10.0}
 ```
@@ -212,6 +222,25 @@ and a scalar `PRIORS["x"] = ...`.
 `template_dir` or `smear_shift`): add a new branch in
 `FitCore._morph_one` keyed off `source["kind"]`. That's the only place
 that needs to know about the new kind.
+
+**Adding (or dropping) a parameter of interest** (e.g. WW's `mW`/`ΓW`,
+or a hypothetical fourth POI on top of the WbWb default):
+
+```python
+POI_DISPLAY["my_poi"] = {"unit": "MeV", "scale": 1000}
+THEORY_UNC["my_poi"]  = 5.0   # MeV, optional
+```
+
+`print_syst_table` picks it up automatically — one new column in both
+the printed table and the LaTeX file. POIs filtered out at runtime:
+those not in `PARAMETERS` (so not actually fit) and those currently
+treated as constrained nuisances (e.g. `yukawa` under `--fitYukawa` not
+set). Use `"relative": True` for POIs whose uncertainty is naturally
+quoted as a fraction of the central value.
+
+Scan plot helpers in `common/scans.py` still hardcode mass + width
+impact lines — generalising those is the open follow-up once a real
+non-WbWb pipeline drives the plot-layout requirements.
 
 ## Cross-section templates
 
