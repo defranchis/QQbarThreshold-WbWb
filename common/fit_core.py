@@ -220,7 +220,6 @@ class FitCore:
 
         # Beam-energy spectrum ---------------------------------------------
         self.beam_energy_res = card.BEAM_ENERGY_RES
-        self.smear_xsec = card.SMEAR_XSEC
         self.peak_ecm = card.PEAK_ECM
         self.last_ecm = card.LAST_ECM
 
@@ -284,7 +283,6 @@ class FitCore:
             print(f"Input directory: {self.input_dir}")
             print(f"Parameters: {self.param_names}")
             print(f"Beam energy resolution: {self.beam_energy_res}")
-            print(f"Smear cross sections: {self.smear_xsec}")
             print(f"Constrain width to SM value: {self.sm_width}")
             print(f"Constrain Yukawa: {self.constrain_yukawa}")
             print(f"Asimov fit: {self.asimov}")
@@ -425,10 +423,13 @@ class FitCore:
     # Smearing
     # ------------------------------------------------------------------
     def smear(self, xsec, bes=None):
-        if not self.smear_xsec:
-            return xsec
         if bes is None:
             bes = self.beam_energy_res
+        if bes == 0:
+            # No beam-energy spread → smearing is a no-op. Saves the
+            # find_peak + convolute_gauss work and matches the legacy
+            # SMEAR_XSEC=False short-circuit.
+            return xsec
         last_ecm_xsec = ecm_to_str(float(xsec["ecm"].iloc[-1]))
         last_is_overflow = last_ecm_xsec == ecm_to_str(self.last_ecm)
         body = xsec[:-1] if last_is_overflow else xsec

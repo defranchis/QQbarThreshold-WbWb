@@ -61,8 +61,7 @@ RENORM_SCALES = {
 # ---------------------------------------------------------------------------
 # Beam-energy spectrum & scan grid
 # ---------------------------------------------------------------------------
-BEAM_ENERGY_RES = 0.186     # % per beam
-SMEAR_XSEC = True
+BEAM_ENERGY_RES = 0.186     # % per beam — set to 0 to disable smearing entirely
 PEAK_ECM = 345.0            # GeV, peak used in Gaussian-smearing kernel width
 LAST_ECM = 365.0            # GeV, optional point above threshold (Yukawa lever)
 

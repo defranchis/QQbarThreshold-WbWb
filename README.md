@@ -39,7 +39,9 @@ WW_threshold/
 │   │   └── fit.py          - WbWbFit subclass with the SM-width hook
 │   └── ww/                 - placeholders; do_scan raises NotImplementedError
 ├── scripts/
-│   └── audit_scans.py      - state-isolation regression check
+│   ├── _audit_common.py    - shared build_fit + SCAN_SPECS for the harness
+│   ├── audit_scans.py      - state-isolation regression check
+│   └── scan_dump.py        - per-scan plot-data dumper (numerical regression check)
 ├── xsec_calculator/        - pybind11 wrappers around the C++ QQbar_threshold
 │                             library (tt N3LO+ISR template producer)
 ├── utils_convert/          - pybind11 wrapper for PS↔MS mass conversion
@@ -105,16 +107,59 @@ sequentially after the scans complete.
 
 ## Steering cards
 
-Each card is a plain Python module exposing top-level dicts/scalars:
+Each card is a plain Python module exposing top-level dicts/scalars.
+**Numbers** live in `PRIORS`; **metadata** (how each number is consumed)
+lives in `SYSTEMATICS`. The two are physically separate so the same
+value never lives in two places.
 
 ```python
-PARAMETERS = {
-    "mass":   {"nominal": 171.5, "pseudo": 0.01, "variation": 0.03, "round_dec": 2},
-    ...
+# Physics parameters of interest — derived from xsec_calculator/parameter_def
+# so the card and the C++ template generator share one source of truth.
+PARAMETERS = {"mass": {...}, "width": {...}, "yukawa": {...}, "alphas": {...}}
+PARAMETERS_1S = {...}                                # alternate mass scheme
+ORDER         = 3                                    # 0=LO ... 3=N3LO
+RENORM_SCALES = {"mass": 80.0, "width": 350.0, ...}
+
+# Scan grid + integrated luminosity
+SCENARIO          = {"scan_min": 340.0, "scan_max": 344.5, "scan_step": 0.5,
+                     "total_lumi": 0.41e6, "last_lumi": 2.65e6,
+                     "stat_inflation": 1.2}
+BEAM_ENERGY_RES   = 0.186                            # %; 0 disables smearing
+PEAK_ECM, LAST_ECM = 345.0, 365.0
+
+# Template-generation-frozen variation magnitudes (must match the C++ scan).
+INPUT_VAR = {"BEC": 10.0, "BES": 0.1, "sw2": 2.5e-6}
+
+# ALL prior magnitudes — single source of truth, no duplication elsewhere.
+PRIORS = {
+    "alphas":   1.0e-4,                              # constraint sigma
+    "yukawa":   0.03,                                # constraint sigma
+    "BEC":      {"uncorr": 5.0,    "corr": 2.5},     # binned nuisance (MeV)
+    "BES":      {"uncorr": 0.01,   "corr": 5.0e-3},  # binned nuisance
+    "sw2":      2.5e-6,                              # global nuisance prior
+    "lumi":     {"uncorr": 1.0e-3, "corr": 5.0e-4},  # cov-matrix entry
+    "SM_width": 5.0,                                 # WbWb-specific theory band on Γ_t (MeV)
 }
-PRIORS = {"alphas": {"default": 1e-4}, "lumi": {"uncorr": 1e-3, "corr": 5e-4, ...}, ...}
-SCENARIO = {"scan_min": 340.0, "scan_max": 344.5, "scan_step": 0.5,
-            "total_lumi": 0.41e6, "last_lumi": 2.65e6, "stat_inflation": 1.2}
+
+# Metadata for each systematic in PRIORS that goes through chi2.
+# type ∈ {"constraint", "binned", "global"}.
+# Lumi (cov-matrix) and SM_width (WbWb physical_fit_params hook) have
+# no SYSTEMATICS entry — FitCore reads them directly from PRIORS.
+SYSTEMATICS = {
+    "alphas": {"type": "constraint", "always_on": True},
+    "yukawa": {"type": "constraint", "always_on": False},
+    "BEC":    {"type": "binned",
+               "source": {"kind": "template_dir", "path": "BEC_variations",
+                          "var_subdir": True, "snap_to_grid": True}},
+    "BES":    {"type": "binned", "source": {"kind": "smear_shift"}},
+    "sw2":    {"type": "global",
+               "source": {"kind": "template_dir", "path": "output_sw2"}},
+}
+
+# Row order in the printed / LaTeX systematic table. "BEC"/"BES"/"lumi"
+# are shorthand for both ${name}_uncorr and ${name}_corr in that order.
+SYST_TABLE_ORDER = ["alphas", "yukawa", "sw2", "BES", "BEC", "lumi"]
+
 INPUT_DIRS = {"nominal": "output_full", "BEC": "BEC_variations", ...}
 THEORY_UNC = {"mass": 35.0, "width": 25.0, "yukawa": 10.0}
 ```
@@ -122,6 +167,47 @@ THEORY_UNC = {"mass": 35.0, "width": 25.0, "yukawa": 10.0}
 To run a variant fit, copy `cards/wbwb_default.py` to e.g.
 `cards/wbwb_high_lumi.py`, edit the relevant fields, and import it from a
 new entry script.
+
+### Extending to a new process (or adding a new systematic)
+
+Both reduce to **card-only edits**; no FitCore changes.
+
+**Adding a new 1-D Gaussian constraint** (e.g. sin²θ_W for WW):
+
+```python
+# in cards/ww_default.py
+PRIORS["sin2thetaW"] = 1.0e-5                        # sigma
+SYSTEMATICS["sin2thetaW"] = {"type": "constraint", "always_on": True}
+```
+
+The parameter name must also appear in `PARAMETERS` so it's a known fit
+parameter. `FitCore.chi2` picks it up automatically; the syst table
+includes it (alphabetically appended if not in `SYST_TABLE_ORDER`).
+
+**Adding a new binned nuisance** (per-ECM uncorrelated + shared
+correlated, à la BEC/BES):
+
+```python
+PRIORS["new_binned"] = {"uncorr": 1.0, "corr": 0.5}
+SYSTEMATICS["new_binned"] = {
+    "type": "binned",
+    "source": {"kind": "template_dir", "path": "new_binned_variations",
+               "var_subdir": True, "snap_to_grid": True},
+}
+INPUT_VAR["new_binned"] = 10.0                       # template-frozen
+```
+
+Plus call `fit.add_binned_nuisance("new_binned")` in the entry script
+(or wire it into a CLI flag). The chi² loop, `_morph_one` dispatcher,
+nuisance-prior helper, and syst-table machinery all pick it up.
+
+**Adding a new global nuisance** is analogous with `"type": "global"`
+and a scalar `PRIORS["x"] = ...`.
+
+**Adding a new template source mechanism** (something other than
+`template_dir` or `smear_shift`): add a new branch in
+`FitCore._morph_one` keyed off `source["kind"]`. That's the only place
+that needs to know about the new kind.
 
 ## Cross-section templates
 
@@ -144,47 +230,57 @@ text files only.
 
 - **Chi2 form**: `(d − f)ᵀ C⁻¹ (d − f)` with `f = xsec_nom · Π_i (1 + p_i · morph_i)`
   (multiplicative morphing — valid in the small-variation regime, which
-  this fit lives in: |p_i| ~ O(1), |morph_i| ~ O(few %)). External
-  constraints on αₛ (always) and yt (when `constrain_yukawa=True`) are
-  added in quadrature.
-- **Covariance** = stat (diagonal sqrt(N) inflated by `stat_inflation`) +
+  this fit lives in: |p_i| ~ O(1), |morph_i| ~ O(few %)). Gaussian
+  constraints declared in `card.SYSTEMATICS` (today: αₛ unconditionally,
+  yukawa when `constrain_yukawa=True`) are added in quadrature.
+- **Constraint centring**: by default the αₛ / Yukawa priors are centred
+  on the pseudodata "true" value (Asimov-self-consistent: data, fit, and
+  constraint all sit at the pseudo point, no bias at the minimum).
+  Override per-entry via `card.SYSTEMATICS["alphas"]["center"]` /
+  `["yukawa"]["center"]` for SM-centred or bias-study runs.
+- **Covariance** = stat (diagonal √N inflated by `stat_inflation`) +
   uncorrelated lumi (diagonal) + correlated lumi (rank-1 outer-product).
-  Cholesky-factored once per `init_minuit` for fast per-chi2-call solves.
-- **Asimov data**: `pseudo_data_scenario` is the smeared lineshape sampled
-  at the scan-list ecms with the pseudo-tag parameter values. The Yukawa /
-  αₛ priors are centred on the pseudo values, so the projected uncertainty
-  answers "what would we report if the true value were the pseudo value?".
-- **BEC / BES nuisances**: per-bin uncorrelated nuisance (one per scan
-  ecm) + one fully-correlated nuisance, both with Gaussian priors of
-  width set via `card.PRIORS[*]`.
+  Cholesky-factored once per `init_minuit` for fast per-chi²-call solves.
+- **BEC / BES binned nuisances**: per-bin uncorrelated nuisance (one per
+  scan ecm) + one fully-correlated nuisance, both with Gaussian priors
+  of width set via `card.PRIORS["BEC"]` / `card.PRIORS["BES"]`.
+- **BEC template loader**: BEC variations live in subdirectories named
+  `scan_p{var}` / `scan_m{var}` (one per ±MeV magnitude); the loader
+  snaps the shifted ECMs back to the nominal 0.1-GeV grid. Constraint:
+  variation magnitude ≤ 40 MeV — beyond that banker's rounding at .05
+  would alias onto the next ECM bin. Encoded in
+  `SYSTEMATICS["BEC"]["source"]` via `var_subdir` / `snap_to_grid` flags.
 - **SM-width constraint** (WbWb only, `--SMwidth`): rewrites the width
   fit parameter from the mass via `Γₜ = Γ_ref + 0.027·(mₜ − mₜ_ref) +
   k·δ_th`, with `k` a floating "theory knob" given a Gaussian prior of
-  width `input_uncert_SM_width` MeV. See `process/wbwb/fit.py`.
+  width `card.PRIORS["SM_width"]` MeV. See
+  `process/wbwb/fit.py:_width_n3lo_local_linearisation`.
+- **Pseudo-data RNG**: `--pseudo` draws noise from a local
+  `numpy.random.default_rng(42)` seeded once at `FitCore.__init__` and
+  advanced per `create_scenario` call. The legacy global-`np.random.seed(42)`
+  behaviour (same noise on every call, including across scan iterations)
+  is available behind `--legacyPseudoRng` for byte-reproducing old
+  --pseudo runs.
 
 ## Diagnostics
 
-- `python scripts/audit_scans.py` — runs every scan helper in turn and
-  confirms that it leaves `fit`'s state bit-identical. Use this after any
-  change to scan code.
-- `--systTable` is the most sensitive end-to-end check; the reproducibility
-  baseline (work/doFit.py) is the same set of 11 rows.
+Two regression harnesses live under `scripts/`:
 
-## Validation status
+- `python scripts/audit_scans.py` — for each scan helper, builds a fresh
+  fit, snapshots ~20 inspected fields of `fit`, runs the scan, and
+  diffs the snapshot against itself. Catches state-isolation regressions
+  (a scan accidentally mutating `fit`'s state). Use after touching any
+  scan code.
+- `python scripts/scan_dump.py` — monkey-patches `plt.plot` so every
+  `(x, y)` pair fed into matplotlib is captured. Run on both sides of a
+  change (`git stash` between dumps) and `diff` the captures to check
+  numerical equivalence of every scan + `print_syst_table`. The
+  expected baseline is **zero-line diff** after any code reorganisation
+  that doesn't mean to change physics output.
 
-The framework reproduces the legacy `work/doFit.py` bit-for-bit on:
-- the systematic table (every row),
-- `fit_results` stdout (fitted values, pulls, correlation matrix),
-- `param_variations.png` (template-only plot).
-
-Scan output values agree at 10⁻¹⁰–10⁻⁵ relative; the residual is migrad
-hesse-convergence noise from the new path (`cho_factor` + vectorised
-morph + scalar-attr-mutated rather than deep-copied scans). Plot PNGs
-differ at the sub-pixel level along anti-aliased line edges. All
-differences are well below physics resolution.
-
-See commit history: every commit message ending in "BIT-IDENTICAL" or
-"validation report" records the comparison numbers for that step.
+The chained `--systTable` pipeline is the most end-to-end check; the
+output `systematics_table.tex` should be byte-identical (modulo
+intentional label / casing changes) across refactors.
 
 ## WW status
 
@@ -198,8 +294,11 @@ the actual WW scenario. To get the WW fit running:
    writes the expected file format to disk).
 2. Produce template files at the parameter grid implied by
    `cards/ww_default.py` (nominal + pseudo + per-parameter variation).
-3. Tune the placeholder values in `cards/ww_default.py` (`BEAM_ENERGY_RES`,
-   `PEAK_ECM`, scan grid, `PRIORS`, `THEORY_UNC`).
+3. Tune the placeholder values in `cards/ww_default.py` —
+   `BEAM_ENERGY_RES`, `PEAK_ECM`, `SCENARIO`, `PRIORS`, `THEORY_UNC`.
+   New analysis-specific systematics (sin²θ_W, αEM, …) are card-only
+   additions — see "Extending to a new process" above.
 
-The chi2/Minuit/scan/syst-table machinery in `common/` works as-is —
-nothing in there assumes WbWb.
+The chi2/Minuit/scan/syst-table machinery in `common/` is fully
+data-driven via `PRIORS` + `SYSTEMATICS` — nothing in there assumes
+WbWb or hardcodes any specific systematic name.

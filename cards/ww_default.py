@@ -34,8 +34,7 @@ RENORM_SCALES = {
 # Beam-energy spectrum & scan grid
 # ---------------------------------------------------------------------------
 # BES at WW threshold is smaller than at tt threshold; placeholder value.
-BEAM_ENERGY_RES = 0.13   # % per beam  (PLACEHOLDER)
-SMEAR_XSEC = True
+BEAM_ENERGY_RES = 0.13   # % per beam (PLACEHOLDER) — 0 disables smearing entirely
 PEAK_ECM = 162.5         # placeholder for smearing kernel width
 LAST_ECM = 240.0         # placeholder above-threshold point
 
