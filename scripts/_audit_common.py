@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cards import wbwb_default as base_card
 from common import scans
 from common.systematics import print_syst_table
+from process.wbwb import scans as wbwb_scans
 from process.wbwb.fit import WbWbFit
 from process.wbwb.generator import WbWbGenerator
 
@@ -121,9 +122,13 @@ def make_scan_specs(pseudo_dir):
         ("scan_alphas",          {},
             lambda f: scans.scan_alphas(f, hi=2e-4, step=1e-4)),
         ("scan_yukawa_constraint", {},
-            lambda f: scans.scan_yukawa_constraint(f, hi=0.02, step=0.01)),
+            lambda f: wbwb_scans.scan_yukawa_constraint(f, hi=0.02, step=0.01)),
         ("scan_yukawa_theory",   {"last_ecm": True, "constrain_yukawa": False},
-            lambda f: scans.scan_yukawa_theory(f, max_shift=0.005, step=0.005)),
+            lambda f: wbwb_scans.scan_yukawa_theory(f, max_shift=0.005, step=0.005)),
+        ("scan_lumi_yukawa_ratio", {"last_ecm": True, "constrain_yukawa": False},
+            lambda f: wbwb_scans.scan_lumi_yukawa_ratio(f, lo=0, hi=2, points=3)),
+        ("scan_scale_vars_yukawa", {"scale_vars": True, "constrain_yukawa": False},
+            lambda f: wbwb_scans.scan_scale_vars_yukawa(f)),
         ("scan_width",           {"sm_width": True},
             lambda f: scans.scan_width(f, hi=5, step=2.5)),
         ("scan_chi2",            {},

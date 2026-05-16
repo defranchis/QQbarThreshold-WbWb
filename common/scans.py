@@ -254,10 +254,10 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
     the scan. Mutate the lumi attrs + cov caches on ``fit``, run a fresh
     local Minuit per grid point on ``fit.chi2``, restore on exit.
 
-    Main panel iterates ``fit.tracked_pois()`` and produces one figure per
-    unit-group. The WbWb-specific yukawa-vs-lumi-ratio panel is kept as a
-    special-case (different x-axis range, only fires under
-    ``add_last_ecm + "yukawa" in param_names``).
+    Produces one figure per non-``%`` unit-group of ``fit.tracked_pois()``.
+    The WbWb-specific yukawa-vs-lumi-ratio panel lives in
+    :func:`process.wbwb.scans.scan_lumi_yukawa_ratio` — call it
+    alongside if needed.
     """
     base = fit.card.PRIORS["lumi"]["uncorr"]
     l_lumi = np.linspace(lo, hi, points) * base
@@ -268,11 +268,9 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
     # in the other deepcopy-free scans below.
     start = np.zeros(len(fit.param_names))
     pois = fit.tracked_pois()
-    track_yukawa = "yukawa" in fit.param_names  # legacy special-case panel
     saved_lumi_uncorr = fit.lumi_uncorr
     saved_lumi_corr = fit.lumi_corr
     raw = {d: {poi: [] for poi in pois} for d in ("uncorr", "corr")}
-    yuk_raw = {"uncorr": [], "corr": []}
     baseline_raw = {poi: [] for poi in pois}
     try:
         for direction in ("uncorr", "corr"):
@@ -288,8 +286,6 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
                 fr = fit.results_from_minuit(m)
                 for poi in pois:
                     raw[direction][poi].append(fr[fit._idx[poi]].s)
-                if track_yukawa:
-                    yuk_raw[direction].append(fr[fit._idx["yukawa"]].s * 100)
         for lumi in (0, base):
             fit.lumi_uncorr = lumi
             fit.lumi_corr = 0
@@ -315,8 +311,8 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
         baselines[poi] = _impact(np.array(baseline_raw[poi]) * scale)[-1]
 
     base_pct = l_lumi * 100
-    # Skip the % unit-group from the main loop — yukawa-in-% gets the
-    # legacy special-case panel below (different x-axis range).
+    # Skip the % unit-group — fractional-uncertainty POIs (e.g. yukawa)
+    # get their own panel from a process-specific helper when applicable.
     for unit, unit_pois in _pois_by_unit(fit).items():
         if unit == "%":
             continue
@@ -340,31 +336,6 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
         plt.ylabel(f"Impact on fitted parameter [{unit}]")
         process_annotation(fit.card, x=0.92, y=0.14)
         save_figure(fit.plot_dir, _impact_pois_filename("lumi", unit_pois))
-
-    # Legacy WbWb yukawa-vs-lumi-ratio panel. Fires whenever yukawa is a
-    # fit parameter AND add_last_ecm — independent of whether yukawa is
-    # tracked as a POI in the main loop (so under --fitYukawa it appears
-    # alongside the main MeV panel). Kept as a special case until a
-    # second-process need surfaces a cleaner abstraction.
-    if not fit.scenario_dict["add_last_ecm"] or not track_yukawa:
-        return
-
-    yuk_uncorr = _impact(yuk_raw["uncorr"])
-    yuk_corr = _impact(yuk_raw["corr"])
-    x = np.linspace(0.5, 1.5, 11)
-    plt.plot(x, yuk_uncorr, "r-", label=r"Impact on $y_t$ (uncorr)", linewidth=2)
-    plt.plot(x, yuk_corr, "r--", label=r"Impact on $y_t$ (corr)", linewidth=2)
-    plt.plot(1, yuk_uncorr[list(x).index(1)], "ro", label="Nominal value", markersize=8)
-    plt.legend()
-    plt.title(projection_title(fit.scenario_dict["last_lumi"], unit="ab", fmt="{:.2f}"),
-              loc="right", fontsize=20)
-    plt.xlabel("Luminosity uncert. / nominal value")
-    plt.ylabel(r"Luminosity uncert. on fitted $y_t$ [%]")
-    process_annotation(fit.card, x=0.96, y=0.27, include_reference=True)
-    plt.text(0.96, 0.07,
-             f"nominal uncorr (corr) uncert. = {fit.lumi_uncorr_ecm[-1]*100:.3f} ({fit.lumi_corr*100:.2f}) %",
-             fontsize=21, transform=plt.gca().transAxes, ha="right")
-    save_figure(fit.plot_dir, "uncert_yukawa_vs_lumi")
 
 
 # ---------------------------------------------------------------------------
@@ -438,43 +409,6 @@ def scan_alphas(fit, *, hi=3e-4, step=1e-5):
                      plot_filename_stem="alphas")
 
 
-def scan_yukawa_constraint(fit, *, hi=0.05, step=0.001):
-    """``doYukawaScan`` — sweep the Yukawa prior width."""
-    saved_constrain = fit.constrain_yukawa
-    try:
-        fit.constrain_yukawa = True
-        grid = np.arange(1e-10, hi + step / 2, step)
-        _scan_constraint(fit, "yukawa", grid,
-                         axis_unit=100,
-                         axis_label=r"Uncertainty in $y_t$ [%]",
-                         plot_filename_stem="yukawa")
-    finally:
-        fit.constrain_yukawa = saved_constrain
-
-
-def scan_yukawa_theory(fit, *, max_shift=0.01, step=0.001):
-    """``doYukawaTheoryScan`` — shift the above-threshold xsec and read fitted y_t."""
-    shifts = np.arange(-max_shift, max_shift + step / 2, step) + 1
-    work = copy.deepcopy(fit)
-    l_yuk = []
-    for s in shifts:
-        work.scale_var_scenario[-1] *= s
-        work.fit_parameters()
-        fr = work.fit_results(printout=False)
-        l_yuk.append(fr[fit._idx["yukawa"]].n
-                     - fit.last_fit_results[fit._idx["yukawa"]].n)
-        work.scale_var_scenario[-1] /= s
-
-    plt.plot(shifts, l_yuk, "b-", label=r"Shift in fitted $y_t$", linewidth=2)
-    plt.plot(1, 0, "ro", label="Starting point", markersize=8)
-    plt.title(projection_title(fit.scenario_dict["total_lumi"]), loc="right", fontsize=20)
-    plt.legend()
-    plt.xlabel("Shift in cross section")
-    plt.ylabel(r"Shift in fitted $y_t$")
-    process_annotation(fit.card, x=0.60, y=0.17, include_reference=True)
-    save_figure(fit.plot_dir, "uncert_yukawa_vs_xsec_shift")
-
-
 # ---------------------------------------------------------------------------
 # Width (only meaningful with --SMwidth)
 # ---------------------------------------------------------------------------
@@ -523,15 +457,13 @@ def scan_scale_vars(fit):
     ``scale_var_scenario`` feeds only ``_xsec_base`` in ``_build_chi2_caches``.
     Mutate both on ``fit``, run a fresh local Minuit per scale, restore on exit.
 
-    Main panel iterates the non-``%`` unit groups of ``fit.tracked_pois()``;
-    yukawa keeps the legacy raw-shift presentation (no scale, no %-of-central)
-    on its own panel.
+    Produces one figure per non-``%`` unit-group of ``fit.tracked_pois()``.
+    The WbWb yukawa-shift panel lives in
+    :func:`process.wbwb.scans.scan_scale_vars_yukawa`.
     """
     pois = fit.tracked_pois()
-    track_yukawa = not fit.constrain_yukawa and "yukawa" in fit.param_names
     l_vars = []
     shifts = {poi: [] for poi in pois}
-    l_yuk = [] if track_yukawa and "yukawa" not in pois else None
     saved = (fit.scale_var_scenario, fit._xsec_base)
     start = np.zeros(len(fit.param_names))
     try:
@@ -552,9 +484,6 @@ def scan_scale_vars(fit):
             for poi in pois:
                 shifts[poi].append(fr[fit._idx[poi]].n
                                    - fit.last_fit_results[fit._idx[poi]].n)
-            if l_yuk is not None:
-                l_yuk.append(fr[fit._idx["yukawa"]].n
-                             - fit.last_fit_results[fit._idx["yukawa"]].n)
     finally:
         fit.scale_var_scenario, fit._xsec_base = saved
 
@@ -575,17 +504,6 @@ def scan_scale_vars(fit):
         plt.ylabel(f"Shift in fitted parameter [{unit}]")
         process_annotation(fit.card, x=0.6, y=0.17, include_reference=True)
         save_figure(fit.plot_dir, _impact_pois_filename("scale", unit_pois))
-
-    if l_yuk is not None:
-        plt.plot(l_vars, np.array(l_yuk), "b-",
-                 label=r"Shift in fitted $y_t$", linewidth=2)
-        plt.plot(fit.mass_scale, 0, "ro", label="Starting point", markersize=8)
-        plt.legend()
-        plt.title(projection_title(fit.scenario_dict["total_lumi"]), loc="right", fontsize=20)
-        plt.xlabel(r"Renormalisation scale $\mu$ [GeV]")
-        plt.ylabel("Shift in fitted parameter")
-        process_annotation(fit.card, x=0.97, y=0.12, include_reference=True)
-        save_figure(fit.plot_dir, "uncert_yukawa_vs_scale")
 
 
 # ---------------------------------------------------------------------------

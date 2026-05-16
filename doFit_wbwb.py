@@ -13,6 +13,7 @@ from common import scans
 from common.parallel import run_parallel
 from common.plots import plot_fit_scenario, plot_parameter_variations
 from common.systematics import print_syst_table
+from process.wbwb import scans as wbwb_scans
 from process.wbwb.fit import WbWbFit
 from process.wbwb.generator import WbWbGenerator
 
@@ -126,18 +127,20 @@ def main():
         scan_jobs.append(lambda: scans.scan_beam_resolution(fit))
     if args.scaleVarsScan:
         scan_jobs.append(lambda: scans.scan_scale_vars(fit))
+        scan_jobs.append(lambda: wbwb_scans.scan_scale_vars_yukawa(fit))
     if args.BECscans:
         scan_jobs.append(lambda: scans.scan_bec(fit))
     if args.BESscans:
         scan_jobs.append(lambda: scans.scan_bes(fit))
     if args.lumiscans:
         scan_jobs.append(lambda: scans.scan_lumi(fit))
+        scan_jobs.append(lambda: wbwb_scans.scan_lumi_yukawa_ratio(fit))
     if args.alphaSscan:
         scan_jobs.append(lambda: scans.scan_alphas(fit))
         if not args.fitYukawa:
-            scan_jobs.append(lambda: scans.scan_yukawa_constraint(fit))
+            scan_jobs.append(lambda: wbwb_scans.scan_yukawa_constraint(fit))
     if args.yukawaThScan:
-        scan_jobs.append(lambda: scans.scan_yukawa_theory(fit))
+        scan_jobs.append(lambda: wbwb_scans.scan_yukawa_theory(fit))
     if args.widthscan:
         scan_jobs.append(lambda: scans.scan_width(fit))
     if args.truevaluescan:
