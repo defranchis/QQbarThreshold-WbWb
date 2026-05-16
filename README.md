@@ -149,11 +149,11 @@ SYSTEMATICS = {
     "alphas": {"type": "constraint", "always_on": True},
     "yukawa": {"type": "constraint", "always_on": False},
     "BEC":    {"type": "binned",
-               "source": {"kind": "template_dir", "path": "BEC_variations",
+               "source": {"kind": "template_dir",
                           "var_subdir": True, "snap_to_grid": True}},
     "BES":    {"type": "binned", "source": {"kind": "smear_shift"}},
     "sw2":    {"type": "global",
-               "source": {"kind": "template_dir", "path": "output_sw2"}},
+               "source": {"kind": "template_dir"}},
 }
 
 # Row order in the printed / LaTeX systematic table. "BEC"/"BES"/"lumi"
@@ -191,15 +191,19 @@ correlated, à la BEC/BES):
 PRIORS["new_binned"] = {"uncorr": 1.0, "corr": 0.5}
 SYSTEMATICS["new_binned"] = {
     "type": "binned",
-    "source": {"kind": "template_dir", "path": "new_binned_variations",
+    "source": {"kind": "template_dir",
                "var_subdir": True, "snap_to_grid": True},
 }
+INPUT_DIRS["new_binned"] = "new_binned_variations"   # template dir
 INPUT_VAR["new_binned"] = 10.0                       # template-frozen
 ```
 
 Plus call `fit.add_binned_nuisance("new_binned")` in the entry script
 (or wire it into a CLI flag). The chi² loop, `_morph_one` dispatcher,
 nuisance-prior helper, and syst-table machinery all pick it up.
+`template_dir` sources read their path from `INPUT_DIRS[name]` — one
+mapping for all on-disk template directories, including the nominal /
+scale-vars / pseudo ones.
 
 **Adding a new global nuisance** is analogous with `"type": "global"`
 and a scalar `PRIORS["x"] = ...`.
