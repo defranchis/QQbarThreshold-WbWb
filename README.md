@@ -28,8 +28,8 @@ WW_threshold/
 │                              diagnostic plots (fit_scenario,
 │                              parameter_variations)
 │   ├── scans.py            - process-agnostic scans: LS / BEC / BES / lumi /
-│                              alphaS / width / scale / shift / chi2 /
-│                              true-value (one impact line per POI)
+│                              alphaS / scale / shift / chi2 / true-value
+│                              (one impact line per POI)
 │   ├── systematics.py      - print_syst_table (text + LaTeX)
 │   └── parallel.py         - fork-based scan dispatcher
 ├── process/
@@ -38,8 +38,9 @@ WW_threshold/
 │   │   │                     (QQbar_threshold N3LO+ISR tt)
 │   │   ├── fit.py          - WbWbFit subclass: SM-width hook,
 │   │   │                     constrain_yukawa property, scenario validator,
-│   │   │                     pull / print-extra overrides
-│   │   └── scans.py        - WbWb-only scans: yukawa-constraint,
+│   │   │                     pseudodata-tag / pull / print-extra / scannable
+│   │   │                     POI overrides
+│   │   └── scans.py        - WbWb-only scans: width, yukawa-constraint,
 │   │                         yukawa-theory, lumi-yukawa-ratio,
 │   │                         scale-vars-yukawa
 │   └── ww/                 - placeholders; do_scan raises NotImplementedError
@@ -272,12 +273,18 @@ any of:
   inside chi² (WbWb uses this for the SM-width hook).
 * `_validate_scenario(add_last_ecm)` — raise if the requested
   scenario combination doesn't make physical sense.
+* `_select_pseudodata_tag()` — which template tag to use as the
+  pseudodata reference. Default `"pseudodata"`; WbWb returns
+  `"mass_var"` under SM_width.
 * `_print_param_extras(name, val)` — print annotation lines after the
   `Fitted <name>` line (WbWb uses this for SM-width theory parameter
   + Yukawa-constraint info).
 * `_pull_for(name, val)` — custom pull formula for parameters whose
   semantics differ from the standard `val - pseudodata` (WbWb uses
   it for the SM-width theory knob).
+* `is_scannable_poi(name)` — whether a POI should be included in scan
+  plots. Default `True`; WbWb returns `False` for `"width"` under
+  SM_width (it's a constrained theory knob, not a free POI to scan).
 * `stat_breakdown_default()` — whether `print_syst_table` should
   compute the per-POI stat breakdown. Default `True`; WbWb returns
   `not self.constrain_yukawa`.
