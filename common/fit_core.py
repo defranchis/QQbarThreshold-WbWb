@@ -99,7 +99,7 @@ class FitCore:
        last_ecm). Nuisance toggles (``bec_nuisances``, ``bes_nuisances``,
        ``sw2_nuisance``) start False.
 
-    2. ``init_scenario(...)`` (or ``init_scenario_custom``) — pick the ecm
+    2. ``init_scenario(...)`` — pick the ecm
        grid, total lumi, optional above-threshold point, and Asimov /
        pseudo-data flavour. Populates ``scenario_dict``, ``scenario``,
        ``xsec_scenario``, ``scale_var_scenario``, ``pseudo_data_scenario``,
@@ -559,12 +559,25 @@ class FitCore:
     # ------------------------------------------------------------------
     # Scenario
     # ------------------------------------------------------------------
-    def init_scenario(self, scan_min, scan_max, scan_step, total_lumi, last_lumi,
-                      add_last_ecm, same_evts=False):
-        scan_list = [ecm_to_str(e) for e in np.arange(scan_min, scan_max + scan_step / 2, scan_step)]
-        self.init_scenario_custom(scan_list, total_lumi, last_lumi, add_last_ecm, same_evts)
+    def init_scenario(self, *, total_lumi, last_lumi, add_last_ecm=False,
+                      same_evts=False, scan_list=None,
+                      scan_min=None, scan_max=None, scan_step=None):
+        """Initialise the scan scenario (ecm grid + lumi distribution).
 
-    def init_scenario_custom(self, scan_list, total_lumi, last_lumi, add_last_ecm, same_evts=False):
+        Either pass an explicit ``scan_list`` (already-formatted ecm-string
+        list) or the ``(scan_min, scan_max, scan_step)`` triplet from which
+        a uniform grid is built. Stores everything in ``self.scenario_dict``
+        and triggers the first ``create_scenario`` build."""
+        if scan_list is None:
+            if scan_min is None or scan_max is None or scan_step is None:
+                raise ValueError(
+                    "init_scenario needs either scan_list= or "
+                    "scan_min=/scan_max=/scan_step=."
+                )
+            scan_list = [ecm_to_str(e)
+                         for e in np.arange(scan_min, scan_max + scan_step / 2, scan_step)]
+        elif any(x is not None for x in (scan_min, scan_max, scan_step)):
+            raise ValueError("init_scenario: pass scan_list= XOR scan_min=/scan_max=/scan_step=.")
         if self.constrain_yukawa and add_last_ecm:
             raise ValueError(
                 "Yukawa constraint + last-ecm point unsupported; "
@@ -578,10 +591,23 @@ class FitCore:
             "add_last_ecm": add_last_ecm,
             "same_evts": same_evts,
         }
-        self.create_scenario(**self.scenario_dict)
+        self.create_scenario()
 
-    def create_scenario(self, scan_list, total_lumi, last_lumi, add_last_ecm,
-                        same_evts, init_vars=True, pseudodata=None):
+    def create_scenario(self, *, init_vars=True, pseudodata=None):
+        """Build the scenario tensors from ``self.scenario_dict``.
+
+        ``init_vars`` controls whether ``scale_var_scenario`` is reset to
+        ones (default True; set False to preserve a custom scale variation
+        injected by ``scan_scale_vars``). ``pseudodata`` overrides the
+        pseudodata cross section (default: smeared ``self.pseudodata_tag``
+        template)."""
+        sd = self.scenario_dict
+        scan_list = sd["scan_list"]
+        total_lumi = sd["total_lumi"]
+        last_lumi = sd["last_lumi"]
+        add_last_ecm = sd["add_last_ecm"]
+        same_evts = sd["same_evts"]
+
         if self.debug:
             print("Creating threshold scan scenario")
 
@@ -794,7 +820,7 @@ class FitCore:
         then rebuild the cov and chi2-cache derivations. For scans that
         mutate ``scenario_dict`` in place — restores ``fit`` to a consistent
         state for the next chi² evaluation without touching ``fit.minuit``."""
-        self.create_scenario(**self.scenario_dict, init_vars=init_vars, pseudodata=pseudodata)
+        self.create_scenario(init_vars=init_vars, pseudodata=pseudodata)
         self._build_cov()
         self._build_chi2_caches()
 
@@ -830,7 +856,7 @@ class FitCore:
         self._smear_cross_sections()
         self._morph_cross_sections()
         if update_scenario:
-            self.create_scenario(**self.scenario_dict, init_vars=init_vars, pseudodata=pseudo_data)
+            self.create_scenario(init_vars=init_vars, pseudodata=pseudo_data)
         self.fit_parameters(init_minuit=init_minuit)
 
     # ------------------------------------------------------------------
