@@ -151,7 +151,6 @@ class FitCore:
         generator,
         *,
         input_dir=None,
-        sm_width=False,
         asimov=True,
         read_scale_vars=False,
         mass_scheme=None,
@@ -168,7 +167,6 @@ class FitCore:
         self.debug = debug
         self.asimov = asimov
         self.read_scale_vars = read_scale_vars
-        self.sm_width = sm_width
         # shift_scan moves the scan list off the original ECM grid, so the
         # BEC/BES/sw2 templates would need interpolation — skip them instead.
         self.shift_scan = shift_scan
@@ -197,7 +195,10 @@ class FitCore:
         )
         self.d_params = self.parameters.as_dict()
         self.param_names = list(self.parameters.names)
-        self.pseudodata_tag = "pseudodata" if not self.sm_width else "mass_var"
+        # Pseudodata template defaults to ``pseudodata``; subclasses can
+        # override _select_pseudodata_tag (WbWb uses ``mass_var`` under
+        # SM_width to feed a shifted-true-value pseudodata).
+        self.pseudodata_tag = self._select_pseudodata_tag()
 
         # Renormalisation scales -------------------------------------------
         scales = card.RENORM_SCALES
@@ -215,10 +216,6 @@ class FitCore:
         self.last_ecm = card.LAST_ECM
 
         # Priors -----------------------------------------------------------
-        # WbWb-specific theory-uncertainty band on the SM Γ_t prediction
-        # (MeV); read by WbWbFit.physical_fit_params under SM_width=True.
-        # WW card lacks it, fall back to _OFF.
-        self.input_uncert_SM_width = card.PRIORS.get("SM_width", _OFF)
         self.lumi_uncorr = card.PRIORS["lumi"]["uncorr"]
         self.lumi_corr = card.PRIORS["lumi"]["corr"]
         self.input_var = card.INPUT_VAR
@@ -259,7 +256,6 @@ class FitCore:
             print(f"Input directory: {self.input_dir}")
             print(f"Parameters: {self.param_names}")
             print(f"Beam energy resolution: {self.beam_energy_res}")
-            print(f"Constrain width to SM value: {self.sm_width}")
             print(f"Asimov fit: {self.asimov}")
 
         self._read_cross_sections()
@@ -357,6 +353,19 @@ class FitCore:
         don't make physical sense (e.g. WbWb raises when the Yukawa
         constraint is on AND ``add_last_ecm`` is set). Default: accept."""
         pass
+
+    def _select_pseudodata_tag(self):
+        """Hook: which template tag to use as the pseudodata reference.
+        Default: ``"pseudodata"``. WbWb subclass returns ``"mass_var"``
+        under SM_width to feed a shifted-true-value pseudodata template."""
+        return "pseudodata"
+
+    def is_scannable_poi(self, name):
+        """Hook: whether ``name`` is meaningful as a free POI for scan
+        plotting. Default: True. WbWb returns False for ``"width"``
+        under SM_width — the parameter becomes a constrained theory
+        knob in that mode, not a free POI to profile."""
+        return True
 
     def _print_param_extras(self, name, val):
         """Hook: process subclasses print extra annotation lines after the

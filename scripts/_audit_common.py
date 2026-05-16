@@ -130,7 +130,7 @@ def make_scan_specs(pseudo_dir):
         ("scan_scale_vars_yukawa", {"scale_vars": True, "constrain_yukawa": False},
             lambda f: wbwb_scans.scan_scale_vars_yukawa(f)),
         ("scan_width",           {"sm_width": True},
-            lambda f: scans.scan_width(f, hi=5, step=2.5)),
+            lambda f: wbwb_scans.scan_width(f, hi=5, step=2.5)),
         ("scan_chi2",            {},
             lambda f: scans.scan_chi2(f)),
         ("scan_scale_vars",      {"scale_vars": True},

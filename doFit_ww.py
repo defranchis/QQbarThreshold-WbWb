@@ -47,7 +47,6 @@ def main():
         card,
         generator,
         input_dir=args.inputDir,
-        sm_width=False,
         asimov=not args.pseudo,
         read_scale_vars=args.scaleVars,
         mass_scheme=card.MASS_SCHEME,

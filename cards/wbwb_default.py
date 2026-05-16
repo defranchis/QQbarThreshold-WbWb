@@ -76,6 +76,12 @@ SCENARIO = {
     # effects measured in dedicated detector-level studies for the WbWb
     # final state.
     "stat_inflation": 1.2,
+    # Coarse-comparison ECM grid used by scan_true_value (one half the
+    # number of points, ~lumi_factor of the original per-point lumi).
+    "coarse_scan": {
+        "scan_min": 340.5, "scan_max": 345.0, "scan_step": 1.0,
+        "lumi_factor": 1.0 / 2 ** 0.5,
+    },
 }
 
 # Alternative coarse two-point scan (selected by --twopoints in the entry script)

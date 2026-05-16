@@ -142,7 +142,7 @@ def main():
     if args.yukawaThScan:
         scan_jobs.append(lambda: wbwb_scans.scan_yukawa_theory(fit))
     if args.widthscan:
-        scan_jobs.append(lambda: scans.scan_width(fit))
+        scan_jobs.append(lambda: wbwb_scans.scan_width(fit))
     if args.truevaluescan:
         scan_jobs.append(lambda: scans.scan_true_value(fit))
     if args.chi2scans:

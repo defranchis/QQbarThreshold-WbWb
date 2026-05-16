@@ -24,7 +24,46 @@ import numpy as np
 
 from common.fit_core import quadrature_subtract
 from common.plots import process_annotation, projection_title, save_figure
-from common.scans import _impact, _run_local_migrad, _scan_constraint
+from common.scans import _impact, _poi_symbol, _run_local_migrad, _scan_constraint
+
+
+def scan_width(fit, *, hi=10, step=0.1):
+    """Sweep the SM-width theory uncertainty and read its impact on the
+    fitted top mass. Requires ``sm_width=True`` so the SM-width hook
+    (:meth:`WbWbFit.physical_fit_params`) is reading ``input_uncert_SM_width``.
+    """
+    if not fit.sm_width:
+        raise ValueError("scan_width requires sm_width=True")
+    grid = np.arange(1e-10, hi + step / 2, step)
+    start = list(fit.minuit.values)
+    step_mass = fit.parameters.step("mass")
+    saved = fit.input_uncert_SM_width
+    l_mass = []
+    try:
+        for u in grid:
+            fit.input_uncert_SM_width = u
+            m = _run_local_migrad(fit, start)
+            l_mass.append(step_mass * m.errors[fit._idx["mass"]] * 1000)
+    finally:
+        fit.input_uncert_SM_width = saved
+    l_mass = np.array(l_mass)
+
+    nominal_mass = fit.last_fit_results[fit._idx["mass"]].s * 1000
+    baseline = fit.input_uncert_SM_width
+    impact = quadrature_subtract(nominal_mass, l_mass[0])
+    l_mass = _impact(l_mass)
+
+    sym_m = _poi_symbol(fit, "mass")
+    sym_w = _poi_symbol(fit, "width")
+    plt.plot(grid, l_mass, "b-", label=rf"Impact on fitted ${sym_m}$", linewidth=2)
+    plt.plot(baseline, impact, "ro",
+             label=r"$N^{3}LO$ in QCD [arXiv:2309.01937]", markersize=8)
+    plt.legend(loc="upper left")
+    plt.title(projection_title(fit.scenario_dict["total_lumi"]), loc="right", fontsize=20)
+    plt.xlabel(rf"Uncertainty SM prediction for ${sym_w}$ [MeV]")
+    plt.ylabel(rf"Impact on fitted ${sym_m}$ [MeV]")
+    process_annotation(fit.card, x=0.92, y=0.17, include_reference=True)
+    save_figure(fit.plot_dir, "uncert_mass_vs_width")
 
 
 def scan_yukawa_constraint(fit, *, hi=0.05, step=0.001):

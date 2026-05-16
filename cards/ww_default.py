@@ -47,6 +47,10 @@ SCENARIO = {
     # No inflation by default; revisit once a WW detector-level study yields
     # a measured factor.
     "stat_inflation": 1.0,
+    "coarse_scan": {                                       # PLACEHOLDER
+        "scan_min": 158.0, "scan_max": 162.0, "scan_step": 2.0,
+        "lumi_factor": 1.0 / 2 ** 0.5,
+    },
 }
 
 # ---------------------------------------------------------------------------

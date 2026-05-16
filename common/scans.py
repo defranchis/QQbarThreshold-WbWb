@@ -96,9 +96,7 @@ def scan_beam_resolution(fit, *, lo=0.0, hi=0.5, step=0.01):
     if lo == 0:
         lo = 1e-6
     grid = np.arange(lo, hi + step / 2, step)
-    # WbWb-specific: under sm_width, "width" is a theory knob whose stat
-    # uncertainty isn't independently meaningful, so drop it.
-    pois = [p for p in fit.tracked_pois() if not (fit.sm_width and p == "width")]
+    pois = [p for p in fit.tracked_pois() if fit.is_scannable_poi(p)]
     results = {poi: [] for poi in pois}
 
     work = copy.deepcopy(fit)
@@ -410,45 +408,6 @@ def scan_alphas(fit, *, hi=3e-4, step=1e-5):
 
 
 # ---------------------------------------------------------------------------
-# Width (only meaningful with --SMwidth)
-# ---------------------------------------------------------------------------
-def scan_width(fit, *, hi=10, step=0.1):
-    """Sweep the SM-width theory uncertainty. Only the WbWb-specific
-    ``physical_fit_params`` hook reads ``input_uncert_SM_width``, so we
-    mutate ``fit`` in place and use a fresh local Minuit per grid point."""
-    if not fit.sm_width:
-        raise ValueError("scan_width requires sm_width=True")
-    grid = np.arange(1e-10, hi + step / 2, step)
-    start = list(fit.minuit.values)
-    step_mass = fit.parameters.step("mass")
-    saved = fit.input_uncert_SM_width
-    l_mass = []
-    try:
-        for u in grid:
-            fit.input_uncert_SM_width = u
-            m = _run_local_migrad(fit, start)
-            l_mass.append(step_mass * m.errors[fit._idx["mass"]] * 1000)
-    finally:
-        fit.input_uncert_SM_width = saved
-    l_mass = np.array(l_mass)
-
-    nominal_mass = fit.last_fit_results[fit._idx["mass"]].s * 1000
-    baseline = fit.input_uncert_SM_width
-    impact = quadrature_subtract(nominal_mass, l_mass[0])
-    l_mass = _impact(l_mass)
-
-    plt.plot(grid, l_mass, "b-", label=r"Impact on fitted $m_t$", linewidth=2)
-    plt.plot(baseline, impact, "ro",
-             label=r"$N^{3}LO$ in QCD [arXiv:2309.01937]", markersize=8)
-    plt.legend(loc="upper left")
-    plt.title(projection_title(fit.scenario_dict["total_lumi"]), loc="right", fontsize=20)
-    plt.xlabel(r"Uncertainty SM prediction for $\Gamma_t$ [MeV]")
-    plt.ylabel(r"Impact on fitted $m_t$ [MeV]")
-    process_annotation(fit.card, x=0.92, y=0.17, include_reference=True)
-    save_figure(fit.plot_dir, "uncert_mass_vs_width")
-
-
-# ---------------------------------------------------------------------------
 # Scale variation
 # ---------------------------------------------------------------------------
 def scan_scale_vars(fit):
@@ -547,9 +506,11 @@ def scan_true_value(fit):
                 scale = fit.card.POI_DISPLAY[poi]["scale"]
                 results_baseline[poi][mass] = fr[fit._idx[poi]].s * scale
 
-            coarse_scan = [ecm_to_str(e) for e in np.arange(340.5, 345 + 0.5, 1.0)]
+            cs = fit.card.SCENARIO["coarse_scan"]
+            coarse_scan = [ecm_to_str(e) for e in
+                           np.arange(cs["scan_min"], cs["scan_max"] + cs["scan_step"] / 2, cs["scan_step"])]
             fit.scenario_dict["scan_list"] = coarse_scan
-            fit.lumi_uncorr = saved_lumi_uncorr / 2 ** 0.5
+            fit.lumi_uncorr = saved_lumi_uncorr * cs["lumi_factor"]
             fr = _fit_once(pseudo)
             for poi in pois:
                 scale = fit.card.POI_DISPLAY[poi]["scale"]
@@ -561,6 +522,7 @@ def scan_true_value(fit):
 
     centrals = {poi: fit.last_fit_results[fit._idx[poi]].n for poi in pois}
     masses = np.array([float(k) for k in results_baseline[pois[0]].keys()]) if pois else np.array([])
+    sym_m = _poi_symbol(fit, "mass")
     for poi in pois:
         disp = fit.card.POI_DISPLAY[poi]
         denom = centrals[poi] if disp.get("relative") else 1
@@ -570,7 +532,7 @@ def scan_true_value(fit):
         plt.plot(masses, errs, "b-", label=rf"Uncertainty in ${sym}$", linewidth=2)
         plt.plot(masses, errs_coarse, "g--",
                  label=rf"Uncertainty in ${sym}$ (coarse scan)", linewidth=2)
-        plt.xlabel(r"True value of $m_t$ [GeV]")
+        plt.xlabel(rf"True value of ${sym_m}$ [GeV]")
         plt.ylabel(rf"Uncertainty in fitted ${sym}$ [{disp['unit']}]")
         plt.legend()
         plt.title(projection_title(fit.scenario_dict["total_lumi"]), loc="right", fontsize=20)
@@ -649,10 +611,9 @@ def scan_shift(fit, *, max_abs_shift_neg=2.0, max_abs_shift_pos=2.5, step=0.1):
 # Chi2 scans
 # ---------------------------------------------------------------------------
 def _scan_keys(fit):
-    """POIs to include in the chi² profile scan. Equivalent to
-    ``fit.tracked_pois()`` minus the WbWb-specific sm_width filter (width is
-    a theory knob under sm_width, not a free POI to scan)."""
-    return [p for p in fit.tracked_pois() if not (fit.sm_width and p == "width")]
+    """POIs to include in the chi² profile scan — tracked POIs that
+    are also scannable per the subclass hook."""
+    return [p for p in fit.tracked_pois() if fit.is_scannable_poi(p)]
 
 
 def scan_chi2(fit):

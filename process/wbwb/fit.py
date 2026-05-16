@@ -14,14 +14,18 @@ process in the framework has this dual-use top yukawa parameter.
 
 import uncertainties as unc
 
-from common.fit_core import FitCore
+from common.fit_core import _OFF, FitCore
 
 
 class WbWbFit(FitCore):
     """FitCore + the SM-width / Yukawa pieces that only make sense for top."""
 
-    def __init__(self, *args, constrain_yukawa=True, **kwargs):
+    def __init__(self, *args, sm_width=False, constrain_yukawa=True, **kwargs):
+        # sm_width must be set BEFORE super().__init__() so the
+        # _select_pseudodata_tag hook (called by FitCore.__init__) sees it.
+        self.sm_width = sm_width
         super().__init__(*args, **kwargs)
+        self.input_uncert_SM_width = self.card.PRIORS.get("SM_width", _OFF)
         if "yukawa" in self._constraints:
             self._constraints["yukawa"]["active"] = constrain_yukawa
 
@@ -40,6 +44,16 @@ class WbWbFit(FitCore):
                 "pass constrain_yukawa=False (--fitYukawa) to float Yukawa, "
                 "or set add_last_ecm=False (drop --lastecm) to skip the above-threshold point."
             )
+
+    def _select_pseudodata_tag(self):
+        return "mass_var" if self.sm_width else "pseudodata"
+
+    def is_scannable_poi(self, name):
+        # Under SM_width "width" is a theory knob constrained to 1, not
+        # a free POI — don't include it in scan profiles.
+        if name == "width" and self.sm_width:
+            return False
+        return super().is_scannable_poi(name)
 
     def _print_param_extras(self, name, val):
         if name == "width" and self.sm_width:
