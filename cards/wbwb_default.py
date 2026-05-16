@@ -150,17 +150,24 @@ CONSTRAINTS = {
 # template-generation-frozen (must match the C++ scan) and not
 # duplicated here.
 BINNED_NUISANCES = {
-    "BEC": {"source": {"kind": "template_dir", "path": "BEC_variations"},
+    # BEC's source carries two BEC-specific quirks generically:
+    # `var_subdir` says the actual templates live in a subdir named
+    # `scan_p{var}` / `scan_m{var}` (the C++ scan generates a directory
+    # per ±variation magnitude); `snap_to_grid` says the loaded ECMs are
+    # shifted by ±INPUT_VAR["BEC"] MeV and must be rounded back to the
+    # nominal 0.1-GeV grid (see the 40-MeV limit on INPUT_VAR["BEC"]).
+    "BEC": {"source": {"kind": "template_dir", "path": "BEC_variations",
+                       "var_subdir": True, "snap_to_grid": True},
             "priors": {"uncorr": 5.0, "corr": 2.5}},     # MeV
     "BES": {"source": {"kind": "smear_shift"},
             "priors": {"uncorr": 0.01, "corr": 5e-3}},
 }
 
-# Scalar nuisances — single fit parameter, ``source`` is a fully
-# pre-computed variation template (similar in shape to BEC's loader,
-# no per-bin expansion). ``INPUT_VAR[<kind>]`` again carries the
+# Global (non-binned) nuisances — single fit parameter, ``source`` is a
+# fully pre-computed variation template (similar in shape to BEC's
+# loader, no per-bin expansion). ``INPUT_VAR[<kind>]`` again carries the
 # template-generation-frozen variation magnitude.
-SCALAR_NUISANCES = {
+GLOBAL_NUISANCES = {
     "sw2": {"source": {"kind": "template_dir", "path": "output_sw2"},
             "prior": 2.5e-6},
 }

@@ -225,12 +225,13 @@ class FitCore:
             }
 
         # Nuisance toggles -------------------------------------------------
-        self.bec_nuisances = False
-        self.bes_nuisances = False
-        self.sw2_nuisance = False
-        self.bec_prior_uncorr = self.bec_prior_corr = None
-        self.bes_prior_uncorr = self.bes_prior_corr = None
-        self.sw2_prior = None
+        # Active nuisances (kinds toggled on by add_{binned,global}_nuisance).
+        self._active_binned_nuisances = set()
+        self._active_global_nuisances = set()
+        # Per-kind fit-space priors. Binned entries store
+        # ``{"uncorr": float, "corr": float}``; global entries store
+        # ``{"prior": float}``. Populated by set_{binned,global}_nuisance_priors.
+        self._nuisance_priors = {}
         # ``param_idx -> (kind, bin_idx_in_morph_scenario[kind])`` for per-bin
         # nuisance params registered by ``_expand_per_bin_nuisance``. Single
         # source of truth — readers don't re-parse the "BEC_bin{i}" name.
@@ -264,30 +265,39 @@ class FitCore:
             print("Initialization done")
 
     def _read_aux_templates(self):
-        """Pre-load raw BEC and sw2 template DataFrames once.
+        """Pre-load raw nuisance template DataFrames once.
 
-        These are re-smeared on every ``update()`` (e.g. when beam_energy_res
-        changes in scan_beam_resolution), but the on-disk content never
-        changes — cache the raw read so we don't re-touch the filesystem
-        on every iteration.
+        Iterates ``card.BINNED_NUISANCES`` + ``card.GLOBAL_NUISANCES`` and
+        loads the entries whose ``source["kind"]`` is ``"template_dir"``.
+        Cached so ``update()`` (called e.g. by scan_beam_resolution) doesn't
+        re-read the filesystem; the on-disk content never changes.
+
+        BEC-style sources may set:
+        * ``var_subdir=True`` — the actual templates live in a subdir
+          named ``scan_p{var}`` / ``scan_m{var}`` (the C++ scan emits one
+          subdir per ±variation magnitude in ``INPUT_VAR[kind]``).
+        * ``snap_to_grid=True`` — the loaded ECMs are shifted by
+          ±input_var MeV; snap them back to the nominal 0.1-GeV grid so
+          the morph computation divides per-row against the nominal
+          template. Constraint: variation magnitude must stay ≤ 40 MeV,
+          beyond which the one-decimal rounding would alias onto the next
+          nominal ECM bin (banker's rounding at .05).
         """
-        self._bec_raw = None
-        self._sw2_raw = None
+        self._nuisance_morph_raw = {}
         if self.read_scale_vars or self.mass_scheme == "1S" or self.shift_scan:
             return
-        bec = self._scan_for_tag(
-            "nominal",
-            indir=os.path.join(self.card.INPUT_DIRS["BEC"], self._bec_var_dir(self.input_var["BEC"])),
-        )
-        # BEC variation templates are sampled at ECMs shifted by ±input_var
-        # MeV (10 MeV here). Snap them back to the nominal 0.1-GeV grid so
-        # they line up positionally with the nominal template (the morph
-        # computation divides per-row). Constraint: variations must stay
-        # <= 40 MeV — beyond that the one-decimal rounding would alias onto
-        # the next nominal ECM bin (banker's rounding at .05).
-        bec["ecm"] = bec["ecm"].round(1)
-        self._bec_raw = bec
-        self._sw2_raw = self._scan_for_tag("nominal", indir=self.card.INPUT_DIRS["sw2"])
+        for kind, spec in {**self.card.BINNED_NUISANCES,
+                           **self.card.GLOBAL_NUISANCES}.items():
+            source = spec["source"]
+            if source["kind"] != "template_dir":
+                continue
+            path = source["path"]
+            if source.get("var_subdir"):
+                path = os.path.join(path, self._bec_var_dir(self.input_var[kind]))
+            raw = self._scan_for_tag("nominal", indir=path)
+            if source.get("snap_to_grid"):
+                raw["ecm"] = raw["ecm"].round(1)
+            self._nuisance_morph_raw[kind] = raw
 
     # ------------------------------------------------------------------
     # Copy semantics — the steering card is a module and can't be pickled,
@@ -340,6 +350,55 @@ class FitCore:
         if "yukawa" in self._constraints:
             return self._constraints["yukawa"]["center"]
         return 0.0
+
+    # Legacy nuisance-toggle and prior names — proxy into the canonical
+    # _active_*_nuisances sets and _nuisance_priors dict. Dropped in commit 8
+    # once nothing outside fit_core.py references them.
+    @property
+    def bec_nuisances(self):
+        return "BEC" in self._active_binned_nuisances
+    @bec_nuisances.setter
+    def bec_nuisances(self, v):
+        (self._active_binned_nuisances.add if v else self._active_binned_nuisances.discard)("BEC")
+
+    @property
+    def bes_nuisances(self):
+        return "BES" in self._active_binned_nuisances
+    @bes_nuisances.setter
+    def bes_nuisances(self, v):
+        (self._active_binned_nuisances.add if v else self._active_binned_nuisances.discard)("BES")
+
+    @property
+    def sw2_nuisance(self):
+        return "sw2" in self._active_global_nuisances
+    @sw2_nuisance.setter
+    def sw2_nuisance(self, v):
+        (self._active_global_nuisances.add if v else self._active_global_nuisances.discard)("sw2")
+
+    @property
+    def bec_prior_uncorr(self): return self._nuisance_priors.get("BEC", {}).get("uncorr")
+    @bec_prior_uncorr.setter
+    def bec_prior_uncorr(self, v): self._nuisance_priors.setdefault("BEC", {})["uncorr"] = v
+
+    @property
+    def bec_prior_corr(self): return self._nuisance_priors.get("BEC", {}).get("corr")
+    @bec_prior_corr.setter
+    def bec_prior_corr(self, v): self._nuisance_priors.setdefault("BEC", {})["corr"] = v
+
+    @property
+    def bes_prior_uncorr(self): return self._nuisance_priors.get("BES", {}).get("uncorr")
+    @bes_prior_uncorr.setter
+    def bes_prior_uncorr(self, v): self._nuisance_priors.setdefault("BES", {})["uncorr"] = v
+
+    @property
+    def bes_prior_corr(self): return self._nuisance_priors.get("BES", {}).get("corr")
+    @bes_prior_corr.setter
+    def bes_prior_corr(self, v): self._nuisance_priors.setdefault("BES", {})["corr"] = v
+
+    @property
+    def sw2_prior(self): return self._nuisance_priors.get("sw2", {}).get("prior")
+    @sw2_prior.setter
+    def sw2_prior(self, v): self._nuisance_priors.setdefault("sw2", {})["prior"] = v
 
     # ------------------------------------------------------------------
     # Hooks for subclasses
@@ -427,24 +486,47 @@ class FitCore:
     # Morphing
     # ------------------------------------------------------------------
     def _morph_one(self, param):
-        """Return DataFrame with the relative variation (xsec_var/xsec_nom - 1)."""
+        """Return a DataFrame with the relative variation
+        (xsec_var/xsec_nom - 1) for ``param``.
+
+        Dispatches on the parameter kind:
+        * parameter-of-interest (mass / width / yukawa / ...): variation
+          template lives in ``xsec_dict_smeared[f"{param}_var"]``;
+        * nuisance kind (``card.BINNED_NUISANCES`` or ``GLOBAL_NUISANCES``):
+          variation computed from ``source["kind"]`` — ``template_dir``
+          loads a pre-cached smeared variation, ``smear_shift`` re-smears
+          the nominal with a shifted beam-energy resolution.
+        For global nuisances the smeared variation is also stashed into
+        ``xsec_dict_smeared[f"{param}_var"]`` so ``plot_parameter_variations``
+        (which calls ``template(name+"_var")``) can render it.
+        """
         xsec_nom = self.template()
-        if param == "BEC":
-            xsec_var = self.smear(self._bec_raw)
-        elif param == "BES":
-            xsec_var = self.smear(self.xsec_dict["nominal"], bes=self.beam_energy_res * (1 + self.input_var["BES"]))
-        elif param == "sw2":
-            xsec_var = self.smear(self._sw2_raw)
-            self.xsec_dict_smeared["sw2_var"] = xsec_var
-        else:
+        if param in self.parameters.names:
             xsec_var = self.template(f"{param}_var")
-        return pd.DataFrame({"ecm": xsec_nom["ecm"], "xsec": xsec_var["xsec"] / xsec_nom["xsec"] - 1})
+        else:
+            spec = (self.card.BINNED_NUISANCES.get(param) or
+                    self.card.GLOBAL_NUISANCES.get(param))
+            if spec is None:
+                raise ValueError(f"Unknown morph parameter: {param!r}")
+            source = spec["source"]
+            kind = source["kind"]
+            if kind == "template_dir":
+                xsec_var = self.smear(self._nuisance_morph_raw[param])
+            elif kind == "smear_shift":
+                xsec_var = self.smear(self.xsec_dict["nominal"],
+                                      bes=self.beam_energy_res * (1 + self.input_var[param]))
+            else:
+                raise ValueError(f"Unknown nuisance source kind: {kind!r}")
+            if param in self.card.GLOBAL_NUISANCES:
+                self.xsec_dict_smeared[f"{param}_var"] = xsec_var
+        return pd.DataFrame({"ecm": xsec_nom["ecm"],
+                             "xsec": xsec_var["xsec"] / xsec_nom["xsec"] - 1})
 
     def _morph_cross_sections(self):
         self.morph_dict = {p: self._morph_one(p) for p in self.param_names}
         if not self.read_scale_vars and self.mass_scheme != "1S" and not self.shift_scan:
-            for extra in ("BEC", "BES", "sw2"):
-                self.morph_dict[extra] = self._morph_one(extra)
+            for kind in (*self.card.BINNED_NUISANCES, *self.card.GLOBAL_NUISANCES):
+                self.morph_dict[kind] = self._morph_one(kind)
 
     @staticmethod
     def _bec_var_dir(var):
@@ -542,9 +624,9 @@ class FitCore:
                     self.pseudo_data_scenario, self.unc_pseudodata_scenario)
 
         self.morph_scenario = {p: self.slice_to_scenario(self.morph_dict[p]) for p in self.param_names}
-        for extra in ("BEC", "BES", "sw2"):
-            if extra in self.morph_dict:
-                self.morph_scenario[extra] = self.slice_to_scenario(self.morph_dict[extra])
+        for kind in (*self.card.BINNED_NUISANCES, *self.card.GLOBAL_NUISANCES):
+            if kind in self.morph_dict:
+                self.morph_scenario[kind] = self.slice_to_scenario(self.morph_dict[kind])
 
     def slice_to_scenario(self, df):
         """Select the rows of ``df`` whose ECM is in ``self.scenario``.
@@ -612,18 +694,18 @@ class FitCore:
             chi2_val += ((params[self._idx[name]]
                           - self.param_from_value(c["center"], name)) / sigma_fs) ** 2
 
-        if self.bec_nuisances:
-            chi2_val += self._nuisance_prior(params, "BEC")
-        if self.bes_nuisances:
-            chi2_val += self._nuisance_prior(params, "BES")
-        if self.sw2_nuisance:
-            chi2_val += (params[self._idx["sw2"]] / max(self.sw2_prior, _PRIOR_FLOOR)) ** 2
+        for kind in self._active_binned_nuisances:
+            chi2_val += self._nuisance_prior(params, kind)
+        for kind in self._active_global_nuisances:
+            prior = max(self._nuisance_priors[kind]["prior"], _PRIOR_FLOOR)
+            chi2_val += (params[self._idx[kind]] / prior) ** 2
 
         return chi2_val + prior_extra
 
     def _nuisance_prior(self, params, kind):
-        prior_u = max(getattr(self, f"{kind.lower()}_prior_uncorr"), _PRIOR_FLOOR)
-        prior_c = max(getattr(self, f"{kind.lower()}_prior_corr"), _PRIOR_FLOOR)
+        priors = self._nuisance_priors[kind]
+        prior_u = max(priors["uncorr"], _PRIOR_FLOOR)
+        prior_c = max(priors["corr"], _PRIOR_FLOOR)
         bin_idx = self._bec_bin_idx if kind == "BEC" else self._bes_bin_idx
         bin_params = params[bin_idx]
         corr_idx = self._idx[kind]
@@ -801,45 +883,65 @@ class FitCore:
         self.last_fit_results = params_w_cov
 
     # ------------------------------------------------------------------
-    # Nuisance management
+    # Nuisance management (data-driven via card.BINNED_NUISANCES /
+    # GLOBAL_NUISANCES). The legacy add_bec_nuisances / set_bec_priors /
+    # add_bes_nuisances / set_bes_priors / add_sw2_nuisance / set_sw2_prior
+    # entry points stay as thin shims around the generic helpers.
     # ------------------------------------------------------------------
-    def add_bec_nuisances(self, prior_uncorr=None, prior_corr=None):
-        self.bec_nuisances = True
-        bec_p = self.card.PRIORS["BEC"]
+    def add_binned_nuisance(self, kind, *, prior_uncorr=None, prior_corr=None):
+        """Activate the binned nuisance ``kind`` (must appear in
+        ``card.BINNED_NUISANCES``): adds N + 1 fit parameters
+        (``{kind}_bin0`` … ``{kind}_binN`` plus the correlated ``{kind}``)
+        and sets its Gaussian priors. Priors default to the card values."""
+        self._active_binned_nuisances.add(kind)
+        card_priors = self.card.BINNED_NUISANCES[kind]["priors"]
         if prior_uncorr is None:
-            prior_uncorr = bec_p["uncorr"]
+            prior_uncorr = card_priors["uncorr"]
         if prior_corr is None:
-            prior_corr = bec_p["corr"]
-        self.set_bec_priors(prior_uncorr=prior_uncorr, prior_corr=prior_corr)
-        self._expand_per_bin_nuisance("BEC")
+            prior_corr = card_priors["corr"]
+        self.set_binned_nuisance_priors(kind, uncorr=prior_uncorr, corr=prior_corr)
+        self._expand_per_bin_nuisance(kind)
+
+    def set_binned_nuisance_priors(self, kind, *, uncorr, corr):
+        iv = self.input_var[kind]
+        self._nuisance_priors.setdefault(kind, {})
+        self._nuisance_priors[kind]["uncorr"] = uncorr / iv
+        self._nuisance_priors[kind]["corr"] = corr / iv
+
+    def add_global_nuisance(self, kind, *, prior=None):
+        """Activate the global (non-binned) nuisance ``kind`` (must appear
+        in ``card.GLOBAL_NUISANCES``): adds a single fit parameter named
+        ``kind`` and sets its Gaussian prior. Prior defaults to the card
+        value."""
+        self._active_global_nuisances.add(kind)
+        if prior is None:
+            prior = self.card.GLOBAL_NUISANCES[kind]["prior"]
+        self.set_global_nuisance_prior(kind, prior=prior)
+        self.param_names.append(kind)
+
+    def set_global_nuisance_prior(self, kind, *, prior):
+        self._nuisance_priors.setdefault(kind, {})["prior"] = prior / self.input_var[kind]
+
+    # Legacy named entry points — preserved for back-compat (entry scripts'
+    # CLI flags still call these; commit 7 may rewire them and commit 8 may
+    # drop these shims).
+    def add_bec_nuisances(self, prior_uncorr=None, prior_corr=None):
+        self.add_binned_nuisance("BEC", prior_uncorr=prior_uncorr, prior_corr=prior_corr)
 
     def set_bec_priors(self, prior_uncorr, prior_corr):
-        self.bec_prior_uncorr = prior_uncorr / self.input_var["BEC"]
-        self.bec_prior_corr = prior_corr / self.input_var["BEC"]
+        self.set_binned_nuisance_priors("BEC", uncorr=prior_uncorr, corr=prior_corr)
 
     def add_bes_nuisances(self, uncert_uncorr=None, uncert_corr=None):
-        self.bes_nuisances = True
-        bes_p = self.card.PRIORS["BES"]
-        if uncert_uncorr is None:
-            uncert_uncorr = bes_p["uncorr"]
-        if uncert_corr is None:
-            uncert_corr = bes_p["corr"]
-        self.set_bes_priors(uncert_uncorr=uncert_uncorr, uncert_corr=uncert_corr)
-        self._expand_per_bin_nuisance("BES")
+        self.add_binned_nuisance("BES", prior_uncorr=uncert_uncorr, prior_corr=uncert_corr)
 
     def set_bes_priors(self, uncert_uncorr, uncert_corr):
-        self.bes_prior_uncorr = uncert_uncorr / self.input_var["BES"]
-        self.bes_prior_corr = uncert_corr / self.input_var["BES"]
+        self.set_binned_nuisance_priors("BES", uncorr=uncert_uncorr, corr=uncert_corr)
 
     def add_sw2_nuisance(self, prior=None):
-        if prior is None:
-            prior = self.card.PRIORS["sw2"]["default"]
-        self.sw2_nuisance = True
-        self.set_sw2_prior(prior)
-        self.param_names.append("sw2")
+        self.add_global_nuisance("sw2", prior=prior)
 
     def set_sw2_prior(self, prior):
-        self.sw2_prior = prior / self.input_var["sw2"]
+        self.set_global_nuisance_prior("sw2", prior=prior)
 
     def _expand_per_bin_nuisance(self, kind):
         """Register N + 1 nuisance parameter names for ``kind`` ∈ {BEC, BES}:
@@ -872,15 +974,10 @@ class FitCore:
         self.input_uncert_alphas = self.card.CONSTRAINTS["alphas"]["sigma"]
         if "yukawa" in self.card.CONSTRAINTS:
             self.input_uncert_yukawa = self.card.CONSTRAINTS["yukawa"]["sigma"]
-        if self.bec_nuisances:
-            self.set_bec_priors(
-                prior_uncorr=self.card.PRIORS["BEC"]["uncorr"],
-                prior_corr=self.card.PRIORS["BEC"]["corr"],
-            )
-        if self.bes_nuisances:
-            self.set_bes_priors(
-                uncert_uncorr=self.card.PRIORS["BES"]["uncorr"],
-                uncert_corr=self.card.PRIORS["BES"]["corr"],
-            )
+        for kind in self._active_binned_nuisances:
+            card_priors = self.card.BINNED_NUISANCES[kind]["priors"]
+            self.set_binned_nuisance_priors(kind, uncorr=card_priors["uncorr"], corr=card_priors["corr"])
+        for kind in self._active_global_nuisances:
+            self.set_global_nuisance_prior(kind, prior=self.card.GLOBAL_NUISANCES[kind]["prior"])
         self.lumi_corr = self.card.PRIORS["lumi"]["corr"]
         self.lumi_uncorr = self.card.PRIORS["lumi"]["uncorr"]

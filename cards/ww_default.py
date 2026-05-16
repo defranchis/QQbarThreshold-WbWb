@@ -82,13 +82,14 @@ CONSTRAINTS = {
 }
 
 BINNED_NUISANCES = {
-    "BEC": {"source": {"kind": "template_dir", "path": "BEC_variations"},
+    "BEC": {"source": {"kind": "template_dir", "path": "BEC_variations",
+                       "var_subdir": True, "snap_to_grid": True},
             "priors": {"uncorr": 2.0, "corr": 1.0}},     # PLACEHOLDER
     "BES": {"source": {"kind": "smear_shift"},
             "priors": {"uncorr": 0.01, "corr": 5e-3}},
 }
 
-SCALAR_NUISANCES = {
+GLOBAL_NUISANCES = {
     "sw2": {"source": {"kind": "template_dir", "path": "output_sw2"},
             "prior": 2.5e-6},                            # PLACEHOLDER
 }
