@@ -68,8 +68,8 @@ def scan_beam_resolution(fit, *, lo=0.0, hi=0.5, step=0.01):
     work = copy.deepcopy(fit)
     work.reinitialise_to_stat()
     work.param_names = [p for p in fit.param_names if "BEC" not in p and "BES" not in p]
-    work.bec_nuisances = False
-    work.bes_nuisances = False
+    work._active_binned_nuisances.discard("BEC")
+    work._active_binned_nuisances.discard("BES")
     for res in grid:
         work.beam_energy_res = res
         work.update()
@@ -202,7 +202,7 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
     the scan. Mutate the lumi attrs + cov caches on ``fit``, run a fresh
     local Minuit per grid point on ``fit.chi2``, restore on exit.
     """
-    base = fit.card.PRIORS["lumi"]["uncorr"]
+    base = fit.card.LUMI_PRIORS["uncorr"]
     l_lumi = np.linspace(lo, hi, points) * base
     # Cold-start every grid-point migrad (start=zeros) — hesse cov depends
     # on the start vector and warm-starting gives ~1e-4 different

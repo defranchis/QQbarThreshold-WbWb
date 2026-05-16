@@ -101,11 +101,11 @@ def main():
     )
 
     if args.BECnuisances or args.BECscans or args.systTable:
-        fit.add_bec_nuisances()
+        fit.add_binned_nuisance("BEC")
     if args.BESnuisances or args.BESscans or args.systTable:
-        fit.add_bes_nuisances()
+        fit.add_binned_nuisance("BES")
     if args.addSw2:
-        fit.add_sw2_nuisance()
+        fit.add_global_nuisance("sw2")
 
     if not args.noPlots:
         plot_parameter_variations(fit)

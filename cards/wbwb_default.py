@@ -100,82 +100,65 @@ INPUT_VAR = {
 }
 
 # ---------------------------------------------------------------------------
-# Prior uncertainties for the nuisance parameters
+# Priors / systematics schema
 # ---------------------------------------------------------------------------
-# Notes:
-#   * `lumi.uncorr`: per-ECM-point uncorrelated luminosity uncertainty
-#     (fractional). `lumi.corr`: fully-correlated luminosity uncertainty
-#     (fractional), applied identically at every ECM point. The above-
-#     threshold point (when `add_last_ecm=True`) gets its uncorr entry
-#     divided by sqrt(L_above / L_threshold) automatically.
-#   * BES/BEC also have correlated and uncorrelated components.
+# All prior magnitudes that FitCore consumes are collected in PRIORS for
+# quick review. The structured sections below (CONSTRAINTS,
+# BINNED_NUISANCES, GLOBAL_NUISANCES, LUMI_PRIORS, SM_WIDTH_UNCERT_MEV)
+# add the non-numeric metadata (always_on flag, source descriptor, etc.)
+# and reference PRIORS values — so the actual numbers live in exactly
+# one place.
+#
+# Notes per entry:
+#   * "alphas", "yukawa": 1-D Gaussian-constraint sigma.
+#   * "BEC", "BES": per-ECM binned nuisance — `uncorr` prior constrains
+#     the per-bin parameters; `corr` constrains the fully-correlated
+#     parameter that perturbs every ECM identically.
+#   * "sw2": global (single-parameter) nuisance prior.
+#   * "lumi": fractional luminosity uncertainty (uncorr + corr) — feeds
+#     the cov matrix in FitCore._build_cov, not a chi² penalty term.
+#   * "SM_width": WbWb-specific theory band on Γ_SM (MeV), used by
+#     WbWbFit.physical_fit_params under --SMwidth.
 PRIORS = {
-    "yukawa":    {"default": 0.03},          # used only when Yukawa is constrained
-    "alphas":    {"default": 1.0e-4},
-    "SM_width":  {"default": 5.0},           # MeV, theory unc. on SM width prediction
-    "lumi":      {"uncorr": 1.0e-3, "corr": 5.0e-4},
-    "BES":       {"uncorr": 0.01,   "corr": 5.0e-3},
-    "BEC":       {"uncorr": 5.0,    "corr": 2.5},     # MeV
-    "sw2":       {"default": 2.5e-6},
+    "alphas":   1.0e-4,
+    "yukawa":   0.03,
+    "BEC":      {"uncorr": 5.0,    "corr": 2.5},        # MeV
+    "BES":      {"uncorr": 0.01,   "corr": 5.0e-3},
+    "sw2":      2.5e-6,
+    "lumi":     {"uncorr": 1.0e-3, "corr": 5.0e-4},
+    "SM_width": 5.0,                                    # MeV, arXiv:2309.01937
 }
 
-# ---------------------------------------------------------------------------
-# Refactored systematics schema — replacing the legacy PRIORS / INPUT_VAR /
-# `add_*_nuisances` plumbing across commits 2-8. While the refactor lands,
-# both layouts coexist; ``FitCore`` keeps reading the legacy fields. See
-# "Extending to a new process" in README.md (added in commit 8).
-# ---------------------------------------------------------------------------
-
-# 1-D Gaussian penalty terms on a single fit parameter, centred at
-# ``center`` (defaults to the pseudodata "true" value) with width
-# ``sigma``. ``always_on=True`` means the constraint is applied
-# unconditionally; ``False`` means an entry-script flag decides (today:
-# ``--fitYukawa`` toggles ``constrain_yukawa``, which gates the Yukawa
-# constraint).
+# 1-D Gaussian penalty terms. ``always_on=True`` → applied
+# unconditionally. ``always_on=False`` → an entry-script flag decides
+# (today: --fitYukawa gates Yukawa). Optional per-entry ``center``
+# field defaults to the pseudodata "true" value.
 CONSTRAINTS = {
-    "alphas": {"sigma": 1.0e-4, "always_on": True},
-    "yukawa": {"sigma": 0.03,   "always_on": False},
-    # "center": <value>  # optional per-entry — falls back to the pseudodata
-    #                    # "true" value when absent.
+    "alphas": {"sigma": PRIORS["alphas"], "always_on": True},
+    "yukawa": {"sigma": PRIORS["yukawa"], "always_on": False},
 }
 
-# Nuisances that perturb the cross-section template per ECM. The
-# ``uncorr`` prior constrains the per-ECM-bin parameters; ``corr``
-# constrains a single fully-correlated parameter that perturbs every ECM
-# identically. ``source`` is a ``{"kind": ..., ...}`` discriminator
-# consumed by the morph dispatcher in commit 4 (``template_dir`` loads
-# variations from a pre-computed directory; ``smear_shift`` re-smears
-# the nominal with ``bes * (1 + INPUT_VAR[kind])``). The variation
-# magnitude itself is read from ``INPUT_VAR[<kind>]`` — that value is
-# template-generation-frozen (must match the C++ scan) and not
-# duplicated here.
+# Per-ECM binned nuisances. ``source["kind"]`` dispatches in
+# FitCore._morph_one: ``template_dir`` loads pre-computed variations
+# from a directory; ``smear_shift`` re-smears the nominal with
+# bes*(1 + INPUT_VAR[kind]). BEC's two quirks (``var_subdir``,
+# ``snap_to_grid``) are encoded in the source descriptor.
 BINNED_NUISANCES = {
-    # BEC's source carries two BEC-specific quirks generically:
-    # `var_subdir` says the actual templates live in a subdir named
-    # `scan_p{var}` / `scan_m{var}` (the C++ scan generates a directory
-    # per ±variation magnitude); `snap_to_grid` says the loaded ECMs are
-    # shifted by ±INPUT_VAR["BEC"] MeV and must be rounded back to the
-    # nominal 0.1-GeV grid (see the 40-MeV limit on INPUT_VAR["BEC"]).
     "BEC": {"source": {"kind": "template_dir", "path": "BEC_variations",
                        "var_subdir": True, "snap_to_grid": True},
-            "priors": {"uncorr": 5.0, "corr": 2.5}},     # MeV
+            "priors": PRIORS["BEC"]},
     "BES": {"source": {"kind": "smear_shift"},
-            "priors": {"uncorr": 0.01, "corr": 5e-3}},
+            "priors": PRIORS["BES"]},
 }
 
-# Global (non-binned) nuisances — single fit parameter, ``source`` is a
-# fully pre-computed variation template (similar in shape to BEC's
-# loader, no per-bin expansion). ``INPUT_VAR[<kind>]`` again carries the
-# template-generation-frozen variation magnitude.
+# Single-parameter (global, non-binned) nuisances.
 GLOBAL_NUISANCES = {
     "sw2": {"source": {"kind": "template_dir", "path": "output_sw2"},
-            "prior": 2.5e-6},
+            "prior": PRIORS["sw2"]},
 }
 
-# Luminosity priors stay separate from CONSTRAINTS / BINNED_NUISANCES —
-# they feed the cov matrix in ``FitCore._build_cov``, not the chi²
-# constraint terms or any nuisance morph row.
-LUMI_PRIORS = {"uncorr": 1.0e-3, "corr": 5.0e-4}
+LUMI_PRIORS = PRIORS["lumi"]
+SM_WIDTH_UNCERT_MEV = PRIORS["SM_width"]
 
 # Canonical row order in the systematics table — looked up by
 # ``systematics.systematic_list`` to keep the printed / LaTeX-written

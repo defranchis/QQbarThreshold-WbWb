@@ -83,11 +83,11 @@ def build_fit(plot_dir, *, with_bec=False, with_bes=False, with_sw2=False,
         last_lumi=card.SCENARIO["last_lumi"], add_last_ecm=last_ecm, same_evts=False,
     )
     if with_bec:
-        fit.add_bec_nuisances()
+        fit.add_binned_nuisance("BEC")
     if with_bes:
-        fit.add_bes_nuisances()
+        fit.add_binned_nuisance("BES")
     if with_sw2:
-        fit.add_sw2_nuisance()
+        fit.add_global_nuisance("sw2")
     fit.fit_parameters()
     with contextlib.redirect_stdout(io.StringIO()):
         fit.fit_results()

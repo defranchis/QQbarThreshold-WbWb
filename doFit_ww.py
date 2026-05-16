@@ -66,9 +66,9 @@ def main():
     )
 
     if args.BECnuisances or args.systTable:
-        fit.add_bec_nuisances()
+        fit.add_binned_nuisance("BEC")
     if args.BESnuisances or args.systTable:
-        fit.add_bes_nuisances()
+        fit.add_binned_nuisance("BES")
 
     if not args.noPlots:
         plot_parameter_variations(fit)

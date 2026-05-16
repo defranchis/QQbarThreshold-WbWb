@@ -69,6 +69,50 @@ _PRIOR_FLOOR = 1.0e-6
 _OFF = 1.0e-10
 
 
+def _assert_card_priors_consistent(card):
+    """Verify the structured sections (CONSTRAINTS / BINNED_NUISANCES /
+    GLOBAL_NUISANCES / LUMI_PRIORS / SM_WIDTH_UNCERT_MEV) reference the
+    same prior magnitudes as ``card.PRIORS``. Catches the editing-mistake
+    failure mode where someone updates a value in one place and forgets
+    the other; loads cleanly when the structured sections were built by
+    referencing PRIORS directly (the documented pattern).
+
+    Scalars are compared by value (``==``); per-kind nested dicts must be
+    the *same Python object* (``is``) so mutations via either accessor
+    propagate to both.
+    """
+    P = card.PRIORS
+    for name, c in card.CONSTRAINTS.items():
+        if c["sigma"] != P[name]:
+            raise ValueError(
+                f"Card inconsistency: CONSTRAINTS[{name!r}]['sigma']={c['sigma']!r} "
+                f"differs from PRIORS[{name!r}]={P[name]!r}."
+            )
+    for kind, spec in card.BINNED_NUISANCES.items():
+        if spec["priors"] is not P[kind]:
+            raise ValueError(
+                f"Card inconsistency: BINNED_NUISANCES[{kind!r}]['priors'] is not "
+                f"the same dict object as PRIORS[{kind!r}] — reference it directly."
+            )
+    for kind, spec in card.GLOBAL_NUISANCES.items():
+        if spec["prior"] != P[kind]:
+            raise ValueError(
+                f"Card inconsistency: GLOBAL_NUISANCES[{kind!r}]['prior']={spec['prior']!r} "
+                f"differs from PRIORS[{kind!r}]={P[kind]!r}."
+            )
+    if card.LUMI_PRIORS is not P["lumi"]:
+        raise ValueError(
+            "Card inconsistency: LUMI_PRIORS is not the same dict object as "
+            "PRIORS['lumi'] — reference it directly."
+        )
+    sm = getattr(card, "SM_WIDTH_UNCERT_MEV", None)
+    if sm is not None and sm != P.get("SM_width"):
+        raise ValueError(
+            f"Card inconsistency: SM_WIDTH_UNCERT_MEV={sm!r} differs from "
+            f"PRIORS.get('SM_width')={P.get('SM_width')!r}."
+        )
+
+
 def _warn_if_invalid(minuit):
     """Print a one-line stderr warning when migrad did not converge or hesse
     failed. Consumers (``fit_params_with_cov`` / ``results_from_minuit``) call
@@ -96,17 +140,17 @@ class FitCore:
        templates. Populates ``param_names``, ``parameters``, ``d_params``,
        ``xsec_dict``, ``xsec_dict_smeared``, ``morph_dict``, ``_bec_raw``,
        ``_sw2_raw``, plus card-derived scalars (scales, priors, BES, lumi,
-       last_ecm). Nuisance toggles (``bec_nuisances``, ``bes_nuisances``,
-       ``sw2_nuisance``) start False.
+       last_ecm). Nuisance active sets (``_active_binned_nuisances``,
+       ``_active_global_nuisances``) start empty.
 
     2. ``init_scenario(...)`` — pick the ecm
        grid, total lumi, optional above-threshold point, and Asimov /
        pseudo-data flavour. Populates ``scenario_dict``, ``scenario``,
        ``xsec_scenario``, ``scale_var_scenario``, ``pseudo_data_scenario``,
        ``unc_pseudodata_scenario``, ``morph_scenario``. Between this step
-       and step 3 the ``add_bec_nuisances`` / ``add_bes_nuisances`` /
-       ``add_sw2_nuisance`` methods may extend ``param_names`` and
-       ``morph_scenario`` with nuisance bins.
+       and step 3 the ``add_binned_nuisance(kind)`` /
+       ``add_global_nuisance(kind)`` methods may extend ``param_names``
+       and ``morph_scenario`` with nuisance bins.
 
     3. ``init_minuit(...)`` — invoked implicitly by ``fit_parameters`` and
        ``update``. Builds the chi2 hot-path caches (``cov``, ``_cov_factor``,
@@ -142,6 +186,7 @@ class FitCore:
         debug=False,
     ):
         self.card = card
+        _assert_card_priors_consistent(card)
         self.generator = generator
         self.debug = debug
         self.asimov = asimov
@@ -202,11 +247,12 @@ class FitCore:
         self.last_ecm = card.LAST_ECM
 
         # Priors -----------------------------------------------------------
-        priors = card.PRIORS
-        self.input_uncert_SM_width = priors.get("SM_width", {}).get("default", _OFF)
-        lumi = priors["lumi"]
-        self.lumi_uncorr = lumi["uncorr"]
-        self.lumi_corr = lumi["corr"]
+        # WbWb-specific theory-uncertainty band on the SM Γ_t prediction
+        # (MeV); read by WbWbFit.physical_fit_params under SM_width=True.
+        # WW card lacks it, fall back to _OFF.
+        self.input_uncert_SM_width = getattr(card, "SM_WIDTH_UNCERT_MEV", _OFF)
+        self.lumi_uncorr = card.LUMI_PRIORS["uncorr"]
+        self.lumi_corr = card.LUMI_PRIORS["corr"]
         self.input_var = card.INPUT_VAR
 
         # 1-D Gaussian-constraint registry, built from card.CONSTRAINTS.
@@ -327,46 +373,11 @@ class FitCore:
         return clone
 
     # ------------------------------------------------------------------
-    # Compatibility shims for the legacy ``input_uncert_X`` / ``X_center``
-    # attribute names. They proxy to ``self._constraints[X]``. Used by
-    # ``scan_alphas`` / ``scan_yukawa_constraint`` / ``systematics._TURN_OFF`` /
-    # ``reinitialise_to_*`` until commits 3 and 7 rewrite those paths to
-    # use ``self._constraints`` directly.
-    # ------------------------------------------------------------------
-    @property
-    def input_uncert_alphas(self):
-        return self._constraints["alphas"]["sigma"]
-
-    @input_uncert_alphas.setter
-    def input_uncert_alphas(self, v):
-        self._constraints["alphas"]["sigma"] = v
-
-    @property
-    def input_uncert_yukawa(self):
-        if "yukawa" in self._constraints:
-            return self._constraints["yukawa"]["sigma"]
-        return _OFF
-
-    @input_uncert_yukawa.setter
-    def input_uncert_yukawa(self, v):
-        if "yukawa" in self._constraints:
-            self._constraints["yukawa"]["sigma"] = v
-        # silently dropped when yukawa is not a constraint (e.g. the WW card)
-
-    @property
-    def alphas_center(self):
-        return self._constraints["alphas"]["center"]
-
-    @property
-    def yukawa_center(self):
-        if "yukawa" in self._constraints:
-            return self._constraints["yukawa"]["center"]
-        return 0.0
-
     # WbWb-specific Yukawa-as-nuisance toggle. Proxies into
     # ``_constraints["yukawa"]["active"]`` so scans and external callers
     # that mutate ``fit.constrain_yukawa`` (e.g. ``scan_yukawa_constraint``)
     # take effect on the next chi2 call without any hot-path special case.
+    # ------------------------------------------------------------------
     @property
     def constrain_yukawa(self):
         return self._constraints.get("yukawa", {}).get("active", False)
@@ -374,55 +385,6 @@ class FitCore:
     def constrain_yukawa(self, v):
         if "yukawa" in self._constraints:
             self._constraints["yukawa"]["active"] = v
-
-    # Legacy nuisance-toggle and prior names — proxy into the canonical
-    # _active_*_nuisances sets and _nuisance_priors dict. Dropped in commit 8
-    # once nothing outside fit_core.py references them.
-    @property
-    def bec_nuisances(self):
-        return "BEC" in self._active_binned_nuisances
-    @bec_nuisances.setter
-    def bec_nuisances(self, v):
-        (self._active_binned_nuisances.add if v else self._active_binned_nuisances.discard)("BEC")
-
-    @property
-    def bes_nuisances(self):
-        return "BES" in self._active_binned_nuisances
-    @bes_nuisances.setter
-    def bes_nuisances(self, v):
-        (self._active_binned_nuisances.add if v else self._active_binned_nuisances.discard)("BES")
-
-    @property
-    def sw2_nuisance(self):
-        return "sw2" in self._active_global_nuisances
-    @sw2_nuisance.setter
-    def sw2_nuisance(self, v):
-        (self._active_global_nuisances.add if v else self._active_global_nuisances.discard)("sw2")
-
-    @property
-    def bec_prior_uncorr(self): return self._nuisance_priors.get("BEC", {}).get("uncorr")
-    @bec_prior_uncorr.setter
-    def bec_prior_uncorr(self, v): self._nuisance_priors.setdefault("BEC", {})["uncorr"] = v
-
-    @property
-    def bec_prior_corr(self): return self._nuisance_priors.get("BEC", {}).get("corr")
-    @bec_prior_corr.setter
-    def bec_prior_corr(self, v): self._nuisance_priors.setdefault("BEC", {})["corr"] = v
-
-    @property
-    def bes_prior_uncorr(self): return self._nuisance_priors.get("BES", {}).get("uncorr")
-    @bes_prior_uncorr.setter
-    def bes_prior_uncorr(self, v): self._nuisance_priors.setdefault("BES", {})["uncorr"] = v
-
-    @property
-    def bes_prior_corr(self): return self._nuisance_priors.get("BES", {}).get("corr")
-    @bes_prior_corr.setter
-    def bes_prior_corr(self, v): self._nuisance_priors.setdefault("BES", {})["corr"] = v
-
-    @property
-    def sw2_prior(self): return self._nuisance_priors.get("sw2", {}).get("prior")
-    @sw2_prior.setter
-    def sw2_prior(self, v): self._nuisance_priors.setdefault("sw2", {})["prior"] = v
 
     # ------------------------------------------------------------------
     # Hooks for subclasses
@@ -715,7 +677,7 @@ class FitCore:
         ``self.alphas_center`` / ``self.yukawa_center``. By default these
         are the pseudodata "true" values — Asimov-self-consistent (fit, data,
         and constraint all sit at the pseudo point so no bias on the fit
-        minimum). Set ``card.PRIORS["alphas"]["center"]`` /
+        minimum). Set ``card.CONSTRAINTS["alphas"]["center"]`` /
         ``["yukawa"]["center"]`` to override (e.g. SM-centred = 0.1184 / 1.0
         for real-data analysis or bias studies). Read the resulting Asimov
         uncertainty as "achievable resolution with an external constraint
@@ -912,7 +874,7 @@ class FitCore:
                     print(f"fitted theory parameter = {self.minuit.values[name]:.2f} +/- "
                           f"{self.minuit.errors[name]:.2f} (constrained to 1)")
                 if name == "yukawa" and self.constrain_yukawa:
-                    print(f"constrained with uncertainty {self.input_uncert_yukawa:.3f}")
+                    print(f"constrained with uncertainty {self._constraints['yukawa']['sigma']:.3f}")
 
             if name == "width" and self.sm_width:
                 pull = unc.ufloat(self.minuit.values[name], self.minuit.errors[name])
@@ -931,10 +893,9 @@ class FitCore:
         self.last_fit_results = params_w_cov
 
     # ------------------------------------------------------------------
-    # Nuisance management (data-driven via card.BINNED_NUISANCES /
-    # GLOBAL_NUISANCES). The legacy add_bec_nuisances / set_bec_priors /
-    # add_bes_nuisances / set_bes_priors / add_sw2_nuisance / set_sw2_prior
-    # entry points stay as thin shims around the generic helpers.
+    # Nuisance management — data-driven via card.BINNED_NUISANCES /
+    # card.GLOBAL_NUISANCES. Entry scripts call
+    # add_binned_nuisance("BEC") / add_global_nuisance("sw2") / etc.
     # ------------------------------------------------------------------
     def add_binned_nuisance(self, kind, *, prior_uncorr=None, prior_corr=None):
         """Activate the binned nuisance ``kind`` (must appear in
@@ -970,27 +931,6 @@ class FitCore:
     def set_global_nuisance_prior(self, kind, *, prior):
         self._nuisance_priors.setdefault(kind, {})["prior"] = prior / self.input_var[kind]
 
-    # Legacy named entry points — preserved for back-compat (entry scripts'
-    # CLI flags still call these; commit 7 may rewire them and commit 8 may
-    # drop these shims).
-    def add_bec_nuisances(self, prior_uncorr=None, prior_corr=None):
-        self.add_binned_nuisance("BEC", prior_uncorr=prior_uncorr, prior_corr=prior_corr)
-
-    def set_bec_priors(self, prior_uncorr, prior_corr):
-        self.set_binned_nuisance_priors("BEC", uncorr=prior_uncorr, corr=prior_corr)
-
-    def add_bes_nuisances(self, uncert_uncorr=None, uncert_corr=None):
-        self.add_binned_nuisance("BES", prior_uncorr=uncert_uncorr, prior_corr=uncert_corr)
-
-    def set_bes_priors(self, uncert_uncorr, uncert_corr):
-        self.set_binned_nuisance_priors("BES", uncorr=uncert_uncorr, corr=uncert_corr)
-
-    def add_sw2_nuisance(self, prior=None):
-        self.add_global_nuisance("sw2", prior=prior)
-
-    def set_sw2_prior(self, prior):
-        self.set_global_nuisance_prior("sw2", prior=prior)
-
     def _expand_per_bin_nuisance(self, kind):
         """Register N + 1 nuisance parameter names for ``kind`` ∈ {BEC, BES}:
         one per-ECM-bin parameter plus a fully-correlated parameter. Stores
@@ -1007,25 +947,23 @@ class FitCore:
     # Systematic-table support
     # ------------------------------------------------------------------
     def reinitialise_to_stat(self):
-        self.input_uncert_alphas = _OFF
-        self.input_uncert_yukawa = _OFF
-        if self.bec_nuisances:
-            self.bec_prior_corr = _OFF
-            self.bec_prior_uncorr = _OFF
-        if self.bes_nuisances:
-            self.bes_prior_corr = _OFF
-            self.bes_prior_uncorr = _OFF
+        for c in self._constraints.values():
+            c["sigma"] = _OFF
+        for kind in self._active_binned_nuisances:
+            self._nuisance_priors[kind]["uncorr"] = _OFF
+            self._nuisance_priors[kind]["corr"] = _OFF
+        for kind in self._active_global_nuisances:
+            self._nuisance_priors[kind]["prior"] = _OFF
         self.lumi_corr = _OFF
         self.lumi_uncorr = _OFF
 
     def reinitialise_to_nominal(self):
-        self.input_uncert_alphas = self.card.CONSTRAINTS["alphas"]["sigma"]
-        if "yukawa" in self.card.CONSTRAINTS:
-            self.input_uncert_yukawa = self.card.CONSTRAINTS["yukawa"]["sigma"]
+        for name, c in self._constraints.items():
+            c["sigma"] = self.card.CONSTRAINTS[name]["sigma"]
         for kind in self._active_binned_nuisances:
             card_priors = self.card.BINNED_NUISANCES[kind]["priors"]
             self.set_binned_nuisance_priors(kind, uncorr=card_priors["uncorr"], corr=card_priors["corr"])
         for kind in self._active_global_nuisances:
             self.set_global_nuisance_prior(kind, prior=self.card.GLOBAL_NUISANCES[kind]["prior"])
-        self.lumi_corr = self.card.PRIORS["lumi"]["corr"]
-        self.lumi_uncorr = self.card.PRIORS["lumi"]["uncorr"]
+        self.lumi_corr = self.card.LUMI_PRIORS["corr"]
+        self.lumi_uncorr = self.card.LUMI_PRIORS["uncorr"]
