@@ -487,6 +487,17 @@ class FitCore:
         ``_xsec_base``, ``_idx``) that don't exist until init_minuit
         constructs them.
 
+        **Morphing convention.** The model cross section is built as the
+        nominal lineshape times a product of per-parameter shape factors:
+        ``th_xsec = _xsec_base · Π_i (1 + p_i · morph_i)``. This assumes
+        the per-parameter variations combine multiplicatively, which is
+        exact only when cross-terms ``p_i · p_j · morph_i · morph_j`` are
+        negligible — i.e. in the small-variation regime where each
+        ``p_i · morph_i`` stays well below unity. Good for the WbWb /
+        WW threshold fits where the floating params sit near zero, but
+        the linearity assumption is implicit; deviations from it would
+        show up as a non-quadratic chi² far from the minimum.
+
         The αₛ constraint (always on) and the Yukawa constraint (under
         ``constrain_yukawa=True``) are Gaussian penalties centred at
         ``self.alphas_center`` / ``self.yukawa_center``. By default these
