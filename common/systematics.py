@@ -13,7 +13,7 @@ edit.
 
 import os
 
-from common.fit_core import _OFF, quadrature_subtract
+from common.fit_core import OFF, quadrature_subtract
 
 
 # ---------------------------------------------------------------------------
@@ -58,29 +58,29 @@ def systematic_list(fit):
 # Per-syst evaluation
 # ---------------------------------------------------------------------------
 def _turn_off(fit, name):
-    """Pin the named systematic at its centre by setting its prior to _OFF.
+    """Pin the named systematic at its centre by setting its prior to OFF.
 
     Dispatches generically over the FitCore canonical stores; doesn't need
     to be updated when a new card-declared constraint / nuisance is added.
     """
     if name in fit._constraints:
-        fit._constraints[name]["sigma"] = _OFF
+        fit._constraints[name]["sigma"] = OFF
         return
     for kind in fit._active_binned_nuisances:
         if name == f"{kind}_uncorr":
-            fit._nuisance_priors[kind]["uncorr"] = _OFF
+            fit._nuisance_priors[kind]["uncorr"] = OFF
             return
         if name == f"{kind}_corr":
-            fit._nuisance_priors[kind]["corr"] = _OFF
+            fit._nuisance_priors[kind]["corr"] = OFF
             return
     if name in fit._active_global_nuisances:
-        fit._nuisance_priors[name]["prior"] = _OFF
+        fit._nuisance_priors[name]["prior"] = OFF
         return
     if name == "lumi_uncorr":
-        fit.lumi_uncorr = _OFF
+        fit.lumi_uncorr = OFF
         return
     if name == "lumi_corr":
-        fit.lumi_corr = _OFF
+        fit.lumi_corr = OFF
         return
     raise ValueError(f"Unknown systematic: {name}")
 

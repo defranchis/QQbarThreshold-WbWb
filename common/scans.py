@@ -23,7 +23,7 @@ from common.plots import (
 )
 
 
-def _impact(arr):
+def impact(arr):
     """``sqrt(arr[i]**2 - arr[0]**2)`` elementwise — the "impact relative to
     the no-syst baseline" pattern."""
     arr = np.asarray(arr)
@@ -31,8 +31,6 @@ def _impact(arr):
 
 
 # Colour + linestyle + marker cycles used to render one impact line per POI.
-# Index 0 matches the legacy WbWb convention (mass = blue solid + red circle,
-# width = green dashed + orange square); subsequent indices extend it.
 _POI_COLORS  = ["b", "g", "r", "orange", "purple", "brown"]
 _POI_STYLES  = ["-", "--", "-.", ":"]
 _POI_MARKERS = ["o", "s", "^", "D", "v", "P"]
@@ -58,15 +56,27 @@ def _pois_by_unit(fit):
     return out
 
 
-def _poi_symbol(fit, poi):
-    """Math symbol for ``poi`` (e.g. ``r"m_t"``). Falls back to the bare name."""
+def poi_symbol(fit, poi):
+    """Math symbol declared in ``card.POI_DISPLAY[poi]["symbol"]`` (rendered
+    via LaTeX in plot legends). Falls back to the bare POI name."""
     return fit.card.POI_DISPLAY[poi].get("symbol", poi)
 
 
 def _impact_pois_filename(stem, pois):
-    """Build ``uncert_{stem}_vs_X`` → ``uncert_{p1}_{p2}_vs_X``. Used to keep
-    legacy filenames ``uncert_mass_width_vs_*`` stable on WbWb default."""
+    """Build ``uncert_{stem}_vs_X`` → ``uncert_{p1}_{p2}_vs_X``."""
     return "_".join(["uncert", *pois, "vs", stem])
+
+
+def _centrals(fit, pois):
+    """Last-fit central values for ``pois`` (used in relative-mode display)."""
+    return {poi: fit.last_fit_results[fit._idx[poi]].n for poi in pois}
+
+
+def _maybe_relative(val, fit, poi, centrals):
+    """Apply the POI_DISPLAY ``relative`` divide-by-central if requested."""
+    if fit.card.POI_DISPLAY[poi].get("relative"):
+        return val / centrals[poi]
+    return val
 
 
 def _local_minuit(fit, start):
@@ -79,12 +89,81 @@ def _local_minuit(fit, start):
     return m
 
 
-def _run_local_migrad(fit, start):
+def run_local_migrad(fit, start):
     """Like ``_local_minuit`` but also runs migrad. The common pattern for
     deepcopy-free scan helpers that don't touch ``fit.minuit``."""
     m = _local_minuit(fit, start)
     m.migrad()
     return m
+
+
+def sweep_lumi(fit, l_lumi, pois):
+    """Sweep ``lumi_uncorr`` / ``lumi_corr`` (one direction at a time) over
+    ``l_lumi``, recording per-POI hesse uncertainties at each grid point.
+    Returns ``{"uncorr": {poi: [.s...]}, "corr": {poi: [.s...]}}`` of raw
+    (unscaled, physical-unit) values. Saves/restores the lumi attrs and
+    rebuilds the cov on exit.
+
+    Shared between :func:`scan_lumi` and WbWb's yukawa-vs-lumi-ratio panel.
+    """
+    start = np.zeros(len(fit.param_names))
+    saved_uncorr = fit.lumi_uncorr
+    saved_corr = fit.lumi_corr
+    raw = {d: {poi: [] for poi in pois} for d in ("uncorr", "corr")}
+    try:
+        for direction in ("uncorr", "corr"):
+            for lumi in l_lumi:
+                if direction == "uncorr":
+                    fit.lumi_uncorr = lumi
+                    fit.lumi_corr = 0
+                else:
+                    fit.lumi_corr = lumi
+                    fit.lumi_uncorr = 0
+                fit._build_cov()
+                m = run_local_migrad(fit, start)
+                fr = fit.results_from_minuit(m)
+                for poi in pois:
+                    raw[direction][poi].append(fr[fit._idx[poi]].s)
+    finally:
+        fit.lumi_uncorr = saved_uncorr
+        fit.lumi_corr = saved_corr
+        fit._build_cov()
+    return raw
+
+
+def sweep_scale_vars(fit, pois):
+    """Sweep the renormalisation scale over ``fit.scale_vars`` (filtered to
+    valid mass-scale tags), recording per-POI fitted shifts relative to
+    ``fit.last_fit_results``. Returns ``(l_vars, {poi: [shifts...]})`` —
+    only points whose template tag exists in ``fit.xsec_dict`` appear in
+    ``l_vars``. Saves/restores ``scale_var_scenario`` + ``_xsec_base``.
+
+    Shared between :func:`scan_scale_vars` and WbWb's yukawa-shift panel.
+    """
+    saved = (fit.scale_var_scenario, fit._xsec_base)
+    start = np.zeros(len(fit.param_names))
+    l_vars = []
+    shifts = {poi: [] for poi in pois}
+    try:
+        for v in fit.scale_vars:
+            if v < 70:
+                continue
+            tag = f"scaleM_{v:.1f}"
+            if tag not in fit.xsec_dict:
+                continue
+            l_vars.append(v)
+            nominal_scen = fit.slice_to_scenario(fit.template())
+            var_scen = fit.slice_to_scenario(fit.template(tag))
+            fit.scale_var_scenario = np.array(var_scen["xsec"]) / np.array(nominal_scen["xsec"])
+            fit._xsec_base = np.asarray(fit.xsec_scenario["xsec"]) * np.asarray(fit.scale_var_scenario)
+            m = run_local_migrad(fit, start)
+            fr = fit.results_from_minuit(m)
+            for poi in pois:
+                shifts[poi].append(fr[fit._idx[poi]].n
+                                   - fit.last_fit_results[fit._idx[poi]].n)
+    finally:
+        fit.scale_var_scenario, fit._xsec_base = saved
+    return l_vars, shifts
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +193,7 @@ def scan_beam_resolution(fit, *, lo=0.0, hi=0.5, step=0.01):
     work.beam_energy_res = fit.beam_energy_res
     work.update()
     work.last_fit_results = work.fit_results(printout=False)
-    centrals = {poi: work.last_fit_results[work._idx[poi]].n for poi in pois}
+    centrals = _centrals(work, pois)
     baselines = {poi: work.last_fit_results[work._idx[poi]].s for poi in pois}
 
     for unit, unit_pois in _pois_by_unit(fit).items():
@@ -123,14 +202,12 @@ def scan_beam_resolution(fit, *, lo=0.0, hi=0.5, step=0.01):
             continue
         plt.figure()
         for i, poi in enumerate(unit_pois):
-            disp = fit.card.POI_DISPLAY[poi]
-            scale = disp["scale"]
-            denom = centrals[poi] if disp.get("relative") else 1
-            vals = np.array(results[poi]) * scale / denom
-            base = baselines[poi] * scale / denom
+            scale = fit.card.POI_DISPLAY[poi]["scale"]
+            vals = _maybe_relative(np.array(results[poi]) * scale, fit, poi, centrals)
+            base = _maybe_relative(baselines[poi] * scale, fit, poi, centrals)
             color, ls = _poi_line(i)
             mcolor, marker = _poi_marker(i)
-            sym = _poi_symbol(fit, poi)
+            sym = poi_symbol(fit, poi)
             plt.plot(grid, vals, color=color, linestyle=ls,
                      label=rf"Stat. uncert. in ${sym}$", linewidth=2)
             plt.plot(fit.beam_energy_res, base, marker=marker, color=mcolor,
@@ -170,7 +247,7 @@ def _scan_nuisance(fit, kind, variations, *, axis_unit, axis_label):
 
     def _fit(uncorr, corr):
         fit.set_binned_nuisance_priors(kind, uncorr=uncorr, corr=corr)
-        m = _run_local_migrad(fit, start)
+        m = run_local_migrad(fit, start)
         fr = fit.results_from_minuit(m)
         return {poi: fr[fit._idx[poi]].s for poi in pois}
 
@@ -194,29 +271,29 @@ def _scan_nuisance(fit, kind, variations, *, axis_unit, axis_label):
     finally:
         fit._nuisance_priors[kind] = saved_priors
 
-    centrals = {poi: fit.last_fit_results[fit._idx[poi]].n for poi in pois}
+    centrals = _centrals(fit, pois)
     impacts = {d: {} for d in ("uncorr", "corr")}
     baselines = {}
     for poi in pois:
         scale = fit.card.POI_DISPLAY[poi]["scale"]
-        impacts["uncorr"][poi] = _impact(results["uncorr"][poi]) * scale
-        impacts["corr"][poi] = _impact(results["corr"][poi]) * scale
-        baselines[poi] = _impact(baseline_raw[poi])[-1] * scale
+        impacts["uncorr"][poi] = impact(results["uncorr"][poi]) * scale
+        impacts["corr"][poi] = impact(results["corr"][poi]) * scale
+        baselines[poi] = impact(baseline_raw[poi])[-1] * scale
 
     x = variations * axis_unit
     for unit, unit_pois in _pois_by_unit(fit).items():
         plt.figure()
         for i, poi in enumerate(unit_pois):
-            disp = fit.card.POI_DISPLAY[poi]
-            denom = centrals[poi] if disp.get("relative") else 1
             color, _ = _poi_line(i)
             mcolor, marker = _poi_marker(i)
-            sym = _poi_symbol(fit, poi)
-            plt.plot(x, impacts["uncorr"][poi] / denom, color=color, linestyle="-",
+            sym = poi_symbol(fit, poi)
+            plt.plot(x, _maybe_relative(impacts["uncorr"][poi], fit, poi, centrals),
+                     color=color, linestyle="-",
                      label=rf"Impact on ${sym}$ (uncorr.)", linewidth=2)
-            plt.plot(x, impacts["corr"][poi] / denom, color=color, linestyle="--",
+            plt.plot(x, _maybe_relative(impacts["corr"][poi], fit, poi, centrals),
+                     color=color, linestyle="--",
                      label=rf"Impact on ${sym}$ (corr.)", linewidth=2)
-            plt.plot(baseline_uncorr * axis_unit, baselines[poi] / denom,
+            plt.plot(baseline_uncorr * axis_unit, _maybe_relative(baselines[poi], fit, poi, centrals),
                      marker=marker, color=mcolor, linestyle="None",
                      label=rf"Baseline ${sym}$ (uncorr.)", markersize=8)
         plt.legend(loc="upper left")
@@ -259,73 +336,56 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
     """
     base = fit.card.PRIORS["lumi"]["uncorr"]
     l_lumi = np.linspace(lo, hi, points) * base
-    # Cold-start every grid-point migrad (start=zeros) — hesse cov depends
-    # on the start vector and warm-starting gives ~1e-4 different
-    # uncertainties when the cov surface changes substantially per
-    # iteration (lumi, scale, shift, true-value scans). Same convention
-    # in the other deepcopy-free scans below.
-    start = np.zeros(len(fit.param_names))
     pois = fit.tracked_pois()
-    saved_lumi_uncorr = fit.lumi_uncorr
-    saved_lumi_corr = fit.lumi_corr
-    raw = {d: {poi: [] for poi in pois} for d in ("uncorr", "corr")}
+    raw = sweep_lumi(fit, l_lumi, pois)
+    # Baseline marker: lumi=0 (stat-only) and lumi=base. Two extra fits;
+    # quadrature-subtracting the stat-only point gives the lumi impact.
+    start = np.zeros(len(fit.param_names))
+    saved_uncorr = fit.lumi_uncorr
+    saved_corr = fit.lumi_corr
     baseline_raw = {poi: [] for poi in pois}
     try:
-        for direction in ("uncorr", "corr"):
-            for lumi in l_lumi:
-                if direction == "uncorr":
-                    fit.lumi_uncorr = lumi
-                    fit.lumi_corr = 0
-                else:
-                    fit.lumi_corr = lumi
-                    fit.lumi_uncorr = 0
-                fit._build_cov()
-                m = _run_local_migrad(fit, start)
-                fr = fit.results_from_minuit(m)
-                for poi in pois:
-                    raw[direction][poi].append(fr[fit._idx[poi]].s)
         for lumi in (0, base):
             fit.lumi_uncorr = lumi
             fit.lumi_corr = 0
             fit._build_cov()
-            m = _run_local_migrad(fit, start)
+            m = run_local_migrad(fit, start)
             fr = fit.results_from_minuit(m)
             for poi in pois:
                 baseline_raw[poi].append(fr[fit._idx[poi]].s)
     finally:
-        fit.lumi_uncorr = saved_lumi_uncorr
-        fit.lumi_corr = saved_lumi_corr
+        fit.lumi_uncorr = saved_uncorr
+        fit.lumi_corr = saved_corr
         fit._build_cov()
 
-    centrals = {poi: fit.last_fit_results[fit._idx[poi]].n for poi in pois}
+    centrals = _centrals(fit, pois)
     impacts = {d: {} for d in ("uncorr", "corr")}
     baselines = {}
     for poi in pois:
         scale = fit.card.POI_DISPLAY[poi]["scale"]
-        # Pre-scale before _impact so the internal sqrt(a²-b²) operates on the
-        # display-unit values — matches the legacy float-precision exactly.
-        impacts["uncorr"][poi] = _impact(np.array(raw["uncorr"][poi]) * scale)
-        impacts["corr"][poi] = _impact(np.array(raw["corr"][poi]) * scale)
-        baselines[poi] = _impact(np.array(baseline_raw[poi]) * scale)[-1]
+        # Pre-scale before impact() so the internal sqrt(a²-b²) operates on
+        # display-unit values — keeps the float precision identical to the
+        # legacy code that scaled inline.
+        impacts["uncorr"][poi] = impact(np.array(raw["uncorr"][poi]) * scale)
+        impacts["corr"][poi] = impact(np.array(raw["corr"][poi]) * scale)
+        baselines[poi] = impact(np.array(baseline_raw[poi]) * scale)[-1]
 
     base_pct = l_lumi * 100
-    # Skip the % unit-group — fractional-uncertainty POIs (e.g. yukawa)
-    # get their own panel from a process-specific helper when applicable.
     for unit, unit_pois in _pois_by_unit(fit).items():
         if unit == "%":
-            continue
+            continue  # fractional-uncertainty POIs get a per-process helper
         plt.figure()
         for i, poi in enumerate(unit_pois):
-            disp = fit.card.POI_DISPLAY[poi]
-            denom = centrals[poi] if disp.get("relative") else 1
             color, _ = _poi_line(i)
             mcolor, marker = _poi_marker(i)
-            sym = _poi_symbol(fit, poi)
-            plt.plot(base_pct, impacts["uncorr"][poi] / denom, color=color, linestyle="-",
+            sym = poi_symbol(fit, poi)
+            plt.plot(base_pct, _maybe_relative(impacts["uncorr"][poi], fit, poi, centrals),
+                     color=color, linestyle="-",
                      label=rf"Impact on ${sym}$ (uncorr.)", linewidth=2)
-            plt.plot(base_pct, impacts["corr"][poi] / denom, color=color, linestyle="--",
+            plt.plot(base_pct, _maybe_relative(impacts["corr"][poi], fit, poi, centrals),
+                     color=color, linestyle="--",
                      label=rf"Impact on ${sym}$ (corr.)", linewidth=2)
-            plt.plot(base * 100, baselines[poi] / denom,
+            plt.plot(base * 100, _maybe_relative(baselines[poi], fit, poi, centrals),
                      marker=marker, color=mcolor, linestyle="None",
                      label=rf"Baseline ${sym}$ (uncorr.)", markersize=8)
         plt.legend()
@@ -339,7 +399,7 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
 # ---------------------------------------------------------------------------
 # Generic 1-D constraint sigma sweep
 # ---------------------------------------------------------------------------
-def _scan_constraint(fit, name, grid, *, axis_unit, axis_label, plot_filename_stem):
+def scan_constraint(fit, name, grid, *, axis_unit, axis_label, plot_filename_stem):
     """Sweep the Gaussian-prior width on ``fit._constraints[name]`` over
     ``grid``, record hesse uncertainties for each POI in
     ``card.POI_DISPLAY``, and plot one panel per unit-group.
@@ -358,7 +418,7 @@ def _scan_constraint(fit, name, grid, *, axis_unit, axis_label, plot_filename_st
     try:
         for u in grid:
             fit._constraints[name]["sigma"] = u
-            m = _run_local_migrad(fit, start)
+            m = run_local_migrad(fit, start)
             for poi in pois:
                 step = fit.parameters.step(poi)
                 scale = fit.card.POI_DISPLAY[poi]["scale"]
@@ -366,26 +426,22 @@ def _scan_constraint(fit, name, grid, *, axis_unit, axis_label, plot_filename_st
     finally:
         fit._constraints[name]["sigma"] = saved_sigma
 
-    centrals = {poi: fit.last_fit_results[fit._idx[poi]].n for poi in pois}
+    centrals = _centrals(fit, pois)
     impacts, baselines = {}, {}
     for poi in pois:
         scale = fit.card.POI_DISPLAY[poi]["scale"]
         nominal_stat = fit.last_fit_results[fit._idx[poi]].s * scale
         baselines[poi] = quadrature_subtract(nominal_stat, raw[poi][0])
-        impacts[poi] = _impact(raw[poi])
+        impacts[poi] = impact(raw[poi])
 
     for unit, unit_pois in _pois_by_unit(fit).items():
         plt.figure()
         for i, poi in enumerate(unit_pois):
-            disp = fit.card.POI_DISPLAY[poi]
-            val = impacts[poi]
-            base = baselines[poi]
-            if disp.get("relative"):
-                val = val / centrals[poi]
-                base = base / centrals[poi]
+            val = _maybe_relative(impacts[poi], fit, poi, centrals)
+            base = _maybe_relative(baselines[poi], fit, poi, centrals)
             color, ls = _poi_line(i)
             mcolor, marker = _poi_marker(i)
-            sym = _poi_symbol(fit, poi)
+            sym = poi_symbol(fit, poi)
             plt.plot(grid * axis_unit, val, color=color, linestyle=ls,
                      label=rf"Impact on ${sym}$", linewidth=2)
             plt.plot(baseline * axis_unit, base, marker=marker, color=mcolor,
@@ -401,7 +457,7 @@ def _scan_constraint(fit, name, grid, *, axis_unit, axis_label, plot_filename_st
 def scan_alphas(fit, *, hi=3e-4, step=1e-5):
     """``doAlphaSscans`` — sweep the externally-imposed alpha_s prior width."""
     grid = np.arange(1e-10, hi + step / 2, step)
-    _scan_constraint(fit, "alphas", grid,
+    scan_constraint(fit, "alphas", grid,
                      axis_unit=1e3,
                      axis_label=r"Uncertainty in $\alpha_\mathrm{S} (m_\mathrm{Z}^2) [x10^3]$",
                      plot_filename_stem="alphas")
@@ -421,30 +477,7 @@ def scan_scale_vars(fit):
     :func:`process.wbwb.scans.scan_scale_vars_yukawa`.
     """
     pois = fit.tracked_pois()
-    l_vars = []
-    shifts = {poi: [] for poi in pois}
-    saved = (fit.scale_var_scenario, fit._xsec_base)
-    start = np.zeros(len(fit.param_names))
-    try:
-        for v in fit.scale_vars:
-            if v < 70:
-                continue
-            tag = f"scaleM_{v:.1f}"
-            if tag not in fit.xsec_dict:
-                continue
-            l_vars.append(v)
-            nominal_scen = fit.slice_to_scenario(fit.template())
-            var_scen = fit.slice_to_scenario(fit.template(tag))
-
-            fit.scale_var_scenario = np.array(var_scen["xsec"]) / np.array(nominal_scen["xsec"])
-            fit._xsec_base = np.asarray(fit.xsec_scenario["xsec"]) * np.asarray(fit.scale_var_scenario)
-            m = _run_local_migrad(fit, start)
-            fr = fit.results_from_minuit(m)
-            for poi in pois:
-                shifts[poi].append(fr[fit._idx[poi]].n
-                                   - fit.last_fit_results[fit._idx[poi]].n)
-    finally:
-        fit.scale_var_scenario, fit._xsec_base = saved
+    l_vars, shifts = sweep_scale_vars(fit, pois)
 
     for unit, unit_pois in _pois_by_unit(fit).items():
         if unit == "%":
@@ -453,7 +486,7 @@ def scan_scale_vars(fit):
         for i, poi in enumerate(unit_pois):
             scale = fit.card.POI_DISPLAY[poi]["scale"]
             color, ls = _poi_line(i)
-            sym = _poi_symbol(fit, poi)
+            sym = poi_symbol(fit, poi)
             plt.plot(l_vars, np.array(shifts[poi]) * scale, color=color, linestyle=ls,
                      label=rf"Shift in fitted ${sym}$", linewidth=2)
         plt.plot(fit.mass_scale, 0, "ro", label="Starting point", markersize=8)
@@ -487,24 +520,29 @@ def scan_true_value(fit):
 
     def _fit_once(pseudo):
         fit.rebuild_chi2_state(init_vars=True, pseudodata=pseudo)
-        m = _run_local_migrad(fit, start)
+        m = run_local_migrad(fit, start)
         return fit.results_from_minuit(m)
 
+    pivot = fit.card.SCENARIO["true_value_pivot"]
+    pivot_tag = f"_{pivot}"
     try:
         for fname in sorted(os.listdir(indir)):
-            mass = fname.split("_")[4].replace("mass", "")
+            # Filename pattern: ..._{pivot}X.XX_... — the pivot value is what
+            # we sweep over (e.g. "mass" for WbWb / WW threshold scans).
+            after_pivot = fname.split(pivot_tag, 1)[1]
+            pivot_val = after_pivot.split("_")[0]
             pseudo = fit.smear(fit.read_xsec(os.path.join(indir, fname)))
 
             fit.scenario_dict["scan_list"] = saved_scan_list
             fit.lumi_uncorr = saved_lumi_uncorr
             fr = _fit_once(pseudo)
-            bias = fr[fit._idx["mass"]].n - float(mass)
-            mass_unc = fr[fit._idx["mass"]].s
-            if abs(bias) > mass_unc * 0.7:
+            bias = fr[fit._idx[pivot]].n - float(pivot_val)
+            pivot_unc = fr[fit._idx[pivot]].s
+            if abs(bias) > pivot_unc * 0.7:
                 continue
             for poi in pois:
                 scale = fit.card.POI_DISPLAY[poi]["scale"]
-                results_baseline[poi][mass] = fr[fit._idx[poi]].s * scale
+                results_baseline[poi][pivot_val] = fr[fit._idx[poi]].s * scale
 
             cs = fit.card.SCENARIO["coarse_scan"]
             coarse_scan = [ecm_to_str(e) for e in
@@ -514,30 +552,29 @@ def scan_true_value(fit):
             fr = _fit_once(pseudo)
             for poi in pois:
                 scale = fit.card.POI_DISPLAY[poi]["scale"]
-                results_coarse[poi][mass] = fr[fit._idx[poi]].s * scale
+                results_coarse[poi][pivot_val] = fr[fit._idx[poi]].s * scale
     finally:
         fit.scenario_dict["scan_list"] = saved_scan_list
         fit.lumi_uncorr = saved_lumi_uncorr
         fit.rebuild_chi2_state(init_vars=True)
 
-    centrals = {poi: fit.last_fit_results[fit._idx[poi]].n for poi in pois}
-    masses = np.array([float(k) for k in results_baseline[pois[0]].keys()]) if pois else np.array([])
-    sym_m = _poi_symbol(fit, "mass")
+    centrals = _centrals(fit, pois)
+    pivot_vals = np.array([float(k) for k in results_baseline[pois[0]].keys()]) if pois else np.array([])
+    sym_pivot = poi_symbol(fit, pivot)
     for poi in pois:
         disp = fit.card.POI_DISPLAY[poi]
-        denom = centrals[poi] if disp.get("relative") else 1
-        errs = np.array(list(results_baseline[poi].values())) / denom
-        errs_coarse = np.array(list(results_coarse[poi].values())) / denom
-        sym = _poi_symbol(fit, poi)
-        plt.plot(masses, errs, "b-", label=rf"Uncertainty in ${sym}$", linewidth=2)
-        plt.plot(masses, errs_coarse, "g--",
+        errs = _maybe_relative(np.array(list(results_baseline[poi].values())), fit, poi, centrals)
+        errs_coarse = _maybe_relative(np.array(list(results_coarse[poi].values())), fit, poi, centrals)
+        sym = poi_symbol(fit, poi)
+        plt.plot(pivot_vals, errs, "b-", label=rf"Uncertainty in ${sym}$", linewidth=2)
+        plt.plot(pivot_vals, errs_coarse, "g--",
                  label=rf"Uncertainty in ${sym}$ (coarse scan)", linewidth=2)
-        plt.xlabel(rf"True value of ${sym_m}$ [GeV]")
+        plt.xlabel(rf"True value of ${sym_pivot}$ [GeV]")
         plt.ylabel(rf"Uncertainty in fitted ${sym}$ [{disp['unit']}]")
         plt.legend()
         plt.title(projection_title(fit.scenario_dict["total_lumi"]), loc="right", fontsize=20)
         process_annotation(fit.card, x=0.92, y=0.17)
-        save_figure(fit.plot_dir, f"uncert_{poi}_vs_true_mass")
+        save_figure(fit.plot_dir, f"uncert_{poi}_vs_true_{pivot}")
 
 
 # ---------------------------------------------------------------------------
@@ -581,7 +618,7 @@ def scan_shift(fit, *, max_abs_shift_neg=2.0, max_abs_shift_pos=2.5, step=0.1):
         for shift in shifts:
             fit.scenario_dict["scan_list"] = [ecm_to_str(e) for e in scan_list + shift]
             fit.rebuild_chi2_state(init_vars=True)
-            m = _run_local_migrad(fit, start)
+            m = run_local_migrad(fit, start)
             fr = fit.results_from_minuit(m)
             for poi in pois:
                 raw[poi].append(fr[fit._idx[poi]].s)
@@ -596,7 +633,7 @@ def scan_shift(fit, *, max_abs_shift_neg=2.0, max_abs_shift_pos=2.5, step=0.1):
         nominal = fit.last_fit_results[fit._idx[poi]].s
         rel = (np.array(raw[poi]) / nominal - 1) * 100
         color, ls = _poi_line(i)
-        sym = _poi_symbol(fit, poi)
+        sym = poi_symbol(fit, poi)
         plt.plot(shifts, rel, color=color, linestyle=ls, label=rf"${sym}$", linewidth=2)
     plt.axhline(0, color="gray", linestyle="--", linewidth=1)
     plt.xlabel("Shift in scan range [GeV]")

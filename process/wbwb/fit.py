@@ -14,7 +14,7 @@ process in the framework has this dual-use top yukawa parameter.
 
 import uncertainties as unc
 
-from common.fit_core import _OFF, FitCore
+from common.fit_core import OFF, FitCore
 
 
 class WbWbFit(FitCore):
@@ -25,7 +25,7 @@ class WbWbFit(FitCore):
         # _select_pseudodata_tag hook (called by FitCore.__init__) sees it.
         self.sm_width = sm_width
         super().__init__(*args, **kwargs)
-        self.input_uncert_SM_width = self.card.PRIORS.get("SM_width", _OFF)
+        self.input_uncert_SM_width = self.card.PRIORS.get("SM_width", OFF)
         if "yukawa" in self._constraints:
             self._constraints["yukawa"]["active"] = constrain_yukawa
 

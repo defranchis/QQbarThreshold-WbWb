@@ -82,6 +82,9 @@ SCENARIO = {
         "scan_min": 340.5, "scan_max": 345.0, "scan_step": 1.0,
         "lumi_factor": 1.0 / 2 ** 0.5,
     },
+    # POI whose true value is parsed from each pseudodata filename (e.g.
+    # ``..._mass171.50_...``) and used as the x-axis of scan_true_value.
+    "true_value_pivot": "mass",
 }
 
 # Alternative coarse two-point scan (selected by --twopoints in the entry script)

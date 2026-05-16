@@ -53,7 +53,7 @@ def quadrature_subtract(total, partial):
 # Defensive lower bound on the BEC / BES / sw2 priors used in chi2. The
 # floor is reached in two real scenarios:
 #   - ``reinitialise_to_stat`` (and the ``_TURN_OFF`` map in
-#     ``systematics.py``) write ``_OFF = 1e-10`` into the priors for the
+#     ``systematics.py``) write ``OFF = 1e-10`` into the priors for the
 #     syst-table flow. The floor brings them to 1e-6 — the chi2 penalty is
 #     enormous either way and the parameter is pinned, but the Hessian is
 #     better-conditioned at 1e-6.
@@ -62,11 +62,11 @@ def quadrature_subtract(total, partial):
 #     Without the floor the BEC-bin Hessian rows reach ~1e14, close to the
 #     conditioning threshold of the cov inversion. (BES doesn't hit this:
 #     ``input_var["BES"] = 0.1`` keeps the prior at 1e-5 > floor.)
-# alpha_s and Yukawa aren't floored: their _OFF values are reached only in
+# alpha_s and Yukawa aren't floored: their OFF values are reached only in
 # one-dimensional penalty terms where the cov stays well-conditioned.
 # ---------------------------------------------------------------------------
 _PRIOR_FLOOR = 1.0e-6
-_OFF = 1.0e-10
+OFF = 1.0e-10
 
 
 _KNOWN_SYST_TYPES = {"constraint", "binned", "global"}
@@ -925,14 +925,14 @@ class FitCore:
     # ------------------------------------------------------------------
     def reinitialise_to_stat(self):
         for c in self._constraints.values():
-            c["sigma"] = _OFF
+            c["sigma"] = OFF
         for kind in self._active_binned_nuisances:
-            self._nuisance_priors[kind]["uncorr"] = _OFF
-            self._nuisance_priors[kind]["corr"] = _OFF
+            self._nuisance_priors[kind]["uncorr"] = OFF
+            self._nuisance_priors[kind]["corr"] = OFF
         for kind in self._active_global_nuisances:
-            self._nuisance_priors[kind]["prior"] = _OFF
-        self.lumi_corr = _OFF
-        self.lumi_uncorr = _OFF
+            self._nuisance_priors[kind]["prior"] = OFF
+        self.lumi_corr = OFF
+        self.lumi_uncorr = OFF
 
     def reinitialise_to_nominal(self):
         for name, c in self._constraints.items():
