@@ -120,6 +120,57 @@ PRIORS = {
 }
 
 # ---------------------------------------------------------------------------
+# Refactored systematics schema — replacing the legacy PRIORS / INPUT_VAR /
+# `add_*_nuisances` plumbing across commits 2-8. While the refactor lands,
+# both layouts coexist; ``FitCore`` keeps reading the legacy fields. See
+# "Extending to a new process" in README.md (added in commit 8).
+# ---------------------------------------------------------------------------
+
+# 1-D Gaussian penalty terms on a single fit parameter, centred at
+# ``center`` (defaults to the pseudodata "true" value) with width
+# ``sigma``. ``always_on=True`` means the constraint is applied
+# unconditionally; ``False`` means an entry-script flag decides (today:
+# ``--fitYukawa`` toggles ``constrain_yukawa``, which gates the Yukawa
+# constraint).
+CONSTRAINTS = {
+    "alphas": {"sigma": 1.0e-4, "always_on": True},
+    "yukawa": {"sigma": 0.03,   "always_on": False},
+    # "center": <value>  # optional per-entry — falls back to the pseudodata
+    #                    # "true" value when absent.
+}
+
+# Nuisances that perturb the cross-section template per ECM. The
+# ``uncorr`` prior constrains the per-ECM-bin parameters; ``corr``
+# constrains a single fully-correlated parameter that perturbs every ECM
+# identically. ``source`` is a ``{"kind": ..., ...}`` discriminator
+# consumed by the morph dispatcher in commit 4 (``template_dir`` loads
+# variations from a pre-computed directory; ``smear_shift`` re-smears
+# the nominal with ``bes * (1 + INPUT_VAR[kind])``). The variation
+# magnitude itself is read from ``INPUT_VAR[<kind>]`` — that value is
+# template-generation-frozen (must match the C++ scan) and not
+# duplicated here.
+BINNED_NUISANCES = {
+    "BEC": {"source": {"kind": "template_dir", "path": "BEC_variations"},
+            "priors": {"uncorr": 5.0, "corr": 2.5}},     # MeV
+    "BES": {"source": {"kind": "smear_shift"},
+            "priors": {"uncorr": 0.01, "corr": 5e-3}},
+}
+
+# Scalar nuisances — single fit parameter, ``source`` is a fully
+# pre-computed variation template (similar in shape to BEC's loader,
+# no per-bin expansion). ``INPUT_VAR[<kind>]`` again carries the
+# template-generation-frozen variation magnitude.
+SCALAR_NUISANCES = {
+    "sw2": {"source": {"kind": "template_dir", "path": "output_sw2"},
+            "prior": 2.5e-6},
+}
+
+# Luminosity priors stay separate from CONSTRAINTS / BINNED_NUISANCES —
+# they feed the cov matrix in ``FitCore._build_cov``, not the chi²
+# constraint terms or any nuisance morph row.
+LUMI_PRIORS = {"uncorr": 1.0e-3, "corr": 5.0e-4}
+
+# ---------------------------------------------------------------------------
 # Theory-uncertainty quotes for the systematic-table row "theory"
 # ---------------------------------------------------------------------------
 THEORY_UNC = {

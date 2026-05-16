@@ -56,6 +56,7 @@ SCENARIO = {
 INPUT_VAR = {
     "BEC":  10.0,    # MeV   - reuse WbWb convention; can be tuned later
     "BES":  0.1,
+    "sw2":  2.5e-6,  # PLACEHOLDER — must match the WW sw2-variation template scan
 }
 
 # ---------------------------------------------------------------------------
@@ -69,6 +70,30 @@ PRIORS = {
     "BES":      {"uncorr": 0.01,   "corr": 5.0e-3},
     "BEC":      {"uncorr": 2.0,    "corr": 1.0},     # MeV — PLACEHOLDER (smaller than WbWb)
 }
+
+# ---------------------------------------------------------------------------
+# Refactored systematics schema — see cards/wbwb_default.py for the meaning
+# of each section. The WW card carries placeholders until the WW-specific
+# generator + nuisance studies pin down the real values.
+# ---------------------------------------------------------------------------
+CONSTRAINTS = {
+    "alphas": {"sigma": 1.0e-4, "always_on": True},
+    # TODO: sin2thetaW / alphaEM here once their priors are pinned down.
+}
+
+BINNED_NUISANCES = {
+    "BEC": {"source": {"kind": "template_dir", "path": "BEC_variations"},
+            "priors": {"uncorr": 2.0, "corr": 1.0}},     # PLACEHOLDER
+    "BES": {"source": {"kind": "smear_shift"},
+            "priors": {"uncorr": 0.01, "corr": 5e-3}},
+}
+
+SCALAR_NUISANCES = {
+    "sw2": {"source": {"kind": "template_dir", "path": "output_sw2"},
+            "prior": 2.5e-6},                            # PLACEHOLDER
+}
+
+LUMI_PRIORS = {"uncorr": 1.0e-3, "corr": 5.0e-4}
 
 # ---------------------------------------------------------------------------
 # Theory-uncertainty quotes for the systematic-table row "theory"
