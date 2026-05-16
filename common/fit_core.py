@@ -281,15 +281,23 @@ class FitCore:
     # Hooks for subclasses
     # ------------------------------------------------------------------
     def physical_fit_params(self, params):
-        """Hook for process-specific constraint between fit parameters.
+        """Hook for process-specific cross-parameter relations.
 
-        Returns a prior penalty (chi2 contribution) and may mutate ``params``
-        in place — e.g. for WbWb with SM-width constraint, the width
-        parameter is computed from the mass and the floating "theory" knob.
+        Returns ``(resolved_params, prior_extra)``:
 
-        Default: no extra prior, no parameter rewrite.
+        * ``resolved_params`` — the parameter vector after any
+          inter-parameter relations have been resolved (e.g. for WbWb with
+          ``--SMwidth``, the width entry is overwritten with the value
+          derived from mass + floating theory_knob). Subclasses that rewrite
+          entries **must return a fresh copy** of ``params`` rather than
+          mutate it in place — the input may be Minuit's own state array.
+        * ``prior_extra`` — extra Gaussian-prior contribution to chi² beyond
+          what ``FitCore.chi2`` already accounts for (typically a prior on
+          the otherwise-unconstrained theory knob).
+
+        Default: no relations to resolve, no extra prior.
         """
-        return 0.0
+        return params, 0.0
 
     # ------------------------------------------------------------------
     # File I/O & templates
@@ -491,10 +499,12 @@ class FitCore:
         of that width centred at the chosen value".
         """
         # physical_fit_params runs first because subclasses (e.g. WbWbFit
-        # with SM_width) may rewrite params in place before the template
-        # is applied.
-        prior_extra = self.physical_fit_params(params)
-        th_xsec = self._xsec_base * np.prod(1 + params[:, None] * self._morph_matrix, axis=0)
+        # with SM_width) resolve cross-parameter relations and return a
+        # fresh array with the dependent entries (e.g. width) overwritten.
+        # The template uses the resolved values; the prior terms below
+        # stay on the raw free params from Minuit.
+        resolved_params, prior_extra = self.physical_fit_params(params)
+        th_xsec = self._xsec_base * np.prod(1 + resolved_params[:, None] * self._morph_matrix, axis=0)
 
         res = self.pseudo_data_scenario - th_xsec
         chi2_val = float(res @ cho_solve(self._cov_factor, res))
@@ -604,9 +614,9 @@ class FitCore:
         _warn_if_invalid(minuit)
         vals = [minuit.values[p] for p in self.param_names]
         params_w_cov = list(unc.correlated_values(vals, minuit.covariance))
-        self.physical_fit_params(params_w_cov)
+        resolved_params, _ = self.physical_fit_params(params_w_cov)
         return [self.value_from_param(p, name)
-                for p, name in zip(params_w_cov, self.param_names)]
+                for p, name in zip(resolved_params, self.param_names)]
 
     def fit_parameters(self, exclude_stat=False, init_minuit=True):
         if init_minuit:
@@ -634,8 +644,8 @@ class FitCore:
         _warn_if_invalid(self.minuit)
         vals = [self.minuit.values[p] for p in self.param_names]
         params_w_cov = list(unc.correlated_values(vals, self.minuit.covariance))
-        self.physical_fit_params(params_w_cov)
-        return params_w_cov
+        resolved_params, _ = self.physical_fit_params(params_w_cov)
+        return resolved_params
 
     def fit_results(self, printout=True):
         params_w_cov = self.fit_params_with_cov()

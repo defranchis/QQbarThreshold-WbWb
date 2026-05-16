@@ -13,18 +13,31 @@ class WbWbFit(FitCore):
     """FitCore + the SM-width / Yukawa pieces that only make sense for top."""
 
     def physical_fit_params(self, params):
+        """Resolve the SM-width relation when ``--SMwidth`` is active.
+
+        Under SM_width=True, the "width" fit parameter is reinterpreted as
+        a dimensionless theory knob: the physical width is derived from
+        mass + theory_knob via :meth:`_width_n3lo_local_linearisation`,
+        and the knob itself gets a Gaussian-priored-at-zero-width-1
+        penalty (its only constraint, since no data term references it
+        directly).
+
+        Returns ``(resolved_params, prior_extra)``. The input is left
+        untouched; the rewrite happens on a fresh copy.
+        """
         if not self.sm_width:
-            return 0.0
+            return params, 0.0
+        resolved_params = params.copy()
         i_width = self._idx["width"]
         i_mass = self._idx["mass"]
-        prior_width = params[i_width] ** 2
+        prior_width = resolved_params[i_width] ** 2
         width = self._width_n3lo_local_linearisation(
-            mt_PS=self.value_from_param(params[i_mass], "mass"),
-            theory_knob=params[i_width],
+            mt_PS=self.value_from_param(resolved_params[i_mass], "mass"),
+            theory_knob=resolved_params[i_width],
             th_uncert_mev=self.input_uncert_SM_width,
         )
-        params[i_width] = self.param_from_value(width, "width")
-        return prior_width
+        resolved_params[i_width] = self.param_from_value(width, "width")
+        return resolved_params, prior_width
 
     # ------------------------------------------------------------------
     # SM Γ_t vs PS mass — two forms of the same N3LO prediction.
