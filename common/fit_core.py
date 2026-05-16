@@ -50,9 +50,20 @@ def quadrature_subtract(total, partial):
 
 
 # ---------------------------------------------------------------------------
-# Floor used whenever a prior collapses to zero. Mirrors the 1E-6 floor in
-# the original code's chi2 to keep the constraints well-defined when a syst
-# is temporarily switched off (estimateSyst).
+# Defensive lower bound on the BEC / BES / sw2 priors used in chi2. The
+# floor is reached in two real scenarios:
+#   - ``reinitialise_to_stat`` (and the ``_TURN_OFF`` map in
+#     ``systematics.py``) write ``_OFF = 1e-10`` into the priors for the
+#     syst-table flow. The floor brings them to 1e-6 — the chi2 penalty is
+#     enormous either way and the parameter is pinned, but the Hessian is
+#     better-conditioned at 1e-6.
+#   - ``_scan_nuisance(BEC)`` at its leftmost grid point (v = 1e-6) yields
+#     a BEC prior of 1e-7 after dividing by ``input_var["BEC"] = 10``.
+#     Without the floor the BEC-bin Hessian rows reach ~1e14, close to the
+#     conditioning threshold of the cov inversion. (BES doesn't hit this:
+#     ``input_var["BES"] = 0.1`` keeps the prior at 1e-5 > floor.)
+# alpha_s and Yukawa aren't floored: their _OFF values are reached only in
+# one-dimensional penalty terms where the cov stays well-conditioned.
 # ---------------------------------------------------------------------------
 _PRIOR_FLOOR = 1.0e-6
 _OFF = 1.0e-10
