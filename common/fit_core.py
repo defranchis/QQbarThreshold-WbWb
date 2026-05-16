@@ -618,11 +618,24 @@ class FitCore:
         self._bec_bin_idx = [i for i, p in enumerate(self.param_names) if "BEC_bin" in p]
         self._bes_bin_idx = [i for i, p in enumerate(self.param_names) if "BES_bin" in p]
         # Vectorised chi2 inputs: stack all morph templates into one ndarray
-        # so the per-call loop becomes a single np.prod.
+        # so the per-call loop becomes a single np.prod. Per-bin BEC/BES
+        # rows are sparse (one-hot at the bin's own ECM) — synthesise them
+        # here from morph_scenario[kind] rather than holding N sparse copies
+        # of the base morph in morph_scenario (was O(N²) and pandas-warning
+        # territory; see _expand_per_bin_nuisance).
         self._xsec_base = np.asarray(self.xsec_scenario["xsec"]) * np.asarray(self.scale_var_scenario)
-        self._morph_matrix = np.stack([
-            np.asarray(self.morph_scenario[name]["xsec"]) for name in self.param_names
-        ])
+        n_ecm = len(self._xsec_base)
+        rows = []
+        for name in self.param_names:
+            if name.startswith(("BEC_bin", "BES_bin")):
+                kind, bin_str = name.split("_bin")
+                bin_idx = int(bin_str)
+                sparse = np.zeros(n_ecm)
+                sparse[bin_idx] = np.asarray(self.morph_scenario[kind]["xsec"])[bin_idx]
+                rows.append(sparse)
+            else:
+                rows.append(np.asarray(self.morph_scenario[name]["xsec"]))
+        self._morph_matrix = np.stack(rows)
 
     def results_from_minuit(self, minuit):
         """Compute physical (``value_from_param``-converted) fit-results from
@@ -750,14 +763,19 @@ class FitCore:
         self.sw2_prior = prior / self.input_var["sw2"]
 
     def _expand_per_bin_nuisance(self, kind):
+        """Register N + 1 nuisance parameter names for ``kind`` ∈ {BEC, BES}:
+        one per-ECM-bin parameter (each affects only its own ECM via the
+        nuisance morph at that bin) plus a fully-correlated parameter
+        (affects every ECM identically).
+
+        The per-bin morph rows are synthesised on the fly in
+        ``_build_chi2_caches`` from ``morph_scenario[kind]``; we don't
+        materialise N sparse copies of the base morph here — that was
+        O(N²) memory and triggered pandas SettingWithCopyWarning on the
+        ``.iloc[j] = 0`` writes."""
         nbins = len(self.morph_scenario[kind])
         for i in range(nbins):
-            tag = f"{kind}_bin{i}"
-            self.morph_scenario[tag] = self.morph_scenario[kind].copy()
-            for j in range(nbins):
-                if j != i:
-                    self.morph_scenario[tag]["xsec"].iloc[j] = 0
-            self.param_names.append(tag)
+            self.param_names.append(f"{kind}_bin{i}")
         self.param_names.append(kind)
 
     # ------------------------------------------------------------------
