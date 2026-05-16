@@ -289,29 +289,32 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
 
 
 # ---------------------------------------------------------------------------
-# alpha_s
+# Generic 1-D constraint sigma sweep
 # ---------------------------------------------------------------------------
-def scan_alphas(fit, *, hi=3e-4, step=1e-5):
-    """``doAlphaSscans`` — sweep the externally-imposed alpha_s prior.
+def _scan_constraint(fit, name, grid, *, axis_unit, axis_label, plot_filename):
+    """Sweep the Gaussian-prior width on ``fit._constraints[name]`` over
+    ``grid``, record mass / width hesse uncertainties at each point, plot
+    the impact in ``fit.plot_dir/<plot_filename>``.
 
-    ``input_uncert_alphas`` feeds only the chi2 alpha_s constraint term — not
-    cov, not the morph matrix — so we mutate ``fit`` in place and rebuild a
-    fresh local Minuit per grid point instead of cloning the whole FitCore.
-    """
-    grid = np.arange(1e-10, hi + step / 2, step)
+    The constraint's sigma feeds only the chi² constraint term — not cov,
+    not the morph matrix — so we mutate it in place, run a fresh local
+    Minuit (warm-start) per grid point, and restore on exit.
+    ``axis_unit`` rescales sigma into plot-space units (e.g. 1e3 for α_S
+    in 10⁻³ ticks; 100 for Yukawa in %)."""
     start = list(fit.minuit.values)
     step_mass = fit.parameters.step("mass")
     step_width = fit.parameters.step("width")
-    saved = fit.input_uncert_alphas
+    saved_sigma = fit._constraints[name]["sigma"]
+    baseline = saved_sigma
     l_mass, l_width = [], []
     try:
         for u in grid:
-            fit.input_uncert_alphas = u
+            fit._constraints[name]["sigma"] = u
             m = _run_local_migrad(fit, start)
             l_mass.append(step_mass * m.errors[fit._idx["mass"]] * 1000)
             l_width.append(step_width * m.errors[fit._idx["width"]] * 1000)
     finally:
-        fit.input_uncert_alphas = saved
+        fit._constraints[name]["sigma"] = saved_sigma
     l_mass = np.array(l_mass)
     l_width = np.array(l_width)
 
@@ -323,70 +326,44 @@ def scan_alphas(fit, *, hi=3e-4, step=1e-5):
     l_mass = _impact(l_mass)
     l_width = _impact(l_width)
 
-    baseline = fit.card.PRIORS["alphas"]["default"]
-    plt.plot(grid * 1e3, l_mass, "b-", label=r"Impact on $m_t$", linewidth=2)
-    plt.plot(grid * 1e3, l_width, "g--", label=r"Impact on $\Gamma_t$", linewidth=2)
-    plt.plot(baseline * 1e3, nominal_mass, "ro", label=r"Baseline $m_t$", markersize=8)
-    plt.plot(baseline * 1e3, nominal_width, "s", color="orange",
+    plt.plot(grid * axis_unit, l_mass, "b-", label=r"Impact on $m_t$", linewidth=2)
+    plt.plot(grid * axis_unit, l_width, "g--", label=r"Impact on $\Gamma_t$", linewidth=2)
+    plt.plot(baseline * axis_unit, nominal_mass, "ro", label=r"Baseline $m_t$", markersize=8)
+    plt.plot(baseline * axis_unit, nominal_width, "s", color="orange",
              label=r"Baseline $\Gamma_t$", markersize=7)
     plt.legend(loc="upper left")
     plt.title(projection_title(fit.scenario_dict["total_lumi"]), loc="right", fontsize=20)
-    plt.xlabel(r"Uncertainty in $\alpha_\mathrm{S} (m_\mathrm{Z}^2) [x10^3]$")
+    plt.xlabel(axis_label)
     plt.ylabel("Impact on fitted parameter [MeV]")
     process_annotation(fit.card, x=0.92, y=0.17)
-    save_figure(fit.plot_dir, "uncert_mass_width_vs_alphas")
+    save_figure(fit.plot_dir, plot_filename)
 
 
-# ---------------------------------------------------------------------------
-# Yukawa
-# ---------------------------------------------------------------------------
-def scan_yukawa_constraint(fit, *, hi=0.05, step=0.001):
-    """``doYukawaScan`` — sweep the Yukawa prior strength.
-
-    Like :func:`scan_alphas`, ``input_uncert_yukawa`` only feeds the chi2
-    constraint term, so we mutate ``fit`` in place and use a fresh local
-    Minuit per grid point.
-    """
+def scan_alphas(fit, *, hi=3e-4, step=1e-5):
+    """``doAlphaSscans`` — sweep the externally-imposed alpha_s prior width."""
     grid = np.arange(1e-10, hi + step / 2, step)
-    start = list(fit.minuit.values)
-    step_mass = fit.parameters.step("mass")
-    step_width = fit.parameters.step("width")
-    saved_unc = fit.input_uncert_yukawa
+    _scan_constraint(fit, "alphas", grid,
+                     axis_unit=1e3,
+                     axis_label=r"Uncertainty in $\alpha_\mathrm{S} (m_\mathrm{Z}^2) [x10^3]$",
+                     plot_filename="uncert_mass_width_vs_alphas")
+
+
+def scan_yukawa_constraint(fit, *, hi=0.05, step=0.001):
+    """``doYukawaScan`` — sweep the Yukawa prior width.
+
+    Force-enables the Yukawa constraint for the scan duration so the
+    sweep is meaningful even when the caller invoked the fit with
+    ``--fitYukawa`` (which gates it off in the chi² loop)."""
     saved_constrain = fit.constrain_yukawa
-    l_mass, l_width = [], []
     try:
         fit.constrain_yukawa = True
-        for u in grid:
-            fit.input_uncert_yukawa = u
-            m = _run_local_migrad(fit, start)
-            l_mass.append(step_mass * m.errors[fit._idx["mass"]] * 1000)
-            l_width.append(step_width * m.errors[fit._idx["width"]] * 1000)
+        grid = np.arange(1e-10, hi + step / 2, step)
+        _scan_constraint(fit, "yukawa", grid,
+                         axis_unit=100,
+                         axis_label=r"Uncertainty in $y_t$ [%]",
+                         plot_filename="uncert_mass_width_vs_yukawa")
     finally:
-        fit.input_uncert_yukawa = saved_unc
         fit.constrain_yukawa = saved_constrain
-    l_mass = np.array(l_mass)
-    l_width = np.array(l_width)
-
-    nominal_mass = fit.last_fit_results[fit._idx["mass"]].s * 1000
-    nominal_width = fit.last_fit_results[fit._idx["width"]].s * 1000
-    nominal_mass = quadrature_subtract(nominal_mass, l_mass[0])
-    nominal_width = quadrature_subtract(nominal_width, l_width[0])
-
-    l_mass = _impact(l_mass)
-    l_width = _impact(l_width)
-
-    baseline = fit.card.PRIORS["yukawa"]["default"]
-    plt.plot(grid * 100, l_mass, "b-", label=r"Impact on $m_t$", linewidth=2)
-    plt.plot(grid * 100, l_width, "g--", label=r"Impact on $\Gamma_t$", linewidth=2)
-    plt.plot(baseline * 100, nominal_mass, "ro", label=r"Baseline $m_t$", markersize=8)
-    plt.plot(baseline * 100, nominal_width, "s", color="orange",
-             label=r"Baseline $\Gamma_t$", markersize=7)
-    plt.legend(loc="upper left")
-    plt.title(projection_title(fit.scenario_dict["total_lumi"]), loc="right", fontsize=20)
-    plt.xlabel(r"Uncertainty in $y_t$ [%]")
-    plt.ylabel("Impact on fitted parameter [MeV]")
-    process_annotation(fit.card, x=0.92, y=0.17)
-    save_figure(fit.plot_dir, "uncert_mass_width_vs_yukawa")
 
 
 def scan_yukawa_theory(fit, *, max_shift=0.01, step=0.001):
