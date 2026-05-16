@@ -126,10 +126,15 @@ PARAMETERS_1S = {...}                                # alternate mass scheme
 ORDER         = 3                                    # 0=LO ... 3=N3LO
 RENORM_SCALES = {"mass": 80.0, "width": 350.0, ...}
 
-# Scan grid + integrated luminosity
+# Scan grid + integrated luminosity. ``coarse_scan`` is the comparison
+# grid used by scan_true_value; ``true_value_pivot`` names the POI whose
+# true value is parsed from the pseudodata filename.
 SCENARIO          = {"scan_min": 340.0, "scan_max": 344.5, "scan_step": 0.5,
                      "total_lumi": 0.41e6, "last_lumi": 2.65e6,
-                     "stat_inflation": 1.2}
+                     "stat_inflation": 1.2,
+                     "coarse_scan": {"scan_min": 340.5, "scan_max": 345.0,
+                                     "scan_step": 1.0, "lumi_factor": 1/2**0.5},
+                     "true_value_pivot": "mass"}
 BEAM_ENERGY_RES   = 0.186                            # %; 0 disables smearing
 PEAK_ECM, LAST_ECM = 345.0, 365.0
 
