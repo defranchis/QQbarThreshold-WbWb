@@ -479,15 +479,18 @@ class FitCore:
     # ------------------------------------------------------------------
     # Parameter <-> value conversion
     # ------------------------------------------------------------------
-    @staticmethod
-    def _is_bin_nuisance(name):
-        """True for BEC/BES per-bin or correlated parameters — those whose
-        fit-space value is the parameter itself (no nominal+step rescaling)."""
-        return name in ("BEC", "BES") or name.startswith(("BEC_bin", "BES_bin"))
+    def _is_bin_nuisance(self, name):
+        """True for any binned-nuisance parameter (correlated ``{kind}`` or
+        per-bin ``{kind}_bin{i}``) — those whose fit-space value is the
+        parameter itself, no nominal+step rescaling."""
+        for kind in self._systematics_meta["binned"]:
+            if name == kind or name.startswith(f"{kind}_bin"):
+                return True
+        return False
 
     def value_from_param(self, par, name):
-        if name == "sw2":
-            return par * self.input_var["sw2"]
+        if name in self._systematics_meta["global"]:
+            return par * self.input_var[name]
         if self._is_bin_nuisance(name):
             return par
         return self.d_params["nominal"][name] + par * self.parameters.step(name)
@@ -831,7 +834,7 @@ class FitCore:
 
             if name == "width" and self.sm_width:
                 pull = unc.ufloat(self.minuit.values[name], self.minuit.errors[name])
-            elif name == "sw2" or self._is_bin_nuisance(name):
+            elif name in self._systematics_meta["global"] or self._is_bin_nuisance(name):
                 pull = val
             else:
                 pull = val - self.d_params[self.pseudodata_tag][name]
