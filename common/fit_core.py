@@ -328,13 +328,16 @@ class FitCore:
         return clone
 
     # WbWb-specific Yukawa-as-nuisance toggle (proxy for chi2 active flag).
+    # Getter reads False on cards with no yukawa constraint (WW) so
+    # common/ readers can treat "no yukawa" as "not constrained" without
+    # checking the card type. Setter raises in that case — assigning to a
+    # non-existent toggle is a real bug at the call site.
     @property
     def constrain_yukawa(self):
         return self._constraints.get("yukawa", {}).get("active", False)
     @constrain_yukawa.setter
     def constrain_yukawa(self, v):
-        if "yukawa" in self._constraints:
-            self._constraints["yukawa"]["active"] = v
+        self._constraints["yukawa"]["active"] = v
 
     # ------------------------------------------------------------------
     # Hooks for subclasses
@@ -852,7 +855,13 @@ class FitCore:
         ``card.SYSTEMATICS`` with ``type=binned``): adds N + 1 fit
         parameters (``{kind}_bin0`` … ``{kind}_binN`` plus the correlated
         ``{kind}``) and sets its Gaussian priors. Priors default to
-        ``card.PRIORS[kind]``."""
+        ``card.PRIORS[kind]``. Idempotent."""
+        if kind in self._active_binned_nuisances:
+            return
+        if kind not in self._systematics_meta["binned"]:
+            raise ValueError(
+                f"{kind!r} is not declared as type=binned in card.SYSTEMATICS"
+            )
         self._active_binned_nuisances.add(kind)
         card_priors = self.card.PRIORS[kind]
         if prior_uncorr is None:
@@ -872,7 +881,13 @@ class FitCore:
         """Activate the global (non-binned) nuisance ``kind`` (must appear
         in ``card.SYSTEMATICS`` with ``type=global``): adds a single fit
         parameter named ``kind`` and sets its Gaussian prior. Prior
-        defaults to ``card.PRIORS[kind]``."""
+        defaults to ``card.PRIORS[kind]``. Idempotent."""
+        if kind in self._active_global_nuisances:
+            return
+        if kind not in self._systematics_meta["global"]:
+            raise ValueError(
+                f"{kind!r} is not declared as type=global in card.SYSTEMATICS"
+            )
         self._active_global_nuisances.add(kind)
         if prior is None:
             prior = self.card.PRIORS[kind]
