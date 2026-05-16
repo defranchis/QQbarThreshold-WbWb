@@ -147,7 +147,10 @@ class FitCore:
         self.asimov = asimov
         self.read_scale_vars = read_scale_vars
         self.sm_width = sm_width
-        self.constrain_yukawa = constrain_yukawa
+        # constrain_yukawa is consumed by the _constraints build below; once
+        # _constraints exists, the @property of the same name proxies into
+        # _constraints["yukawa"]["active"].
+        _constrain_yukawa = constrain_yukawa
         # When the scan list is going to be shifted off the original grid
         # (see scan_shift) the BEC/BES/sw2 templates would have to be
         # interpolated; skip building them entirely instead.
@@ -208,20 +211,29 @@ class FitCore:
 
         # 1-D Gaussian-constraint registry, built from card.CONSTRAINTS.
         # Each entry holds its current sigma (mutable for the syst-table
-        # flow via the legacy `input_uncert_X` property shims) and centre
+        # flow via the legacy `input_uncert_X` property shims), centre
         # (resolved once from the pseudodata "true" value if the card
-        # doesn't specify one). Entries whose parameter is not part of
-        # this fit (e.g. yukawa for WW) are skipped. The yukawa entry is
-        # gated by ``self.constrain_yukawa`` in ``chi2`` until commit 7
-        # generalises CLI gating.
+        # doesn't specify one), and an `active` flag — chi2 skips
+        # inactive entries (no special-case in the hot path). Entries
+        # whose parameter is not part of this fit (e.g. yukawa for WW)
+        # are skipped here.
+        #
+        # ``always_on=True`` in the card means active unconditionally.
+        # The only ``always_on=False`` entry today is yukawa, gated by
+        # the WbWb-specific ``constrain_yukawa`` constructor flag
+        # (``--fitYukawa`` toggles it off — letting Yukawa float as a
+        # parameter of interest instead of a constrained nuisance).
         self._constraints = {}
         for name, spec in card.CONSTRAINTS.items():
             if name not in self.parameters.names:
                 continue
+            active = spec["always_on"]
+            if not active and name == "yukawa":
+                active = _constrain_yukawa
             self._constraints[name] = {
-                "sigma":     spec["sigma"],
-                "center":    spec.get("center", self.d_params[self.pseudodata_tag][name]),
-                "always_on": spec["always_on"],
+                "sigma":  spec["sigma"],
+                "center": spec.get("center", self.d_params[self.pseudodata_tag][name]),
+                "active": active,
             }
 
         # Nuisance toggles -------------------------------------------------
@@ -350,6 +362,18 @@ class FitCore:
         if "yukawa" in self._constraints:
             return self._constraints["yukawa"]["center"]
         return 0.0
+
+    # WbWb-specific Yukawa-as-nuisance toggle. Proxies into
+    # ``_constraints["yukawa"]["active"]`` so scans and external callers
+    # that mutate ``fit.constrain_yukawa`` (e.g. ``scan_yukawa_constraint``)
+    # take effect on the next chi2 call without any hot-path special case.
+    @property
+    def constrain_yukawa(self):
+        return self._constraints.get("yukawa", {}).get("active", False)
+    @constrain_yukawa.setter
+    def constrain_yukawa(self, v):
+        if "yukawa" in self._constraints:
+            self._constraints["yukawa"]["active"] = v
 
     # Legacy nuisance-toggle and prior names — proxy into the canonical
     # _active_*_nuisances sets and _nuisance_priors dict. Dropped in commit 8
@@ -709,12 +733,10 @@ class FitCore:
         chi2_val = float(res @ cho_solve(self._cov_factor, res))
 
         # 1-D Gaussian constraints (driven by card.CONSTRAINTS via
-        # self._constraints). The yukawa entry is gated by
-        # self.constrain_yukawa as long as the entry script wires
-        # --fitYukawa that way (transitional; commit 7 generalises CLI
-        # gating).
+        # self._constraints). The ``active`` flag is set at __init__
+        # time so the hot path is name-agnostic.
         for name, c in self._constraints.items():
-            if not c["always_on"] and name == "yukawa" and not self.constrain_yukawa:
+            if not c["active"]:
                 continue
             sigma_fs = c["sigma"] / self.parameters.step(name)
             chi2_val += ((params[self._idx[name]]
