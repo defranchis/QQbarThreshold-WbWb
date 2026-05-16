@@ -177,6 +177,14 @@ GLOBAL_NUISANCES = {
 # constraint terms or any nuisance morph row.
 LUMI_PRIORS = {"uncorr": 1.0e-3, "corr": 5.0e-4}
 
+# Canonical row order in the systematics table — looked up by
+# ``systematics.systematic_list`` to keep the printed / LaTeX-written
+# layout stable. Binned-nuisance / lumi entries use shorthand: ``"BEC"``
+# expands to ``"BEC_uncorr"`` + ``"BEC_corr"`` (in that order); same for
+# ``"BES"``, ``"lumi"``. Any active systematic not listed here is
+# appended alphabetically at the end.
+SYST_TABLE_ORDER = ["alphas", "yukawa", "sw2", "BES", "BEC", "lumi"]
+
 # ---------------------------------------------------------------------------
 # Theory-uncertainty quotes for the systematic-table row "theory"
 # ---------------------------------------------------------------------------

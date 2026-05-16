@@ -96,6 +96,12 @@ GLOBAL_NUISANCES = {
 
 LUMI_PRIORS = {"uncorr": 1.0e-3, "corr": 5.0e-4}
 
+# Canonical row order in the systematics table (see cards/wbwb_default.py
+# for the convention). No yukawa rows for WW; future WW-specific
+# additions (sin2thetaW, alphaEM, ...) get appended here as their priors
+# are pinned down.
+SYST_TABLE_ORDER = ["alphas", "sw2", "BES", "BEC", "lumi"]
+
 # ---------------------------------------------------------------------------
 # Theory-uncertainty quotes for the systematic-table row "theory"
 # ---------------------------------------------------------------------------
