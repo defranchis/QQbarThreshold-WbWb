@@ -7,35 +7,55 @@ original `doFit.py` (or as a hardcoded literal inside the `fit` class /
 Cards are plain Python modules: import this module from the entry script,
 copy / override individual fields as needed (the entry script may also
 expose argparse overrides for the most common ones).
+
+The physics-parameters block (PARAMETERS / PARAMETERS_1S / ORDER /
+RENORM_SCALES) is derived from `xsec_calculator.parameter_def.parameters`
+— that class is the single source of truth for the values the C++
+template generator (`compute_xsec_parallel.py`) consumes. Card-only knobs
+(`round_dec`, the alt-scale split in `RENORM_SCALES`) are added on top.
 """
 
+from xsec_calculator.parameter_def import parameters as _ParameterDef
+
 # ---------------------------------------------------------------------------
-# Physics: parameters of interest
+# Physics: parameters of interest (single source of truth: parameter_def)
 # ---------------------------------------------------------------------------
 # For each parameter:
 #   nominal   = central value used to compute the reference template
 #   pseudo    = offset applied to build the "true" pseudodata point
 #   variation = offset of the variation template used to morph the lineshape
-#   round_dec = decimals to round to in file-name tags
-PARAMETERS = {
-    "mass":   {"nominal": 171.5, "pseudo":  0.01,    "variation": 0.03,   "round_dec": 2},
-    "width":  {"nominal": 1.33,  "pseudo": -0.02,    "variation": 0.05,   "round_dec": 2},
-    "yukawa": {"nominal": 1.0,   "pseudo":  0.05,    "variation": 0.1,    "round_dec": 2},
-    "alphas": {"nominal": 0.0,   "pseudo": -0.0001,  "variation": 0.0003, "round_dec": 4},
-}
-PARAMETERS_1S = dict(PARAMETERS)
-PARAMETERS_1S["mass"] = {**PARAMETERS["mass"], "nominal": 171.9}
+#   round_dec = decimals to round to in file-name tags (card-only knob)
+_p_ps  = _ParameterDef()                         # PS-scheme nominal
+_p_1S  = _ParameterDef(oneS_mass=True)           # 1S-scheme nominal
+_p_alt = _ParameterDef(do_scale_vars=True)       # alt mass/width scales + scale_vars list
+
+_ROUND_DEC = {"mass": 2, "width": 2, "yukawa": 2, "alphas": 4}
+
+
+def _from_pd(p):
+    return {
+        name: {"nominal":   getattr(p, name),
+               "pseudo":    getattr(p, f"{name}_pseudo"),
+               "variation": getattr(p, f"{name}_var"),
+               "round_dec": _ROUND_DEC[name]}
+        for name in p.params
+    }
+
+
+PARAMETERS    = _from_pd(_p_ps)
+PARAMETERS_1S = _from_pd(_p_1S)
 
 # ---------------------------------------------------------------------------
-# Theory / generator settings
+# Theory / generator settings (also from parameter_def)
 # ---------------------------------------------------------------------------
-ORDER = 3                  # 0=LO ... 3=N3LO
-MASS_SCHEME = "PS"         # "PS" or "1S"
+ORDER = _p_ps.order                              # 0=LO ... 3=N3LO
+MASS_SCHEME = "PS"                               # "PS" or "1S" — card-only knob
 RENORM_SCALES = {
-    "mass":  80.0,
-    "width": 350.0,
-    "alt":   {"mass": 170.0, "width": 170.0},   # used when scale-variation files exist
-    "vars":  [round(s, 1) for s in range(50, 351, 10)],
+    "mass":  float(_p_ps.mass_scale),
+    "width": float(_p_ps.width_scale),
+    "alt":   {"mass": float(_p_alt.mass_scale),  # used when scale-variation files exist
+              "width": float(_p_alt.width_scale)},
+    "vars":  [float(s) for s in _p_alt.scale_vars],
 }
 
 # ---------------------------------------------------------------------------
