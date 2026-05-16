@@ -269,6 +269,12 @@ class FitCore:
             "nominal",
             indir=os.path.join(self.card.INPUT_DIRS["BEC"], self._bec_var_dir(self.input_var["BEC"])),
         )
+        # BEC variation templates are sampled at ECMs shifted by ±input_var
+        # MeV (10 MeV here). Snap them back to the nominal 0.1-GeV grid so
+        # they line up positionally with the nominal template (the morph
+        # computation divides per-row). Constraint: variations must stay
+        # <= 40 MeV — beyond that the one-decimal rounding would alias onto
+        # the next nominal ECM bin (banker's rounding at .05).
         bec["ecm"] = bec["ecm"].round(1)
         self._bec_raw = bec
         self._sw2_raw = self._scan_for_tag("nominal", indir=self.card.INPUT_DIRS["sw2"])
@@ -486,8 +492,16 @@ class FitCore:
                 self.morph_scenario[extra] = self.slice_to_scenario(self.morph_dict[extra])
 
     def slice_to_scenario(self, df):
-        keep = [float(e) for e in self.scenario.keys()]
-        return df[df["ecm"].isin(keep)]
+        """Select the rows of ``df`` whose ECM is in ``self.scenario``.
+
+        Comparison is on the canonical one-decimal string form
+        (``ecm_to_str`` applied to both sides), not on raw float values —
+        robust to changes in the format string and to slightly-shifted
+        ECM templates (e.g. the BEC variations are loaded at
+        340.01 / 340.11 / ... and snap to ``"340.0"`` / ``"340.1"`` / ...
+        via the formatter)."""
+        keep = set(self.scenario.keys())
+        return df[df["ecm"].map(ecm_to_str).isin(keep)]
 
     # ------------------------------------------------------------------
     # Chi2 + Minuit
