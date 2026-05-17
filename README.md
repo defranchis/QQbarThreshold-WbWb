@@ -65,11 +65,11 @@ WW_threshold/
 ## Quick start
 
 ```bash
-source setup.sh           # sets LD_LIBRARY_PATH for the QQbar_threshold .so
-python doFit_wbwb.py --systTable
+source setup.sh                   # WbWb only; WW doesn't need it
+python3 doFit_wbwb.py --systTable
 ```
 
-This runs the default-scenario WbWb fit and prints the systematic table.
+Or `./allFits_wbwb.sh` — runs the full diagnostic suite and sources `setup.sh` itself.
 
 ## Running scans
 
