@@ -14,13 +14,19 @@
 #     doFit_wbwb.py fans the scan jobs across cores via --parallel 6
 #     (override with --parallel N).
 #
-# Run from the WW_threshold/ directory after sourcing setup.sh.
+# Run from the WW_threshold/ directory.
 set -euo pipefail
 
-python doFit_wbwb.py --scaleVars --scaleVarsScan
+# WbWb pulls in xsec_calculator.xsec_calc (pybind11 → libQQbar_threshold.so).
+# That .so has no embedded RPATH, so the dynamic loader needs
+# LD_LIBRARY_PATH pointing at install/lib — sourced from setup.sh.
+# (WW takes a different code path and does not need this; see allFits_ww.sh.)
+source "$(dirname "$0")/setup.sh"
+
+python doFit_wbwb.py --parallel 6 --scaleVars --scaleVarsScan
 
 python doFit_wbwb.py --pseudo --systTable
 
-python doFit_wbwb.py --systTable \
+python doFit_wbwb.py --parallel 6 --systTable \
     --LSscan --lumiscans --alphaSscan \
     --BECscans --BESscans --chi2scans
