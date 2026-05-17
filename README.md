@@ -51,6 +51,13 @@ WW_threshold/
 ├── xsec_calculator/        - pybind11 wrappers around the C++ QQbar_threshold
 │                             library (tt N3LO+ISR template producer)
 ├── utils_convert/          - pybind11 wrapper for PS↔MS mass conversion
+├── legacy/                 - pre-refactor monolithic doFit.py + its driver
+│                             scripts; archived for reference, not on the
+│                             import path (see legacy/README.md)
+├── allFits_wbwb.sh         - full WbWb diagnostic suite (every scan + syst table)
+├── allFits_ww.sh           - same for WW (placeholder — needs WW templates)
+├── setup.sh                - prepend the QQbar_threshold .so directory to
+│                             LIBRARY_PATH / LD_LIBRARY_PATH / CPLUS_INCLUDE_PATH
 ├── doFit_wbwb.py           - WbWb entry script
 └── doFit_ww.py             - WW entry script (placeholder)
 ```
