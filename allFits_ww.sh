@@ -14,8 +14,8 @@
 # Run from the WW_threshold/ directory after sourcing setup.sh.
 set -euo pipefail
 
-python doFit_ww.py --pseudo --systTable
+python3 doFit_ww.py --pseudo --systTable
 
-python doFit_ww.py --systTable \
+python3 doFit_ww.py --systTable \
     --LSscan --lumiscans --alphaSscan \
     --BECscans --BESscans --chi2scans

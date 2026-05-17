@@ -23,10 +23,10 @@ set -euo pipefail
 # (WW takes a different code path and does not need this; see allFits_ww.sh.)
 source "$(dirname "$0")/setup.sh"
 
-python doFit_wbwb.py --parallel 6 --scaleVars --scaleVarsScan
+python3 doFit_wbwb.py --parallel 6 --scaleVars --scaleVarsScan
 
-python doFit_wbwb.py --pseudo --systTable
+python3 doFit_wbwb.py --pseudo --systTable
 
-python doFit_wbwb.py --parallel 6 --systTable \
+python3 doFit_wbwb.py --parallel 6 --systTable \
     --LSscan --lumiscans --alphaSscan \
     --BECscans --BESscans --chi2scans
