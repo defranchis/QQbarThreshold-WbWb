@@ -22,6 +22,7 @@ import time
 
 from cards import ww_default as card
 from common.parameters import Parameters
+from process.ww.eft_xsec import BFSCorrections
 from process.ww.generator import WWGenerator
 
 
@@ -51,10 +52,16 @@ def main():
                     help="absolute BEC shifts in MeV (each generates scan_p{v} and scan_m{v}); "
                          "set to empty list to skip")
     ap.add_argument("--no-bec", action="store_true", help="skip BEC-variation templates")
+    ap.add_argument("--bfs-coulomb-nlo", action="store_true",
+                    help="enable BFS NLO Coulomb correction (eq. 62 of arXiv:0707.0773); "
+                         "OFF by default — without it the templates are LO+Coulomb (FKM)+ISR.")
     args = ap.parse_args()
 
     params = Parameters(card.PARAMETERS, scale_vars=[])
-    generator = WWGenerator(order=card.ORDER)
+    bfs = BFSCorrections(enabled_coulomb_NLO=args.bfs_coulomb_nlo)
+    generator = WWGenerator(order=card.ORDER, bfs=bfs)
+    if args.bfs_coulomb_nlo:
+        print("[BFS] NLO Coulomb correction ENABLED (eq. 62 of arXiv:0707.0773)")
     mass_scale = card.RENORM_SCALES["mass"]
     width_scale = card.RENORM_SCALES["width"]
     mass_scheme = card.MASS_SCHEME

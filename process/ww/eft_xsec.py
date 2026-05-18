@@ -301,27 +301,52 @@ class BFSCorrections:
         Beneke, Falgari, Schwinn arXiv:0707.0773  (NLO)
         Actis, Beneke, Falgari, Schwinn arXiv:0807.0102  (dominant NNLO)
 
-    Currently placeholders. Set ``enabled=True`` and fill in the formulae
-    from those papers when needed.
+    Per-piece flags:
+      * ``enabled_coulomb_NLO``: include eq. (62) of arXiv:0707.0773
+        (closed-form NLO Coulomb correction beyond the LO Sommerfeld /
+        Fadin-Khoze-Martin K_C); IR-finite. ~5% at threshold.
+      * ``enabled_hard_NLO``  : NOT YET IMPLEMENTED. Eq. (56) — requires
+        the one-loop matching coefficient c_p,LR^(1,fin) from ref. [13].
+      * ``enabled_soft_NLO``  : NOT YET IMPLEMENTED. Eq. (64)/(65) — has
+        ε-poles that cancel against the MS-bar ePDF; requires switching
+        from LL+YFS ISR to MS-bar (eMELA).
+      * ``enabled_decay_NLO`` : already absorbed via fixed PDG BRs in
+        ``sigma_partonic_munuqq``; no explicit term needed at LO.
+      * ``enabled_NNLO``      : eq. (3.1) of arXiv:0807.0102 — NOT YET.
 
-    Expected impact at √s ≈ 161 GeV:
-        δ_NLO  ≈ -7% (dominated by ISR-like logs; should be partly
-                       absorbed into NLL QED ISR resummation)
-        δ_NNLO ≈ +1% (Coulomb²) − (ISR matching) ≈ small net, but
-                       shifts m_W by ≈ 3 MeV in the threshold fit.
+    Use ``enabled`` (legacy bool) as a shortcut to turn ALL implemented
+    pieces on at once.
     """
     enabled: bool = False
+    enabled_coulomb_NLO: bool = False
 
-    def delta_NLO(self, s: float, mW: float, gammaW: float) -> float:
-        if not self.enabled:
-            return 0.0
-        raise NotImplementedError(
-            "Fill in arXiv:0707.0773 eq. (4.13)+ : hard one-loop matching, "
-            "NLO Coulomb (already in K_C — subtract to avoid double-counting), "
-            "soft+collinear photon corrections, NLO W-decay corrections."
-        )
+    def __post_init__(self):
+        # ``enabled=True`` legacy shortcut: enable all implemented pieces.
+        if self.enabled:
+            self.enabled_coulomb_NLO = True
 
-    def delta_NNLO(self, s: float, mW: float, gammaW: float) -> float:
+    def delta_NLO(self, s, mW: float, gammaW: float):
+        """Return the relative NLO correction δ s.t. σ_partonic
+        = σ_LO × (1 + δ_NLO + …). Vectorised in ``s``.
+
+        Currently sums only the implemented pieces.
+        """
+        out = 0.0
+        if self.enabled_coulomb_NLO:
+            from process.ww.bfs_eft import (
+                delta_sigma_Coulomb_NLO_specific_pb,
+                sigma_LR0_specific_pb,
+            )
+            d_sigma_C = delta_sigma_Coulomb_NLO_specific_pb(s, mW, gammaW,
+                                                            apply_BR_correction=True)
+            sigma_LR0 = sigma_LR0_specific_pb(s, mW, gammaW,
+                                              apply_BR_correction=True)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                rel = np.where(sigma_LR0 > 0, d_sigma_C / sigma_LR0, 0.0)
+            out = out + rel
+        return out
+
+    def delta_NNLO(self, s, mW: float, gammaW: float):
         if not self.enabled:
             return 0.0
         raise NotImplementedError(
