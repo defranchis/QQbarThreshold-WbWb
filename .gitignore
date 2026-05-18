@@ -3,6 +3,7 @@ zz_old/*
 output
 output_*
 BEC_variations
+BEC_variations_*
 plots
 plots_*
 bin

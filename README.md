@@ -16,7 +16,7 @@ the same chi2/scans/systematic-table pipeline.
 WW_threshold/
 ├── cards/                Steering cards (plain Python modules)
 │   ├── wbwb_default.py     - every magic number for the WbWb fit
-│   └── ww_default.py       - placeholder for WW
+│   └── ww_default.py       - WW threshold scan
 ├── common/               Process-agnostic fit machinery
 │   ├── parameters.py       - parameter bookkeeping (nominal / pseudo /
 │                              variation tags per fit parameter)
@@ -43,7 +43,11 @@ WW_threshold/
 │   │   └── scans.py        - WbWb-only scans: width, yukawa-constraint,
 │   │                         yukawa-theory, lumi-yukawa-ratio,
 │   │                         scale-vars-yukawa
-│   └── ww/                 - placeholders; do_scan raises NotImplementedError
+│   └── ww/                 - WW: EFT-based generator (LO+Coulomb+LL ISR)
+│       ├── eft_xsec.py       - σ_WW Born (RACOONWW-cal.) + Coulomb + BFS hooks
+│       ├── isr.py            - LL ISR convolution (YFS-exponentiated)
+│       ├── generator.py      - WWGenerator: do_scan writes ecm,xsec CSV
+│       └── fit.py            - WWFit (placeholder; inherits FitCore)
 ├── scripts/
 │   ├── _audit_common.py    - shared build_fit + SCAN_SPECS for the harness
 │   ├── audit_scans.py      - state-isolation regression check
@@ -55,11 +59,12 @@ WW_threshold/
 │                             scripts; archived for reference, not on the
 │                             import path (see legacy/README.md)
 ├── allFits_wbwb.sh         - full WbWb diagnostic suite (every scan + syst table)
-├── allFits_ww.sh           - same for WW (placeholder — needs WW templates)
+├── allFits_ww.sh           - same for WW
+├── compute_xsec_ww.py      - WW template-generation driver (nominal + BEC vars)
 ├── setup.sh                - prepend the QQbar_threshold .so directory to
 │                             LIBRARY_PATH / LD_LIBRARY_PATH / CPLUS_INCLUDE_PATH
 ├── doFit_wbwb.py           - WbWb entry script
-└── doFit_ww.py             - WW entry script (placeholder)
+└── doFit_ww.py             - WW entry script
 ```
 
 ## Quick start
@@ -379,21 +384,41 @@ intentional label / casing changes) across refactors.
 
 ## WW status
 
-`doFit_ww.py`, `cards/ww_default.py`, `process/ww/{generator,fit}.py` are
-placeholders. The generator stub raises `NotImplementedError` on
-`do_scan`; the card has tentative numerical values that need tuning to
-the actual WW scenario. To get the WW fit running:
+The WW threshold fit is wired end-to-end. Quick start:
 
-1. Plug a real WW cross-section calculator into `process/ww/generator.WWGenerator.do_scan`
-   (Whizard, RACOONWW, or a theory parameterisation — anything that
-   writes the expected file format to disk).
-2. Produce template files at the parameter grid implied by
-   `cards/ww_default.py` (nominal + pseudo + per-parameter variation).
-3. Tune the placeholder values in `cards/ww_default.py` —
-   `BEAM_ENERGY_RES`, `PEAK_ECM`, `SCENARIO`, `PRIORS`, `THEORY_UNC`.
-   New analysis-specific systematics (sin²θ_W, αEM, …) are card-only
-   additions — see "Extending to a new process" above.
+```bash
+python3 compute_xsec_ww.py            # generate nominal + BEC-variation templates
+python3 doFit_ww.py --systTable       # canonical fit with full systematics table
+```
 
-The chi2/Minuit/scan/syst-table machinery in `common/` is fully
-data-driven via `PRIORS` + `SYSTEMATICS` — nothing in there assumes
-WbWb or hardcodes any specific systematic name.
+Cross-section pipeline (in `process/ww/`):
+
+* `eft_xsec.py` — doubly-resonant CC03 Born, calibrated against
+  RACOONWW reference values (161.33–500 GeV; power-law BW-tail
+  extrapolation 156–161 GeV — see TODO in the module header), with
+  Fadin-Khoze-Martin Coulomb (+ Bardin-Riemann α² extension). Inclusive
+  μν qq̄ channel (BR = 2 · BR(W→μν) · BR(W→had)). Empty BFS NLO/NNLO
+  hooks (`BFSCorrections.delta_NLO`, `.delta_NNLO`) raise
+  `NotImplementedError` until filled from arXiv:0707.0773 / 0807.0102.
+* `isr.py` — LL ISR convolution with YFS soft+virtual exponentiation
+  and the β² non-singular piece (Cacciari et al., NPB 451). Endpoint
+  substitution u = (1−z)^β removes the z→1 singularity. NLL upgrade
+  via eMELA (Bertone-Cacciari-Frixione-Stagnitto) is the next step.
+* `generator.py` — `WWGenerator.do_scan(values, …)` writes the
+  ecm,xsec CSV consumed by `common.fit_core.FitCore`. Accepts an
+  `ecm_shift_MeV` argument used by the BEC nuisance machinery.
+
+What's NOT yet in the calculation (priority order for MeV-level m_W):
+
+1. BFS NLO matching coefficients ([arXiv:0707.0773](https://arxiv.org/abs/0707.0773))
+2. BFS dominant NNLO ([arXiv:0807.0102](https://arxiv.org/abs/0807.0102))
+3. Real Born values 156–161 GeV (currently a power-law BW-tail model;
+   replace with RACOONWW/MoCaNLO+RECOLA — chief obstacle to Γ_W
+   extraction and the below-threshold lever arm)
+4. NLL ISR via eMELA
+5. Singly-resonant CC10 contributions
+
+A parallel implementation based entirely on established generators
+(WHIZARD/SHERPA+Recola/MoCaNLO) is planned as a second `*Generator`
+class slotting into the same `do_scan` / `file_name` contract — needed
+for publication-level cross-validation.

@@ -6,13 +6,12 @@
 # currently fan scans in parallel — they run sequentially inside each
 # invocation.
 #
-# Placeholder: doFit_ww.py needs real cross-section templates in
-# cards/ww_default.py:INPUT_DIRS["nominal"] and a functioning
-# WWGenerator at process/ww/generator.py before producing meaningful
-# output.
-#
-# Run from the WW_threshold/ directory after sourcing setup.sh.
+# Pre-req: run `python3 compute_xsec_ww.py` once to populate the
+# nominal + BEC-variation templates in cards/ww_default.py:INPUT_DIRS.
+# Run from the WW_threshold/ directory.
 set -euo pipefail
+
+python3 compute_xsec_ww.py    # regenerate templates (idempotent, ~1 s)
 
 python3 doFit_ww.py --pseudo --systTable
 

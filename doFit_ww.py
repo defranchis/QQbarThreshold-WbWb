@@ -63,9 +63,9 @@ def main():
         same_evts=args.sameNevts,
     )
 
-    if args.BECnuisances or args.systTable:
+    if args.BECnuisances or args.BECscans or args.systTable:
         fit.add_binned_nuisance("BEC")
-    if args.BESnuisances or args.systTable:
+    if args.BESnuisances or args.BESscans or args.systTable:
         fit.add_binned_nuisance("BES")
 
     if not args.noPlots:

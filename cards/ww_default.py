@@ -1,11 +1,15 @@
 """Default steering card for the WW threshold fit.
 
-PLACEHOLDER — most values are tentative defaults; tune them to match the
-actual WW analysis scenario before drawing physics conclusions.
+The generator is :class:`process.ww.generator.WWGenerator` — LO Born CC03
+(RACOONWW-calibrated 161.33–500 GeV; power-law BW-tail 156–161 GeV) +
+Fadin-Khoze-Martin Coulomb + LL YFS-exponentiated ISR. Channel:
+inclusive μν qq̄ (BR = 2 × BR(W→μν) × BR(W→had)).
 
-Only the fields that are genuinely common with the WbWb card (`BES`, `BEC`,
-`lumi`, plot decoration helpers) are intended to be production-quality from
-day one; everything else is a stub.
+For MeV-level m_W extraction, the BFS NLO+NNLO hooks need to be filled
+(see ``process.ww.eft_xsec.BFSCorrections`` and arXiv:0707.0773 / 0807.0102)
+and the 156–161 GeV BW-tail replaced with proper RACOONWW / MoCaNLO Born
+values. Until then this card configures the infrastructure end-to-end but
+is not yet a production physics result.
 """
 
 # ---------------------------------------------------------------------------
@@ -58,9 +62,12 @@ SCENARIO = {
 # Template-variation sizes used to build the morphing templates
 # ---------------------------------------------------------------------------
 INPUT_VAR = {
-    "BEC":  10.0,    # MeV   - reuse WbWb convention; can be tuned later
+    "BEC":  10.0,    # MeV — matches BEC_variations_WW/scan_{p,m}10/
     "BES":  0.1,
-    "sw2":  2.5e-6,  # PLACEHOLDER — must match the WW sw2-variation template scan
+    # sw2 nuisance is not implemented at the current order (sin²θ_W is
+    # derived from m_W via the OS scheme, so its variation is absorbed
+    # into the m_W variation). Re-add when running α(s) / NLO_EW are wired
+    # in.
 }
 
 # ---------------------------------------------------------------------------
@@ -72,11 +79,7 @@ PRIORS = {
     "alphas": 1.0e-4,
     "BEC":    {"uncorr": 2.0,    "corr": 1.0},          # PLACEHOLDER (smaller than WbWb)
     "BES":    {"uncorr": 0.01,   "corr": 5.0e-3},
-    "sw2":    2.5e-6,                                   # PLACEHOLDER
     "lumi":   {"uncorr": 1.0e-3, "corr": 5.0e-4},
-    # No yukawa (parameter of interest for WW, not a constraint).
-    # No SM_width (WbWb-specific physical_fit_params hook).
-    # TODO: sin2thetaW / alphaEM once their priors are pinned down.
 }
 
 SYSTEMATICS = {
@@ -86,15 +89,10 @@ SYSTEMATICS = {
                           "var_subdir": True, "snap_to_grid": True}},
     "BES":    {"type": "binned",
                "source": {"kind": "smear_shift"}},
-    "sw2":    {"type": "global",
-               "source": {"kind": "template_dir"}},
 }
 
-# Canonical row order in the systematics table (see cards/wbwb_default.py
-# for the convention). No yukawa rows for WW; future WW-specific
-# additions (sin2thetaW, alphaEM, ...) get appended here as their priors
-# are pinned down.
-SYST_TABLE_ORDER = ["alphas", "sw2", "BES", "BEC", "lumi"]
+# Canonical row order in the systematics table.
+SYST_TABLE_ORDER = ["alphas", "BES", "BEC", "lumi"]
 
 # ---------------------------------------------------------------------------
 # Parameters of interest displayed by the syst-table machinery
@@ -129,9 +127,9 @@ PLOT_DIR = "plots/fit_WW"
 # ---------------------------------------------------------------------------
 # Plot decoration
 # ---------------------------------------------------------------------------
-PROCESS_LABEL = r"WW threshold"            # PLACEHOLDER label
-GENERATOR_LABEL = r"<WW generator TBD>"    # PLACEHOLDER
-GENERATOR_REF = r""
+PROCESS_LABEL = r"$e^+e^-\rightarrow\mu\nu q\bar q$ at WW threshold"
+GENERATOR_LABEL = r"LO(CC03,RACOONWW-cal.)+Coulomb+LL ISR"
+GENERATOR_REF = r"BFS NLO/NNLO + BW-tail TBD"
 BES_LABEL = r"+ FCC-ee BES"
 
 PARAM_LABELS = {
