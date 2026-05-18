@@ -477,6 +477,104 @@ def plot_normalised_xsec_hypotheses():
     return out
 
 
+def plot_azzurri_style_pm1GeV():
+    """Reproduction of Fig. 1 of Azzurri 2107.04444: σ_WW vs √s with
+    ±1 GeV variations on m_W and Γ_W. Two panels:
+
+      * m_W variations (purple band in the paper): central, m_W ± 1 GeV
+        at fixed Γ_W = 2.085. The ±1 GeV variation shifts the lineshape
+        along the energy axis (threshold position moves).
+
+      * Γ_W variations (green band in the paper): central, Γ_W ± 1 GeV
+        at fixed m_W = 80.385. The paper claims a "crossing point" at
+        E_CM ≈ 2 m_W + 1.5 GeV ≈ 162.3 GeV where σ_WW is insensitive
+        to Γ_W.
+
+    Uses the paper's central values m_W = 80.385, Γ_W = 2.085 (slightly
+    different from the framework's M_W_DEFAULT = 80.3692, GAMMA_W_DEFAULT
+    = 2.085). σ_WW here is σ(e+e- → W+W-) (total, with LL+YFS ISR) —
+    derived from σ_observed_munuqq / BR_INCLUSIVE_MUNUQQ since the
+    default BR is PDG-constant and ISR commutes with the BR scaling."""
+    import matplotlib.pyplot as plt
+
+    sqrts = np.linspace(155.0, 170.0, 121)
+    mW_paper = 80.385
+    gW_paper = 2.085
+
+    def _sigma_WW_obs(sqrts_arr, mW, gW):
+        # σ_observed_munuqq is σ_WW_obs × BR_INCLUSIVE_MUNUQQ in PDG default.
+        # Divide back to recover σ_WW_obs (total W-pair, with ISR).
+        return sigma_observed_munuqq(sqrts_arr, mW=mW, gammaW=gW,
+                                      channel="inclusive") / BR_INCLUSIVE_MUNUQQ
+
+    sigma_nom = _sigma_WW_obs(sqrts, mW_paper, gW_paper)
+    sigma_mW_p = _sigma_WW_obs(sqrts, mW_paper + 1.0, gW_paper)
+    sigma_mW_m = _sigma_WW_obs(sqrts, mW_paper - 1.0, gW_paper)
+    sigma_gW_p = _sigma_WW_obs(sqrts, mW_paper, gW_paper + 1.0)
+    sigma_gW_m = _sigma_WW_obs(sqrts, mW_paper, gW_paper - 1.0)
+
+    fig, (ax_mW, ax_gW) = plt.subplots(1, 2, figsize=(13, 6), sharey=True)
+
+    # --- m_W panel ---
+    ax_mW.fill_between(sqrts, sigma_mW_m, sigma_mW_p,
+                        color="#9e6bbf", alpha=0.35,
+                        label=r"$m_W \pm 1$ GeV band")
+    ax_mW.plot(sqrts, sigma_nom, color="black", linewidth=1.8,
+                label=rf"central: $m_W={mW_paper:.3f}$, $\Gamma_W={gW_paper:.3f}$ GeV")
+    ax_mW.plot(sqrts, sigma_mW_p, color="#54278f", linewidth=1.0,
+                linestyle="--", label=rf"$m_W={mW_paper+1:.3f}$ GeV")
+    ax_mW.plot(sqrts, sigma_mW_m, color="#54278f", linewidth=1.0,
+                linestyle=":",  label=rf"$m_W={mW_paper-1:.3f}$ GeV")
+    ax_mW.axvline(2 * mW_paper, color="grey", alpha=0.4,
+                   linestyle="--", linewidth=0.8)
+    ax_mW.text(2 * mW_paper + 0.05, 0.1, r"$2\,m_W$", color="grey",
+                alpha=0.7, fontsize=9, ha="left", va="bottom")
+    ax_mW.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_mW.set_ylabel(r"$\sigma_{\rm WW}$ [pb]  (with LL+YFS ISR)")
+    ax_mW.set_title(r"$m_W$ variation ($\pm 1$ GeV)")
+    ax_mW.set_xlim(155, 170)
+    ax_mW.legend(loc="upper left", fontsize=9, framealpha=0.9)
+    ax_mW.grid(alpha=0.25)
+
+    # --- Γ_W panel ---
+    ax_gW.fill_between(sqrts, sigma_gW_m, sigma_gW_p,
+                        color="#4daf4a", alpha=0.30,
+                        label=r"$\Gamma_W \pm 1$ GeV band")
+    ax_gW.plot(sqrts, sigma_nom, color="black", linewidth=1.8,
+                label=rf"central: $m_W={mW_paper:.3f}$, $\Gamma_W={gW_paper:.3f}$ GeV")
+    ax_gW.plot(sqrts, sigma_gW_p, color="#1b7837", linewidth=1.0,
+                linestyle="--", label=rf"$\Gamma_W={gW_paper+1:.3f}$ GeV")
+    ax_gW.plot(sqrts, sigma_gW_m, color="#1b7837", linewidth=1.0,
+                linestyle=":",  label=rf"$\Gamma_W={gW_paper-1:.3f}$ GeV")
+    ax_gW.axvline(2 * mW_paper, color="grey", alpha=0.4,
+                   linestyle="--", linewidth=0.8)
+    ax_gW.axvline(162.3, color="red", alpha=0.6,
+                   linestyle="-.", linewidth=0.9,
+                   label=r"Azzurri 'crossing' $\approx 162.3$ GeV")
+    ax_gW.text(2 * mW_paper + 0.05, 0.1, r"$2\,m_W$", color="grey",
+                alpha=0.7, fontsize=9, ha="left", va="bottom")
+    ax_gW.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_gW.set_title(r"$\Gamma_W$ variation ($\pm 1$ GeV)")
+    ax_gW.set_xlim(155, 170)
+    ax_gW.legend(loc="upper left", fontsize=9, framealpha=0.9)
+    ax_gW.grid(alpha=0.25)
+
+    plt.suptitle("Azzurri 2107.04444 Fig. 1 style — BFS LO_EFT N$^{3/2}$LO Born + Coulomb + LL+YFS ISR",
+                  fontsize=11)
+    plt.tight_layout()
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "azzurri_style_pm1GeV.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
+# Local import for the Azzurri plot helper above
+from process.ww.eft_xsec import BR_INCLUSIVE_MUNUQQ
+
+
 def main():
     import matplotlib
     matplotlib.use("Agg")
@@ -486,6 +584,7 @@ def main():
     plot_vs_LEP()
     plot_ratios_vs_mW_GammaW()
     plot_normalised_xsec_hypotheses()
+    plot_azzurri_style_pm1GeV()
     print("Done.")
 
 
