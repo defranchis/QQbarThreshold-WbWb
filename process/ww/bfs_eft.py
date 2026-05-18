@@ -554,6 +554,45 @@ def sigma_LR_RL_three_half_a_specific_pb(s, mW: float = M_W_DEFAULT,
     return sigma_LR_32a, sigma_RL_32a
 
 
+def _accumulate_born_orders(s, mW: float, gammaW: float, order: str,
+                            *, apply_BR_correction: bool):
+    """Sum the BFS Born expansion at the requested truncation, returning
+    ``(σ_LR, σ_RL)`` in pb for the specific channel. Shared between
+    ``sigma_BFS_LO_total_WW_pb`` and ``sigma_BFS_specific_munuud_pb``."""
+    sigma_LR = sigma_LR0_specific_pb(s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+    sigma_RL = np.zeros_like(np.asarray(sigma_LR, dtype=float))
+    if order in ("N1/2LO", "NLO", "N3/2LO"):
+        s_LR, s_RL = sigma_LR_RL_half_specific_pb(
+            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+        sigma_LR = sigma_LR + s_LR
+        sigma_RL = sigma_RL + s_RL
+    if order in ("NLO", "N3/2LO"):
+        s_LR, s_RL = sigma_LR_RL_NLO_potential_specific_pb(
+            s, mW, gammaW, gammaW_NLO=0.0, apply_BR_correction=apply_BR_correction)
+        sigma_LR = sigma_LR + s_LR
+        sigma_RL = sigma_RL + s_RL
+    if order == "N3/2LO":
+        s_LR, s_RL = sigma_LR_RL_three_half_a_specific_pb(
+            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+        sigma_LR = sigma_LR + s_LR
+        sigma_RL = sigma_RL + s_RL
+    return sigma_LR, sigma_RL
+
+
+def _add_nlo_loops_to_LR(sigma_LR, s, mW, gammaW, *, apply_BR_correction):
+    """BFS NLO loops (eq. finalcross): HSC + EW decay + Coulomb_NLO. All
+    additive to σ_LR; σ_RL has no NLO contribution since LO σ_RL = 0.
+    """
+    sigma_LR = sigma_LR + delta_sigma_NLO_hard_softcoll_specific_pb(
+        s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+    sigma_LR = sigma_LR + delta_sigma_NLO_decay_specific_pb(
+        s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+    sigma_LR = sigma_LR + delta_sigma_Coulomb_NLO_specific_pb(
+        s, mW, gammaW, apply_BR_correction=apply_BR_correction,
+        subleading_only=False)
+    return sigma_LR
+
+
 def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
                              gammaW: float = GAMMA_W_DEFAULT,
                              order: str = "N3/2LO",
@@ -599,27 +638,8 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
     -------
     σ_total_WW in pb (same shape as ``s``).
     """
-    sigma_LR_0 = sigma_LR0_specific_pb(s, mW, gammaW, apply_BR_correction=apply_BR_correction)
-    sigma_LR = sigma_LR_0
-    sigma_RL = np.zeros_like(np.asarray(sigma_LR_0, dtype=float))
-
-    if order in ("N1/2LO", "NLO", "N3/2LO"):
-        s_LR_12, s_RL_12 = sigma_LR_RL_half_specific_pb(
-            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
-        sigma_LR = sigma_LR + s_LR_12
-        sigma_RL = sigma_RL + s_RL_12
-    if order in ("NLO", "N3/2LO"):
-        # NLO Born potential expansion, eq. (33). Γ_W^(1) = 0 for Born.
-        s_LR_NLO, s_RL_NLO = sigma_LR_RL_NLO_potential_specific_pb(
-            s, mW, gammaW, gammaW_NLO=0.0,
-            apply_BR_correction=apply_BR_correction)
-        sigma_LR = sigma_LR + s_LR_NLO
-        sigma_RL = sigma_RL + s_RL_NLO
-    if order == "N3/2LO":
-        s_LR_32a, s_RL_32a = sigma_LR_RL_three_half_a_specific_pb(
-            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
-        sigma_LR = sigma_LR + s_LR_32a
-        sigma_RL = sigma_RL + s_RL_32a
+    sigma_LR, sigma_RL = _accumulate_born_orders(
+        s, mW, gammaW, order, apply_BR_correction=apply_BR_correction)
 
     # Whizard anchor on the Born sum only (NOT on the NLO loops below).
     if apply_whizard_anchor:
@@ -628,16 +648,8 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
         sigma_RL = sigma_RL * f
 
     if include_NLO_hard_decay:
-        # BFS eq. (finalcross): NLO hard+soft+collinear + EW decay (eq. delta-decay)
-        # + Coulomb NLO (eq. 62). All three additive to σ_LR at NLO.
-        # LO σ_RL = 0 ⇒ no NLO via the RL channel either.
-        sigma_LR = sigma_LR + delta_sigma_NLO_hard_softcoll_specific_pb(
-            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
-        sigma_LR = sigma_LR + delta_sigma_NLO_decay_specific_pb(
-            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
-        sigma_LR = sigma_LR + delta_sigma_Coulomb_NLO_specific_pb(
-            s, mW, gammaW, apply_BR_correction=apply_BR_correction,
-            subleading_only=False)
+        sigma_LR = _add_nlo_loops_to_LR(
+            sigma_LR, s, mW, gammaW, apply_BR_correction=apply_BR_correction)
 
     sigma_total_WW = (sigma_LR + sigma_RL) * 27.0 / 4.0
     if apply_delta_QCD:
@@ -827,46 +839,21 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
 
     Parameters mirror ``sigma_BFS_LO_total_WW_pb``.
     """
-    # σ^(0)
-    sigma_LR = sigma_LR0_specific_pb(s, mW, gammaW, apply_BR_correction=True)
-    sigma_RL = np.zeros_like(np.asarray(sigma_LR, dtype=float))
-
-    if order in ("N1/2LO", "NLO", "N3/2LO"):
-        s_LR_12, s_RL_12 = sigma_LR_RL_half_specific_pb(
-            s, mW, gammaW, apply_BR_correction=True)   # LINEAR BR per eq. 83
-        sigma_LR = sigma_LR + s_LR_12
-        sigma_RL = sigma_RL + s_RL_12
-    if order in ("NLO", "N3/2LO"):
-        s_LR_NLO, s_RL_NLO = sigma_LR_RL_NLO_potential_specific_pb(
-            s, mW, gammaW, gammaW_NLO=0.0, apply_BR_correction=True)
-        sigma_LR = sigma_LR + s_LR_NLO
-        sigma_RL = sigma_RL + s_RL_NLO
-    if order == "N3/2LO":
-        s_LR_32a, s_RL_32a = sigma_LR_RL_three_half_a_specific_pb(
-            s, mW, gammaW, apply_BR_correction=True)
-        sigma_LR = sigma_LR + s_LR_32a
-        sigma_RL = sigma_RL + s_RL_32a
+    sigma_LR, sigma_RL = _accumulate_born_orders(
+        s, mW, gammaW, order, apply_BR_correction=True)   # LINEAR BR per eq. 83
 
     # BFS section 6.2: replace the EFT N^(3/2)LO Born by the Whizard 4f Born
-    # via the multiplicative anchor f(δ, Γ_W). This is applied to the BORN
-    # SUM (LO + N^(1/2) + NLO_pot + N^(3/2),a) only — NOT to the NLO loop
-    # corrections, which are computed in the BFS-EFT framework and added on
-    # top per BFS eq. (finalcross).
+    # via the multiplicative anchor f(δ, Γ_W). Applied to the BORN SUM only
+    # — NOT to the NLO loop corrections, which are added on top per BFS
+    # eq. (finalcross).
     if apply_whizard_anchor:
         f = whizard_anchor_factor(s, mW, gammaW)
         sigma_LR = sigma_LR * f
         sigma_RL = sigma_RL * f
 
     if include_NLO_hard_decay:
-        # BFS eq. (finalcross): HSC bracket + EW decay (eq. delta-decay)
-        # + Coulomb (eq. 62). All three are additive to σ_LR at NLO;
-        # σ_RL has no NLO via these channels (LO σ_RL = 0).
-        sigma_LR = sigma_LR + delta_sigma_NLO_hard_softcoll_specific_pb(
-            s, mW, gammaW, apply_BR_correction=True)
-        sigma_LR = sigma_LR + delta_sigma_NLO_decay_specific_pb(
-            s, mW, gammaW, apply_BR_correction=True)
-        sigma_LR = sigma_LR + delta_sigma_Coulomb_NLO_specific_pb(
-            s, mW, gammaW, apply_BR_correction=True, subleading_only=False)
+        sigma_LR = _add_nlo_loops_to_LR(
+            sigma_LR, s, mW, gammaW, apply_BR_correction=True)
 
     # Unpolarised specific = (σ_LR + σ_RL) / 4
     sigma_specific = (sigma_LR + sigma_RL) / 4.0

@@ -60,6 +60,22 @@ from process.ww.eft_xsec import (
 )
 
 EULER_GAMMA = 0.5772156649015329
+_SAFE_FLOOR = 1e-300   # underflow guard for log args near 0/1
+
+
+def _safe_log_pair(z, one_minus_z=None):
+    """Return (log z, log(1−z)) safely floored at ``_SAFE_FLOOR``.
+
+    Shared between :func:`H_NS` (single-conv) and :func:`_Gee_per_leg_NS`
+    (2-leg per-leg) — both need the same numerical floor when the
+    endpoint substitution puts z very close to 1.
+    """
+    z_arr = np.asarray(z, dtype=float)
+    if one_minus_z is None:
+        one_minus_z = np.maximum(1.0 - z_arr, _SAFE_FLOOR)
+    one_minus_z = np.maximum(np.asarray(one_minus_z, dtype=float), _SAFE_FLOOR)
+    z_safe = np.maximum(z_arr, _SAFE_FLOOR)
+    return np.log(z_safe), np.log(one_minus_z), one_minus_z, z_arr
 
 # BFS prescription (arXiv:0707.0773 line 2514): use α_Gμ in the ISR β. The
 # value is evaluated at the BFS reference m_W = 80.377 since the ISR scale
@@ -147,27 +163,14 @@ def H_NS(z, beta: float, one_minus_z=None):
     erroneously 2 (instead of 4), giving a ~1 % σ_obs deficit vs BFS
     Table 4. Fixed and validated 2026-05-18 (validation log item 24).
     """
-    z = np.asarray(z, dtype=float)
-    if one_minus_z is None:
-        one_minus_z = np.maximum(1.0 - z, 1e-300)
-    one_minus_z = np.asarray(one_minus_z, dtype=float)
-    one_minus_z = np.maximum(one_minus_z, 1e-300)
-
-    log1mz = np.log(one_minus_z)
-    # log(z) safely; z near 0 only happens if z_min is very small, irrelevant.
-    z_safe = np.maximum(z, 1e-300)
-    logz = np.log(z_safe)
-
+    logz, log1mz, one_minus_z, z = _safe_log_pair(z, one_minus_z)
     NS1 = -0.5 * beta * (1.0 + z)
     NS2 = -(beta ** 2 / 8.0) * (
         (1.0 + 3.0 * z * z) / one_minus_z * logz
         + 4.0 * (1.0 + z) * log1mz
         + 5.0 + z
     )
-    out = NS1 + NS2
-    # Below kinematic limit z ≤ 0: no contribution.
-    out = np.where(z > 0.0, out, 0.0)
-
+    out = np.where(z > 0.0, NS1 + NS2, 0.0)
     if np.ndim(z) == 0:
         return float(out)
     return out
@@ -270,15 +273,7 @@ def _Gee_per_leg_NS(x, beta: float, one_minus_x=None):
     Vectorised in x. Pass ``one_minus_x`` explicitly when 1-x is small
     (avoids 1.0 - 1.0 = 0 cancellation from u-substitution).
     """
-    x = np.asarray(x, dtype=float)
-    if one_minus_x is None:
-        one_minus_x = np.maximum(1.0 - x, 1e-300)
-    one_minus_x = np.asarray(one_minus_x, dtype=float)
-    one_minus_x = np.maximum(one_minus_x, 1e-300)
-    x_safe = np.maximum(x, 1e-300)
-    log1mx = np.log(one_minus_x)
-    logx = np.log(x_safe)
-
+    logx, log1mx, one_minus_x, x = _safe_log_pair(x, one_minus_x)
     NS_1 = -(beta / 4.0) * (1.0 + x)
     # LEP2 YR Beenakker hep-ph/9602351 eq. (67): per-leg β² coefficient is
     # −1/(4²·2!) β² = −β²/32 on the bracket [...]; in BETA scheme β_H = β.
@@ -287,8 +282,7 @@ def _Gee_per_leg_NS(x, beta: float, one_minus_x=None):
         + 4.0 * (1.0 + x) * log1mx
         + 5.0 + x
     )
-    out = NS_1 + NS_2
-    out = np.where(x > 0.0, out, 0.0)
+    out = np.where(x > 0.0, NS_1 + NS_2, 0.0)
     if np.ndim(x) == 0:
         return float(out)
     return out
