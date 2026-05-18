@@ -84,21 +84,46 @@ def beta_ISR(s: float, alpha_em: float | None = None) -> float:
 def H_SV(beta: float) -> float:
     """Soft+virtual exponentiated radiator factor.
 
-    Combined with 1/Γ(1+β) this is equivalent (to O(β²)) to
-    exp(3β/4 + 9β²/32 + O(β³)) — the standard Kuraev-Fadin / Nicrosini-
-    Trentadue YFS-resummed form.
+    BFS-consistent form (LEP2 YR eq. (GeeLLexp) BETA scheme with the
+    α → 2α single-convolution substitution):
+
+        H_SV = exp[β(3/4 − γ_E)] / Γ(1 + β)
+
+    Validation (post-2026-05-18): matches BFS Table 4 σ_obs to better
+    than 1 % when convoluted with the corrected H_NS coefficients.
+
+    History: prior versions included an additional β²(9/32 − π²/12)
+    term in the exponent, representing the "proper Kuraev-Fadin
+    exponentiated" form at NLL accuracy. While that form is more
+    accurate at NLL, BFS / LEP2 YR don't use it — keeping it
+    produces a ~0.74 % σ_obs deficit vs BFS at β ≈ 0.117. Removed
+    to match BFS LL+exp. The full Kuraev-Fadin exponentiation will
+    re-enter when the NLL ISR upgrade lands (see
+    [[project-followup-nll-isr-plan]]).
     """
-    return np.exp(beta * (0.75 - EULER_GAMMA)
-                  + beta ** 2 * (9.0 / 32.0 - np.pi ** 2 / 12.0)) / gamma_fn(1.0 + beta)
+    return np.exp(beta * (0.75 - EULER_GAMMA)) / gamma_fn(1.0 + beta)
 
 
 def H_NS(z, beta: float, one_minus_z=None):
     """Non-singular subleading piece of the radiator.
 
-    H_NS(z; β) = -(β/2)(1+z)
-                 + (β²/8) [ -2(1+z) ln(1-z) - (1+3z²)/(1-z) ln z - 5 - z ]
+    Following LEP2 YR eq. (GeeLLexp) with the α → 2α substitution (BETA
+    scheme) for the equivalent single-convolution form, BFS-consistent
+    LL+exp:
 
-    H_NS itself diverges logarithmically at z=1 from the -2(1+z) ln(1-z)
+        H_NS(z; β) = -(β/2)(1+z)
+                     - (β²/8) [ (1+3z²)/(1-z) ln z
+                                + 4(1+z) ln(1-z)
+                                + 5 + z ]
+
+    The coefficient 4 on (1+z)ln(1-z) is what comes from the per-leg
+    φ(α, x) BETA-scheme T2 coefficient (-(β²/32)·4·(1+x) ln(1-x))
+    with α → 2α, i.e. β_per-leg = (2α/π)(L-1) → 2β_per-leg in the
+    effective single-convolution → coefficient on (1+z)ln(1-z) is
+    -((2β)²/32)·4 = -β²/2 = -(β²/8)·4. Validated by reproducing BFS
+    Table 4 σ_obs after ISR convolution.
+
+    H_NS itself diverges logarithmically at z=1 from the -4(1+z) ln(1-z)
     piece; the convolution remains finite because the integrand kernel
     u^{1/β−1} × H_NS suppresses the log as u → 0. Numerically we just
     avoid log(0) by accepting an explicit ``one_minus_z`` argument when
@@ -106,6 +131,10 @@ def H_NS(z, beta: float, one_minus_z=None):
     a floor when only ``z`` is provided.
 
     Vectorised in ``z``.
+
+    History: prior to 2026-05-18, the coefficient on (1+z)ln(1-z) was
+    erroneously 2 (instead of 4), giving a ~1 % σ_obs deficit vs BFS
+    Table 4. Fixed and validated 2026-05-18 (validation log item 24).
     """
     z = np.asarray(z, dtype=float)
     if one_minus_z is None:
@@ -119,10 +148,10 @@ def H_NS(z, beta: float, one_minus_z=None):
     logz = np.log(z_safe)
 
     NS1 = -0.5 * beta * (1.0 + z)
-    NS2 = (beta ** 2 / 8.0) * (
-        -2.0 * (1.0 + z) * log1mz
-        - (1.0 + 3.0 * z * z) / one_minus_z * logz
-        - 5.0 - z
+    NS2 = -(beta ** 2 / 8.0) * (
+        (1.0 + 3.0 * z * z) / one_minus_z * logz
+        + 4.0 * (1.0 + z) * log1mz
+        + 5.0 + z
     )
     out = NS1 + NS2
     # Below kinematic limit z ≤ 0: no contribution.
