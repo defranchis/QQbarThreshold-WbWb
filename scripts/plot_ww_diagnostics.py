@@ -333,6 +333,63 @@ def plot_vs_LEP():
     return out
 
 
+def plot_ratios_vs_mW_GammaW():
+    """Two-panel ratio plot: σ_obs(s; m_W ± δ) / σ_obs(s; m_W) for a set of
+    m_W variations, and same for Γ_W. Shows the lineshape distortion
+    induced by physical-parameter shifts at the order of the FCC-ee
+    target precision (a few MeV). Counterpart of the WbWb
+    ``plot_parameter_variations`` figure."""
+    import matplotlib.pyplot as plt
+
+    sqrts = np.linspace(155.0, 170.0, 151)
+    mW0, gW0 = M_W_DEFAULT, GAMMA_W_DEFAULT
+
+    sigma_nom = sigma_observed_munuqq(sqrts, mW=mW0, gammaW=gW0, channel="inclusive")
+
+    # ±10, ±30 MeV variations — same convention as WbWb's parameter-variation
+    # plot (card mass/width "variation" defaults are 30 MeV).
+    variations_MeV = [-30, -10, +10, +30]
+    palette = {-30: "#08519c", -10: "#6baed6", +10: "#fb6a4a", +30: "#a50f15"}
+
+    fig, (ax_mW, ax_gW) = plt.subplots(2, 1, figsize=(8.5, 8), sharex=True)
+
+    for d in variations_MeV:
+        sigma_v = sigma_observed_munuqq(sqrts, mW=mW0 + 1e-3 * d, gammaW=gW0,
+                                        channel="inclusive")
+        ax_mW.plot(sqrts, sigma_v / sigma_nom,
+                   color=palette[d], linewidth=1.6,
+                   label=fr"$\delta m_W = {d:+d}$ MeV")
+    ax_mW.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
+    ax_mW.axvline(2 * mW0, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_mW.set_ylabel(r"$\sigma_{\rm obs}(m_W + \delta m_W) / \sigma_{\rm obs}(m_W)$")
+    ax_mW.set_title(r"Lineshape sensitivity to $m_W$ and $\Gamma_W$  "
+                     fr"($m_W = {mW0:.4f}$ GeV, $\Gamma_W = {gW0:.3f}$ GeV, with LL+YFS ISR)")
+    ax_mW.legend(loc="best", fontsize=9, framealpha=0.9)
+    ax_mW.grid(alpha=0.25)
+
+    for d in variations_MeV:
+        sigma_v = sigma_observed_munuqq(sqrts, mW=mW0, gammaW=gW0 + 1e-3 * d,
+                                        channel="inclusive")
+        ax_gW.plot(sqrts, sigma_v / sigma_nom,
+                   color=palette[d], linewidth=1.6,
+                   label=fr"$\delta \Gamma_W = {d:+d}$ MeV")
+    ax_gW.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
+    ax_gW.axvline(2 * mW0, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_gW.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_gW.set_ylabel(r"$\sigma_{\rm obs}(\Gamma_W + \delta\Gamma_W) / \sigma_{\rm obs}(\Gamma_W)$")
+    ax_gW.legend(loc="best", fontsize=9, framealpha=0.9)
+    ax_gW.grid(alpha=0.25)
+
+    plt.tight_layout()
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "ratios_mW_GammaW.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
 def main():
     import matplotlib
     matplotlib.use("Agg")
@@ -340,6 +397,7 @@ def main():
     plot_xsec_vs_sqrts()
     plot_sensitivity_vs_sqrts()
     plot_vs_LEP()
+    plot_ratios_vs_mW_GammaW()
     print("Done.")
 
 

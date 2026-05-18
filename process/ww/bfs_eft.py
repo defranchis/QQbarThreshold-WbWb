@@ -199,6 +199,15 @@ def sigma_LR_RL_half_specific_pb(s, mW: float = M_W_DEFAULT,
     """N^{1/2}LO non-resonant pieces, eq. (37) with h1-h3 only (h4-h7 are
     <0.5% per the paper text after eq. (40)).
 
+    Unlike σ^(0), σ^(1)_pot, σ^(3/2),a (whose BR correction is squared
+    because both W's are in cut effective-theory propagators), the
+    four-electron production-decay operator that gives σ^(1/2) has
+    ONE W in narrow-width approximation and the OTHER in the
+    production-decay operator at LO. Paper eq. (83) and surrounding
+    text says we get a single prefactor Γ_partial^(0)/Γ_W rather than
+    a squared one. Hence ``apply_BR_correction`` here uses the linear
+    Γ_W^(0)/Γ_W factor (= √_BR_correction(...)).
+
     Returns ``(σ_LR^{1/2}, σ_RL^{1/2})`` in pb, for the specific channel.
     """
     s_arr = np.asarray(s, dtype=float)
@@ -211,9 +220,9 @@ def sigma_LR_RL_half_specific_pb(s, mW: float = M_W_DEFAULT,
     sigma_LR_half = sigma_LR_half * GEV_M2_TO_PB
     sigma_RL_half = sigma_RL_half * GEV_M2_TO_PB
     if apply_BR_correction:
-        c = _BR_correction(mW, gammaW)
-        sigma_LR_half = sigma_LR_half * c
-        sigma_RL_half = sigma_RL_half * c
+        c_lin = gamma_W_LO(mW) / gammaW   # linear (not squared)
+        sigma_LR_half = sigma_LR_half * c_lin
+        sigma_RL_half = sigma_RL_half * c_lin
     return sigma_LR_half, sigma_RL_half
 
 
