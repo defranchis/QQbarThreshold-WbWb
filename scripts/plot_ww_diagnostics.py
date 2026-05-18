@@ -40,12 +40,18 @@ from cards import ww_default as _card
 
 # Diagnostic plots always reflect the *card-configured* NLO behaviour so the
 # plots match what the fit actually sees. Curried wrappers below pick up the
-# NLO knobs from cards/ww_default.py NLO_CONFIG + THEORY_INPUTS.
+# full chain configuration from cards/ww_default.py.
 _NLO_KW = {
     "include_NLO_hard_decay": _card.NLO_CONFIG.get("include_NLO_hard_decay", True),
-    "apply_delta_QCD":        _card.NLO_CONFIG.get("apply_delta_QCD", False),
+    "apply_delta_QCD":        _card.NLO_CONFIG.get("apply_delta_QCD", True),
     "br_convention":          _card.NLO_CONFIG.get("br_convention", "pdg-constant"),
     "alpha_s":                _card.THEORY_INPUTS.get("alpha_s_MW", 0.1199),
+    "apply_whizard_anchor":   _card.NLO_CONFIG.get("apply_whizard_anchor", True),
+}
+# Extra ISR knobs only meaningful for sigma_observed (post-convolution σ).
+_ISR_KW = {
+    "isr_scheme":   _card.NLO_CONFIG.get("isr_scheme", "single_conv"),
+    "alpha_em_isr": _card.NLO_CONFIG.get("alpha_em_isr", None),
 }
 
 
@@ -57,6 +63,8 @@ def sigma_partonic_munuqq(*args, **kwargs):
 
 def sigma_observed_munuqq(*args, **kwargs):
     for k, v in _NLO_KW.items():
+        kwargs.setdefault(k, v)
+    for k, v in _ISR_KW.items():
         kwargs.setdefault(k, v)
     return _sigma_observed_munuqq_raw(*args, **kwargs)
 
@@ -702,93 +710,6 @@ def plot_bes_effect_on_variations():
     return out
 
 
-def plot_bes_smearing_effect():
-    """Effect of FCC-ee beam-energy spread on σ_WW near threshold.
-
-    Convolves σ_WW(observed, with LL+YFS ISR) with a Gaussian of relative
-    width BES = 0.105 % per beam (FCC FSR Vol. 1 Table 14, W+W- with
-    beamstrahlung). At the WW peak √s ≈ 162.5 GeV this gives a CM-energy
-    spread σ_√s ≈ 120 MeV.
-
-    Two panels:
-      * absolute σ_WW vs √s — nominal, ISR-only, ISR+BES
-      * BES/ISR-only ratio — how much the BES smooths the threshold
-
-    Also includes ±1 GeV m_W and Γ_W variations to show that BES does
-    not wash out the parameter-dependence signature."""
-    import matplotlib.pyplot as plt
-    from common.smearing import convolute_gauss
-
-    BES_pct = 0.105  # FCC FSR Vol 1 Table 14 (W+W- BS)
-
-    # Uniform-pitch grid so convolute_gauss can work
-    sqrts = np.linspace(150.0, 175.0, 2501)   # 10-MeV pitch
-    mW0, gW0 = 80.385, 2.085
-
-    def _sigma_WW_arr(mW, gW):
-        sig = sigma_observed_munuqq(sqrts, mW=mW, gammaW=gW,
-                                    channel="inclusive") / BR_INCLUSIVE_MUNUQQ
-        return sig
-
-    def _smear(sigma_arr, peak_ecm):
-        import pandas as pd
-        df = pd.DataFrame({"ecm": sqrts, "xsec": sigma_arr})
-        return convolute_gauss(df, BES_pct, peak_ecm=peak_ecm).to_numpy()[:, 1]
-
-    sigma_nom_isr = _sigma_WW_arr(mW0, gW0)
-    sigma_nom_bes = _smear(sigma_nom_isr, peak_ecm=162.5)
-
-    fig, (ax_abs, ax_var) = plt.subplots(2, 1, figsize=(9, 9),
-                                          gridspec_kw={"height_ratios": [2, 1.5]},
-                                          sharex=True)
-
-    # --- top panel: ISR-only vs ISR+BES ---
-    ax_abs.plot(sqrts, sigma_nom_isr, color="C0", linewidth=2.0,
-                 label=r"LL+YFS ISR  (no BES)")
-    ax_abs.plot(sqrts, sigma_nom_bes, color="C3", linewidth=2.0,
-                 linestyle="--",
-                 label=rf"+ FCC-ee BES (0.105 % / beam)")
-
-    ax_abs.axvline(2 * mW0, color="grey", alpha=0.4,
-                    linestyle="--", linewidth=0.8)
-    ax_abs.text(2 * mW0 + 0.05, 0.3, r"$2\,m_W$", color="grey",
-                 alpha=0.7, fontsize=9, ha="left", va="bottom")
-    ax_abs.set_ylabel(r"$\sigma_{\rm WW}$ [pb]")
-    ax_abs.set_xlim(155, 170)
-    ax_abs.set_ylim(0, 12)
-    ax_abs.set_title(r"BES smearing effect on $\sigma_{\rm WW}$  "
-                      fr"($m_W = {mW0:.3f}$, $\Gamma_W = {gW0:.3f}$ GeV)"
-                      "\n"
-                      r"FCC FSR Vol. 1 Table 14: $\sigma_\delta = 0.105\,\%$ per beam at $W^+W^-$"
-                      fr" $\Rightarrow \sigma_{{\sqrt{{s}}}} \approx 120$ MeV at peak")
-    ax_abs.legend(loc="upper left", fontsize=10, framealpha=0.9)
-    ax_abs.grid(alpha=0.25)
-
-    # --- bottom panel: ratio BES/(no BES) ---
-    eps = 1e-9
-    ratio = sigma_nom_bes / np.maximum(sigma_nom_isr, eps)
-    ax_var.plot(sqrts, ratio, color="black", linewidth=1.8,
-                 label=r"$\sigma_{\rm BES}\,/\,\sigma_{\rm noBES}$")
-    ax_var.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
-    ax_var.axvline(2 * mW0, color="grey", alpha=0.4,
-                    linestyle="--", linewidth=0.8)
-    ax_var.set_xlabel(r"$\sqrt{s}$ [GeV]")
-    ax_var.set_ylabel(r"ratio")
-    ax_var.set_xlim(155, 170)
-    ax_var.set_ylim(0.85, 1.15)
-    ax_var.legend(loc="best", fontsize=10, framealpha=0.9)
-    ax_var.grid(alpha=0.25)
-
-    plt.tight_layout()
-    os.makedirs(PLOT_DIR, exist_ok=True)
-    out = os.path.join(PLOT_DIR, "bes_smearing_effect.pdf")
-    plt.savefig(out, bbox_inches="tight")
-    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
-    plt.close(fig)
-    print(f"  wrote {out}")
-    return out
-
-
 def main():
     import matplotlib
     matplotlib.use("Agg")
@@ -799,7 +720,6 @@ def main():
     plot_ratios_vs_mW_GammaW()
     plot_normalised_xsec_hypotheses()
     plot_azzurri_style_pm1GeV()
-    plot_bes_smearing_effect()
     plot_bes_effect_on_variations()
     print("Done.")
 

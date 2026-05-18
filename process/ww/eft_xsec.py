@@ -463,10 +463,13 @@ def sigma_partonic_munuqq(s,
                           include_coulomb: bool = True,
                           bfs: BFSCorrections | None = None,
                           br_convention: str = "pdg-constant",
-                          include_NLO_hard_decay: bool = False,
-                          apply_delta_QCD: bool = False,
+                          # Defaults below are the project's "best calculation"
+                          # — full BFS NLO chain + δ_QCD + Whizard anchor.
+                          # Validation: scripts/validate_bfs_nlo.py.
+                          include_NLO_hard_decay: bool = True,
+                          apply_delta_QCD: bool = True,
                           alpha_s: float = 0.1199,
-                          apply_whizard_anchor: bool = False):
+                          apply_whizard_anchor: bool = True):
     """
     Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
     Returns σ in pb at partonic CM energy² = s (before ISR convolution).

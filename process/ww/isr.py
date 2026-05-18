@@ -401,11 +401,17 @@ def sigma_observed_munuqq(sqrt_s,
                           include_coulomb: bool = True,
                           bfs: BFSCorrections | None = None,
                           br_convention: str = "pdg-constant",
-                          include_NLO_hard_decay: bool = False,
-                          apply_delta_QCD: bool = False,
+                          # Defaults below are the project's "best calculation"
+                          # — full BFS NLO chain + δ_QCD + Whizard anchor + LL+exp ISR.
+                          # Single-conv is the default ISR scheme (matches 2-leg
+                          # to <0.1% per 2026-05-18 validation, faster 1D quadrature).
+                          # alpha_em_isr=None uses module default α_Gμ(m_W=80.377)
+                          # per BFS prescription (avoids fictitious m_W-dep in ISR).
+                          include_NLO_hard_decay: bool = True,
+                          apply_delta_QCD: bool = True,
                           alpha_s: float = 0.1199,
                           alpha_em_isr: float | None = None,
-                          apply_whizard_anchor: bool = False,
+                          apply_whizard_anchor: bool = True,
                           isr_scheme: str = "single_conv"):
     """
     Observed σ(e+e- → μν qq̄) after ISR convolution, in pb. Vectorised in

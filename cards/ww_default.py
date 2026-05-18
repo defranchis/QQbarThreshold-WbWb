@@ -79,6 +79,16 @@ NLO_CONFIG = {
     # dependence (m_W via δ = √s − 2m_W, Γ_W via linear interp between the
     # two BFS reference Γ_W = {2.045, 2.092}).
     "apply_whizard_anchor":   True,
+    # ISR scheme — LL+exp BETA per LEP2 YR Beenakker hep-ph/9602351 eq. (67).
+    #   "single_conv": LEP2 YR α→2α 1D convolution shortcut (default, fastest).
+    #   "2leg":        full per-leg double-convolution per BFS eq. 71. Agrees
+    #                  with single_conv to <0.1 % — formal LL+exp equivalence.
+    # See project_followup_isr_scheme.md for the verification details.
+    "isr_scheme":             "single_conv",
+    # ISR α: None = α_Gμ(m_W=80.377) per BFS prescription (constant across
+    # the fit to avoid fictitious m_W dependence in the ISR kernel). Override
+    # with a float for a scheme-variation systematic.
+    "alpha_em_isr":           None,
 }
 
 # ---------------------------------------------------------------------------

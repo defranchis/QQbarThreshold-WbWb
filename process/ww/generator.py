@@ -62,12 +62,36 @@ class WWGenerator:
     def __init__(self, *, order: int = 2, channel: str = "inclusive",
                  include_coulomb: bool = True, bfs: BFSCorrections | None = None,
                  n_quad: int = 200, z_min: float = 0.10,
-                 # BFS-NLO knobs (defaults match cards/ww_default.py NLO_CONFIG):
+                 # ----------------------------------------------------------
+                 # Defaults below are the project's "best calculation".
+                 # Validation: scripts/validate_bfs_nlo.py.
+                 # ----------------------------------------------------------
+                 # BFS NLO loop chain (HSC + Coulomb_NLO + EW-decay correction):
                  include_NLO_hard_decay: bool = True,
-                 apply_delta_QCD: bool = False,
+                 # Multiplicative δ_QCD(α_s) = 1 + α_s/π + 1.409(α_s/π)² —
+                 # makes α_s a physically active fit parameter:
+                 apply_delta_QCD: bool = True,
+                 # BR convention: PDG-measured BR (constant over fit). The
+                 # alternative "bfs-eft" uses theory partials over fit Γ_W.
                  br_convention: str = "pdg-constant",
+                 # α_s(M_W) in MS-bar (enters δ_QCD):
                  alpha_s: float = 0.1199,
-                 apply_whizard_anchor: bool = False):
+                 # Whizard 4f Born anchor f(δ, Γ_W) — BFS sec. 6.2 prescription
+                 # to replace BFS-EFT N^(3/2)LO Born by exact Whizard 4f Born:
+                 apply_whizard_anchor: bool = True,
+                 # ISR scheme: "single_conv" (LEP2 YR α→2α 1D form, default)
+                 # or "2leg" (BFS eq. 71 full per-leg double conv). Both forms
+                 # agree to <0.1 % at LL+exp; single-conv is faster (1D quad).
+                 isr_scheme: str = "single_conv",
+                 # ISR α: None → α_Gμ(m_W=80.377) per BFS prescription (avoids
+                 # fictitious m_W-dep in the ISR kernel). Pass an explicit float
+                 # to override (e.g. for a scheme-variation systematic).
+                 alpha_em_isr: float | None = None,
+                 # Theory inputs that ENTER c_p,LR^(1,fin) (BFS reference values
+                 # — currently treated as constants in the hardcoded c_fin =
+                 # -10.076; recorded here so a future update can propagate
+                 # m_t/M_H variations into the matching coefficient).
+                 m_t: float = 174.2, M_H: float = 115.0):
         self.order = order              # informational; recorded in filename
         self.channel = channel
         self.include_coulomb = include_coulomb
@@ -79,6 +103,10 @@ class WWGenerator:
         self.br_convention = br_convention
         self.alpha_s = alpha_s
         self.apply_whizard_anchor = apply_whizard_anchor
+        self.isr_scheme = isr_scheme
+        self.alpha_em_isr = alpha_em_isr
+        self.m_t = m_t
+        self.M_H = M_H
 
     # ------------------------------------------------------------------
     # Filenames (match the stub pattern so existing harness still works)
@@ -136,6 +164,8 @@ class WWGenerator:
             alpha_s=alpha_s_eff,
             br_convention=self.br_convention,
             apply_whizard_anchor=self.apply_whizard_anchor,
+            isr_scheme=self.isr_scheme,
+            alpha_em_isr=self.alpha_em_isr,
         )
 
         os.makedirs(outdir, exist_ok=True)
