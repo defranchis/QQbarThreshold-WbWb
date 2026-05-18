@@ -239,7 +239,8 @@ def sigma_WW_Born(s,
 def coulomb_K_factor(s,
                      mW: float = M_W_DEFAULT,
                      gammaW: float = GAMMA_W_DEFAULT,
-                     order: int = 1):
+                     order: int = 1,
+                     prescription: str = "on-shell"):
     """
     Coulomb-photon-exchange K-factor with finite Γ_W:
 
@@ -278,15 +279,38 @@ def coulomb_K_factor(s,
     kappa = np.sqrt(np.asarray(-mW * (E + 1j * gammaW), dtype=complex))
     kappa = np.where(kappa.real < 0, -kappa, kappa)
 
-    bM = beta_complex(s_arr, mW, gammaW)
-    p = 0.5 * sqrt_s * bM.real
+    if prescription == "on-shell":
+        # FKM 1995 hep-ph/9507422 eq. (3) convention: p is the on-shell
+        # kinematic momentum, → 0 at threshold. Default for quantitative
+        # comparison with BFS literature (their X/2 = 5.21% at threshold
+        # uses this convention via the L'Hôpital limit of eq. 9).
+        p2 = s_arr / 4.0 - mW ** 2
+        p = np.sqrt(np.maximum(p2, 0.0))   # zero at/below threshold
+    elif prescription == "off-shell":
+        # Off-shell EFT prescription (from prior-chat code): p uses
+        # Re[β_M_complex], which is non-zero at threshold via finite-Γ_W
+        # regularisation. Gives K_C-1 = +7.3% at threshold vs FKM's
+        # on-shell +6.6%; a partial-resummation flavour that's NOT
+        # literally what's in FKM 1995.
+        bM = beta_complex(s_arr, mW, gammaW)
+        p = 0.5 * sqrt_s * bM.real
+    else:
+        raise ValueError(
+            f"prescription must be 'on-shell' (default, matches FKM 1995) "
+            f"or 'off-shell' (partial-resummation flavour); got {prescription!r}"
+        )
 
     abs_kappa2 = np.abs(kappa) ** 2
     re_kappa = kappa.real
 
-    # Main formula: arctan((|κ|²-p²)/(2 p Re κ)). With finite Γ_W, the
-    # denominator is always > 0 in physical regimes — both p and Re κ have
-    # leading O(√(m_W Γ_W)) at threshold. Guard against numerical zero anyway.
+    # For on-shell prescription p → 0 at and below threshold. The strict
+    # p → 0 limit of FKM eq. 9 is:
+    #     K_1 → 1 + α √s × Re(κ) / |κ|²
+    # We use this whenever p is too small to evaluate the arctan formula
+    # stably (i.e. always at/below threshold in on-shell mode; never in
+    # off-shell mode where p ≳ √(m_W Γ_W / 2) ≈ 9 GeV).
+    K1_limit = 1.0 + ALPHA_EM_0 * sqrt_s * re_kappa / abs_kappa2
+
     denom = 2.0 * p * re_kappa
     safe = np.abs(denom) > 1e-12
     arctan_val = np.where(
@@ -295,7 +319,11 @@ def coulomb_K_factor(s,
         0.5 * np.pi * np.sign(abs_kappa2 - p * p),
     )
 
-    K1 = 1.0 + (ALPHA_EM_0 * sqrt_s / (4.0 * p)) * (np.pi - 2.0 * arctan_val)
+    # Use the p → 0 limit form wherever p is too small for the arctan
+    # formula to be numerically stable; main formula elsewhere.
+    p_safe = np.where(p > 1e-6, p, 1.0)
+    K1_main = 1.0 + (ALPHA_EM_0 * sqrt_s / (4.0 * p_safe)) * (np.pi - 2.0 * arctan_val)
+    K1 = np.where(p > 1e-6, K1_main, K1_limit)
 
     if order < 2:
         out = K1
