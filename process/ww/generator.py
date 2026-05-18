@@ -66,7 +66,8 @@ class WWGenerator:
                  include_NLO_hard_decay: bool = True,
                  apply_delta_QCD: bool = False,
                  br_convention: str = "pdg-constant",
-                 alpha_s: float = 0.1199):
+                 alpha_s: float = 0.1199,
+                 apply_whizard_anchor: bool = False):
         self.order = order              # informational; recorded in filename
         self.channel = channel
         self.include_coulomb = include_coulomb
@@ -77,6 +78,7 @@ class WWGenerator:
         self.apply_delta_QCD = apply_delta_QCD
         self.br_convention = br_convention
         self.alpha_s = alpha_s
+        self.apply_whizard_anchor = apply_whizard_anchor
 
     # ------------------------------------------------------------------
     # Filenames (match the stub pattern so existing harness still works)
@@ -133,6 +135,7 @@ class WWGenerator:
             apply_delta_QCD=self.apply_delta_QCD,
             alpha_s=alpha_s_eff,
             br_convention=self.br_convention,
+            apply_whizard_anchor=self.apply_whizard_anchor,
         )
 
         os.makedirs(outdir, exist_ok=True)

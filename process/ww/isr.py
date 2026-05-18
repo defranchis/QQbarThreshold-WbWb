@@ -224,7 +224,8 @@ def sigma_observed_munuqq(sqrt_s,
                           include_NLO_hard_decay: bool = False,
                           apply_delta_QCD: bool = False,
                           alpha_s: float = 0.1199,
-                          alpha_em_isr: float | None = None):
+                          alpha_em_isr: float | None = None,
+                          apply_whizard_anchor: bool = False):
     """
     Observed σ(e+e- → μν qq̄) after ISR convolution, in pb. Vectorised in
     ``sqrt_s``. ``br_convention`` and ``include_NLO_hard_decay`` are
@@ -250,6 +251,7 @@ def sigma_observed_munuqq(sqrt_s,
         include_NLO_hard_decay=include_NLO_hard_decay,
         apply_delta_QCD=apply_delta_QCD,
         alpha_s=alpha_s,
+        apply_whizard_anchor=apply_whizard_anchor,
     )
 
 

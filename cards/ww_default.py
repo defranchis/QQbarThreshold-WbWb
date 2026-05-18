@@ -72,6 +72,13 @@ NLO_CONFIG = {
     "include_NLO_hard_decay": True,    # HSC + EW decay + Coulomb_NLO additive
     "apply_delta_QCD":        True,    # multiplicative δ_QCD(α_s) on σ_partonic
     "br_convention":          "pdg-constant",   # 'pdg-constant' | 'bfs-eft'
+    # Whizard-anchor correction f(δ, Γ_W) (BFS section 6.2 prescription).
+    # Replaces the BFS-EFT N^(3/2)LO Born by the exact Whizard 4f Born via
+    # a smooth multiplicative correction built from BFS Tables 1+2. Closes
+    # the residual ~2 % absolute Born deficit; preserves analytic m_W/Γ_W
+    # dependence (m_W via δ = √s − 2m_W, Γ_W via linear interp between the
+    # two BFS reference Γ_W = {2.045, 2.092}).
+    "apply_whizard_anchor":   True,
 }
 
 # ---------------------------------------------------------------------------

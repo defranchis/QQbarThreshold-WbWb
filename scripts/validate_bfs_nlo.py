@@ -152,9 +152,10 @@ def scenario_F():
     print("=" * 72)
     mW, gW = 80.377, 2.09201
     if True:
+        print("  Without Whizard anchor:")
         print(f"  {'√s':>6} {'Born[isr]_mine':>15} {'Born[isr]_BFS':>15}"
               f" {'NLO_mine':>10} {'NLO_BFS':>10}"
-              f" {'NLO/Born mine':>14} {'NLO/Born BFS':>14}")
+              f" {'mine/BFS NLO':>14}")
         for sq, (born_paper, born_isr_paper, nlo_paper, _) in BFS_TABLE_4.items():
             born_isr_mine = sigma_observed_munuqq(
                 float(sq), mW=mW, gammaW=gW, channel="munuud",
@@ -167,7 +168,26 @@ def scenario_F():
                 alpha_s=0.1199) * 1e3
             print(f"  {sq:>6}  {_fmt(born_isr_mine, 12)}    {_fmt(born_isr_paper, 12)}"
                   f"  {_fmt(nlo_mine, 8)}  {_fmt(nlo_paper, 8)}"
-                  f"   {nlo_mine/born_isr_mine:>9.4f}      {nlo_paper/born_isr_paper:>9.4f}")
+                  f"  {nlo_mine/nlo_paper:>9.4f}")
+        print()
+        print("  With Whizard anchor f(δ, Γ_W):")
+        print(f"  {'√s':>6} {'Born[isr]_mine':>15} {'Born[isr]_BFS':>15}"
+              f" {'NLO_mine':>10} {'NLO_BFS':>10}"
+              f" {'mine/BFS NLO':>14}")
+        for sq, (born_paper, born_isr_paper, nlo_paper, _) in BFS_TABLE_4.items():
+            born_isr_mine = sigma_observed_munuqq(
+                float(sq), mW=mW, gammaW=gW, channel="munuud",
+                br_convention="bfs-eft", include_coulomb=False,
+                include_NLO_hard_decay=False, apply_delta_QCD=False,
+                apply_whizard_anchor=True) * 1e3
+            nlo_mine = sigma_observed_munuqq(
+                float(sq), mW=mW, gammaW=gW, channel="munuud",
+                br_convention="bfs-eft", include_coulomb=False,
+                include_NLO_hard_decay=True, apply_delta_QCD=True,
+                alpha_s=0.1199, apply_whizard_anchor=True) * 1e3
+            print(f"  {sq:>6}  {_fmt(born_isr_mine, 12)}    {_fmt(born_isr_paper, 12)}"
+                  f"  {_fmt(nlo_mine, 8)}  {_fmt(nlo_paper, 8)}"
+                  f"  {nlo_mine/nlo_paper:>9.4f}")
 
 
 def scenario_G():
@@ -194,6 +214,60 @@ def scenario_G():
                                            include_NLO_hard_decay=True,
                                            apply_delta_QCD=True) * 1e3
             print(f"  {sq:>6.1f}  {_fmt(s_pdg, 14)} fb   {_fmt(s_bfs, 14)} fb   {s_pdg/s_bfs:.4f}")
+
+
+def scenario_I_anchor():
+    """Whizard-anchor closure: with f applied, the BFS-N^(3/2)LO Born should
+    reproduce BFS Tables 1 (LO width) and 2 (NLO+QCD width) Whizard 4f Born
+    values to <0.1% by construction. Tests the spline + Γ_W-interp logic."""
+    print("\n" + "=" * 72)
+    print("Scenario I: Whizard-anchor closure (mine × f vs BFS Whizard reference)")
+    print("=" * 72)
+    print("Table 1 reference (m_W=80.377, Γ_W=2.04483, no BR corr):")
+    mW1, gW1 = 80.377, 2.04483
+    table1_whiz = {155: 34.43, 158: 63.39, 161: 160.62, 164: 318.30, 167: 428.60, 170: 505.10}
+    for sq, target in table1_whiz.items():
+        mine_anchor = sigma_BFS_LO_total_WW_pb(
+            np.array([sq**2]), mW1, gW1, order="N3/2LO",
+            apply_BR_correction=False, apply_whizard_anchor=True)[0]
+        mine_unpol_specific = mine_anchor / 27.0 * 1e3
+        print(f"  √s={sq}: mine_anchored = {mine_unpol_specific:.3f} fb, BFS_Whizard = {target:.3f}, ratio = {mine_unpol_specific/target:.5f}")
+    print()
+    print("Table 2 reference (m_W=80.379, Γ_W=2.09201, BR corr):")
+    mW2, gW2 = 80.379, 2.09201
+    table2_whiz = {155: 33.58, 158: 61.67, 161: 154.19, 164: 303.00, 167: 408.80, 170: 481.70}
+    for sq, target in table2_whiz.items():
+        mine_anchor = sigma_BFS_specific_munuud_pb(
+            np.array([sq**2]), mW2, gW2, order="N3/2LO",
+            apply_whizard_anchor=True)[0] * 1e3
+        print(f"  √s={sq}: mine_anchored = {mine_anchor:.3f} fb, BFS_Whizard = {target:.3f}, ratio = {mine_anchor/target:.5f}")
+
+
+def scenario_J_derivatives():
+    """Check that the anchor preserves dσ/dm_W and dσ/dΓ_W derivatives
+    within <1%. f(δ, Γ_W) varies smoothly, so the derivatives are
+    dominated by σ_BFS_N32 with at most a small f' correction."""
+    from process.ww.isr import sigma_observed_munuqq
+    from process.ww.eft_xsec import BR_INCLUSIVE_MUNUQQ
+    print("\n" + "=" * 72)
+    print("Scenario J: dσ/dm_W and dσ/dΓ_W derivatives — anchor effect")
+    print("=" * 72)
+    mW0, gW0 = 80.385, 2.085
+    h = 0.001
+    print("  √s [GeV]   dσ/dm_W [fb/MeV]                dσ/dΓ_W [fb/MeV]")
+    print("            no-anchor      +anchor      Δ%   no-anchor    +anchor    Δ%")
+    for sq in [157.0, 161.0, 162.3, 165.0]:
+        def s_obs(mW, gW, anchor):
+            return sigma_observed_munuqq(
+                sq, mW=mW, gammaW=gW, channel="inclusive",
+                br_convention="pdg-constant",
+                include_NLO_hard_decay=True, apply_delta_QCD=True,
+                apply_whizard_anchor=anchor) / BR_INCLUSIVE_MUNUQQ * 1e3
+        dm_no = (s_obs(mW0 + h, gW0, False) - s_obs(mW0 - h, gW0, False)) / (2*h)
+        dm_a  = (s_obs(mW0 + h, gW0, True)  - s_obs(mW0 - h, gW0, True))  / (2*h)
+        dg_no = (s_obs(mW0, gW0 + h, False) - s_obs(mW0, gW0 - h, False)) / (2*h)
+        dg_a  = (s_obs(mW0, gW0 + h, True)  - s_obs(mW0, gW0 - h, True))  / (2*h)
+        print(f"  {sq:>6.1f}    {dm_no:+8.3f}    {dm_a:+8.3f}   {(dm_a-dm_no)/dm_no*100:+.2f}    {dg_no:+8.3f}   {dg_a:+8.3f}  {(dg_a-dg_no)/dg_no*100:+.2f}")
 
 
 def scenario_H():
@@ -236,6 +310,8 @@ def main():
     scenario_F()
     scenario_G()
     scenario_H()
+    scenario_I_anchor()
+    scenario_J_derivatives()
 
 
 if __name__ == "__main__":

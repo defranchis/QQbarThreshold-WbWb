@@ -84,6 +84,113 @@ _K_H3_A = -6.18662
 ALPHA_S_MW_DEFAULT = 0.1199
 
 
+# ---------------------------------------------------------------------------
+# Whizard-anchor correction f(δ, Γ_W) — BFS section 6.2 prescription
+# ---------------------------------------------------------------------------
+# BFS itself replaces the EFT Born by the Whizard exact 4f Born in their
+# published Table 4 numbers (paper line 2647-2656). We do the same by
+# multiplying the BFS-EFT N^(3/2)LO Born by the smooth correction
+# f(δ, Γ_W) = σ_Whizard / σ_EFT-N3/2 from BFS Tables 1 and 2.
+#
+# The correction depends primarily on δ = √s − 2 m_W (the kinematic distance
+# from threshold, which controls the EFT-expansion convergence). The Γ_W
+# dependence is sub-0.3 % over the two BFS reference Γ_W values and is
+# captured by linear interpolation between Tables 1 and 2.
+#
+# Data taken directly from BFS arXiv:0707.0773:
+#   Table 1 (LO width): m_W = 80.377, Γ_W = Γ_W^(0)(80.377) = 2.04483 GeV
+#   Table 2 (NLO+QCD width): m_W = 80.379, Γ_W = 2.09201 GeV
+# Both at: M_Z = 91.188, m_t = 174.2, M_H = 115, G_μ = 1.16637e-5.
+#
+# δ = √s − 2 m_W is essentially the same at each √s for Tables 1 and 2 (the
+# 2 MeV m_W difference is negligible compared to the 3 GeV δ spacing). For
+# the spline we use the Table 1 δ values as the abscissa.
+
+_BFS_TABLE_1_SQRTS = [155.0, 158.0, 161.0, 164.0, 167.0, 170.0]
+_BFS_TABLE_1_MW    = 80.377
+_BFS_TABLE_1_GW    = 2.04483
+_BFS_TABLE_1_EFT   = [31.30, 62.50, 160.89, 318.80, 429.70, 505.40]   # fb, EFT N^(3/2)LO
+_BFS_TABLE_1_WHIZ  = [34.43, 63.39, 160.62, 318.30, 428.60, 505.10]   # fb, Whizard 4f Born
+
+_BFS_TABLE_2_SQRTS = [155.0, 158.0, 161.0, 164.0, 167.0, 170.0]
+_BFS_TABLE_2_MW    = 80.379
+_BFS_TABLE_2_GW    = 2.09201
+_BFS_TABLE_2_EFT   = [30.54,  60.83, 154.44, 303.70, 409.30, 481.70]
+_BFS_TABLE_2_WHIZ  = [33.58,  61.67, 154.19, 303.00, 408.80, 481.70]
+
+
+def _build_whizard_anchor_splines():
+    """Build two cubic splines f_T1(δ), f_T2(δ) of Whizard/EFT-N3/2 vs
+    δ = √s − 2 m_W from BFS Tables 1 and 2.
+
+    Linear interpolation between the splines in Γ_W gives the 2D anchor.
+    Natural BC on the splines so they don't oscillate near the endpoints."""
+    try:
+        from scipy.interpolate import CubicSpline
+    except ImportError:
+        CubicSpline = None
+
+    delta_T1 = np.array([s - 2.0 * _BFS_TABLE_1_MW for s in _BFS_TABLE_1_SQRTS])
+    delta_T2 = np.array([s - 2.0 * _BFS_TABLE_2_MW for s in _BFS_TABLE_2_SQRTS])
+    f_T1 = np.array(_BFS_TABLE_1_WHIZ) / np.array(_BFS_TABLE_1_EFT)
+    f_T2 = np.array(_BFS_TABLE_2_WHIZ) / np.array(_BFS_TABLE_2_EFT)
+
+    if CubicSpline is not None:
+        s1 = CubicSpline(delta_T1, f_T1, bc_type="natural", extrapolate=True)
+        s2 = CubicSpline(delta_T2, f_T2, bc_type="natural", extrapolate=True)
+        return s1, s2, delta_T1, delta_T2, f_T1, f_T2
+    # Fallback: linear interp (used only if scipy missing).
+    return (lambda d: np.interp(d, delta_T1, f_T1),
+            lambda d: np.interp(d, delta_T2, f_T2),
+            delta_T1, delta_T2, f_T1, f_T2)
+
+
+_WHIZ_SPLINE_T1, _WHIZ_SPLINE_T2, _WHIZ_DELTA_T1, _WHIZ_DELTA_T2, _WHIZ_F_T1, _WHIZ_F_T2 = \
+    _build_whizard_anchor_splines()
+
+
+def whizard_anchor_factor(s, mW: float = M_W_DEFAULT,
+                          gammaW: float = GAMMA_W_DEFAULT):
+    """Multiplicative correction f(δ, Γ_W) bringing the BFS-EFT N^(3/2)LO
+    Born to the Whizard exact 4f Born (BFS section 6.2 prescription).
+
+    Parameters
+    ----------
+    s : array-like
+        Partonic CM energy² in GeV².
+    mW, gammaW : float
+        Fit m_W and Γ_W. The kinematic δ = √s − 2 m_W shifts the spline
+        abscissa as m_W varies — captures the m_W dependence analytically.
+        Linear interpolation between the BFS Table 1 (Γ_W=2.045) and Table 2
+        (Γ_W=2.092) splines captures the Γ_W dependence; beyond [2.045,
+        2.092] the linear interpolation extrapolates.
+
+    Returns
+    -------
+    f : array-like
+        Same shape as s. Near threshold (δ ∈ [-1, +10] GeV) f ≈ 0.998-1.002;
+        below 155 GeV f grows to ~1.10. Vectorised in s.
+    """
+    s_arr = np.asarray(s, dtype=float)
+    sqrt_s = np.sqrt(s_arr)
+    delta = sqrt_s - 2.0 * mW
+
+    f1 = np.asarray(_WHIZ_SPLINE_T1(delta), dtype=float)
+    f2 = np.asarray(_WHIZ_SPLINE_T2(delta), dtype=float)
+
+    # Linear interpolation in Γ_W between Table 1 and Table 2 reference values.
+    # Note: this extrapolates linearly outside [Γ_W_T1, Γ_W_T2] — fine for the
+    # FCC-ee fit range (Γ_W within ±50 MeV of PDG = 2.085 GeV).
+    g_T1 = _BFS_TABLE_1_GW
+    g_T2 = _BFS_TABLE_2_GW
+    alpha = (gammaW - g_T1) / (g_T2 - g_T1)
+    f = (1.0 - alpha) * f1 + alpha * f2
+
+    if np.ndim(s) == 0:
+        return float(f)
+    return f
+
+
 def _xi_chi(s, mW: float):
     """Photon/Z propagator-induced shape functions, eq. (32)."""
     s_arr = np.asarray(s, dtype=float)
@@ -322,7 +429,8 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
                              apply_BR_correction: bool = False,
                              include_NLO_hard_decay: bool = False,
                              apply_delta_QCD: bool = False,
-                             alpha_s: float = ALPHA_S_MW_DEFAULT):
+                             alpha_s: float = ALPHA_S_MW_DEFAULT,
+                             apply_whizard_anchor: bool = False):
     """Total σ_WW = σ(e+e- → W+W-) at BFS LO_EFT, unpolarised initial state,
     summed over ALL 4-fermion final states.
 
@@ -381,6 +489,12 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
             s, mW, gammaW, apply_BR_correction=apply_BR_correction)
         sigma_LR = sigma_LR + s_LR_32a
         sigma_RL = sigma_RL + s_RL_32a
+
+    # Whizard anchor on the Born sum only (NOT on the NLO loops below).
+    if apply_whizard_anchor:
+        f = whizard_anchor_factor(s, mW, gammaW)
+        sigma_LR = sigma_LR * f
+        sigma_RL = sigma_RL * f
 
     if include_NLO_hard_decay:
         # BFS eq. (finalcross): NLO hard+soft+collinear + EW decay (eq. delta-decay)
@@ -558,7 +672,8 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
                                  order: str = "N3/2LO",
                                  include_NLO_hard_decay: bool = False,
                                  apply_delta_QCD: bool = False,
-                                 alpha_s: float = ALPHA_S_MW_DEFAULT):
+                                 alpha_s: float = ALPHA_S_MW_DEFAULT,
+                                 apply_whizard_anchor: bool = False):
     """σ(e+e- → μ⁻ν̄_μ ud̄) at BFS LO_EFT, unpolarised initial state, with
     the BR correction (BFS section 6.1, eq. 83) applied PER COMPONENT:
 
@@ -600,6 +715,16 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
             s, mW, gammaW, apply_BR_correction=True)
         sigma_LR = sigma_LR + s_LR_32a
         sigma_RL = sigma_RL + s_RL_32a
+
+    # BFS section 6.2: replace the EFT N^(3/2)LO Born by the Whizard 4f Born
+    # via the multiplicative anchor f(δ, Γ_W). This is applied to the BORN
+    # SUM (LO + N^(1/2) + NLO_pot + N^(3/2),a) only — NOT to the NLO loop
+    # corrections, which are computed in the BFS-EFT framework and added on
+    # top per BFS eq. (finalcross).
+    if apply_whizard_anchor:
+        f = whizard_anchor_factor(s, mW, gammaW)
+        sigma_LR = sigma_LR * f
+        sigma_RL = sigma_RL * f
 
     if include_NLO_hard_decay:
         # BFS eq. (finalcross): HSC bracket + EW decay (eq. delta-decay)
