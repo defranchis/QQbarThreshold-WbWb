@@ -308,49 +308,35 @@ def plot_sensitivity_vs_sqrts():
 
 
 def plot_vs_LEP():
-    """σ_WW (no BR multiplication) vs √s — latest BFS chain vs LEP-EWWG.
+    """σ_WW (no BR multiplication) vs √s — latest prediction vs LEP-EWWG.
 
-    LEP-EWWG quote CC03 Born σ_WW after ISR-unfolding and singly-resonant
-    subtraction (Phys.Rep.532 (2013) 119, Table 5.1). Apples-to-apples
-    benchmarks at the partonic (no-ISR) level are:
+    LEP-EWWG quote CC03 σ_WW after ISR-unfolding and singly-resonant
+    subtraction (Phys.Rep.532 (2013) 119, Table 5.1). We compare to:
 
-      * BFS-EFT N^(3/2)LO Born (= reference Born, no NLO loops, no anchor)
-      * BFS Born + NLO loops + δ_QCD (the project "best partonic" chain
-        with the same configuration the fit templates use)
-      * BFS Born + NLO loops + Whizard anchor (= replaces EFT Born by
-        Whizard 4f Born via BFS sec. 6.2 anchor)
-      * RACOONWW CC03 spline (used by the framework above √s = 170 GeV)
+      * the project's latest σ_WW prediction (BFS N^(3/2)LO Born + NLO
+        loops + δ_QCD + Whizard anchor, full off-shell, no ISR) — same
+        configuration the fit templates use at the partonic level;
+      * the RACOONWW CC03 spline used by the framework above √s = 170 GeV.
 
-    NLO-loop and anchor flags follow cards/ww_default.py defaults so the
-    plot mirrors what the production templates actually use."""
+    The card's NLO_CONFIG drives the chain so the plot mirrors what the
+    production templates use."""
     import matplotlib.pyplot as plt
 
     sqrts_pred = np.linspace(155.0, 210.0, 221)
     s = sqrts_pred ** 2
     mW, gW = M_W_DEFAULT, GAMMA_W_DEFAULT
 
-    from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
-    # Pure BFS-EFT Born (no NLO loops, no anchor) — useful baseline
-    sigma_BFS_born = sigma_BFS_LO_total_WW_pb(
-        s, mW, gW, order="N3/2LO",
-        include_NLO_hard_decay=False, apply_delta_QCD=False,
-        apply_whizard_anchor=False,
+    # Latest σ_WW prediction — picks up card NLO/anchor knobs.
+    sigma_pred = sigma_WW_Born(
+        s, mW, gW,
+        include_NLO_hard_decay=_NLO_KW["include_NLO_hard_decay"],
+        apply_delta_QCD=_NLO_KW["apply_delta_QCD"],
+        alpha_s=_NLO_KW["alpha_s"],
+        apply_whizard_anchor=_NLO_KW["apply_whizard_anchor"],
     )
-    # BFS Born + full NLO loop chain + δ_QCD (no anchor) — the "raw EFT"
-    # best partonic prediction (matches Scenario F left-half of validation).
-    sigma_BFS_NLO = sigma_BFS_LO_total_WW_pb(
-        s, mW, gW, order="N3/2LO",
-        include_NLO_hard_decay=True, apply_delta_QCD=True,
-        alpha_s=_NLO_KW["alpha_s"], apply_whizard_anchor=False,
-    )
-    # Full chain: Born + anchor + NLO loops + δ_QCD — matches what the
-    # fit templates use at the partonic (pre-ISR) level.
-    sigma_BFS_full = sigma_BFS_LO_total_WW_pb(
-        s, mW, gW, order="N3/2LO",
-        include_NLO_hard_decay=True, apply_delta_QCD=True,
-        alpha_s=_NLO_KW["alpha_s"], apply_whizard_anchor=True,
-    )
-    # Pure RACOONWW spline (CC03 Born) for reference.
+
+    # RACOONWW CC03 spline used by the framework above √s = 170 GeV
+    # (extended to the LEP region for reference).
     from process.ww.eft_xsec import _F_SPLINE, _F_GRID, sin2_thetaW_OS, alpha_Gmu, beta_complex
     alpha = alpha_Gmu(mW)
     sW2 = sin2_thetaW_OS(mW)
@@ -359,31 +345,13 @@ def plot_vs_LEP():
     sigma_RACOONWW = ((np.pi * alpha ** 2) / (sW2 ** 2 * s)
                       * np.maximum(bMr, 0.0) * F) * 3.8937937217e8  # GEV_M2_TO_PB
 
-    # Framework's actual prediction (BFS<170, spline≥170) using current
-    # card configuration. sigma_WW_Born picks up _NLO_KW via card.
-    sigma_framework = sigma_WW_Born(
-        s, mW, gW,
-        include_NLO_hard_decay=_NLO_KW["include_NLO_hard_decay"],
-        apply_delta_QCD=_NLO_KW["apply_delta_QCD"],
-        alpha_s=_NLO_KW["alpha_s"],
-        apply_whizard_anchor=_NLO_KW["apply_whizard_anchor"],
-    )
-
     fig, (ax_abs, ax_rat) = plt.subplots(2, 1, figsize=(8.5, 8), sharex=True,
                                           gridspec_kw={"height_ratios": [3, 1.5]})
 
-    ax_abs.plot(sqrts_pred, sigma_BFS_born, color="#aaaaaa", linewidth=1.2,
-                linestyle="--",
-                label=r"BFS N$^{3/2}$LO Born only")
-    ax_abs.plot(sqrts_pred, sigma_BFS_NLO, color="C3", linewidth=1.4,
-                label=r"BFS Born + NLO loops + $\delta_{\rm QCD}$  (no anchor)")
-    ax_abs.plot(sqrts_pred, sigma_BFS_full, color="C1", linewidth=1.8,
-                label=r"BFS Born + NLO loops + $\delta_{\rm QCD}$ + Whizard anchor")
+    ax_abs.plot(sqrts_pred, sigma_pred, color="C1", linewidth=2.0,
+                label=r"Latest prediction (BFS N$^{3/2}$LO + NLO loops + $\delta_{\rm QCD}$ + anchor)")
     ax_abs.plot(sqrts_pred, sigma_RACOONWW, color="C0", linewidth=1.4,
-                linestyle="--", label="RACOONWW spline (CC03 Born)")
-    ax_abs.plot(sqrts_pred, sigma_framework, color="black", linewidth=2.0,
-                linestyle=":",
-                label=r"Framework: BFS-full $\sqrt{s}<170$, RACOONWW above")
+                linestyle="--", label="RACOONWW CC03 spline (reference)")
 
     ax_abs.errorbar(LEP_DATA["sqrts_GeV"], LEP_DATA["sigma_pb"],
                     yerr=LEP_DATA["sigma_err"], fmt="o", color="black",
@@ -391,23 +359,18 @@ def plot_vs_LEP():
 
     _draw_scan_window(ax_abs)
     ax_abs.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
-    ax_abs.axvline(170.0, color="grey", alpha=0.4, linestyle=":", linewidth=0.8)
-    ax_abs.text(170.0, ax_abs.get_ylim()[1] * 0.05, "BFS→spline", color="grey",
-                fontsize=8, ha="center", va="bottom", rotation=90)
     ax_abs.set_ylabel(r"$\sigma(e^+e^- \to W^+W^-)$ [pb]")
-    ax_abs.set_title(r"WW total cross section: BFS Born vs RACOONWW vs LEP data  "
+    ax_abs.set_title(r"WW total cross section: latest prediction vs RACOONWW vs LEP  "
                       f"($m_W = {mW:.4f}$, $\\Gamma_W = {gW:.3f}$)")
     ax_abs.legend(loc="upper left", fontsize=9, framealpha=0.9)
     ax_abs.grid(alpha=0.25)
 
-    # Ratio panel: (prediction or data) / RACOONWW spline (CC03 reference)
+    # Ratio panel: (latest prediction) and (LEP data) / RACOONWW spline.
     eps = 1e-9
-    ax_rat.plot(sqrts_pred, sigma_BFS_full / np.maximum(sigma_RACOONWW, eps),
-                color="C3", linewidth=1.5)
-    ax_rat.plot(sqrts_pred, sigma_RACOONWW / np.maximum(sigma_RACOONWW, eps),
-                color="C0", linewidth=1.5, linestyle="--")
-    ax_rat.plot(sqrts_pred, sigma_framework / np.maximum(sigma_RACOONWW, eps),
-                color="black", linewidth=2.0, linestyle=":")
+    ax_rat.plot(sqrts_pred, sigma_pred / np.maximum(sigma_RACOONWW, eps),
+                color="C1", linewidth=2.0,
+                label="latest prediction / RACOONWW")
+    ax_rat.axhline(1.0, color="C0", linestyle="--", linewidth=1.2)
 
     # LEP point ratios — recompute spline at LEP energies
     F_lep = _F_SPLINE(LEP_DATA["sqrts_GeV"] ** 2)
@@ -420,12 +383,11 @@ def plot_vs_LEP():
                     fmt="o", color="black", markersize=4, capsize=2)
 
     _draw_scan_window(ax_rat)
-    ax_rat.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
     ax_rat.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
-    ax_rat.axvline(170.0, color="grey", alpha=0.4, linestyle=":", linewidth=0.8)
     ax_rat.set_xlabel(r"$\sqrt{s}$ [GeV]")
     ax_rat.set_ylabel("ratio to RACOONWW (CC03)")
     ax_rat.set_ylim(0.8, 1.4)
+    ax_rat.legend(loc="best", fontsize=9, framealpha=0.9)
     ax_rat.grid(alpha=0.25)
 
     plt.tight_layout()
