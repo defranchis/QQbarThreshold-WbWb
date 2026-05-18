@@ -529,13 +529,22 @@ class FitCore:
     # ------------------------------------------------------------------
     def init_scenario(self, *, total_lumi, last_lumi, add_last_ecm=False,
                       same_evts=False, scan_list=None,
-                      scan_min=None, scan_max=None, scan_step=None):
+                      scan_min=None, scan_max=None, scan_step=None,
+                      lumi_dict=None):
         """Initialise the scan scenario (ecm grid + lumi distribution).
 
         Either pass an explicit ``scan_list`` (already-formatted ecm-string
         list) or the ``(scan_min, scan_max, scan_step)`` triplet from which
-        a uniform grid is built. Stores everything in ``self.scenario_dict``
-        and triggers the first ``create_scenario`` build."""
+        a uniform grid is built.
+
+        ``lumi_dict`` (optional) gives an explicit per-ECM luminosity
+        ``{ecm_str: lumi}`` overriding the default equal split of
+        ``total_lumi`` across ``scan_list``. The keys must be a subset of
+        ``scan_list`` (in the same ecm-string format). ``total_lumi`` and
+        ``same_evts`` are ignored when ``lumi_dict`` is given.
+
+        Stores everything in ``self.scenario_dict`` and triggers the
+        first ``create_scenario`` build."""
         if scan_list is None:
             if scan_min is None or scan_max is None or scan_step is None:
                 raise ValueError(
@@ -553,6 +562,7 @@ class FitCore:
             "last_lumi": last_lumi,
             "add_last_ecm": add_last_ecm,
             "same_evts": same_evts,
+            "lumi_dict": lumi_dict,
         }
         self.create_scenario()
 
@@ -570,11 +580,21 @@ class FitCore:
         last_lumi = sd["last_lumi"]
         add_last_ecm = sd["add_last_ecm"]
         same_evts = sd["same_evts"]
+        lumi_dict = sd.get("lumi_dict")
 
         if self.debug:
             print("Creating threshold scan scenario")
 
-        scenario_dict = {k: total_lumi / len(scan_list) for k in scan_list}
+        if lumi_dict is not None:
+            missing = set(scan_list) - set(lumi_dict)
+            extra = set(lumi_dict) - set(scan_list)
+            if missing or extra:
+                raise ValueError(
+                    f"lumi_dict keys must match scan_list exactly; "
+                    f"missing={sorted(missing)} extra={sorted(extra)}")
+            scenario_dict = dict(lumi_dict)
+        else:
+            scenario_dict = {k: total_lumi / len(scan_list) for k in scan_list}
         if add_last_ecm:
             scenario_dict[ecm_to_str(self.last_ecm)] = last_lumi
         for ecm in scenario_dict:
