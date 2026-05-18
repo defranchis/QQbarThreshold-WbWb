@@ -90,25 +90,6 @@ def _draw_scan_window(ax, *, label_top: bool = False):
                 color="C2", alpha=0.9, fontsize=8, ha="center", va="top")
 
 
-# LEP-EWWG combined σ_WW (CC03 Born) measurements.
-# Source: ALEPH/DELPHI/L3/OPAL Phys.Rept.532 (2013) 119 ("Electroweak
-# Measurements in Electron-Positron Collisions at W-Boson-Pair Energies
-# at LEP"), Table 5.1. Each row is (√s [GeV], σ_WW [pb], stat+syst
-# combined uncertainty [pb]). Below 175 GeV: results from individual
-# experiments. These are CC03 cross sections — i.e. doubly-resonant only,
-# with singly-resonant W background subtracted. The numerical values
-# below are accurate to the precision quoted in the paper; refine if a
-# more recent combination is preferred.
-LEP_DATA = {
-    "sqrts_GeV":   np.array([161.33, 172.12, 182.66, 188.63, 191.58,
-                              195.52, 199.51, 201.62, 204.86, 206.55]),
-    "sigma_pb":    np.array([ 3.69,  11.93,  16.13,  16.21,  16.86,
-                              16.93,  17.06,  16.66,  17.30,  16.94]),
-    "sigma_err":   np.array([ 0.45,   0.74,   0.37,   0.21,   0.49,
-                              0.32,   0.31,   0.42,   0.31,   0.27]),
-}
-
-
 def _bfs_total_WW_order(s, mW, gammaW, order: str):
     """σ_WW (total, unpolarised, summed over 4f decays) at the requested
     BFS Born truncation. Returns pb, vectorised in ``s``.
@@ -300,99 +281,6 @@ def plot_sensitivity_vs_sqrts():
     plt.tight_layout()
     os.makedirs(PLOT_DIR, exist_ok=True)
     out = os.path.join(PLOT_DIR, "sensitivity_vs_sqrts.pdf")
-    plt.savefig(out, bbox_inches="tight")
-    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
-    plt.close(fig)
-    print(f"  wrote {out}")
-    return out
-
-
-def plot_vs_LEP():
-    """σ_WW (no BR multiplication) vs √s — latest prediction vs LEP-EWWG.
-
-    LEP-EWWG quote CC03 σ_WW after ISR-unfolding and singly-resonant
-    subtraction (Phys.Rep.532 (2013) 119, Table 5.1). We compare to:
-
-      * the project's latest σ_WW prediction (BFS N^(3/2)LO Born + NLO
-        loops + δ_QCD + Whizard anchor, full off-shell, no ISR) — same
-        configuration the fit templates use at the partonic level;
-      * the RACOONWW CC03 spline used by the framework above √s = 170 GeV.
-
-    The card's NLO_CONFIG drives the chain so the plot mirrors what the
-    production templates use."""
-    import matplotlib.pyplot as plt
-
-    sqrts_pred = np.linspace(155.0, 210.0, 221)
-    s = sqrts_pred ** 2
-    mW, gW = M_W_DEFAULT, GAMMA_W_DEFAULT
-
-    # Latest σ_WW prediction — picks up card NLO/anchor knobs.
-    sigma_pred = sigma_WW_Born(
-        s, mW, gW,
-        include_NLO_hard_decay=_NLO_KW["include_NLO_hard_decay"],
-        apply_delta_QCD=_NLO_KW["apply_delta_QCD"],
-        alpha_s=_NLO_KW["alpha_s"],
-        apply_whizard_anchor=_NLO_KW["apply_whizard_anchor"],
-    )
-
-    # RACOONWW CC03 spline used by the framework above √s = 170 GeV
-    # (extended to the LEP region for reference).
-    from process.ww.eft_xsec import _F_SPLINE, _F_GRID, sin2_thetaW_OS, alpha_Gmu, beta_complex
-    alpha = alpha_Gmu(mW)
-    sW2 = sin2_thetaW_OS(mW)
-    bMr = beta_complex(s, mW, gW).real
-    F = _F_SPLINE(s)
-    sigma_RACOONWW = ((np.pi * alpha ** 2) / (sW2 ** 2 * s)
-                      * np.maximum(bMr, 0.0) * F) * 3.8937937217e8  # GEV_M2_TO_PB
-
-    fig, (ax_abs, ax_rat) = plt.subplots(2, 1, figsize=(8.5, 8), sharex=True,
-                                          gridspec_kw={"height_ratios": [3, 1.5]})
-
-    ax_abs.plot(sqrts_pred, sigma_pred, color="C1", linewidth=2.0,
-                label=r"Latest prediction (BFS N$^{3/2}$LO + NLO loops + $\delta_{\rm QCD}$ + anchor)")
-    ax_abs.plot(sqrts_pred, sigma_RACOONWW, color="C0", linewidth=1.4,
-                linestyle="--", label="RACOONWW CC03 spline (reference)")
-
-    ax_abs.errorbar(LEP_DATA["sqrts_GeV"], LEP_DATA["sigma_pb"],
-                    yerr=LEP_DATA["sigma_err"], fmt="o", color="black",
-                    markersize=5, capsize=3, label="LEP-EWWG combined (CC03)")
-
-    _draw_scan_window(ax_abs)
-    ax_abs.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
-    ax_abs.set_ylabel(r"$\sigma(e^+e^- \to W^+W^-)$ [pb]")
-    ax_abs.set_title(r"WW total cross section: latest prediction vs RACOONWW vs LEP  "
-                      f"($m_W = {mW:.4f}$, $\\Gamma_W = {gW:.3f}$)")
-    ax_abs.legend(loc="upper left", fontsize=9, framealpha=0.9)
-    ax_abs.grid(alpha=0.25)
-
-    # Ratio panel: (latest prediction) and (LEP data) / RACOONWW spline.
-    eps = 1e-9
-    ax_rat.plot(sqrts_pred, sigma_pred / np.maximum(sigma_RACOONWW, eps),
-                color="C1", linewidth=2.0,
-                label="latest prediction / RACOONWW")
-    ax_rat.axhline(1.0, color="C0", linestyle="--", linewidth=1.2)
-
-    # LEP point ratios — recompute spline at LEP energies
-    F_lep = _F_SPLINE(LEP_DATA["sqrts_GeV"] ** 2)
-    bMr_lep = np.array([beta_complex(sq ** 2, mW, gW).real for sq in LEP_DATA["sqrts_GeV"]])
-    sig_ref_lep = ((np.pi * alpha ** 2) / (sW2 ** 2 * LEP_DATA["sqrts_GeV"] ** 2)
-                   * np.maximum(bMr_lep, 0.0) * F_lep) * 3.8937937217e8
-    ax_rat.errorbar(LEP_DATA["sqrts_GeV"],
-                    LEP_DATA["sigma_pb"] / sig_ref_lep,
-                    yerr=LEP_DATA["sigma_err"] / sig_ref_lep,
-                    fmt="o", color="black", markersize=4, capsize=2)
-
-    _draw_scan_window(ax_rat)
-    ax_rat.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
-    ax_rat.set_xlabel(r"$\sqrt{s}$ [GeV]")
-    ax_rat.set_ylabel("ratio to RACOONWW (CC03)")
-    ax_rat.set_ylim(0.8, 1.4)
-    ax_rat.legend(loc="best", fontsize=9, framealpha=0.9)
-    ax_rat.grid(alpha=0.25)
-
-    plt.tight_layout()
-    os.makedirs(PLOT_DIR, exist_ok=True)
-    out = os.path.join(PLOT_DIR, "xsec_vs_LEP.pdf")
     plt.savefig(out, bbox_inches="tight")
     plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
     plt.close(fig)
@@ -753,7 +641,6 @@ def main():
     print(f"Writing diagnostic plots to {PLOT_DIR}/ …")
     plot_xsec_vs_sqrts()
     plot_sensitivity_vs_sqrts()
-    plot_vs_LEP()
     plot_ratios_vs_mW_GammaW()
     plot_normalised_xsec_hypotheses()
     plot_azzurri_style_pm1GeV()
