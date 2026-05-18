@@ -37,8 +37,12 @@ RENORM_SCALES = {
 # ---------------------------------------------------------------------------
 # Beam-energy spectrum & scan grid
 # ---------------------------------------------------------------------------
-# BES at WW threshold is smaller than at tt threshold; placeholder value.
-BEAM_ENERGY_RES = 0.13   # % per beam (PLACEHOLDER) — 0 disables smearing entirely
+# FCC-ee BES at W+W- operating point (E_beam = 80 GeV), with beamstrahlung,
+# from FCC FSR Vol. 1 (arXiv:2505.00272) Table 14: σ_δ = 0.105 % per beam.
+# SR-only value is 0.069 %; the 0.105 % BS value is the relevant one for
+# physics at the IP. At the WW peak (√s ≈ 162.5 GeV) this gives a CM-energy
+# spread σ_√s = √s · σ_δ / √2 ≈ 120 MeV.
+BEAM_ENERGY_RES = 0.105   # % per beam (FCC FSR Vol 1 Table 14, BS, W+W-)
 PEAK_ECM = 162.5         # placeholder for smearing kernel width
 LAST_ECM = 240.0         # placeholder above-threshold point
 

@@ -575,6 +575,196 @@ def plot_azzurri_style_pm1GeV():
 from process.ww.eft_xsec import BR_INCLUSIVE_MUNUQQ
 
 
+def plot_bes_effect_on_variations():
+    """Effect of FCC-ee BES on σ_WW for m_W ± 1 GeV and Γ_W ± 1 GeV variations.
+
+    Shows directly whether the beam-energy spread smooths out the parameter-
+    dependence signal. Two rows × two columns:
+
+      * Top row: m_W ± 1 GeV variations, no-BES (left) vs +BES (right)
+      * Bottom row: Γ_W ± 1 GeV variations, no-BES vs +BES
+
+    Same y-axis scale across panels so the user can visually verify that
+    the band shape is preserved under BES smearing."""
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    from common.smearing import convolute_gauss
+
+    BES_pct = 0.105   # FCC FSR Vol 1 Table 14 (W+W- BS)
+    mW0, gW0 = 80.385, 2.085
+
+    sqrts = np.linspace(150.0, 175.0, 2501)   # 10 MeV pitch
+    sqrts_show = (sqrts >= 155.0) & (sqrts <= 170.0)
+
+    def _sigma_WW(mW, gW):
+        return sigma_observed_munuqq(sqrts, mW=mW, gammaW=gW,
+                                      channel="inclusive") / BR_INCLUSIVE_MUNUQQ
+
+    def _smear(arr):
+        df = pd.DataFrame({"ecm": sqrts, "xsec": arr})
+        return convolute_gauss(df, BES_pct, peak_ecm=162.5).to_numpy()[:, 1]
+
+    sigma_nom         = _sigma_WW(mW0, gW0)
+    sigma_nom_bes     = _smear(sigma_nom)
+    sigma_mW_p        = _sigma_WW(mW0 + 1.0, gW0)
+    sigma_mW_p_bes    = _smear(sigma_mW_p)
+    sigma_mW_m        = _sigma_WW(mW0 - 1.0, gW0)
+    sigma_mW_m_bes    = _smear(sigma_mW_m)
+    sigma_gW_p        = _sigma_WW(mW0, gW0 + 1.0)
+    sigma_gW_p_bes    = _smear(sigma_gW_p)
+    sigma_gW_m        = _sigma_WW(mW0, gW0 - 1.0)
+    sigma_gW_m_bes    = _smear(sigma_gW_m)
+
+    fig, axs = plt.subplots(2, 2, figsize=(13, 9), sharex=True, sharey=True)
+    (ax_mNo, ax_mYes), (ax_gNo, ax_gYes) = axs
+
+    sq = sqrts[sqrts_show]
+    def _plot_band(ax, lo, hi, central, color_lo, color_hi, color_band,
+                    lbl_lo, lbl_hi, lbl_cen):
+        ax.fill_between(sq, lo[sqrts_show], hi[sqrts_show],
+                         color=color_band, alpha=0.30,
+                         label=r"$\pm 1$ GeV band")
+        ax.plot(sq, central[sqrts_show], color="black", linewidth=1.7,
+                 label=lbl_cen)
+        ax.plot(sq, hi[sqrts_show], color=color_hi, linewidth=1.0,
+                 linestyle="--", label=lbl_hi)
+        ax.plot(sq, lo[sqrts_show], color=color_lo, linewidth=1.0,
+                 linestyle=":", label=lbl_lo)
+        ax.axvline(2 * mW0, color="grey", alpha=0.3,
+                    linestyle="--", linewidth=0.7)
+        ax.set_xlim(155, 170)
+        ax.set_ylim(0, 12)
+        ax.legend(loc="upper left", fontsize=8.5, framealpha=0.9)
+        ax.grid(alpha=0.25)
+
+    # m_W variations
+    _plot_band(ax_mNo, sigma_mW_m, sigma_mW_p, sigma_nom,
+               "#54278f", "#54278f", "#9e6bbf",
+               rf"$m_W={mW0-1:.3f}$ GeV", rf"$m_W={mW0+1:.3f}$ GeV",
+               rf"central")
+    _plot_band(ax_mYes, sigma_mW_m_bes, sigma_mW_p_bes, sigma_nom_bes,
+               "#54278f", "#54278f", "#9e6bbf",
+               rf"$m_W={mW0-1:.3f}$ GeV", rf"$m_W={mW0+1:.3f}$ GeV",
+               rf"central")
+    ax_mNo.set_ylabel(r"$\sigma_{\rm WW}$ [pb]")
+    ax_mNo.set_title(r"$m_W \pm 1$ GeV: no BES (LL+YFS ISR only)")
+    ax_mYes.set_title(rf"$m_W \pm 1$ GeV: + FCC-ee BES (0.105 % / beam)")
+
+    # Γ_W variations
+    _plot_band(ax_gNo, sigma_gW_m, sigma_gW_p, sigma_nom,
+               "#1b7837", "#1b7837", "#4daf4a",
+               rf"$\Gamma_W={gW0-1:.3f}$ GeV", rf"$\Gamma_W={gW0+1:.3f}$ GeV",
+               rf"central")
+    _plot_band(ax_gYes, sigma_gW_m_bes, sigma_gW_p_bes, sigma_nom_bes,
+               "#1b7837", "#1b7837", "#4daf4a",
+               rf"$\Gamma_W={gW0-1:.3f}$ GeV", rf"$\Gamma_W={gW0+1:.3f}$ GeV",
+               rf"central")
+    ax_gNo.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_gNo.set_ylabel(r"$\sigma_{\rm WW}$ [pb]")
+    ax_gYes.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_gNo.set_title(r"$\Gamma_W \pm 1$ GeV: no BES")
+    ax_gYes.set_title(rf"$\Gamma_W \pm 1$ GeV: + FCC-ee BES (0.105 % / beam)")
+
+    plt.suptitle(r"BES smearing effect on $m_W$ and $\Gamma_W$ variations  "
+                  rf"(central $m_W = {mW0:.3f}$, $\Gamma_W = {gW0:.3f}$ GeV)",
+                  fontsize=11)
+    plt.tight_layout()
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "bes_effect_on_variations.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
+def plot_bes_smearing_effect():
+    """Effect of FCC-ee beam-energy spread on σ_WW near threshold.
+
+    Convolves σ_WW(observed, with LL+YFS ISR) with a Gaussian of relative
+    width BES = 0.105 % per beam (FCC FSR Vol. 1 Table 14, W+W- with
+    beamstrahlung). At the WW peak √s ≈ 162.5 GeV this gives a CM-energy
+    spread σ_√s ≈ 120 MeV.
+
+    Two panels:
+      * absolute σ_WW vs √s — nominal, ISR-only, ISR+BES
+      * BES/ISR-only ratio — how much the BES smooths the threshold
+
+    Also includes ±1 GeV m_W and Γ_W variations to show that BES does
+    not wash out the parameter-dependence signature."""
+    import matplotlib.pyplot as plt
+    from common.smearing import convolute_gauss
+
+    BES_pct = 0.105  # FCC FSR Vol 1 Table 14 (W+W- BS)
+
+    # Uniform-pitch grid so convolute_gauss can work
+    sqrts = np.linspace(150.0, 175.0, 2501)   # 10-MeV pitch
+    mW0, gW0 = 80.385, 2.085
+
+    def _sigma_WW_arr(mW, gW):
+        sig = sigma_observed_munuqq(sqrts, mW=mW, gammaW=gW,
+                                    channel="inclusive") / BR_INCLUSIVE_MUNUQQ
+        return sig
+
+    def _smear(sigma_arr, peak_ecm):
+        import pandas as pd
+        df = pd.DataFrame({"ecm": sqrts, "xsec": sigma_arr})
+        return convolute_gauss(df, BES_pct, peak_ecm=peak_ecm).to_numpy()[:, 1]
+
+    sigma_nom_isr = _sigma_WW_arr(mW0, gW0)
+    sigma_nom_bes = _smear(sigma_nom_isr, peak_ecm=162.5)
+
+    fig, (ax_abs, ax_var) = plt.subplots(2, 1, figsize=(9, 9),
+                                          gridspec_kw={"height_ratios": [2, 1.5]},
+                                          sharex=True)
+
+    # --- top panel: ISR-only vs ISR+BES ---
+    ax_abs.plot(sqrts, sigma_nom_isr, color="C0", linewidth=2.0,
+                 label=r"LL+YFS ISR  (no BES)")
+    ax_abs.plot(sqrts, sigma_nom_bes, color="C3", linewidth=2.0,
+                 linestyle="--",
+                 label=rf"+ FCC-ee BES (0.105 % / beam)")
+
+    ax_abs.axvline(2 * mW0, color="grey", alpha=0.4,
+                    linestyle="--", linewidth=0.8)
+    ax_abs.text(2 * mW0 + 0.05, 0.3, r"$2\,m_W$", color="grey",
+                 alpha=0.7, fontsize=9, ha="left", va="bottom")
+    ax_abs.set_ylabel(r"$\sigma_{\rm WW}$ [pb]")
+    ax_abs.set_xlim(155, 170)
+    ax_abs.set_ylim(0, 12)
+    ax_abs.set_title(r"BES smearing effect on $\sigma_{\rm WW}$  "
+                      fr"($m_W = {mW0:.3f}$, $\Gamma_W = {gW0:.3f}$ GeV)"
+                      "\n"
+                      r"FCC FSR Vol. 1 Table 14: $\sigma_\delta = 0.105\,\%$ per beam at $W^+W^-$"
+                      fr" $\Rightarrow \sigma_{{\sqrt{{s}}}} \approx 120$ MeV at peak")
+    ax_abs.legend(loc="upper left", fontsize=10, framealpha=0.9)
+    ax_abs.grid(alpha=0.25)
+
+    # --- bottom panel: ratio BES/(no BES) ---
+    eps = 1e-9
+    ratio = sigma_nom_bes / np.maximum(sigma_nom_isr, eps)
+    ax_var.plot(sqrts, ratio, color="black", linewidth=1.8,
+                 label=r"$\sigma_{\rm BES}\,/\,\sigma_{\rm noBES}$")
+    ax_var.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
+    ax_var.axvline(2 * mW0, color="grey", alpha=0.4,
+                    linestyle="--", linewidth=0.8)
+    ax_var.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_var.set_ylabel(r"ratio")
+    ax_var.set_xlim(155, 170)
+    ax_var.set_ylim(0.85, 1.15)
+    ax_var.legend(loc="best", fontsize=10, framealpha=0.9)
+    ax_var.grid(alpha=0.25)
+
+    plt.tight_layout()
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "bes_smearing_effect.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
 def main():
     import matplotlib
     matplotlib.use("Agg")
@@ -585,6 +775,8 @@ def main():
     plot_ratios_vs_mW_GammaW()
     plot_normalised_xsec_hypotheses()
     plot_azzurri_style_pm1GeV()
+    plot_bes_smearing_effect()
+    plot_bes_effect_on_variations()
     print("Done.")
 
 
