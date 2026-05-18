@@ -254,29 +254,39 @@ def sigma_LR_RL_three_half_a_specific_pb(s, mW: float = M_W_DEFAULT,
 def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
                              gammaW: float = GAMMA_W_DEFAULT,
                              order: str = "N3/2LO",
-                             apply_BR_correction: bool = True):
+                             apply_BR_correction: bool = False):
     """Total σ_WW = σ(e+e- → W+W-) at BFS LO_EFT, unpolarised initial state,
     summed over ALL 4-fermion final states.
 
     Each σ_LR^(...) carries the BFS 1/27 specific-channel BR factor. We
     strip it by × 27 and average over the four initial helicities by ÷4.
-    The result is σ(e+e- → W+W-) including all 4f decays.
+    The result is σ(e+e- → W+W-) — the total pair-production cross
+    section, with no BR multiplication.
+
+    IMPORTANT: the BR-correction factor (Γ_W^(0)/Γ_W)² from BFS section
+    6.1 should NOT be applied to "total σ_WW". It applies inside the
+    σ_LR formula when interpreting it as a *specific-channel* cross
+    section with the correct BR weighting at NLO Γ_W. For total σ_WW we
+    strip the 1/27 by ×27 and the correction would double-count — the
+    total pair-production cross section has no BR dependence.
+
+    Default is therefore ``apply_BR_correction=False``. Set True only to
+    diagnose the σ_LR^(0..3/2) specific-channel values via this entry
+    point. Paper Table-1 / Table-2 self-tests use the specific-channel
+    functions directly with their own ``apply_BR_correction`` flag.
 
     Parameters
     ----------
     s : float or array
         Partonic CM energy² in GeV².
     mW, gammaW : float
-        W mass and physical width in GeV. The width is used in the
-        complex-velocity propagator AND propagates into the BR-correction
-        factor (Γ_W^(0)(m_W) / Γ_W)² that re-weights the LO BR convention
-        of 1/27 when Γ_W ≠ Γ_W^(0)(m_W). Section 6.1 of the paper.
+        W mass and physical width in GeV. The width enters via the
+        complex-velocity propagator only (no BR-correction multiplication
+        with the default).
     order : {"LO", "N1/2LO", "NLO", "N3/2LO"}
         Truncation of the BFS Born expansion.
     apply_BR_correction : bool
-        If True (default), apply the (Γ_W^(0)/Γ_W)² BR factor correction.
-        Set to False to reproduce Table 1 of the paper exactly (which uses
-        Γ_W = Γ_W^(0) so the correction is trivially 1).
+        Default False — DO NOT use for total σ_WW. See module docstring.
 
     Returns
     -------
