@@ -196,10 +196,13 @@ def sigma_observed_munuqq(sqrt_s,
                           n_quad: int = 200,
                           include_coulomb: bool = True,
                           bfs: BFSCorrections | None = None,
-                          br_convention: str = "bfs-eft"):
+                          br_convention: str = "pdg-constant"):
     """
     Observed σ(e+e- → μν qq̄) after ISR convolution, in pb. Vectorised in
-    ``sqrt_s``. ``br_convention`` forwarded to ``sigma_partonic_munuqq``.
+    ``sqrt_s``. ``br_convention`` forwarded to ``sigma_partonic_munuqq``;
+    default ``"pdg-constant"`` uses the fixed PDG BR (Γ_W enters σ only via
+    the propagator). Pass ``"bfs-eft"`` for the BFS section 6.1 theory-
+    fixed-partials convention.
     """
     return sigma_ISR_convolution(
         sqrt_s,

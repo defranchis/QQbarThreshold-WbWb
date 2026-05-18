@@ -462,7 +462,7 @@ def sigma_partonic_munuqq(s,
                           channel: str = "inclusive",
                           include_coulomb: bool = True,
                           bfs: BFSCorrections | None = None,
-                          br_convention: str = "bfs-eft"):
+                          br_convention: str = "pdg-constant"):
     """
     Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
     Returns σ in pb at partonic CM energy² = s (before ISR convolution).
@@ -473,17 +473,7 @@ def sigma_partonic_munuqq(s,
 
     ``br_convention`` selects how the BR factor depends on (m_W, Γ_W):
 
-      * ``"bfs-eft"`` (default) — BFS section 6.1 / eq. 83 per-component:
-            BR = (channel_mult/27) × (Γ_W^(0)(m_W)/Γ_W)²  for σ^(0), σ^(1)_pot,
-                                                          σ^(3/2),a (two cut props)
-            BR = (channel_mult/27) × (Γ_W^(0)(m_W)/Γ_W)   for σ^(1/2)
-                                                          (one cut prop)
-        Theory-fixed-partials: partial widths Γ_x^(0)(m_W) are SM-LO predictions
-        of m_W only; total Γ_W is the fit parameter; BR shrinks as the partials
-        are divided by a (potentially) larger total. d ln BR/dΓ_W = −2/Γ_W
-        (resp. −1/Γ_W for σ^(1/2)). Reproduces BFS Tables 1, 2 (round-trip).
-
-      * ``"pdg-constant"`` — fixed PDG-measured BR product:
+      * ``"pdg-constant"`` (default) — fixed PDG-measured BR product:
             BR_inclusive = 2·BR(W→μν)·BR(W→had) = 0.1433  (≈ ``BR_INCLUSIVE_MUNUQQ``)
             BR_munuud    =  BR(W→μν)·BR(W→ud̄)   = 0.0357  (≈ ``BR_MUNUUD``)
         Independent of (m_W, Γ_W). Γ_W enters σ only via the propagator
@@ -492,6 +482,17 @@ def sigma_partonic_munuqq(s,
         (BR taken from data; Γ_W is the propagator parameter only).
         Differs from the LO theory BR 4/27 ≈ 0.148 by the 3.5 % radiative
         corrections folded into PDG.
+
+      * ``"bfs-eft"`` — BFS section 6.1 / eq. 83 per-component:
+            BR = (channel_mult/27) × (Γ_W^(0)(m_W)/Γ_W)²  for σ^(0), σ^(1)_pot,
+                                                          σ^(3/2),a (two cut props)
+            BR = (channel_mult/27) × (Γ_W^(0)(m_W)/Γ_W)   for σ^(1/2)
+                                                          (one cut prop)
+        Theory-fixed-partials: partial widths Γ_x^(0)(m_W) are SM-LO predictions
+        of m_W only; total Γ_W is the fit parameter; BR shrinks as the partials
+        are divided by a (potentially) larger total. d ln BR/dΓ_W = −2/Γ_W
+        (resp. −1/Γ_W for σ^(1/2)). Reproduces BFS Tables 1, 2 round-trip
+        when called via the BFS specific-channel helpers in bfs_eft.py.
 
     Vectorised: accepts scalar or array ``s``.
     """

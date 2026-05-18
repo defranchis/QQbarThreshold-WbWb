@@ -395,6 +395,88 @@ def plot_ratios_vs_mW_GammaW():
     return out
 
 
+def plot_normalised_xsec_hypotheses():
+    """Normalised σ vs √s for different (m_W, Γ_W) hypotheses, shown as
+    residuals from the nominal-hypothesis shape so the threshold-shape
+    information is visible.
+
+    For each hypothesis we define R_h(√s) = σ(√s; h) / σ(s_ref; h), with
+    s_ref = 170 GeV (upper edge, well into the rise). Each curve R_h is
+    its own self-normalised line-shape — independent of total
+    luminosity / BR / overall scale. The plot shows R_h(√s) − R_nom(√s)
+    so the nominal hypothesis is the zero line and the other hypotheses
+    show the residual shape distortion induced by ±10, ±30 MeV
+    variations of m_W / Γ_W. The ratios at s_ref are identically 1, so
+    all curves cross 0 there by construction.
+
+    Two panels: m_W variations (top) and Γ_W variations (bottom)."""
+    import matplotlib.pyplot as plt
+
+    sqrts = np.linspace(155.0, 170.0, 151)
+    mW0, gW0 = M_W_DEFAULT, GAMMA_W_DEFAULT
+    s_ref = 170.0
+    variations_MeV = [-30, -10, +10, +30]
+    palette = {-30: "#08519c", -10: "#6baed6",
+               +10: "#fb6a4a", +30: "#a50f15"}
+
+    # Nominal self-normalised shape (= R_nom)
+    sigma_nom = sigma_observed_munuqq(sqrts, mW=mW0, gammaW=gW0,
+                                       channel="inclusive")
+    sigma_nom_ref = sigma_observed_munuqq(s_ref, mW=mW0, gammaW=gW0,
+                                           channel="inclusive")
+    R_nom = sigma_nom / sigma_nom_ref
+
+    fig, (ax_mW, ax_gW) = plt.subplots(2, 1, figsize=(8.5, 8), sharex=True)
+
+    for d in variations_MeV:
+        sigma_v = sigma_observed_munuqq(sqrts, mW=mW0 + 1e-3 * d, gammaW=gW0,
+                                        channel="inclusive")
+        sigma_v_ref = sigma_observed_munuqq(s_ref, mW=mW0 + 1e-3 * d, gammaW=gW0,
+                                            channel="inclusive")
+        R_h = sigma_v / sigma_v_ref
+        ax_mW.plot(sqrts, R_h - R_nom,
+                   color=palette[d], linewidth=1.6,
+                   label=fr"$\delta m_W = {d:+d}$ MeV")
+    ax_mW.axhline(0.0, color="grey", alpha=0.4, linewidth=0.7)
+    ax_mW.axvline(2 * mW0, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_mW.axvline(s_ref, color="grey", alpha=0.4, linestyle=":", linewidth=0.8)
+    ax_mW.set_ylabel(fr"$R_h(\sqrt{{s}}) - R_{{\rm nom}}(\sqrt{{s}})$"
+                      "\n"
+                      fr"$R_h \equiv \sigma_h(\sqrt{{s}})/\sigma_h({s_ref:.0f}\,\mathrm{{GeV}})$,  $h = m_W + \delta m_W$")
+    ax_mW.set_title(r"Self-normalised line-shape residuals: $m_W$ and $\Gamma_W$ hypotheses  "
+                     fr"(nominal $m_W = {mW0:.4f}$, $\Gamma_W = {gW0:.3f}$ GeV; with LL+YFS ISR)")
+    ax_mW.legend(loc="best", fontsize=9, framealpha=0.9)
+    ax_mW.grid(alpha=0.25)
+
+    for d in variations_MeV:
+        sigma_v = sigma_observed_munuqq(sqrts, mW=mW0, gammaW=gW0 + 1e-3 * d,
+                                        channel="inclusive")
+        sigma_v_ref = sigma_observed_munuqq(s_ref, mW=mW0, gammaW=gW0 + 1e-3 * d,
+                                            channel="inclusive")
+        R_h = sigma_v / sigma_v_ref
+        ax_gW.plot(sqrts, R_h - R_nom,
+                   color=palette[d], linewidth=1.6,
+                   label=fr"$\delta \Gamma_W = {d:+d}$ MeV")
+    ax_gW.axhline(0.0, color="grey", alpha=0.4, linewidth=0.7)
+    ax_gW.axvline(2 * mW0, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_gW.axvline(s_ref, color="grey", alpha=0.4, linestyle=":", linewidth=0.8)
+    ax_gW.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_gW.set_ylabel(fr"$R_h(\sqrt{{s}}) - R_{{\rm nom}}(\sqrt{{s}})$"
+                      "\n"
+                      fr"$R_h \equiv \sigma_h(\sqrt{{s}})/\sigma_h({s_ref:.0f}\,\mathrm{{GeV}})$,  $h = \Gamma_W + \delta\Gamma_W$")
+    ax_gW.legend(loc="best", fontsize=9, framealpha=0.9)
+    ax_gW.grid(alpha=0.25)
+
+    plt.tight_layout()
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "normalised_xsec_hypotheses.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
 def main():
     import matplotlib
     matplotlib.use("Agg")
@@ -403,6 +485,7 @@ def main():
     plot_sensitivity_vs_sqrts()
     plot_vs_LEP()
     plot_ratios_vs_mW_GammaW()
+    plot_normalised_xsec_hypotheses()
     print("Done.")
 
 
