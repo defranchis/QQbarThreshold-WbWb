@@ -300,7 +300,24 @@ def coulomb_K_factor(s,
     if order < 2:
         out = K1
     else:
-        out = K1 + (ALPHA_EM_0 ** 2 * s_arr * np.log(2.0)) / (4.0 * abs_kappa2)
+        # Second-order |f|² expansion to O(α²) from FKM eq. (10):
+        #   f(p,E) ≈ 1 + α√s/(2κ) + α²s ln 2/(4κ²)         (valid p ≪ |κ|)
+        # |f|² to O(α²):
+        #   |f|² ≈ 1 + α√s · Re(1/κ) + α²s · [1/(4|κ|²) + (ln 2 / 2)·Re(1/κ²)]
+        #                              └── |f₁|² ──┘  └── 2 Re(f₂) ──┘
+        # Previous form α²s ln 2/(4|κ|²) was wrong — it paired ln 2 (which
+        # belongs to f₂ ∝ 1/κ²) with |κ|² from |f₁|², and missed the |f₁|²
+        # piece entirely. At threshold Re(1/κ²) = 0, so only |f₁|² contributes.
+        # Validated 2026-05-18: gives 0.22% at threshold (was 0.15%; FKM eq. 21
+        # X²/6 = 0.18% — proper |f|² O(α²) differs from the near-threshold
+        # X expansion at the percent level, by construction).
+        kappa_complex = np.asarray(kappa, dtype=complex)
+        inv_kappa2 = 1.0 / (kappa_complex ** 2)
+        delta_alpha2 = ALPHA_EM_0 ** 2 * s_arr * (
+            1.0 / (4.0 * abs_kappa2)
+            + (np.log(2.0) / 2.0) * inv_kappa2.real
+        )
+        out = K1 + delta_alpha2
 
     if np.ndim(s) == 0:
         return float(out)
