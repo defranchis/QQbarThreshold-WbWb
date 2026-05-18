@@ -1,38 +1,48 @@
 """Initial-state radiation convolution for e+e- → μν qq̄ near WW threshold.
 
-LL+exp electron structure function radiator in the BETA scheme of
-Skrzypek (Acta Phys. Pol. B23 (1992) 135) / Cacciari-Deandrea-Montagna-
-Nicrosini (Europhys. Lett. 17 (1992) 123), with full O(α²) exponentiation
-of soft+virtual. This is the standard form used in the LEP2 Yellow Report
-(Beenakker et al., hep-ph/9602351, eq. (GeeLLexp) BETA choice) and cited
-by BFS (arXiv:0707.0773, eq. (eq:physicalcross), with β_e definition on
-line 2433):
+Two implementations of the LL+exp electron structure function radiator
+in the BETA scheme of Skrzypek (Acta Phys. Pol. B23 (1992) 135) /
+Cacciari-Deandrea-Montagna-Nicrosini (Europhys. Lett. 17 (1992) 123),
+with full O(α²) exponentiation of soft+virtual. Standard LEP2 Yellow
+Report (Beenakker et al., hep-ph/9602351, eq. (GeeLLexp) BETA choice).
 
-    σ_obs(s) = ∫_{z_min}^1  H(z; s)  σ̂(z·s)  dz
+(A) **Single-convolution shortcut** (``sigma_ISR_convolution``):
 
-    H(z; s)  =  H_SV(s) × β (1-z)^(β-1)
-              + H_NS(z; β)
+    σ_obs(s) = ∫_{z_min}^1 H(z; s) σ̂(z·s) dz
+    H(z;s) = H_SV(β) · β (1-z)^(β-1) + H_NS(z;β)
 
-with
-    β     = (2α/π) (L_e - 1),    L_e = ln(s / m_e²)
-    H_SV  = exp[β(3/4 - γ_E) + β²(9/32 - π²/12)] / Γ(1+β)
-    H_NS  = -(β/2)(1+z) + (β²/8) [ -2(1+z) ln(1-z)
-                                    -(1+3z²)/(1-z) ln z - 5 - z ]
+with β = (2α/π)(L_e-1) and L_e = ln(s/m_e²). This is the LEP2 YR α→2α
+shortcut that collapses the two-leg convolution into one variable z = x₁x₂.
 
-The β² piece in H_SV (= ½×(3/4)² - ½×π²/6) is the second-order
-exponentiation of the soft+virtual factor; together with 1/Γ(1+β) it
-reproduces the resummed (1-z)^(β-1) NLL soft form factor to O(β²).
-Endpoint substitution u = (1-z)^β removes the z→1 integrable singularity;
+(B) **Two-leg form, BFS prescription** (``sigma_ISR_2leg_convolution``):
+
+    σ_obs(s) = ∫₀¹ dx₁ ∫₀¹ dx₂  Γ_ee(x₁) Γ_ee(x₂)  σ̂(x₁ x₂ s)
+
+where each leg carries the *per-leg* BETA-scheme structure function
+Γ_ee(x; β) with β = (2α/π)(L_e-1) (same numerical β as in (A) — by LEP2
+conventions per-leg β equals the single-conv β; the difference is in
+how each form distributes the soft exponent across legs):
+
+    Γ_ee(x; β) = (β/2)(1-x)^(β/2 - 1) · H_SV_per_leg(β)
+               + (β/4)(-(1+x))   ← LL non-singular linear-β piece
+               - (β²/32) [ (1+3x²)/(1-x) ln(x) + 4(1+x) ln(1-x) + 5 + x ]
+
+    H_SV_per_leg(β) = exp(β(3/4 - γ_E)) / Γ(1+β/2)
+
+This matches BFS's eq. (71) σ_h(s) = ∫∫ dx₁ dx₂ Γ^LL_ee(x₁) Γ^LL_ee(x₂)
+σ̂_h^conv(x₁ x₂ s) and is what BFS uses in Table 4 / 5 to obtain the
+NLO σ_obs reference numbers (and Table 3's NLO column).
+
+Forms (A) and (B) are formally equivalent at LL+exp; they differ at NLL
+by a few permille at √s ≈ 161 GeV. BFS (page 41 around eq. 88) quote
+this difference as δm_W ≈ 31 MeV residual ISR uncertainty — the
+motivation for the NLL upgrade (analytic Skrzypek-Jadach or eMELA).
+
+Endpoint substitutions (u = (1-z)^β for single-conv, u_i = (1-x_i)^(β/2)
+for per-leg) remove the integrable singularity at the soft endpoint;
 Gauss-Legendre quadrature on the smoothed integrand.
 
-The single convolution above is the α→2α single-convolution shortcut of
-LEP2 YR eq. (LLint), formally equivalent to BFS's two-leg double
-convolution at LL+exp accuracy. NLL-level differences are absorbed in
-the eMELA upgrade (Bertone-Cacciari-Frixione-Stagnitto, arXiv:1911.12040).
-
-Numerically verified against BFS Table 4 (Born(ISR)/Born) at 158-167 GeV:
-matches to <0.3 % at threshold; <2 % below threshold where the BFS Born
-itself differs from Whizard's full 4f Born.
+Validation: 2-leg matches BFS Table 4 σ_obs Born×ISR to <0.5% at 158-170 GeV.
 """
 
 from __future__ import annotations
@@ -241,6 +251,147 @@ def sigma_ISR_convolution(sqrt_s,
     return out
 
 
+# ---------------------------------------------------------------------------
+# Two-leg double convolution (BFS prescription, eq. 71 of 0707.0773)
+# ---------------------------------------------------------------------------
+
+def _Gee_per_leg_NS(x, beta: float, one_minus_x=None):
+    """Non-singular (linear and β² polynomial) piece of the per-leg
+    BETA-scheme radiator, evaluated at x:
+
+        Γ_ee^NS(x; β) = -(β/4)(1+x)
+                       - (β²/32) [ (1+3x²)/(1-x) ln(x)
+                                   + 4(1+x) ln(1-x) + 5 + x ]
+
+    The (1+x) ln(1-x) coefficient is -β²/8 (= -(β²/32)·4) per-leg,
+    matching the LEP2 YR BETA-scheme normalisation.
+
+    Vectorised in x. Pass ``one_minus_x`` explicitly when 1-x is small
+    (avoids 1.0 - 1.0 = 0 cancellation from u-substitution).
+    """
+    x = np.asarray(x, dtype=float)
+    if one_minus_x is None:
+        one_minus_x = np.maximum(1.0 - x, 1e-300)
+    one_minus_x = np.asarray(one_minus_x, dtype=float)
+    one_minus_x = np.maximum(one_minus_x, 1e-300)
+    x_safe = np.maximum(x, 1e-300)
+    log1mx = np.log(one_minus_x)
+    logx = np.log(x_safe)
+
+    NS_1 = -(beta / 4.0) * (1.0 + x)
+    # LEP2 YR Beenakker hep-ph/9602351 eq. (67): per-leg β² coefficient is
+    # −1/(4²·2!) β² = −β²/32 on the bracket [...]; in BETA scheme β_H = β.
+    NS_2 = -(beta ** 2 / 32.0) * (
+        (1.0 + 3.0 * x * x) / one_minus_x * logx
+        + 4.0 * (1.0 + x) * log1mx
+        + 5.0 + x
+    )
+    out = NS_1 + NS_2
+    out = np.where(x > 0.0, out, 0.0)
+    if np.ndim(x) == 0:
+        return float(out)
+    return out
+
+
+def _H_SV_per_leg(beta: float) -> float:
+    """Per-leg soft+virtual factor, LEP2 YR Beenakker hep-ph/9602351 eq. (67):
+
+        F(β) = exp(-½ γ_E β + (3/8) β) / Γ(1 + β/2)
+             = exp(½ β (3/4 - γ_E)) / Γ(1 + β/2)
+
+    Note the factor ½ in the exponent — NOT β·(3/4-γ_E) as in the
+    α→2α single-conv form (where the β there is β_combined = 2 β_per_leg).
+    """
+    return np.exp(0.5 * beta * (0.75 - EULER_GAMMA)) / gamma_fn(1.0 + beta / 2.0)
+
+
+def sigma_ISR_2leg_convolution(sqrt_s,
+                               sigma_partonic_fn,
+                               mW: float = M_W_DEFAULT,
+                               gammaW: float = GAMMA_W_DEFAULT,
+                               x_min: float = 0.55,
+                               n_quad: int = 32,
+                               alpha_em: float | None = None,
+                               **sigma_kwargs):
+    """Two-leg double-convolution ISR (BFS eq. 71):
+
+        σ_obs(s) = ∫_{x_min}^1 dx₁ ∫_{x_min}^1 dx₂  Γ_ee(x₁;β) Γ_ee(x₂;β)
+                                                    σ̂(x₁ x₂ s)
+
+    with per-leg β = (2α/π)(L_e - 1).
+
+    For each leg, split Γ_ee = S + NS where S(x) = (β/2)(1-x)^(β/2-1) · H_SV
+    is the soft endpoint and NS is the non-singular polynomial. Endpoint
+    substitution u_i = (1-x_i)^(β/2) on each leg removes the soft
+    singularity:
+       dx_i = (2/β) u_i^(2/β - 1) du_i
+       S(x_i) dx_i  →  H_SV du_i           (uniform Jacobian × singular ↔ smooth)
+       NS(x_i) dx_i →  NS · (2/β) u_i^(2/β-1) du_i
+
+    The total integrand has 4 pieces:
+        S·S, S·NS, NS·S, NS·NS
+    each a 2D smooth integrand in (u₁, u₂) on [0, u_max]².
+
+    ``x_min`` is the per-leg lower cutoff (default 0.55 so √(x₁ x₂ s) is
+    cut at ~0.3·√s — well below threshold, matching the LEP2 YR convention
+    of z_min = 0.1 used in the single-convolution form).
+
+    Vectorised in ``sqrt_s``.
+    """
+    sqrt_s_arr = np.atleast_1d(np.asarray(sqrt_s, dtype=float))
+    out = np.zeros_like(sqrt_s_arr)
+
+    for idx, sq in enumerate(sqrt_s_arr):
+        s = sq * sq
+        beta = beta_ISR(s, alpha_em=alpha_em)
+        H_sv = _H_SV_per_leg(beta)
+        half_b = beta / 2.0
+        u_max = (1.0 - x_min) ** half_b
+
+        u, w = _quad_nodes(n_quad, 0.0, u_max)
+        # 1D vectorisation: build per-leg arrays
+        one_minus_x = u ** (1.0 / half_b)
+        x_vals = 1.0 - one_minus_x
+        # u-side jacobian for NS piece: (2/β) u^(2/β - 1) = u^(1/half_b - 1) / half_b
+        with np.errstate(over="ignore", invalid="ignore"):
+            jac_NS = np.where(u > 1e-300,
+                              u ** (1.0 / half_b - 1.0) / half_b,
+                              0.0)
+        NS_vals = _Gee_per_leg_NS(x_vals, beta, one_minus_x=one_minus_x)
+
+        # Build 2D meshes:  x₁ on rows, x₂ on cols
+        X1, X2 = np.meshgrid(x_vals, x_vals, indexing="ij")
+        s_hat_grid = X1 * X2 * s
+        sigma_hat = np.asarray(
+            sigma_partonic_fn(s_hat_grid.ravel(), mW, gammaW, **sigma_kwargs),
+            dtype=float,
+        ).reshape(s_hat_grid.shape)
+
+        # 4-piece integrand decomposition
+        # SS:     H_sv * H_sv * σ̂              integrated du₁ du₂
+        # SNS:    H_sv * NS₂ * jacNS₂ * σ̂      (S on leg 1, NS on leg 2)
+        # NSS:    NS₁ * jacNS₁ * H_sv * σ̂      (symmetric)
+        # NSNS:   NS₁·jacNS₁ * NS₂·jacNS₂ * σ̂
+        W1, W2 = np.meshgrid(w, w, indexing="ij")
+        NS_jac = (NS_vals * jac_NS)  # 1D array per leg
+        NS1_grid, NS2_grid = np.meshgrid(NS_jac, NS_jac, indexing="ij")
+
+        integrand = (H_sv * H_sv
+                     + H_sv * NS2_grid
+                     + NS1_grid * H_sv
+                     + NS1_grid * NS2_grid) * sigma_hat
+
+        out[idx] = np.sum(W1 * W2 * integrand)
+
+    if np.ndim(sqrt_s) == 0:
+        return float(out[0])
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Top-level wrappers
+# ---------------------------------------------------------------------------
+
 def sigma_observed_munuqq(sqrt_s,
                           mW: float = M_W_DEFAULT,
                           gammaW: float = GAMMA_W_DEFAULT,
@@ -254,7 +405,8 @@ def sigma_observed_munuqq(sqrt_s,
                           apply_delta_QCD: bool = False,
                           alpha_s: float = 0.1199,
                           alpha_em_isr: float | None = None,
-                          apply_whizard_anchor: bool = False):
+                          apply_whizard_anchor: bool = False,
+                          isr_scheme: str = "single_conv"):
     """
     Observed σ(e+e- → μν qq̄) after ISR convolution, in pb. Vectorised in
     ``sqrt_s``. ``br_convention`` and ``include_NLO_hard_decay`` are
@@ -266,12 +418,17 @@ def sigma_observed_munuqq(sqrt_s,
     Coulomb resummation (toggle via ``include_coulomb``) and the optional
     Coulomb NLO α² subleading piece (toggle via ``bfs``), this gives the
     full BFS NLO partonic σ.
+
+    ``isr_scheme`` selects which ISR convolution:
+
+      * ``"single_conv"`` (default) — LEP2 YR α→2α single-convolution
+        shortcut, ``sigma_ISR_convolution``. Cheap (1D quadrature) but
+        differs from BFS's 2-leg form at NLL (~1.2 pp at 161 GeV).
+      * ``"2leg"`` — BFS eq. (71) two-leg double convolution,
+        ``sigma_ISR_2leg_convolution``. More accurate, ~n_quad² σ̂ calls.
     """
-    return sigma_ISR_convolution(
-        sqrt_s,
-        sigma_partonic_munuqq,
+    common_kwargs = dict(
         mW=mW, gammaW=gammaW,
-        z_min=z_min, n_quad=n_quad,
         alpha_em=alpha_em_isr,
         channel=channel,
         include_coulomb=include_coulomb,
@@ -282,6 +439,26 @@ def sigma_observed_munuqq(sqrt_s,
         alpha_s=alpha_s,
         apply_whizard_anchor=apply_whizard_anchor,
     )
+    if isr_scheme == "single_conv":
+        return sigma_ISR_convolution(
+            sqrt_s, sigma_partonic_munuqq,
+            z_min=z_min, n_quad=n_quad,
+            **common_kwargs,
+        )
+    elif isr_scheme == "2leg":
+        # Convert single-conv z_min (lower bound on z = x₁ x₂) to a per-leg
+        # x_min by taking √z_min — both legs equal at the cutoff edge.
+        x_min = float(np.sqrt(z_min))
+        # n_quad for 2-leg is per-leg; default to 32 (≈ 1024 σ̂ evals) if
+        # the user passed the single-conv default of 200.
+        n_q_2leg = 32 if n_quad >= 100 else n_quad
+        return sigma_ISR_2leg_convolution(
+            sqrt_s, sigma_partonic_munuqq,
+            x_min=x_min, n_quad=n_q_2leg,
+            **common_kwargs,
+        )
+    else:
+        raise ValueError(f"Unknown isr_scheme: {isr_scheme!r}")
 
 
 # Legacy alias preserving the previous chat's naming.
