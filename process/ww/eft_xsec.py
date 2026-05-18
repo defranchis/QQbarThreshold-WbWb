@@ -127,16 +127,22 @@ _REF_SIGMA_BORN = np.array([
     17.21, 17.50, 17.59, 17.50, 17.00, 16.50, 14.50, 12.80, 11.20, 7.50,
 ])
 
-# Calibration boundary — below this √s, we use BFS LO_EFT.
-_SQRTS_BFS_BOUNDARY = 161.33
-_S_BFS_BOUNDARY = _SQRTS_BFS_BOUNDARY ** 2
+# Cross-section model regions:
+#   s < (150 GeV)²       : σ = 0 (ξ(s), χ(s) have spurious Z-pole far below
+#                          BFS validity; ISR convolution would sample it)
+#   (150 GeV)² ≤ s < (170 GeV)² : pure BFS LO_EFT N^(3/2)LO Born
+#                          (matches Whizard exact 4f Born to 1% over 155–170)
+#   s ≥ (170 GeV)²       : RACOONWW calibration spline (LEP2-era CC03 Born)
+#                          retained for the 240 GeV reference point used
+#                          when --lastecm is enabled.
+#
+# Note: the BFS and RACOONWW values disagree by ~13–18% at the boundary
+# (singly-resonant content + 5% NLO-width-resummation correction + EFT-
+# validity drift above 170 GeV). The discontinuity at 170 GeV is benign
+# for the threshold-scan analysis (no scan points sit there).
+_SQRTS_BFS_UPPER = 170.0
+_S_BFS_UPPER = _SQRTS_BFS_UPPER ** 2
 
-# Lower validity limit for the BFS Born expansion. The BFS paper recommends
-# matching to a full calculation below ~155 GeV (paper sec. 6.2). The ξ(s),
-# χ(s) functions in eqs. (32)/(33)/(37) have spurious poles at s = M_Z²
-# (~91 GeV) which the ISR convolution would sample if not clamped. Set σ
-# to 0 below ~150 GeV — physically σ_WW is well below 0.01 pb there and
-# contributes negligibly to the ISR-convolved observed cross section.
 _SQRTS_BFS_FLOOR = 150.0
 _S_BFS_FLOOR = _SQRTS_BFS_FLOOR ** 2
 
@@ -176,16 +182,23 @@ def sigma_WW_Born(s,
     """
     Off-shell-convolved Born σ(e+e- → W+W- → 4f), full off-shell, in pb.
 
-    For ``s_eff ≥ (161.33 GeV)²``: read F(s_eff) from the cubic spline
-    through the RACOONWW reference values, then
-        σ = (π α²(m_W)) / (s_W^4(m_W) × s) × Re[β_M(s, m_W, Γ_W)] × F(s_eff)
-    with s_eff = s × (m_W^default / m_W)².
+    Three regions in absolute √s (m_W independent):
 
-    For ``s_eff < (161.33 GeV)²``: use the BFS unstable-particle EFT Born
-    expansion (σ^{(0)} + σ^{(1)}_pot + σ^{(1/2)}_hard + σ^{(3/2),a},
-    arXiv:0707.0773 eqs. 17 + 33 + 37 + 39), multiplicatively matched to
-    RACOONWW at the boundary for C⁰ continuity. Agrees with full 4f Born
-    to ~0.1 % at threshold and ~3 % at 155 GeV (Table 1 of the paper).
+    * ``√s < 150 GeV``  →  σ = 0. Avoids the spurious M_Z pole in the
+      BFS ξ(s)/χ(s) functions; σ is negligible anyway.
+    * ``150 ≤ √s < 170 GeV``  →  pure BFS LO_EFT N^{3/2}LO Born from
+      ``bfs_eft.sigma_BFS_LO_total_WW_pb``, with the (Γ_W^(0)/Γ_W)² BR
+      correction. No matching to the RACOONWW grid — BFS gives the
+      *full* Born (CC03 + singly-resonant) and matches the Whizard
+      exact 4f Born to ~1 % over 155–170 GeV. Full analytic m_W, Γ_W
+      dependence is preserved.
+    * ``√s ≥ 170 GeV``  →  RACOONWW calibration spline (CC03 Born).
+      Used only for the 240 GeV "last_ecm" reference point in the
+      analysis; the threshold-scan grid (157–163 GeV) never enters
+      this region. The BFS/spline values differ by ~13–18 % at 170
+      GeV (singly-resonant content); this discontinuity is benign
+      for the analysis fit but is a known feature in the diagnostic
+      plots.
 
     Vectorised: accepts scalar or array ``s`` (m_W, Γ_W must be scalar).
     """
@@ -193,39 +206,30 @@ def sigma_WW_Born(s,
     alpha = alpha_Gmu(mW)
     sW2 = sin2_thetaW_OS(mW)
 
-    bM_real = beta_complex(s_arr, mW, gammaW).real
+    use_zero = s_arr < _S_BFS_FLOOR
+    use_bfs = (s_arr >= _S_BFS_FLOOR) & (s_arr < _S_BFS_UPPER)
+    use_cal = s_arr >= _S_BFS_UPPER
 
-    sqrt_s = np.sqrt(s_arr)
-    sqrt_s_eff = sqrt_s * (M_W_DEFAULT / mW)
-    s_eff = sqrt_s_eff ** 2
+    sigma_pb = np.zeros_like(s_arr)
 
-    F = _interp_F_smooth(s_eff)
-    sigma_GeVm2 = (np.pi * alpha ** 2) / (sW2 ** 2 * s_arr) * np.maximum(bM_real, 0.0) * F
-    sigma_cal_pb = sigma_GeVm2 * GEV_M2_TO_PB
-
-    # BFS LO_EFT in (FLOOR, BOUNDARY]; clamp to 0 below FLOOR to avoid the
-    # spurious ξ(s)/χ(s) Z-pole the EFT picks up far below its validity.
-    use_bfs = (s_eff < _S_BFS_BOUNDARY) & (s_eff >= _S_BFS_FLOOR)
-    use_zero = s_eff < _S_BFS_FLOOR
     if np.any(use_bfs):
         from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
-        sigma_bfs_raw = sigma_BFS_LO_total_WW_pb(s_arr, mW, gammaW, order="N3/2LO")
-        # Multiplicative match at the boundary using current m_W, Γ_W.
-        sigma_cal_boundary = (
-            (np.pi * alpha ** 2) / (sW2 ** 2 * _S_BFS_BOUNDARY)
-            * beta_complex(_S_BFS_BOUNDARY, mW, gammaW).real
-            * _F_GRID[0] * GEV_M2_TO_PB
-        )
-        sigma_bfs_boundary = sigma_BFS_LO_total_WW_pb(
-            _S_BFS_BOUNDARY, mW, gammaW, order="N3/2LO")
-        match_factor = sigma_cal_boundary / max(sigma_bfs_boundary, 1e-30)
-        sigma_bfs_pb = sigma_bfs_raw * match_factor
-        sigma_pb = np.where(use_bfs, sigma_bfs_pb, sigma_cal_pb)
-    else:
-        sigma_pb = sigma_cal_pb
+        sigma_bfs_pb = sigma_BFS_LO_total_WW_pb(s_arr, mW, gammaW, order="N3/2LO")
+        sigma_pb = np.where(use_bfs, sigma_bfs_pb, sigma_pb)
 
-    sigma_pb = np.where(use_zero, 0.0, sigma_pb)
-    return np.where(sigma_pb > 0.0, sigma_pb, 0.0)
+    if np.any(use_cal):
+        bM_real = beta_complex(s_arr, mW, gammaW).real
+        sqrt_s = np.sqrt(s_arr)
+        sqrt_s_eff = sqrt_s * (M_W_DEFAULT / mW)
+        s_eff = sqrt_s_eff ** 2
+        F = _interp_F_smooth(s_eff)
+        sigma_cal_pb = (
+            (np.pi * alpha ** 2) / (sW2 ** 2 * s_arr)
+            * np.maximum(bM_real, 0.0) * F * GEV_M2_TO_PB
+        )
+        sigma_pb = np.where(use_cal, sigma_cal_pb, sigma_pb)
+
+    return np.where((sigma_pb > 0.0) & (~use_zero), sigma_pb, 0.0)
 
 
 # ---------------------------------------------------------------------------

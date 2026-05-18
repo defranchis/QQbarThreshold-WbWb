@@ -40,6 +40,25 @@ from process.ww.isr import sigma_observed_munuqq
 PLOT_DIR = "plots/ww_diagnostics"
 
 
+# LEP-EWWG combined σ_WW (CC03 Born) measurements.
+# Source: ALEPH/DELPHI/L3/OPAL Phys.Rept.532 (2013) 119 ("Electroweak
+# Measurements in Electron-Positron Collisions at W-Boson-Pair Energies
+# at LEP"), Table 5.1. Each row is (√s [GeV], σ_WW [pb], stat+syst
+# combined uncertainty [pb]). Below 175 GeV: results from individual
+# experiments. These are CC03 cross sections — i.e. doubly-resonant only,
+# with singly-resonant W background subtracted. The numerical values
+# below are accurate to the precision quoted in the paper; refine if a
+# more recent combination is preferred.
+LEP_DATA = {
+    "sqrts_GeV":   np.array([161.33, 172.12, 182.66, 188.63, 191.58,
+                              195.52, 199.51, 201.62, 204.86, 206.55]),
+    "sigma_pb":    np.array([ 3.69,  11.93,  16.13,  16.21,  16.86,
+                              16.93,  17.06,  16.66,  17.30,  16.94]),
+    "sigma_err":   np.array([ 0.45,   0.74,   0.37,   0.21,   0.49,
+                              0.32,   0.31,   0.42,   0.31,   0.27]),
+}
+
+
 def _bfs_total_WW_order(s, mW, gammaW, order: str):
     """σ_WW (total, unpolarised, summed over 4f decays) at the requested
     BFS Born truncation. Returns pb, vectorised in ``s``.
@@ -223,12 +242,104 @@ def plot_sensitivity_vs_sqrts():
     return out
 
 
+def plot_vs_LEP():
+    """σ_WW (no BR multiplication) vs √s, comparing BFS LO_EFT Born and
+    RACOONWW CC03 spline to the LEP-EWWG combined measurements
+    (Phys.Rep.532 (2013) 119, Table 5.1). LEP quotes CC03 Born σ_WW
+    after ISR-unfolding and singly-resonant subtraction, so the right
+    benchmark is the RACOONWW spline; the BFS curve is full Born and is
+    expected to lie ~13 % above LEP."""
+    import matplotlib.pyplot as plt
+
+    sqrts_pred = np.linspace(155.0, 210.0, 221)
+    s = sqrts_pred ** 2
+    mW, gW = M_W_DEFAULT, GAMMA_W_DEFAULT
+
+    # σ_WW total — use the framework function which is BFS in 150-170 GeV
+    # and RACOONWW spline above 170 GeV.
+    from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
+    sigma_BFS_full = sigma_BFS_LO_total_WW_pb(s, mW, gW, order="N3/2LO")
+    # Pure RACOONWW spline (CC03 Born) for reference.
+    from process.ww.eft_xsec import _F_SPLINE, _F_GRID, sin2_thetaW_OS, alpha_Gmu, beta_complex
+    alpha = alpha_Gmu(mW)
+    sW2 = sin2_thetaW_OS(mW)
+    bMr = beta_complex(s, mW, gW).real
+    F = _F_SPLINE(s)
+    sigma_RACOONWW = ((np.pi * alpha ** 2) / (sW2 ** 2 * s)
+                      * np.maximum(bMr, 0.0) * F) * 3.8937937217e8  # GEV_M2_TO_PB
+
+    # Framework's actual prediction (BFS<170, spline≥170)
+    sigma_framework = sigma_WW_Born(s, mW, gW)
+
+    fig, (ax_abs, ax_rat) = plt.subplots(2, 1, figsize=(8.5, 8), sharex=True,
+                                          gridspec_kw={"height_ratios": [3, 1.5]})
+
+    ax_abs.plot(sqrts_pred, sigma_BFS_full, color="C3", linewidth=1.5,
+                label=r"BFS LO_EFT N$^{3/2}$LO Born (full off-shell)")
+    ax_abs.plot(sqrts_pred, sigma_RACOONWW, color="C0", linewidth=1.5,
+                linestyle="--", label="RACOONWW spline (CC03 Born)")
+    ax_abs.plot(sqrts_pred, sigma_framework, color="black", linewidth=2.0,
+                linestyle=":",
+                label=r"Framework (BFS for √s<170, RACOONWW above)")
+
+    ax_abs.errorbar(LEP_DATA["sqrts_GeV"], LEP_DATA["sigma_pb"],
+                    yerr=LEP_DATA["sigma_err"], fmt="o", color="black",
+                    markersize=5, capsize=3, label="LEP-EWWG combined (CC03)")
+
+    ax_abs.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_abs.axvline(170.0, color="grey", alpha=0.4, linestyle=":", linewidth=0.8)
+    ax_abs.text(170.0, ax_abs.get_ylim()[1] * 0.05, "BFS→spline", color="grey",
+                fontsize=8, ha="center", va="bottom", rotation=90)
+    ax_abs.set_ylabel(r"$\sigma(e^+e^- \to W^+W^-)$ [pb]")
+    ax_abs.set_title(r"WW total cross section: BFS Born vs RACOONWW vs LEP data  "
+                      f"($m_W = {mW:.4f}$, $\\Gamma_W = {gW:.3f}$)")
+    ax_abs.legend(loc="upper left", fontsize=9, framealpha=0.9)
+    ax_abs.grid(alpha=0.25)
+
+    # Ratio panel: (prediction or data) / RACOONWW spline (CC03 reference)
+    eps = 1e-9
+    ax_rat.plot(sqrts_pred, sigma_BFS_full / np.maximum(sigma_RACOONWW, eps),
+                color="C3", linewidth=1.5)
+    ax_rat.plot(sqrts_pred, sigma_RACOONWW / np.maximum(sigma_RACOONWW, eps),
+                color="C0", linewidth=1.5, linestyle="--")
+    ax_rat.plot(sqrts_pred, sigma_framework / np.maximum(sigma_RACOONWW, eps),
+                color="black", linewidth=2.0, linestyle=":")
+
+    # LEP point ratios — recompute spline at LEP energies
+    F_lep = _F_SPLINE(LEP_DATA["sqrts_GeV"] ** 2)
+    bMr_lep = np.array([beta_complex(sq ** 2, mW, gW).real for sq in LEP_DATA["sqrts_GeV"]])
+    sig_ref_lep = ((np.pi * alpha ** 2) / (sW2 ** 2 * LEP_DATA["sqrts_GeV"] ** 2)
+                   * np.maximum(bMr_lep, 0.0) * F_lep) * 3.8937937217e8
+    ax_rat.errorbar(LEP_DATA["sqrts_GeV"],
+                    LEP_DATA["sigma_pb"] / sig_ref_lep,
+                    yerr=LEP_DATA["sigma_err"] / sig_ref_lep,
+                    fmt="o", color="black", markersize=4, capsize=2)
+
+    ax_rat.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
+    ax_rat.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_rat.axvline(170.0, color="grey", alpha=0.4, linestyle=":", linewidth=0.8)
+    ax_rat.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_rat.set_ylabel("ratio to RACOONWW (CC03)")
+    ax_rat.set_ylim(0.8, 1.4)
+    ax_rat.grid(alpha=0.25)
+
+    plt.tight_layout()
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "xsec_vs_LEP.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
 def main():
     import matplotlib
     matplotlib.use("Agg")
     print(f"Writing diagnostic plots to {PLOT_DIR}/ …")
     plot_xsec_vs_sqrts()
     plot_sensitivity_vs_sqrts()
+    plot_vs_LEP()
     print("Done.")
 
 

@@ -46,6 +46,28 @@ from process.ww.eft_xsec import (
 )
 
 
+def gamma_W_LO(mW: float) -> float:
+    """LO theoretical W width Γ_W^(0) = 3 α(m_W) m_W / (4 s_W²), eq. (19)
+    of arXiv:0707.0773. Used in the BR-factor convention for the BFS
+    formulae (see ``_BR_correction`` below).
+    """
+    alpha = alpha_Gmu(mW)
+    sW2 = sin2_thetaW_OS(mW)
+    return 3.0 * alpha * mW / (4.0 * sW2)
+
+
+def _BR_correction(mW: float, gammaW: float) -> float:
+    """Replace the LO BR factor 1/27 in the BFS formulae (eqs. 17, 33, 37,
+    39) with Γ_μν^(0) Γ_ud̄^(0) / Γ_W² = (Γ_W^(0)/Γ_W)² × 1/27 when the
+    propagator uses an NLO+ width Γ_W ≠ Γ_W^(0). See section 6.1 of
+    arXiv:0707.0773 (paragraph after eq. 82). Without this correction
+    the BFS prediction is ~4–5 % too large when Γ_W is the physical
+    (PDG / NLO) width rather than the LO theoretical value.
+    """
+    gW0 = gamma_W_LO(mW)
+    return (gW0 / gammaW) ** 2
+
+
 # --- coefficients from the paper -------------------------------------------
 # eq. (38) — h1, h2, h3 N^{1/2}LO hard non-resonant
 _K_H1 = -2.35493
@@ -79,11 +101,15 @@ def _im_minus_sqrt(z):
 
 
 def sigma_LR0_specific_pb(s, mW: float = M_W_DEFAULT,
-                          gammaW: float = GAMMA_W_DEFAULT):
+                          gammaW: float = GAMMA_W_DEFAULT,
+                          apply_BR_correction: bool = True):
     """σ_LR^(0) for the specific channel e+e- → μ⁻ν̄_μ ud̄, eq. (17).
 
     Units: pb. The 1/27 LO branching factor BR(W→μν̄) × BR(W→ud̄) is
-    contained in the formula.
+    contained in the formula and is replaced by (Γ_W^(0)/Γ_W)² × 1/27
+    when ``apply_BR_correction=True`` (section 6.1 of the paper). Set
+    ``apply_BR_correction=False`` to reproduce Table 1 of the paper
+    (which uses Γ_W = Γ_W^(0) so the correction is trivially 1).
     """
     s_arr = np.asarray(s, dtype=float)
     alpha = alpha_Gmu(mW)
@@ -92,12 +118,16 @@ def sigma_LR0_specific_pb(s, mW: float = M_W_DEFAULT,
     E = sqrt_s - 2.0 * mW
     arg = -(E + 1j * gammaW) / mW
     pref = (4.0 * np.pi * alpha ** 2) / (27.0 * sW2 ** 2 * s_arr)
-    return pref * _im_minus_sqrt(arg) * GEV_M2_TO_PB
+    val = pref * _im_minus_sqrt(arg) * GEV_M2_TO_PB
+    if apply_BR_correction:
+        val = val * _BR_correction(mW, gammaW)
+    return val
 
 
 def sigma_LR_RL_NLO_potential_specific_pb(s, mW: float = M_W_DEFAULT,
                                           gammaW: float = GAMMA_W_DEFAULT,
-                                          gammaW_NLO: float = 0.0):
+                                          gammaW_NLO: float = 0.0,
+                                          apply_BR_correction: bool = True):
     """NLO Born expansion from the potential region, eq. (33).
 
     ``gammaW_NLO`` is Γ_W^(1) — the electroweak NLO correction to the W
@@ -154,10 +184,18 @@ def sigma_LR_RL_NLO_potential_specific_pb(s, mW: float = M_W_DEFAULT,
     sigma_LR_1 = pref * (t1 + t23)
     sigma_RL_1 = (8.0 * np.pi * alpha ** 2) / (27.0 * sW2 ** 2 * s_arr) * chi ** 2 * im_pow_32
 
-    return sigma_LR_1 * GEV_M2_TO_PB, sigma_RL_1 * GEV_M2_TO_PB
+    out_LR = sigma_LR_1 * GEV_M2_TO_PB
+    out_RL = sigma_RL_1 * GEV_M2_TO_PB
+    if apply_BR_correction:
+        c = _BR_correction(mW, gammaW)
+        out_LR = out_LR * c
+        out_RL = out_RL * c
+    return out_LR, out_RL
 
 
-def sigma_LR_RL_half_specific_pb(s, mW: float = M_W_DEFAULT):
+def sigma_LR_RL_half_specific_pb(s, mW: float = M_W_DEFAULT,
+                                 gammaW: float = GAMMA_W_DEFAULT,
+                                 apply_BR_correction: bool = True):
     """N^{1/2}LO non-resonant pieces, eq. (37) with h1-h3 only (h4-h7 are
     <0.5% per the paper text after eq. (40)).
 
@@ -170,10 +208,18 @@ def sigma_LR_RL_half_specific_pb(s, mW: float = M_W_DEFAULT):
     pref = (4.0 * alpha ** 3) / (27.0 * sW2 ** 3 * s_arr)
     sigma_LR_half = pref * (_K_H1 + _K_H2 * xi + _K_H3 * xi ** 2)
     sigma_RL_half = pref * (_K_H3 * chi ** 2)
-    return sigma_LR_half * GEV_M2_TO_PB, sigma_RL_half * GEV_M2_TO_PB
+    sigma_LR_half = sigma_LR_half * GEV_M2_TO_PB
+    sigma_RL_half = sigma_RL_half * GEV_M2_TO_PB
+    if apply_BR_correction:
+        c = _BR_correction(mW, gammaW)
+        sigma_LR_half = sigma_LR_half * c
+        sigma_RL_half = sigma_RL_half * c
+    return sigma_LR_half, sigma_RL_half
 
 
-def sigma_LR_RL_three_half_a_specific_pb(s, mW: float = M_W_DEFAULT):
+def sigma_LR_RL_three_half_a_specific_pb(s, mW: float = M_W_DEFAULT,
+                                         gammaW: float = GAMMA_W_DEFAULT,
+                                         apply_BR_correction: bool = True):
     """Energy-dependent N^{3/2}LO,a, eq. (39).
 
     Returns ``(σ_LR^{3/2,a}, σ_RL^{3/2,a})`` in pb, for the specific channel.
@@ -187,50 +233,65 @@ def sigma_LR_RL_three_half_a_specific_pb(s, mW: float = M_W_DEFAULT):
     pref = (4.0 * alpha ** 3 * E) / (27.0 * sW2 ** 3 * s_arr * mW)
     sigma_LR_32a = pref * (_K_H1_A + _K_H2_A * xi + _K_H3_A * xi ** 2)
     sigma_RL_32a = pref * (_K_H3_A * chi ** 2)
-    return sigma_LR_32a * GEV_M2_TO_PB, sigma_RL_32a * GEV_M2_TO_PB
+    sigma_LR_32a = sigma_LR_32a * GEV_M2_TO_PB
+    sigma_RL_32a = sigma_RL_32a * GEV_M2_TO_PB
+    if apply_BR_correction:
+        c = _BR_correction(mW, gammaW)
+        sigma_LR_32a = sigma_LR_32a * c
+        sigma_RL_32a = sigma_RL_32a * c
+    return sigma_LR_32a, sigma_RL_32a
 
 
 def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
                              gammaW: float = GAMMA_W_DEFAULT,
-                             order: str = "N3/2LO"):
+                             order: str = "N3/2LO",
+                             apply_BR_correction: bool = True):
     """Total σ_WW = σ(e+e- → W+W-) at BFS LO_EFT, unpolarised initial state,
     summed over ALL 4-fermion final states.
 
-    Strip the LO branching factor 1/27 from σ_LR^(0..3/2) by multiplying
-    by 27, then average over initial helicities by dividing by 4. The
-    operation is equivalent to ``σ_total = (σ_LR + σ_RL) × 27 / 4``.
+    Each σ_LR^(...) carries the BFS 1/27 specific-channel BR factor. We
+    strip it by × 27 and average over the four initial helicities by ÷4.
+    The result is σ(e+e- → W+W-) including all 4f decays.
 
     Parameters
     ----------
     s : float or array
         Partonic CM energy² in GeV².
     mW, gammaW : float
-        W mass and width in GeV.
-    order : {"LO", "N1/2LO", "N3/2LO"}
-        Truncation of the BFS expansion. "N3/2LO" includes σ^(0)+σ^(1/2)+σ^(3/2,a)
-        — this is what matches Whizard exact-Born to ~1 % over 155–170 GeV
-        (Table 2 of the paper).
+        W mass and physical width in GeV. The width is used in the
+        complex-velocity propagator AND propagates into the BR-correction
+        factor (Γ_W^(0)(m_W) / Γ_W)² that re-weights the LO BR convention
+        of 1/27 when Γ_W ≠ Γ_W^(0)(m_W). Section 6.1 of the paper.
+    order : {"LO", "N1/2LO", "NLO", "N3/2LO"}
+        Truncation of the BFS Born expansion.
+    apply_BR_correction : bool
+        If True (default), apply the (Γ_W^(0)/Γ_W)² BR factor correction.
+        Set to False to reproduce Table 1 of the paper exactly (which uses
+        Γ_W = Γ_W^(0) so the correction is trivially 1).
 
     Returns
     -------
     σ_total_WW in pb (same shape as ``s``).
     """
-    sigma_LR_0 = sigma_LR0_specific_pb(s, mW, gammaW)
+    sigma_LR_0 = sigma_LR0_specific_pb(s, mW, gammaW, apply_BR_correction=apply_BR_correction)
     sigma_LR = sigma_LR_0
     sigma_RL = np.zeros_like(np.asarray(sigma_LR_0, dtype=float))
 
     if order in ("N1/2LO", "NLO", "N3/2LO"):
-        s_LR_12, s_RL_12 = sigma_LR_RL_half_specific_pb(s, mW)
+        s_LR_12, s_RL_12 = sigma_LR_RL_half_specific_pb(
+            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
         sigma_LR = sigma_LR + s_LR_12
         sigma_RL = sigma_RL + s_RL_12
     if order in ("NLO", "N3/2LO"):
         # NLO Born potential expansion, eq. (33). Γ_W^(1) = 0 for Born.
         s_LR_NLO, s_RL_NLO = sigma_LR_RL_NLO_potential_specific_pb(
-            s, mW, gammaW, gammaW_NLO=0.0)
+            s, mW, gammaW, gammaW_NLO=0.0,
+            apply_BR_correction=apply_BR_correction)
         sigma_LR = sigma_LR + s_LR_NLO
         sigma_RL = sigma_RL + s_RL_NLO
     if order == "N3/2LO":
-        s_LR_32a, s_RL_32a = sigma_LR_RL_three_half_a_specific_pb(s, mW)
+        s_LR_32a, s_RL_32a = sigma_LR_RL_three_half_a_specific_pb(
+            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
         sigma_LR = sigma_LR + s_LR_32a
         sigma_RL = sigma_RL + s_RL_32a
 
@@ -255,39 +316,57 @@ TABLE_2 = {
 }
 
 
-def _self_test_table_2():
-    """Reproduce the N^{3/2}LO column of Table 2 of arXiv:0707.0773 within
-    the paper's quoted few-% accuracy."""
-    # Table 2 uses Γ_W = 2.09201 GeV from eq. (81) — must use the same.
-    mW = 80.379
-    gammaW = 2.09201
-
+def _self_test_specific_channel(mW: float, gammaW: float,
+                                apply_BR_correction: bool, label: str,
+                                paper_col_fb, whizard_fb, sqrts_GeV):
+    """Reproduce the N^{3/2}LO column of a table of arXiv:0707.0773 by
+    summing all the Born-expansion pieces in the specific channel.
+    """
+    print(f"\n{label}  (m_W={mW}, Γ_W={gammaW}, "
+          f"BR_corr={apply_BR_correction})")
     print(f"{'√s':>6}  {'σ_BFS N32LO':>13}  {'σ paper N32LO':>15}  "
           f"{'σ Whizard Born':>16}  {'mine/Whizard':>14}")
-    sqrts = TABLE_2["sqrts_GeV"]
-    s = sqrts ** 2
-    # The paper's column is σ(μ⁻ν̄_μ ud̄), one specific channel. Compute the
-    # same here: (σ_LR + σ_RL) / 4, no BR conversion.
-    sLR0 = sigma_LR0_specific_pb(s, mW, gammaW)
-    sLR12, sRL12 = sigma_LR_RL_half_specific_pb(s, mW)
+    s = sqrts_GeV ** 2
+    sLR0 = sigma_LR0_specific_pb(s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+    sLR12, sRL12 = sigma_LR_RL_half_specific_pb(s, mW, gammaW, apply_BR_correction=apply_BR_correction)
     sLR_NLO, sRL_NLO = sigma_LR_RL_NLO_potential_specific_pb(
-        s, mW, gammaW, gammaW_NLO=0.0)
-    sLR32a, sRL32a = sigma_LR_RL_three_half_a_specific_pb(s, mW)
-    sigma_LR_total = sLR0 + sLR12 + sLR_NLO + sLR32a
-    sigma_RL_total = sRL12 + sRL_NLO + sRL32a
-    sigma_specific = (sigma_LR_total + sigma_RL_total) / 4.0
-    sigma_specific_fb = sigma_specific * 1e3  # pb → fb
+        s, mW, gammaW, gammaW_NLO=0.0, apply_BR_correction=apply_BR_correction)
+    sLR32a, sRL32a = sigma_LR_RL_three_half_a_specific_pb(s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+    sigma_specific = (sLR0 + sLR12 + sLR_NLO + sLR32a + sRL12 + sRL_NLO + sRL32a) / 4.0
+    sigma_specific_fb = sigma_specific * 1e3
+    for i in range(len(sqrts_GeV)):
+        print(f"  {sqrts_GeV[i]:5.1f}  {sigma_specific_fb[i]:11.2f} fb  "
+              f"{paper_col_fb[i]:13.2f} fb  {whizard_fb[i]:14.2f} fb  "
+              f"{sigma_specific_fb[i]/whizard_fb[i]:12.3f}")
 
-    paper_n32 = TABLE_2["eft_N32LO_fb"]
-    whizard = TABLE_2["exact_Born_fb"]
-    for i in range(len(sqrts)):
-        print(f"  {sqrts[i]:5.1f}  {sigma_specific_fb[i]:11.2f} fb  "
-              f"{paper_n32[i]:13.2f} fb  {whizard[i]:14.2f} fb  "
-              f"{sigma_specific_fb[i]/whizard[i]:12.3f}")
+
+TABLE_1 = {
+    "sqrts_GeV": np.array([155.0, 158.0, 161.0, 164.0, 167.0, 170.0]),
+    "eft_NLO_fb":    np.array([43.28, 67.78, 160.45, 313.5, 420.4, 492.9]),
+    "eft_N32LO_fb":  np.array([31.30, 62.50, 160.89, 318.8, 429.7, 505.4]),
+    "exact_Born_fb": np.array([34.43, 63.39, 160.62, 318.3, 428.6, 505.1]),
+}
 
 
 if __name__ == "__main__":
     print("=" * 80)
-    print("BFS LO_EFT (N^{3/2}LO) — round-trip vs Table 2 of arXiv:0707.0773")
+    print("BFS LO_EFT (N^{3/2}LO) — round-trips vs Tables 1 & 2 of arXiv:0707.0773")
     print("=" * 80)
-    _self_test_table_2()
+    # Table 1: paper inputs m_W=80.377 (pole), Γ_W = Γ_W^(0) = 2.04483 GeV
+    # → BR correction (Γ_W^(0)/Γ_W)² = 1 (trivial)
+    _self_test_specific_channel(
+        mW=80.377, gammaW=2.04483, apply_BR_correction=False,
+        label="Table 1 inputs (LO width, no BR correction):",
+        paper_col_fb=TABLE_1["eft_N32LO_fb"],
+        whizard_fb=TABLE_1["exact_Born_fb"],
+        sqrts_GeV=TABLE_1["sqrts_GeV"],
+    )
+    # Table 2: paper inputs m_W=80.379, Γ_W^NLO = 2.09201 GeV (NLO + QCD)
+    # → BR correction = (Γ_W^(0)(80.379) / 2.09201)² ≈ 0.955
+    _self_test_specific_channel(
+        mW=80.379, gammaW=2.09201, apply_BR_correction=True,
+        label="Table 2 inputs (NLO+QCD width, with BR correction):",
+        paper_col_fb=TABLE_2["eft_N32LO_fb"],
+        whizard_fb=TABLE_2["exact_Born_fb"],
+        sqrts_GeV=TABLE_2["sqrts_GeV"],
+    )
