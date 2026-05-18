@@ -45,6 +45,44 @@ from process.ww.isr import sigma_observed_munuqq
 
 
 # ---------------------------------------------------------------------------
+# Card → chain-kwargs helpers (single source of truth)
+# ---------------------------------------------------------------------------
+
+def partonic_kwargs_from_card(card) -> dict:
+    """Card NLO_CONFIG + THEORY_INPUTS → kwargs for ``sigma_partonic_munuqq``.
+
+    All chain knobs that drive the *partonic* (pre-ISR) σ. Used by the plot
+    script, WWGenerator.from_card, validation scripts — anywhere a card-aware
+    call to ``sigma_partonic_munuqq`` is needed.
+    """
+    nlo = getattr(card, "NLO_CONFIG", {})
+    theory = getattr(card, "THEORY_INPUTS", {})
+    return dict(
+        channel=str(nlo.get("channel", "inclusive")),
+        include_coulomb=bool(nlo.get("include_coulomb", True)),
+        br_convention=str(nlo.get("br_convention", "pdg-constant")),
+        include_NLO_hard_decay=bool(nlo.get("include_NLO_hard_decay", True)),
+        apply_delta_QCD=bool(nlo.get("apply_delta_QCD", True)),
+        alpha_s=float(theory.get("alpha_s_MW", ALPHA_S_MW_DEFAULT)),
+        apply_whizard_anchor=bool(nlo.get("apply_whizard_anchor", True)),
+    )
+
+
+def observed_kwargs_from_card(card) -> dict:
+    """Card NLO_CONFIG + THEORY_INPUTS → kwargs for ``sigma_observed_munuqq``
+    (partonic kwargs + ISR-only kwargs).
+    """
+    nlo = getattr(card, "NLO_CONFIG", {})
+    return {
+        **partonic_kwargs_from_card(card),
+        "isr_scheme":   str(nlo.get("isr_scheme", "single_conv")),
+        "alpha_em_isr": nlo.get("alpha_em_isr", None),
+        "n_quad":       int(nlo.get("n_quad", 200)),
+        "z_min":        float(nlo.get("z_min", 0.10)),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Fine ECM grid for the template (mirrors the WbWb convention)
 # ---------------------------------------------------------------------------
 # Wider than the analysis scan window so BES convolution has clean margin.
@@ -88,7 +126,7 @@ class WWGenerator:
                  # or "2leg" (BFS eq. 71 full per-leg double conv). Both forms
                  # agree to <0.1 % at LL+exp; single-conv is faster (1D quad).
                  isr_scheme: str = "single_conv",
-                 # ISR α: None → α_Gμ(m_W=80.377) per BFS prescription (avoids
+                 # ISR α: None → α_Gμ(M_W_BFS_REF) per BFS prescription (avoids
                  # fictitious m_W-dep in the ISR kernel). Pass an explicit float
                  # to override (e.g. for a scheme-variation systematic).
                  alpha_em_isr: float | None = None,
@@ -120,19 +158,31 @@ class WWGenerator:
         Single source of truth: any card edit propagates to every entry
         point (compute_xsec_ww, doFit_ww, scripts/fit_2107_*, etc.) that
         uses this factory.
+
+        If ``bfs`` is None and the card sets the diagnostic flag
+        NLO_CONFIG["diagnostic_bfs_coulomb_nlo"], a
+        ``BFSCorrections(enabled_coulomb_NLO=True)`` is constructed
+        automatically. CLI overrides (e.g. ``--diagnostic-bfs-coulomb-nlo``)
+        should pass an explicit ``bfs`` to take precedence.
         """
-        theory = getattr(card, "THEORY_INPUTS", {})
         nlo_cfg = getattr(card, "NLO_CONFIG", {})
+        theory = getattr(card, "THEORY_INPUTS", {})
+        kw = observed_kwargs_from_card(card)
+        if bfs is None and bool(nlo_cfg.get("diagnostic_bfs_coulomb_nlo", False)):
+            bfs = BFSCorrections(enabled_coulomb_NLO=True)
         return cls(
             order=card.ORDER,
             bfs=bfs,
-            include_NLO_hard_decay=bool(nlo_cfg.get("include_NLO_hard_decay", True)),
-            apply_delta_QCD=bool(nlo_cfg.get("apply_delta_QCD", True)),
-            br_convention=str(nlo_cfg.get("br_convention", "pdg-constant")),
-            alpha_s=float(theory.get("alpha_s_MW", ALPHA_S_MW_DEFAULT)),
-            apply_whizard_anchor=bool(nlo_cfg.get("apply_whizard_anchor", True)),
-            isr_scheme=str(nlo_cfg.get("isr_scheme", "single_conv")),
-            alpha_em_isr=nlo_cfg.get("alpha_em_isr", None),
+            channel=kw["channel"],
+            include_coulomb=kw["include_coulomb"],
+            n_quad=kw["n_quad"], z_min=kw["z_min"],
+            include_NLO_hard_decay=kw["include_NLO_hard_decay"],
+            apply_delta_QCD=kw["apply_delta_QCD"],
+            br_convention=kw["br_convention"],
+            alpha_s=kw["alpha_s"],
+            apply_whizard_anchor=kw["apply_whizard_anchor"],
+            isr_scheme=kw["isr_scheme"],
+            alpha_em_isr=kw["alpha_em_isr"],
             m_t=float(theory.get("m_t", M_T_DEFAULT)),
             M_H=float(theory.get("M_H", M_H_DEFAULT)),
         )

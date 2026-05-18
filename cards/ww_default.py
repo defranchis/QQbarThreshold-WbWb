@@ -68,26 +68,45 @@ THEORY_INPUTS = {
 # section that the fit absorbs via the luminosity nuisance, while the
 # α_s differential (∂σ/∂α_s) is correctly captured.
 NLO_CONFIG = {
-    "include_NLO_hard_decay": True,    # HSC + EW decay + Coulomb_NLO additive
-    "apply_delta_QCD":        True,    # multiplicative δ_QCD(α_s) on σ_partonic
-    "br_convention":          "pdg-constant",   # 'pdg-constant' | 'bfs-eft'
-    # Whizard-anchor correction f(δ, Γ_W) (BFS section 6.2 prescription).
-    # Replaces the BFS-EFT N^(3/2)LO Born by the exact Whizard 4f Born via
-    # a smooth multiplicative correction built from BFS Tables 1+2. Closes
+    # ---- Physics knobs -----------------------------------------------------
+    # Channel: inclusive μν qq̄ (both W charges × ud̄+cs̄) or μ⁻ν̄_μ ud̄ specific.
+    "channel":                "inclusive",     # 'inclusive' | 'munuud'
+    # Branching-ratio convention.
+    "br_convention":          "pdg-constant",  # 'pdg-constant' | 'bfs-eft'
+    # Fadin-Khoze-Martin Coulomb K-factor resummation (leading α/v + α² piece).
+    "include_coulomb":        True,
+    # BFS NLO loop chain (HSC + Coulomb_NLO + EW decay correction).
+    "include_NLO_hard_decay": True,
+    # Multiplicative δ_QCD(α_s) = 1 + α_s/π + 1.409(α_s/π)² on σ_partonic.
+    "apply_delta_QCD":        True,
+    # Whizard 4f Born anchor f(δ, Γ_W) (BFS sec. 6.2 prescription). Closes
     # the residual ~2 % absolute Born deficit; preserves analytic m_W/Γ_W
     # dependence (m_W via δ = √s − 2m_W, Γ_W via linear interp between the
     # two BFS reference Γ_W = {2.045, 2.092}).
     "apply_whizard_anchor":   True,
+    # DIAGNOSTIC ONLY — adds the BFS NLO Coulomb subleading piece (eq. 62 of
+    # arXiv:0707.0773) via the standalone BFSCorrections.delta_NLO path.
+    # When include_NLO_hard_decay=True (the production default), the FULL
+    # eq. 62 is ALREADY added in the chain via
+    # delta_sigma_Coulomb_NLO_specific_pb — so enabling this DOUBLE-COUNTS.
+    # Only flip True together with include_NLO_hard_decay=False to reproduce
+    # BFS paper plots that show this piece in isolation.
+    "diagnostic_bfs_coulomb_nlo": False,
+    # ---- ISR -------------------------------------------------------------
     # ISR scheme — LL+exp BETA per LEP2 YR Beenakker hep-ph/9602351 eq. (67).
     #   "single_conv": LEP2 YR α→2α 1D convolution shortcut (default, fastest).
     #   "2leg":        full per-leg double-convolution per BFS eq. 71. Agrees
     #                  with single_conv to <0.1 % — formal LL+exp equivalence.
-    # See project_followup_isr_scheme.md for the verification details.
     "isr_scheme":             "single_conv",
-    # ISR α: None = α_Gμ(m_W=80.377) per BFS prescription (constant across
+    # ISR α: None = α_Gμ(M_W_BFS_REF) per BFS prescription (constant across
     # the fit to avoid fictitious m_W dependence in the ISR kernel). Override
     # with a float for a scheme-variation systematic.
     "alpha_em_isr":           None,
+    # ISR quadrature settings. n_quad=200 single-conv (1D) / 32 per leg (2leg);
+    # z_min lower-bound on z = x₁x₂ (= 0.10 captures full ISR phase space, the
+    # below-threshold contribution to σ̂(zs) is negligible).
+    "n_quad":                 200,
+    "z_min":                  0.10,
 }
 
 # ---------------------------------------------------------------------------

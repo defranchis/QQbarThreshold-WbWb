@@ -31,42 +31,33 @@ from process.ww.bfs_eft import (
     sigma_LR_RL_three_half_a_specific_pb,
 )
 from process.ww.eft_xsec import (
-    ALPHA_S_MW_DEFAULT,
     BR_INCLUSIVE_MUNUQQ,
     GAMMA_W_DEFAULT, M_W_DEFAULT,
     coulomb_K_factor, sigma_partonic_munuqq as _sigma_partonic_munuqq_raw,
     sigma_WW_partonic,
 )
 from process.ww.isr import sigma_observed_munuqq as _sigma_observed_munuqq_raw
+from process.ww.generator import (
+    partonic_kwargs_from_card, observed_kwargs_from_card,
+)
 from cards import ww_default as _card
 
-# Diagnostic plots always reflect the *card-configured* NLO behaviour so the
-# plots match what the fit actually sees. Curried wrappers below pick up the
-# full chain configuration from cards/ww_default.py.
-_NLO_KW = {
-    "include_NLO_hard_decay": _card.NLO_CONFIG.get("include_NLO_hard_decay", True),
-    "apply_delta_QCD":        _card.NLO_CONFIG.get("apply_delta_QCD", True),
-    "br_convention":          _card.NLO_CONFIG.get("br_convention", "pdg-constant"),
-    "alpha_s":                _card.THEORY_INPUTS.get("alpha_s_MW", ALPHA_S_MW_DEFAULT),
-    "apply_whizard_anchor":   _card.NLO_CONFIG.get("apply_whizard_anchor", True),
-}
-# Extra ISR knobs only meaningful for sigma_observed (post-convolution σ).
-_ISR_KW = {
-    "isr_scheme":   _card.NLO_CONFIG.get("isr_scheme", "single_conv"),
-    "alpha_em_isr": _card.NLO_CONFIG.get("alpha_em_isr", None),
-}
+# Card-driven kwargs — single source of truth in process.ww.generator.
+# Diagnostic plots always reflect the *card-configured* chain so they match
+# what the fit templates actually use; channel is forced to "inclusive"
+# (this script's plots are about the inclusive μν qq̄ scan).
+_PARTONIC_KW = partonic_kwargs_from_card(_card) | {"channel": "inclusive"}
+_OBSERVED_KW = observed_kwargs_from_card(_card) | {"channel": "inclusive"}
 
 
 def sigma_partonic_munuqq(*args, **kwargs):
-    for k, v in _NLO_KW.items():
+    for k, v in _PARTONIC_KW.items():
         kwargs.setdefault(k, v)
     return _sigma_partonic_munuqq_raw(*args, **kwargs)
 
 
 def sigma_observed_munuqq(*args, **kwargs):
-    for k, v in _NLO_KW.items():
-        kwargs.setdefault(k, v)
-    for k, v in _ISR_KW.items():
+    for k, v in _OBSERVED_KW.items():
         kwargs.setdefault(k, v)
     return _sigma_observed_munuqq_raw(*args, **kwargs)
 
@@ -139,11 +130,12 @@ def plot_xsec_vs_sqrts():
     # Physics-layer curves on top of the best BFS Born. The framework σ_WW
     # is BFS-EFT N^(3/2)LO + NLO loops + δ_QCD + Whizard anchor (cards/ww_default.py),
     # switching to the RACOONWW calibration spline above √s = 170 GeV.
-    sigma_WW = sigma_WW_partonic(s, mW, gW,
-                             include_NLO_hard_decay=_NLO_KW["include_NLO_hard_decay"],
-                             apply_delta_QCD=_NLO_KW["apply_delta_QCD"],
-                             alpha_s=_NLO_KW["alpha_s"],
-                             apply_whizard_anchor=_NLO_KW["apply_whizard_anchor"])
+    sigma_WW = sigma_WW_partonic(
+        s, mW, gW,
+        **{k: _PARTONIC_KW[k] for k in
+           ("include_NLO_hard_decay", "apply_delta_QCD", "alpha_s",
+            "apply_whizard_anchor")},
+    )
     K_C = coulomb_K_factor(s, mW, gW)
     sigma_partonic = sigma_partonic_munuqq(s, mW, gW, channel="inclusive")
     sigma_observed = sigma_observed_munuqq(sqrts, mW=mW, gammaW=gW, channel="inclusive")

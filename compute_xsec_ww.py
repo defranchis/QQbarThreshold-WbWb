@@ -9,9 +9,8 @@ xsec_calc. Generates:
   * BEC-variation templates in ``card.INPUT_DIRS["BEC"]/scan_{p,m}<var>/``
     with the ECM grid uniformly shifted by ±``INPUT_VAR["BEC"]`` MeV.
 
-The WW LO+Coulomb+LL-ISR generator is Python-only and vectorised — fast
-enough that we don't bother with multiprocessing here (each template
-~50 ms).
+The WW BFS-EFT chain is Python-only and vectorised — fast enough that we
+don't bother with multiprocessing here (each template ~50 ms).
 """
 
 from __future__ import annotations
@@ -52,18 +51,22 @@ def main():
                     help="absolute BEC shifts in MeV (each generates scan_p{v} and scan_m{v}); "
                          "set to empty list to skip")
     ap.add_argument("--no-bec", action="store_true", help="skip BEC-variation templates")
-    ap.add_argument("--bfs-coulomb-nlo", action="store_true",
-                    help="enable BFS NLO Coulomb correction (eq. 62 of arXiv:0707.0773); "
-                         "OFF by default — without it the templates are LO+Coulomb (FKM)+ISR.")
+    ap.add_argument("--diagnostic-bfs-coulomb-nlo",
+                    action=argparse.BooleanOptionalAction, default=None,
+                    help="DIAGNOSTIC ONLY — toggle the standalone BFS NLO "
+                         "Coulomb α² subleading piece (eq. 62 of arXiv:0707.0773) "
+                         "via BFSCorrections. With include_NLO_hard_decay=True "
+                         "(the production default) this double-counts; use only "
+                         "when reproducing isolated BFS paper plots. CLI value "
+                         "overrides card's NLO_CONFIG['diagnostic_bfs_coulomb_nlo'].")
     args = ap.parse_args()
 
     params = Parameters(card.PARAMETERS, scale_vars=[])
-    bfs = BFSCorrections(enabled_coulomb_NLO=args.bfs_coulomb_nlo)
-
+    # CLI override of the card's diagnostic_bfs_coulomb_nlo flag.
+    bfs = (BFSCorrections(enabled_coulomb_NLO=args.diagnostic_bfs_coulomb_nlo)
+           if args.diagnostic_bfs_coulomb_nlo is not None else None)
     generator = WWGenerator.from_card(card, bfs=bfs)
     print(f"[{generator.describe()}]")
-    if args.bfs_coulomb_nlo:
-        print("[WW gen] BFS NLO Coulomb correction (eq. 62 of arXiv:0707.0773) ENABLED via BFSCorrections")
     mass_scale = card.RENORM_SCALES["mass"]
     width_scale = card.RENORM_SCALES["width"]
     mass_scheme = card.MASS_SCHEME

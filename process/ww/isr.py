@@ -406,7 +406,7 @@ def sigma_observed_munuqq(sqrt_s,
                           # — full BFS NLO chain + δ_QCD + Whizard anchor + LL+exp ISR.
                           # Single-conv is the default ISR scheme (matches 2-leg
                           # to <0.1% per 2026-05-18 validation, faster 1D quadrature).
-                          # alpha_em_isr=None uses module default α_Gμ(m_W=80.377)
+                          # alpha_em_isr=None uses module default α_Gμ(M_W_BFS_REF)
                           # per BFS prescription (avoids fictitious m_W-dep in ISR).
                           include_NLO_hard_decay: bool = True,
                           apply_delta_QCD: bool = True,
