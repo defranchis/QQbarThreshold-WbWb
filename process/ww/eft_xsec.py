@@ -461,22 +461,37 @@ def sigma_partonic_munuqq(s,
                           gammaW: float = GAMMA_W_DEFAULT,
                           channel: str = "inclusive",
                           include_coulomb: bool = True,
-                          bfs: BFSCorrections | None = None):
+                          bfs: BFSCorrections | None = None,
+                          br_convention: str = "bfs-eft"):
     """
     Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
     Returns σ in pb at partonic CM energy² = s (before ISR convolution).
 
-    Built from the BFS specific-channel cross section
-    ``sigma_BFS_specific_munuud_pb`` (which applies the proper BFS
-    section 6.1 / eq. 83 BR correction PER COMPONENT — squared for
-    σ^(0), σ^(1)_pot, σ^(3/2),a; linear for σ^(1/2)), multiplied by the
-    channel multiplicity (4 for inclusive μν qq̄, 1 for specific μ⁻ν̄_μ ud̄).
-    This way both the propagator broadening and the BR shrinkage as
-    1/Γ_W² are captured for a correct dσ/dΓ_W in the fit.
-
     ``channel`` selects the named final state:
         "inclusive" (default) — μν qq̄, both W charges × (ud̄, cs̄)
         "munuud"              — μ⁻ν̄_μ ud̄ specific
+
+    ``br_convention`` selects how the BR factor depends on (m_W, Γ_W):
+
+      * ``"bfs-eft"`` (default) — BFS section 6.1 / eq. 83 per-component:
+            BR = (channel_mult/27) × (Γ_W^(0)(m_W)/Γ_W)²  for σ^(0), σ^(1)_pot,
+                                                          σ^(3/2),a (two cut props)
+            BR = (channel_mult/27) × (Γ_W^(0)(m_W)/Γ_W)   for σ^(1/2)
+                                                          (one cut prop)
+        Theory-fixed-partials: partial widths Γ_x^(0)(m_W) are SM-LO predictions
+        of m_W only; total Γ_W is the fit parameter; BR shrinks as the partials
+        are divided by a (potentially) larger total. d ln BR/dΓ_W = −2/Γ_W
+        (resp. −1/Γ_W for σ^(1/2)). Reproduces BFS Tables 1, 2 (round-trip).
+
+      * ``"pdg-constant"`` — fixed PDG-measured BR product:
+            BR_inclusive = 2·BR(W→μν)·BR(W→had) = 0.1433  (≈ ``BR_INCLUSIVE_MUNUQQ``)
+            BR_munuud    =  BR(W→μν)·BR(W→ud̄)   = 0.0357  (≈ ``BR_MUNUUD``)
+        Independent of (m_W, Γ_W). Γ_W enters σ only via the propagator
+        broadening in σ_WW. d BR/dΓ_W = 0 → d σ/dΓ_W reflects pure propagator
+        broadening. Matches the YFSWW3/RACOONWW experimental convention
+        (BR taken from data; Γ_W is the propagator parameter only).
+        Differs from the LO theory BR 4/27 ≈ 0.148 by the 3.5 % radiative
+        corrections folded into PDG.
 
     Vectorised: accepts scalar or array ``s``.
     """
@@ -484,13 +499,14 @@ def sigma_partonic_munuqq(s,
         bfs = BFSCorrections(enabled=False)
     if channel not in _CHANNEL_MULTIPLICITY:
         raise ValueError(f"channel={channel!r} not in {list(_CHANNEL_MULTIPLICITY)}")
+    if br_convention not in ("bfs-eft", "pdg-constant"):
+        raise ValueError(f"br_convention must be 'bfs-eft' or 'pdg-constant'; "
+                         f"got {br_convention!r}")
 
     # Region-aware σ (handles ISR convolution sampling sub-threshold s_hat):
     #   √s < 150 GeV  → 0 (avoids spurious M_Z pole in BFS ξ,χ functions)
-    #   150 ≤ √s < 170 → BFS specific-channel × multiplicity (per-component BR)
-    #   √s ≥ 170 GeV  → calibration σ_WW × LO BR × (Γ_W^(0)/Γ_W)²
-    #                   (uniform-squared BR; per-component breakdown not
-    #                   accessible from the spline)
+    #   150 ≤ √s < 170 → BFS computation
+    #   √s ≥ 170 GeV  → RACOONWW calibration spline × BR factor
     s_arr = np.asarray(s, dtype=float)
     use_zero = s_arr < _S_BFS_FLOOR
     use_bfs = (s_arr >= _S_BFS_FLOOR) & (s_arr < _S_BFS_UPPER)
@@ -498,15 +514,29 @@ def sigma_partonic_munuqq(s,
 
     sigma = np.zeros_like(s_arr)
 
+    if br_convention == "pdg-constant":
+        BR_pdg = {"inclusive": BR_INCLUSIVE_MUNUQQ,
+                  "munuud":    BR_MUNUUD}[channel]
+
     if np.any(use_bfs):
-        from process.ww.bfs_eft import sigma_BFS_specific_munuud_pb
-        sigma_specific = sigma_BFS_specific_munuud_pb(s_arr, mW, gammaW, order="N3/2LO")
-        sigma_bfs = sigma_specific * _CHANNEL_MULTIPLICITY[channel]
+        if br_convention == "bfs-eft":
+            from process.ww.bfs_eft import sigma_BFS_specific_munuud_pb
+            sigma_specific = sigma_BFS_specific_munuud_pb(s_arr, mW, gammaW, order="N3/2LO")
+            sigma_bfs = sigma_specific * _CHANNEL_MULTIPLICITY[channel]
+        else:   # pdg-constant: σ_WW_total × BR_PDG (no per-component BR corr)
+            from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
+            sigma_WW_total = sigma_BFS_LO_total_WW_pb(s_arr, mW, gammaW,
+                                                       order="N3/2LO",
+                                                       apply_BR_correction=False)
+            sigma_bfs = sigma_WW_total * BR_pdg
         sigma = np.where(use_bfs, sigma_bfs, sigma)
 
     if np.any(use_cal):
-        from process.ww.bfs_eft import gamma_W_LO
-        BR_x = (_CHANNEL_MULTIPLICITY[channel] / 27.0) * (gamma_W_LO(mW) / gammaW) ** 2
+        if br_convention == "bfs-eft":
+            from process.ww.bfs_eft import gamma_W_LO
+            BR_x = (_CHANNEL_MULTIPLICITY[channel] / 27.0) * (gamma_W_LO(mW) / gammaW) ** 2
+        else:
+            BR_x = BR_pdg
         sigma_cal = sigma_WW_Born(s_arr, mW, gammaW) * BR_x
         sigma = np.where(use_cal, sigma_cal, sigma)
 

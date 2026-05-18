@@ -195,10 +195,11 @@ def sigma_observed_munuqq(sqrt_s,
                           z_min: float = 0.10,
                           n_quad: int = 200,
                           include_coulomb: bool = True,
-                          bfs: BFSCorrections | None = None):
+                          bfs: BFSCorrections | None = None,
+                          br_convention: str = "bfs-eft"):
     """
     Observed σ(e+e- → μν qq̄) after ISR convolution, in pb. Vectorised in
-    ``sqrt_s``.
+    ``sqrt_s``. ``br_convention`` forwarded to ``sigma_partonic_munuqq``.
     """
     return sigma_ISR_convolution(
         sqrt_s,
@@ -208,6 +209,7 @@ def sigma_observed_munuqq(sqrt_s,
         channel=channel,
         include_coulomb=include_coulomb,
         bfs=bfs,
+        br_convention=br_convention,
     )
 
 
