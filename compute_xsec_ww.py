@@ -60,36 +60,8 @@ def main():
     params = Parameters(card.PARAMETERS, scale_vars=[])
     bfs = BFSCorrections(enabled_coulomb_NLO=args.bfs_coulomb_nlo)
 
-    # Pick up theory inputs + NLO config from the card so each run records
-    # an explicit configuration (see cards/ww_default.py THEORY_INPUTS and
-    # NLO_CONFIG). Fall back to LO+Coulomb+ISR-only if the card has no NLO
-    # block (back-compat with older cards).
-    theory = getattr(card, "THEORY_INPUTS", {})
-    nlo_cfg = getattr(card, "NLO_CONFIG", {})
-    alpha_s = float(theory.get("alpha_s_MW", 0.1199))
-    # Pass every card-level knob through to the generator. WWGenerator
-    # defaults to "best calculation" so if the card omits any of these
-    # the production templates still use the validated full chain.
-    generator = WWGenerator(
-        order=card.ORDER, bfs=bfs,
-        include_NLO_hard_decay=bool(nlo_cfg.get("include_NLO_hard_decay", True)),
-        apply_delta_QCD=bool(nlo_cfg.get("apply_delta_QCD", True)),
-        br_convention=str(nlo_cfg.get("br_convention", "pdg-constant")),
-        alpha_s=alpha_s,
-        apply_whizard_anchor=bool(nlo_cfg.get("apply_whizard_anchor", True)),
-        isr_scheme=str(nlo_cfg.get("isr_scheme", "single_conv")),
-        alpha_em_isr=nlo_cfg.get("alpha_em_isr", None),
-        m_t=float(theory.get("m_t", 174.2)),
-        M_H=float(theory.get("M_H", 115.0)),
-    )
-    print(f"[WW gen] order        = {card.ORDER}  channel = {generator.channel}")
-    print(f"[WW gen] alpha_s(M_W) = {alpha_s}  (m_t = {generator.m_t}, M_H = {generator.M_H})")
-    print(f"[WW gen] br_convention      = {generator.br_convention}")
-    print(f"[WW gen] include_NLO_loops  = {generator.include_NLO_hard_decay}  (HSC + Coulomb_NLO + EW-decay)")
-    print(f"[WW gen] apply_delta_QCD    = {generator.apply_delta_QCD}")
-    print(f"[WW gen] apply_whizard_anchor = {generator.apply_whizard_anchor}")
-    print(f"[WW gen] isr_scheme         = {generator.isr_scheme}")
-    print(f"[WW gen] alpha_em_isr       = {generator.alpha_em_isr if generator.alpha_em_isr is not None else 'α_Gμ(80.377) [BFS default]'}")
+    generator = WWGenerator.from_card(card, bfs=bfs)
+    print(f"[{generator.describe()}]")
     if args.bfs_coulomb_nlo:
         print("[WW gen] BFS NLO Coulomb correction (eq. 62 of arXiv:0707.0773) ENABLED via BFSCorrections")
     mass_scale = card.RENORM_SCALES["mass"]

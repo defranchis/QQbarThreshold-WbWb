@@ -31,9 +31,11 @@ from process.ww.bfs_eft import (
     sigma_LR_RL_three_half_a_specific_pb,
 )
 from process.ww.eft_xsec import (
+    ALPHA_S_MW_DEFAULT,
+    BR_INCLUSIVE_MUNUQQ,
     GAMMA_W_DEFAULT, M_W_DEFAULT,
     coulomb_K_factor, sigma_partonic_munuqq as _sigma_partonic_munuqq_raw,
-    sigma_WW_Born,
+    sigma_WW_partonic,
 )
 from process.ww.isr import sigma_observed_munuqq as _sigma_observed_munuqq_raw
 from cards import ww_default as _card
@@ -45,7 +47,7 @@ _NLO_KW = {
     "include_NLO_hard_decay": _card.NLO_CONFIG.get("include_NLO_hard_decay", True),
     "apply_delta_QCD":        _card.NLO_CONFIG.get("apply_delta_QCD", True),
     "br_convention":          _card.NLO_CONFIG.get("br_convention", "pdg-constant"),
-    "alpha_s":                _card.THEORY_INPUTS.get("alpha_s_MW", 0.1199),
+    "alpha_s":                _card.THEORY_INPUTS.get("alpha_s_MW", ALPHA_S_MW_DEFAULT),
     "apply_whizard_anchor":   _card.NLO_CONFIG.get("apply_whizard_anchor", True),
 }
 # Extra ISR knobs only meaningful for sigma_observed (post-convolution σ).
@@ -137,7 +139,7 @@ def plot_xsec_vs_sqrts():
     # Physics-layer curves on top of the best BFS Born. The framework σ_WW
     # is BFS-EFT N^(3/2)LO + NLO loops + δ_QCD + Whizard anchor (cards/ww_default.py),
     # switching to the RACOONWW calibration spline above √s = 170 GeV.
-    sigma_WW = sigma_WW_Born(s, mW, gW,
+    sigma_WW = sigma_WW_partonic(s, mW, gW,
                              include_NLO_hard_decay=_NLO_KW["include_NLO_hard_decay"],
                              apply_delta_QCD=_NLO_KW["apply_delta_QCD"],
                              alpha_s=_NLO_KW["alpha_s"],
@@ -525,10 +527,6 @@ def plot_azzurri_style_pm1GeV():
     plt.close(fig)
     print(f"  wrote {out}")
     return out
-
-
-# Local import for the Azzurri plot helper above
-from process.ww.eft_xsec import BR_INCLUSIVE_MUNUQQ
 
 
 def plot_bes_effect_on_variations():

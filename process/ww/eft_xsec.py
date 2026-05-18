@@ -1,23 +1,25 @@
 """σ(e+e- → μν qq̄) near the WW threshold for FCC-ee — partonic level.
 
-LO partonic cross section using the unstable-particle EFT prescription:
-finite W width via analytic continuation to complex velocity; the on-shell
-Born σ_WW^CC03 is calibrated against a RACOONWW reference grid from
-161.33 to 500 GeV (with a power-law BW-tail extrapolation below — to be
-replaced with real RACOONWW / MoCaNLO values for per-mille precision).
+Default partonic cross section (= what the production fit templates use):
+BFS-EFT N^(3/2)LO Born + NLO loops + δ_QCD + Whizard 4f Born anchor,
+with finite-Γ_W complex-velocity smoothing. Above √s = 170 GeV a
+RACOONWW CC03 calibration spline is used (only the 240 GeV "last_ecm"
+reference point if --lastecm is enabled).
 
-Pipeline:
+Pipeline (``sigma_partonic_munuqq``):
+
     σ̂_partonic(ŝ; m_W, Γ_W)
-        = σ̂_WW^Born(ŝ; m_W, Γ_W)
+        = ( BFS N^(3/2)LO Born + Δσ_HSC + Δσ_Coul^NLO + Δσ_decay^EW )
+          × f_Whizard(δ, Γ_W)        ← BFS sec. 6.2 anchor
+          × δ_QCD(α_s)
+          × K_Coulomb(ŝ; m_W, Γ_W)   ← Fadin-Khoze-Martin + Bardin-Riemann α²
           × BR_channel
-          × K_Coulomb(ŝ; m_W, Γ_W)
-          × (1 + δ_NLO + δ_NNLO)              ← BFS hooks (NotImplementedError until filled)
 
 Channels (set via ``channel`` arg of :func:`sigma_partonic_munuqq`):
 
     "inclusive"  (default)
         Inclusive μν qq̄ summed over both W charges:
-            BR = 2 × BR(W→μν) × BR(W→hadrons)
+            BR = 2 × BR(W→μν) × BR(W→hadrons)  (PDG-constant)
         This is what the FCC-ee threshold-scan m_W analysis sees.
 
     "munuud"
@@ -25,24 +27,8 @@ Channels (set via ``channel`` arg of :func:`sigma_partonic_munuqq`):
             BR = BR(W→μν) × BR(W→ud̄/cs̄ summed)
         Useful for benchmarking against published BFS tables.
 
-Components:
-
-[1] σ̂_WW^Born -- on-shell tree CC03, interpolated from a calibration grid
-    of RACOONWW reference values (the 161.33–500 GeV part are RACOONWW Born
-    values; below 161.33 GeV is a power-law BW-tail model -- TODO replace
-    with real Born for the below-threshold region). m_W dependence
-    factorises via β/(s_W^4 s) × α_Gμ(m_W); we exploit this to scale the
-    grid in m_W. Threshold smoothing via complex velocity (EFT
-    prescription).
-
-[2] K_Coulomb -- Fadin-Khoze-Martin closed form with finite Γ_W
-    (Phys.Lett.B311 1993 311; Bardin-Riemann hep-ph/9507422 eq. 9-10).
-
-[3] BFS NLO/NNLO -- placeholder hooks. To activate, fill in:
-        arXiv:0707.0773 eq. (4.13)+        -- NLO hard matching + soft/coll
-        arXiv:0807.0102 eq. (3.1)          -- dominant NNLO Coulomb + soft
-
-[4] ISR convolution -- in isr.py
+ISR convolution is in ``isr.py``. Validation against BFS Tables 1+2+3+4
+in ``scripts/validate_bfs_nlo.py``.
 """
 
 from __future__ import annotations
@@ -63,6 +49,18 @@ G_F             = 1.1663787e-5
 ALPHA_EM_0      = 1.0 / 137.035999084
 ALPHA_EM_MZ     = 1.0 / 128.943
 GEV_M2_TO_PB    = 3.8937937217e8
+
+# ---------------------------------------------------------------------------
+# WW-chain defaults (single source of truth; imported by bfs_eft, isr,
+# generator, compute_xsec_ww, cards). The "BFS reference" values are the
+# inputs at which BFS arXiv:0707.0773 evaluated c_p,LR^(1,fin) = -10.076.
+# Treating m_t / M_H as constants at those reference values is justified
+# at the < 0.001 % level on σ_NLO (Scenario H of validate_bfs_nlo.py).
+# ---------------------------------------------------------------------------
+ALPHA_S_MW_DEFAULT = 0.1199    # α_s(M_W) in MS-bar, BFS reference
+M_W_BFS_REF        = 80.377    # m_W at which BFS Tables / c_fin are tabulated
+M_T_DEFAULT        = 174.2     # m_t (pole), BFS Table 4 input
+M_H_DEFAULT        = 115.0     # M_H, BFS Table 4 input
 
 BR_W_MUNU = 0.1063   # PDG
 BR_W_HAD  = 0.6741   # PDG, hadronic inclusive
@@ -176,17 +174,16 @@ except ImportError:
         return np.interp(s_eff, _S_GRID, _F_GRID)
 
 
-def sigma_WW_Born(s,
+def sigma_WW_partonic(s,
                   mW: float = M_W_DEFAULT,
                   gammaW: float = GAMMA_W_DEFAULT,
-                  # Defaults below are the project's "best calculation"
-                  # (full BFS NLO chain + δ_QCD + Whizard anchor). The
-                  # name "Born" is historical — this is the full partonic
-                  # σ(e+e-→W+W-) consistent with everything else in the
-                  # framework, NOT just the LO_EFT Born expansion.
+                  # Defaults below are the project's "best calculation":
+                  # full BFS NLO chain + δ_QCD + Whizard anchor (= what the
+                  # production fit templates use). Toggle individual knobs
+                  # off for diagnostic / Born-only comparisons.
                   include_NLO_hard_decay: bool = True,
                   apply_delta_QCD: bool = True,
-                  alpha_s: float = 0.1199,
+                  alpha_s: float = ALPHA_S_MW_DEFAULT,
                   apply_whizard_anchor: bool = True):
     """
     Off-shell-convolved σ(e+e- → W+W- → 4f), full off-shell, in pb.
@@ -485,7 +482,7 @@ def sigma_partonic_munuqq(s,
                           # Validation: scripts/validate_bfs_nlo.py.
                           include_NLO_hard_decay: bool = True,
                           apply_delta_QCD: bool = True,
-                          alpha_s: float = 0.1199,
+                          alpha_s: float = ALPHA_S_MW_DEFAULT,
                           apply_whizard_anchor: bool = True):
     """
     Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
@@ -574,7 +571,7 @@ def sigma_partonic_munuqq(s,
             BR_x = (_CHANNEL_MULTIPLICITY[channel] / 27.0) * (gamma_W_LO(mW) / gammaW) ** 2
         else:
             BR_x = BR_pdg
-        sigma_cal = sigma_WW_Born(s_arr, mW, gammaW) * BR_x
+        sigma_cal = sigma_WW_partonic(s_arr, mW, gammaW) * BR_x
         sigma = np.where(use_cal, sigma_cal, sigma)
 
     if include_coulomb:
@@ -606,7 +603,7 @@ if __name__ == "__main__":
     print(f"{'√s [GeV]':>10}  {'σ this code':>15}  {'σ RACOONWW':>15}  {'ratio':>8}")
     for sqrts, sigma_ref in zip(_REF_SQRTS, _REF_SIGMA_BORN):
         s = sqrts ** 2
-        sigma_mine = sigma_WW_Born(s)
+        sigma_mine = sigma_WW_partonic(s)
         print(f"  {sqrts:8.2f}    {sigma_mine:12.4f} pb   {sigma_ref:12.4f} pb"
               f"   {sigma_mine / sigma_ref:6.4f}")
 

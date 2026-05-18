@@ -1,29 +1,33 @@
-"""WW threshold-scan template generator (EFT-based).
+"""WW threshold-scan template generator (BFS-EFT chain).
 
 Computes σ(e+e- → μν qq̄, inclusive) on a fine ECM grid spanning the WW
 threshold scan and writes a two-column CSV (``ecm, xsec``) consumed by
 ``common.fit_core.FitCore``.
 
-Physics layers (assembled in :mod:`process.ww.eft_xsec` and :mod:`process.ww.isr`):
+Physics chain — defaults are the project's "best calculation":
 
-  • Doubly-resonant CC03 Born, calibrated against a RACOONWW Born grid
-    (161.33–500 GeV; 156–161 GeV is a power-law BW-tail model — see the
-    TODO in eft_xsec.py for the chief physics gap).
-  • Finite-Γ_W complex-velocity prescription (EFT smoothing across threshold).
-  • Coulomb K-factor (Fadin-Khoze-Martin + Bardin-Riemann O(α²)).
-  • LL ISR convolution with YFS soft+virtual exponentiation and the β²
-    non-singular piece (Cacciari et al. NPB 451).
-  • BFS NLO / dominant-NNLO hooks (currently disabled — to be filled from
-    arXiv:0707.0773 + 0807.0102 for MeV precision on m_W).
+  • BFS-EFT N^(3/2)LO Born expansion (arXiv:0707.0773 eq. 17+33+37+39
+    incl. h4-h7 single-resonant); finite-Γ_W complex-velocity smoothing.
+  • Whizard 4f Born anchor f(δ, Γ_W) — BFS sec. 6.2 prescription
+    (apply_whizard_anchor=True).
+  • BFS NLO loops: hard+soft+collinear (eq. 56), NLO Coulomb (eq. 62),
+    EW decay (eq. 60) — include_NLO_hard_decay=True.
+  • δ_QCD multiplier 1 + α_s/π + 1.409(α_s/π)² — apply_delta_QCD=True.
+  • Coulomb K-factor resummation (Fadin-Khoze-Martin + Bardin-Riemann α²).
+  • LL+exp ISR (LEP2 YR BETA scheme); single-conv default, 2-leg available.
+  • RACOONWW CC03 spline above √s = 170 GeV (calibration region only;
+    threshold-scan grid 157-163 GeV stays in the BFS-EFT region).
 
-Precision today: ~1% on σ in the WW peak region, ~5–10% below threshold,
-limited by (i) BFS NLO/NNLO not yet filled in and (ii) the power-law
-BW-tail extrapolation 156–161 GeV.
+Validation: scripts/validate_bfs_nlo.py. Closure to BFS Tables 1+2 at
+4-5 digits (Born); to BFS Table 3+4 at 0.4-1.0 % (NLO + ISR, residual is
+NLL beyond LL+exp — BFS's own 31 MeV systematic).
+
+Remaining open work: BFS dominant NNLO (arXiv:0807.0102) and NLL ISR
+(eMELA / Skrzypek-Jadach). Both deferred — see project-followup memories.
 
 The ``mass_scale`` / ``width_scale`` parameters are recorded in the
-filename but have no effect on the LO+Coulomb+LL-ISR cross section (no
-renormalisation scale to vary at this order). They become meaningful
-when the BFS NLO hooks and NLL ISR are activated.
+filename but currently have no effect on the cross section (no
+renormalisation scale to vary at this order).
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ import os
 import numpy as np
 
 from process.ww.eft_xsec import (
+    ALPHA_S_MW_DEFAULT, M_T_DEFAULT, M_H_DEFAULT,
     BFSCorrections,
     M_W_DEFAULT, GAMMA_W_DEFAULT,
 )
@@ -75,7 +80,7 @@ class WWGenerator:
                  # alternative "bfs-eft" uses theory partials over fit Γ_W.
                  br_convention: str = "pdg-constant",
                  # α_s(M_W) in MS-bar (enters δ_QCD):
-                 alpha_s: float = 0.1199,
+                 alpha_s: float = ALPHA_S_MW_DEFAULT,
                  # Whizard 4f Born anchor f(δ, Γ_W) — BFS sec. 6.2 prescription
                  # to replace BFS-EFT N^(3/2)LO Born by exact Whizard 4f Born:
                  apply_whizard_anchor: bool = True,
@@ -91,7 +96,7 @@ class WWGenerator:
                  # — currently treated as constants in the hardcoded c_fin =
                  # -10.076; recorded here so a future update can propagate
                  # m_t/M_H variations into the matching coefficient).
-                 m_t: float = 174.2, M_H: float = 115.0):
+                 m_t: float = M_T_DEFAULT, M_H: float = M_H_DEFAULT):
         self.order = order              # informational; recorded in filename
         self.channel = channel
         self.include_coulomb = include_coulomb
@@ -107,6 +112,44 @@ class WWGenerator:
         self.alpha_em_isr = alpha_em_isr
         self.m_t = m_t
         self.M_H = M_H
+
+    @classmethod
+    def from_card(cls, card, *, bfs: BFSCorrections | None = None):
+        """Build a generator from a steering card's THEORY_INPUTS + NLO_CONFIG.
+
+        Single source of truth: any card edit propagates to every entry
+        point (compute_xsec_ww, doFit_ww, scripts/fit_2107_*, etc.) that
+        uses this factory.
+        """
+        theory = getattr(card, "THEORY_INPUTS", {})
+        nlo_cfg = getattr(card, "NLO_CONFIG", {})
+        return cls(
+            order=card.ORDER,
+            bfs=bfs,
+            include_NLO_hard_decay=bool(nlo_cfg.get("include_NLO_hard_decay", True)),
+            apply_delta_QCD=bool(nlo_cfg.get("apply_delta_QCD", True)),
+            br_convention=str(nlo_cfg.get("br_convention", "pdg-constant")),
+            alpha_s=float(theory.get("alpha_s_MW", ALPHA_S_MW_DEFAULT)),
+            apply_whizard_anchor=bool(nlo_cfg.get("apply_whizard_anchor", True)),
+            isr_scheme=str(nlo_cfg.get("isr_scheme", "single_conv")),
+            alpha_em_isr=nlo_cfg.get("alpha_em_isr", None),
+            m_t=float(theory.get("m_t", M_T_DEFAULT)),
+            M_H=float(theory.get("M_H", M_H_DEFAULT)),
+        )
+
+    def describe(self) -> str:
+        """One-line summary of the chain configuration (for log lines)."""
+        alpha_em_str = (f"{self.alpha_em_isr:.6f}" if self.alpha_em_isr is not None
+                        else "α_Gμ(M_W_BFS_REF) [BFS default]")
+        return (
+            f"WWGenerator order={self.order} channel={self.channel}  "
+            f"BR={self.br_convention}  "
+            f"NLO_loops={self.include_NLO_hard_decay} "
+            f"δ_QCD={self.apply_delta_QCD} (α_s={self.alpha_s})  "
+            f"anchor={self.apply_whizard_anchor}  "
+            f"ISR={self.isr_scheme} (α_em={alpha_em_str})  "
+            f"m_t={self.m_t} M_H={self.M_H}"
+        )
 
     # ------------------------------------------------------------------
     # Filenames (match the stub pattern so existing harness still works)

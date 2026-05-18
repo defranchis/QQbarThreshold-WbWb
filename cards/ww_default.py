@@ -1,15 +1,13 @@
 """Default steering card for the WW threshold fit.
 
-The generator is :class:`process.ww.generator.WWGenerator` — LO Born CC03
-(RACOONWW-calibrated 161.33–500 GeV; power-law BW-tail 156–161 GeV) +
-Fadin-Khoze-Martin Coulomb + LL YFS-exponentiated ISR. Channel:
-inclusive μν qq̄ (BR = 2 × BR(W→μν) × BR(W→had)).
+The generator is :class:`process.ww.generator.WWGenerator` — full BFS-EFT
+N^(3/2)LO chain: Born + NLO loops (HSC + Coulomb_NLO + EW-decay) + δ_QCD
++ Whizard 4f Born anchor + LL+exp ISR (BETA scheme). RACOONWW CC03
+calibration spline kicks in only above √s = 170 GeV. Channel: inclusive
+μν qq̄ (BR = 2 × BR(W→μν) × BR(W→had), PDG-constant convention).
 
-For MeV-level m_W extraction, the BFS NLO+NNLO hooks need to be filled
-(see ``process.ww.eft_xsec.BFSCorrections`` and arXiv:0707.0773 / 0807.0102)
-and the 156–161 GeV BW-tail replaced with proper RACOONWW / MoCaNLO Born
-values. Until then this card configures the infrastructure end-to-end but
-is not yet a production physics result.
+Remaining open work for sub-MeV m_W: BFS dominant NNLO (arXiv:0807.0102)
+and NLL ISR (eMELA / Skrzypek-Jadach). Both deferred.
 """
 
 # ---------------------------------------------------------------------------
@@ -48,10 +46,11 @@ THEORY_INPUTS = {
     # α_s(M_Z) = 0.1180 ± 0.0009 → α_s(M_W) ≈ 0.1199.
     "alpha_s_MW": 0.1199,
     # m_t, M_H enter the BFS NLO hard-matching coefficient c_p,LR^(1,fin).
-    # BFS reference: m_t = 174.2 GeV (pole), M_H = 115 GeV. The current
-    # framework treats c_p,LR^(1,fin) = -10.076 as a constant evaluated at
-    # those reference values; updating m_t / M_H to PDG/FCC-projection values
-    # would shift c_fin (currently NOT propagated — see follow-up).
+    # The chain currently uses c_fin = -10.076 (Re) evaluated at the BFS
+    # reference m_t = 174.2 / M_H = 115 GeV. The m_t/M_H propagation into
+    # a varying c_fin is sub-0.001 % on σ_NLO (Scenario H of
+    # validate_bfs_nlo.py) and is deferred — these values are recorded
+    # here so a future full-PV-C0 implementation can pick them up.
     "m_t":      174.2,   # GeV (pole), BFS Table 4 input
     "M_H":      115.0,   # GeV, BFS Table 4 input (pre-Higgs-discovery value)
 }
@@ -189,8 +188,9 @@ PLOT_DIR = "plots/fit_WW"
 # Plot decoration
 # ---------------------------------------------------------------------------
 PROCESS_LABEL = r"$e^+e^-\rightarrow\mu\nu q\bar q$ at WW threshold"
-GENERATOR_LABEL = r"LO(CC03,RACOONWW-cal.)+Coulomb+LL ISR"
-GENERATOR_REF = r"BFS NLO/NNLO + BW-tail TBD"
+GENERATOR_LABEL = (r"BFS N$^{3/2}$LO + NLO loops + $\delta_{\rm QCD}$ + "
+                   r"Whizard anchor + K$_{\rm C}$ + LL+exp ISR")
+GENERATOR_REF = r"arXiv:0707.0773 (Beneke-Falgari-Schwinn et al.)"
 BES_LABEL = r"+ FCC-ee BES"
 
 PARAM_LABELS = {

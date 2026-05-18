@@ -51,8 +51,9 @@ import numpy as np
 
 from process.ww.eft_xsec import (
     ALPHA_EM_0,                         # not used for these LO formulae; kept for parity
+    ALPHA_S_MW_DEFAULT,
     GEV_M2_TO_PB,
-    M_W_DEFAULT, GAMMA_W_DEFAULT, M_Z,
+    M_W_DEFAULT, GAMMA_W_DEFAULT, M_Z, M_W_BFS_REF,
     alpha_Gmu, sin2_thetaW_OS,
 )
 
@@ -208,10 +209,8 @@ def _sigma_half_h57_RL(s, mW: float):
         contrib = contrib + _C_h7(s, mW, "RL", f) * _K_H7[f]
     return contrib
 
-# Default α_s value at M_W in MS-bar. BFS reference: 0.1199.
-# Used by ``delta_QCD_factor`` (BFS eq. delta_qcd). Forward-declared here so
-# that function signatures below can reference it as their default.
-ALPHA_S_MW_DEFAULT = 0.1199
+# ALPHA_S_MW_DEFAULT is imported from process.ww.eft_xsec (single source of
+# truth). Used by ``delta_QCD_factor`` (BFS eq. delta_qcd).
 
 
 # ---------------------------------------------------------------------------

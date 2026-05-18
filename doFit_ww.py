@@ -42,7 +42,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    generator = WWGenerator(order=card.ORDER)
+    generator = WWGenerator.from_card(card)
     fit = WWFit(
         card,
         generator,

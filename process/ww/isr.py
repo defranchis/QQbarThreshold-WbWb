@@ -52,7 +52,8 @@ from scipy.special import gamma as gamma_fn
 
 from process.ww.eft_xsec import (
     ALPHA_EM_0, M_E,
-    M_W_DEFAULT, GAMMA_W_DEFAULT,
+    ALPHA_S_MW_DEFAULT,
+    M_W_DEFAULT, GAMMA_W_DEFAULT, M_W_BFS_REF,
     BFSCorrections,
     alpha_Gmu,
     sigma_partonic_munuqq,
@@ -66,7 +67,7 @@ EULER_GAMMA = 0.5772156649015329
 # fit m_W would introduce a fictitious m_W dependence through the ISR
 # kernel. Default kept here as a module-level constant; callers can override
 # via the explicit ``alpha_em`` argument to ``beta_ISR`` / ``sigma_observed``.
-_DEFAULT_ISR_ALPHA = alpha_Gmu(80.377)   # ≈ 1/132.1
+_DEFAULT_ISR_ALPHA = alpha_Gmu(M_W_BFS_REF)   # α_Gμ at the BFS reference m_W; ≈ 1/132.1
 
 
 # ---------------------------------------------------------------------------
@@ -409,7 +410,7 @@ def sigma_observed_munuqq(sqrt_s,
                           # per BFS prescription (avoids fictitious m_W-dep in ISR).
                           include_NLO_hard_decay: bool = True,
                           apply_delta_QCD: bool = True,
-                          alpha_s: float = 0.1199,
+                          alpha_s: float = ALPHA_S_MW_DEFAULT,
                           alpha_em_isr: float | None = None,
                           apply_whizard_anchor: bool = True,
                           isr_scheme: str = "single_conv"):
