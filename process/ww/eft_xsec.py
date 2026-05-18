@@ -178,20 +178,31 @@ except ImportError:
 
 def sigma_WW_Born(s,
                   mW: float = M_W_DEFAULT,
-                  gammaW: float = GAMMA_W_DEFAULT):
+                  gammaW: float = GAMMA_W_DEFAULT,
+                  # Defaults below are the project's "best calculation"
+                  # (full BFS NLO chain + δ_QCD + Whizard anchor). The
+                  # name "Born" is historical — this is the full partonic
+                  # σ(e+e-→W+W-) consistent with everything else in the
+                  # framework, NOT just the LO_EFT Born expansion.
+                  include_NLO_hard_decay: bool = True,
+                  apply_delta_QCD: bool = True,
+                  alpha_s: float = 0.1199,
+                  apply_whizard_anchor: bool = True):
     """
-    Off-shell-convolved Born σ(e+e- → W+W- → 4f), full off-shell, in pb.
+    Off-shell-convolved σ(e+e- → W+W- → 4f), full off-shell, in pb.
 
     Three regions in absolute √s (m_W independent):
 
     * ``√s < 150 GeV``  →  σ = 0. Avoids the spurious M_Z pole in the
       BFS ξ(s)/χ(s) functions; σ is negligible anyway.
-    * ``150 ≤ √s < 170 GeV``  →  pure BFS LO_EFT N^{3/2}LO Born from
-      ``bfs_eft.sigma_BFS_LO_total_WW_pb``, with the (Γ_W^(0)/Γ_W)² BR
-      correction. No matching to the RACOONWW grid — BFS gives the
-      *full* Born (CC03 + singly-resonant) and matches the Whizard
-      exact 4f Born to ~1 % over 155–170 GeV. Full analytic m_W, Γ_W
-      dependence is preserved.
+    * ``150 ≤ √s < 170 GeV``  →  BFS LO_EFT N^{3/2}LO Born from
+      ``bfs_eft.sigma_BFS_LO_total_WW_pb`` with the (Γ_W^(0)/Γ_W)² BR
+      correction; NLO loop chain (HSC + Coulomb_NLO + EW-decay), δ_QCD,
+      and the Whizard anchor are applied by default (toggle via the
+      flag arguments above). No matching to the RACOONWW grid — BFS
+      gives the *full* Born (CC03 + singly-resonant) and matches the
+      Whizard exact 4f Born to ~1 % over 155–170 GeV. Full analytic
+      m_W, Γ_W dependence is preserved.
     * ``√s ≥ 170 GeV``  →  RACOONWW calibration spline (CC03 Born).
       Used only for the 240 GeV "last_ecm" reference point in the
       analysis; the threshold-scan grid (157–163 GeV) never enters
@@ -214,7 +225,13 @@ def sigma_WW_Born(s,
 
     if np.any(use_bfs):
         from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
-        sigma_bfs_pb = sigma_BFS_LO_total_WW_pb(s_arr, mW, gammaW, order="N3/2LO")
+        sigma_bfs_pb = sigma_BFS_LO_total_WW_pb(
+            s_arr, mW, gammaW, order="N3/2LO",
+            include_NLO_hard_decay=include_NLO_hard_decay,
+            apply_delta_QCD=apply_delta_QCD,
+            alpha_s=alpha_s,
+            apply_whizard_anchor=apply_whizard_anchor,
+        )
         sigma_pb = np.where(use_bfs, sigma_bfs_pb, sigma_pb)
 
     if np.any(use_cal):

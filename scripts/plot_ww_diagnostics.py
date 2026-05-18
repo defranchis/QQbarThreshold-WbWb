@@ -153,9 +153,14 @@ def plot_xsec_vs_sqrts():
     }
     colors = {"LO": "#4575b4", "N1/2LO": "#74add1", "NLO": "#fdae61", "N3/2LO": "#a50026"}
 
-    # Physics-layer curves on top of the best BFS Born ("framework" σ_WW
-    # = RACOONWW above 161.33, BFS-matched below)
-    sigma_WW = sigma_WW_Born(s, mW, gW)
+    # Physics-layer curves on top of the best BFS Born. The framework σ_WW
+    # is BFS-EFT N^(3/2)LO + NLO loops + δ_QCD + Whizard anchor (cards/ww_default.py),
+    # switching to the RACOONWW calibration spline above √s = 170 GeV.
+    sigma_WW = sigma_WW_Born(s, mW, gW,
+                             include_NLO_hard_decay=_NLO_KW["include_NLO_hard_decay"],
+                             apply_delta_QCD=_NLO_KW["apply_delta_QCD"],
+                             alpha_s=_NLO_KW["alpha_s"],
+                             apply_whizard_anchor=_NLO_KW["apply_whizard_anchor"])
     K_C = coulomb_K_factor(s, mW, gW)
     sigma_partonic = sigma_partonic_munuqq(s, mW, gW, channel="inclusive")
     sigma_observed = sigma_observed_munuqq(sqrts, mW=mW, gammaW=gW, channel="inclusive")
@@ -177,15 +182,16 @@ def plot_xsec_vs_sqrts():
         ax_abs.plot(sqrts, bfs_curves[o], label=labels[o], color=colors[o],
                     linewidth=1.3, linestyle="-")
 
-    # Framework curves
+    # Framework curves (all use cards/ww_default.py best-calc defaults:
+    # BFS NLO loops + δ_QCD + Whizard anchor; RACOONWW spline above 170 GeV).
     ax_abs.plot(sqrts, sigma_WW * BR_LO_incl * 1e3,
-                label=r"σ$_{WW}$ × BR (framework, RACOONWW above 161.33)",
+                label=r"BFS N$^{3/2}$LO + NLO loops + $\delta_{\rm QCD}$ + anchor",
                 color="black", linestyle=":", linewidth=1.6)
     ax_abs.plot(sqrts, sigma_partonic * 1e3,
-                label=r"$+\,K_{\rm Coulomb}$  (partonic)",
+                label=r"$+\,K_{\rm Coulomb}$  (partonic, PDG BR)",
                 color="green", linestyle="--", linewidth=1.6)
     ax_abs.plot(sqrts, sigma_observed * 1e3,
-                label=r"$+\,$LL+YFS ISR  (observed)",
+                label=r"$+\,$LL+exp ISR  (observed)",
                 color="red", linestyle="-", linewidth=2.0)
 
     _draw_scan_window(ax_abs)
@@ -302,22 +308,48 @@ def plot_sensitivity_vs_sqrts():
 
 
 def plot_vs_LEP():
-    """σ_WW (no BR multiplication) vs √s, comparing BFS LO_EFT Born and
-    RACOONWW CC03 spline to the LEP-EWWG combined measurements
-    (Phys.Rep.532 (2013) 119, Table 5.1). LEP quotes CC03 Born σ_WW
-    after ISR-unfolding and singly-resonant subtraction, so the right
-    benchmark is the RACOONWW spline; the BFS curve is full Born and is
-    expected to lie ~13 % above LEP."""
+    """σ_WW (no BR multiplication) vs √s — latest BFS chain vs LEP-EWWG.
+
+    LEP-EWWG quote CC03 Born σ_WW after ISR-unfolding and singly-resonant
+    subtraction (Phys.Rep.532 (2013) 119, Table 5.1). Apples-to-apples
+    benchmarks at the partonic (no-ISR) level are:
+
+      * BFS-EFT N^(3/2)LO Born (= reference Born, no NLO loops, no anchor)
+      * BFS Born + NLO loops + δ_QCD (the project "best partonic" chain
+        with the same configuration the fit templates use)
+      * BFS Born + NLO loops + Whizard anchor (= replaces EFT Born by
+        Whizard 4f Born via BFS sec. 6.2 anchor)
+      * RACOONWW CC03 spline (used by the framework above √s = 170 GeV)
+
+    NLO-loop and anchor flags follow cards/ww_default.py defaults so the
+    plot mirrors what the production templates actually use."""
     import matplotlib.pyplot as plt
 
     sqrts_pred = np.linspace(155.0, 210.0, 221)
     s = sqrts_pred ** 2
     mW, gW = M_W_DEFAULT, GAMMA_W_DEFAULT
 
-    # σ_WW total — use the framework function which is BFS in 150-170 GeV
-    # and RACOONWW spline above 170 GeV.
     from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
-    sigma_BFS_full = sigma_BFS_LO_total_WW_pb(s, mW, gW, order="N3/2LO")
+    # Pure BFS-EFT Born (no NLO loops, no anchor) — useful baseline
+    sigma_BFS_born = sigma_BFS_LO_total_WW_pb(
+        s, mW, gW, order="N3/2LO",
+        include_NLO_hard_decay=False, apply_delta_QCD=False,
+        apply_whizard_anchor=False,
+    )
+    # BFS Born + full NLO loop chain + δ_QCD (no anchor) — the "raw EFT"
+    # best partonic prediction (matches Scenario F left-half of validation).
+    sigma_BFS_NLO = sigma_BFS_LO_total_WW_pb(
+        s, mW, gW, order="N3/2LO",
+        include_NLO_hard_decay=True, apply_delta_QCD=True,
+        alpha_s=_NLO_KW["alpha_s"], apply_whizard_anchor=False,
+    )
+    # Full chain: Born + anchor + NLO loops + δ_QCD — matches what the
+    # fit templates use at the partonic (pre-ISR) level.
+    sigma_BFS_full = sigma_BFS_LO_total_WW_pb(
+        s, mW, gW, order="N3/2LO",
+        include_NLO_hard_decay=True, apply_delta_QCD=True,
+        alpha_s=_NLO_KW["alpha_s"], apply_whizard_anchor=True,
+    )
     # Pure RACOONWW spline (CC03 Born) for reference.
     from process.ww.eft_xsec import _F_SPLINE, _F_GRID, sin2_thetaW_OS, alpha_Gmu, beta_complex
     alpha = alpha_Gmu(mW)
@@ -327,19 +359,31 @@ def plot_vs_LEP():
     sigma_RACOONWW = ((np.pi * alpha ** 2) / (sW2 ** 2 * s)
                       * np.maximum(bMr, 0.0) * F) * 3.8937937217e8  # GEV_M2_TO_PB
 
-    # Framework's actual prediction (BFS<170, spline≥170)
-    sigma_framework = sigma_WW_Born(s, mW, gW)
+    # Framework's actual prediction (BFS<170, spline≥170) using current
+    # card configuration. sigma_WW_Born picks up _NLO_KW via card.
+    sigma_framework = sigma_WW_Born(
+        s, mW, gW,
+        include_NLO_hard_decay=_NLO_KW["include_NLO_hard_decay"],
+        apply_delta_QCD=_NLO_KW["apply_delta_QCD"],
+        alpha_s=_NLO_KW["alpha_s"],
+        apply_whizard_anchor=_NLO_KW["apply_whizard_anchor"],
+    )
 
     fig, (ax_abs, ax_rat) = plt.subplots(2, 1, figsize=(8.5, 8), sharex=True,
                                           gridspec_kw={"height_ratios": [3, 1.5]})
 
-    ax_abs.plot(sqrts_pred, sigma_BFS_full, color="C3", linewidth=1.5,
-                label=r"BFS LO_EFT N$^{3/2}$LO Born (full off-shell)")
-    ax_abs.plot(sqrts_pred, sigma_RACOONWW, color="C0", linewidth=1.5,
+    ax_abs.plot(sqrts_pred, sigma_BFS_born, color="#aaaaaa", linewidth=1.2,
+                linestyle="--",
+                label=r"BFS N$^{3/2}$LO Born only")
+    ax_abs.plot(sqrts_pred, sigma_BFS_NLO, color="C3", linewidth=1.4,
+                label=r"BFS Born + NLO loops + $\delta_{\rm QCD}$  (no anchor)")
+    ax_abs.plot(sqrts_pred, sigma_BFS_full, color="C1", linewidth=1.8,
+                label=r"BFS Born + NLO loops + $\delta_{\rm QCD}$ + Whizard anchor")
+    ax_abs.plot(sqrts_pred, sigma_RACOONWW, color="C0", linewidth=1.4,
                 linestyle="--", label="RACOONWW spline (CC03 Born)")
     ax_abs.plot(sqrts_pred, sigma_framework, color="black", linewidth=2.0,
                 linestyle=":",
-                label=r"Framework (BFS for √s<170, RACOONWW above)")
+                label=r"Framework: BFS-full $\sqrt{s}<170$, RACOONWW above")
 
     ax_abs.errorbar(LEP_DATA["sqrts_GeV"], LEP_DATA["sigma_pb"],
                     yerr=LEP_DATA["sigma_err"], fmt="o", color="black",
