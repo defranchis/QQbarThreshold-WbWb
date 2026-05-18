@@ -12,6 +12,17 @@ Our framework only does the **μνqq̄ inclusive** channel (BR ≈ 0.143)
 with **BFS LO_EFT Born + Coulomb + LL+YFS ISR**. Apples-to-oranges,
 but a useful shape and sensitivity cross-check.
 
+TODO  — RERUN THIS SCRIPT once the following physics layers are in,
+to close the comparison with the paper:
+    1. BFS NLO LOOP corrections (sections 4.1–4.5 of arXiv:0707.0773)
+       — expected to make dσ/dΓ_W cross zero at √s ≈ 162.3 GeV, which
+       should drop ρ(m_W,Γ_W) toward the paper's near-zero correlation.
+    2. BFS dominant NNLO (arXiv:0807.0102) — ~3 MeV m_W shift.
+    3. NLL ISR via eMELA — replaces the current LL+YFS radiator.
+After all three: expect Δm_W ≈ 0.7 MeV (μνqq̄ only), ≈ 0.3 MeV after
+correcting for the paper's all-channels scope. See the persistent note
+at memory/project_followup_2107_04444_comparison.md.
+
 Run from WW_threshold/:
     python3 -m scripts.fit_2107_04444_scenario
 """
