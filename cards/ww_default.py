@@ -35,6 +35,46 @@ RENORM_SCALES = {
 }
 
 # ---------------------------------------------------------------------------
+# Theory inputs (BFS NLO calculation parameters)
+# ---------------------------------------------------------------------------
+# All theory parameters that enter the BFS NLO cross section are configured
+# here so the scale/value used in the calculation is explicit and overridable
+# from the card. RGE evolution to/from the PDG / FCC-projection scale lives
+# downstream — see [[project-followup-parameter-scale-rge]].
+THEORY_INPUTS = {
+    # α_s(M_W) in MS-bar — enters BFS eq. delta_qcd as the multiplicative
+    # QCD correction δ_QCD = 1 + α_s/π + 1.409(α_s/π)². BFS reference: 0.1199
+    # (consistent with α_s(M_Z) = 0.118 evolved to M_W). PDG world average
+    # α_s(M_Z) = 0.1180 ± 0.0009 → α_s(M_W) ≈ 0.1199.
+    "alpha_s_MW": 0.1199,
+    # m_t, M_H enter the BFS NLO hard-matching coefficient c_p,LR^(1,fin).
+    # BFS reference: m_t = 174.2 GeV (pole), M_H = 115 GeV. The current
+    # framework treats c_p,LR^(1,fin) = -10.076 as a constant evaluated at
+    # those reference values; updating m_t / M_H to PDG/FCC-projection values
+    # would shift c_fin (currently NOT propagated — see follow-up).
+    "m_t":      174.2,   # GeV (pole), BFS Table 4 input
+    "M_H":      115.0,   # GeV, BFS Table 4 input (pre-Higgs-discovery value)
+}
+
+# ---------------------------------------------------------------------------
+# BFS NLO loop corrections — toggle the new physics on/off
+# ---------------------------------------------------------------------------
+# Default: full BFS NLO loops enabled. ``br_convention = "pdg-constant"``
+# uses the PDG-measured BR (≈ 0.143) as a fixed scale factor on σ_WW;
+# ``apply_delta_QCD = True`` then multiplies σ by δ_QCD(α_s) = 1 + α_s/π +
+# 1.409 (α_s/π)² so that α_s is a *physically active* fit parameter — its
+# value shifts σ via the multiplicative QCD enhancement of the hadronic
+# content. The slight ~4 % double-count with the QCD content already folded
+# into the PDG BR is acceptable: it's a constant rescaling of the cross
+# section that the fit absorbs via the luminosity nuisance, while the
+# α_s differential (∂σ/∂α_s) is correctly captured.
+NLO_CONFIG = {
+    "include_NLO_hard_decay": True,    # HSC + EW decay + Coulomb_NLO additive
+    "apply_delta_QCD":        True,    # multiplicative δ_QCD(α_s) on σ_partonic
+    "br_convention":          "pdg-constant",   # 'pdg-constant' | 'bfs-eft'
+}
+
+# ---------------------------------------------------------------------------
 # Beam-energy spectrum & scan grid
 # ---------------------------------------------------------------------------
 # FCC-ee BES at W+W- operating point (E_beam = 80 GeV), with beamstrahlung,

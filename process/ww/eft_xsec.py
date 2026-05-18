@@ -462,7 +462,10 @@ def sigma_partonic_munuqq(s,
                           channel: str = "inclusive",
                           include_coulomb: bool = True,
                           bfs: BFSCorrections | None = None,
-                          br_convention: str = "pdg-constant"):
+                          br_convention: str = "pdg-constant",
+                          include_NLO_hard_decay: bool = False,
+                          apply_delta_QCD: bool = False,
+                          alpha_s: float = 0.1199):
     """
     Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
     Returns σ in pb at partonic CM energy² = s (before ISR convolution).
@@ -522,13 +525,23 @@ def sigma_partonic_munuqq(s,
     if np.any(use_bfs):
         if br_convention == "bfs-eft":
             from process.ww.bfs_eft import sigma_BFS_specific_munuud_pb
-            sigma_specific = sigma_BFS_specific_munuud_pb(s_arr, mW, gammaW, order="N3/2LO")
+            sigma_specific = sigma_BFS_specific_munuud_pb(
+                s_arr, mW, gammaW, order="N3/2LO",
+                include_NLO_hard_decay=include_NLO_hard_decay,
+                apply_delta_QCD=apply_delta_QCD,
+                alpha_s=alpha_s,
+            )
             sigma_bfs = sigma_specific * _CHANNEL_MULTIPLICITY[channel]
         else:   # pdg-constant: σ_WW_total × BR_PDG (no per-component BR corr)
             from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
-            sigma_WW_total = sigma_BFS_LO_total_WW_pb(s_arr, mW, gammaW,
-                                                       order="N3/2LO",
-                                                       apply_BR_correction=False)
+            sigma_WW_total = sigma_BFS_LO_total_WW_pb(
+                s_arr, mW, gammaW,
+                order="N3/2LO",
+                apply_BR_correction=False,
+                include_NLO_hard_decay=include_NLO_hard_decay,
+                apply_delta_QCD=apply_delta_QCD,
+                alpha_s=alpha_s,
+            )
             sigma_bfs = sigma_WW_total * BR_pdg
         sigma = np.where(use_bfs, sigma_bfs, sigma)
 

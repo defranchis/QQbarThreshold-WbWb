@@ -78,6 +78,11 @@ _K_H1_A = -5.87912
 _K_H2_A = -19.15095
 _K_H3_A = -6.18662
 
+# Default α_s value at M_W in MS-bar. BFS reference: 0.1199.
+# Used by ``delta_QCD_factor`` (BFS eq. delta_qcd). Forward-declared here so
+# that function signatures below can reference it as their default.
+ALPHA_S_MW_DEFAULT = 0.1199
+
 
 def _xi_chi(s, mW: float):
     """Photon/Z propagator-induced shape functions, eq. (32)."""
@@ -314,7 +319,10 @@ def sigma_LR_RL_three_half_a_specific_pb(s, mW: float = M_W_DEFAULT,
 def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
                              gammaW: float = GAMMA_W_DEFAULT,
                              order: str = "N3/2LO",
-                             apply_BR_correction: bool = False):
+                             apply_BR_correction: bool = False,
+                             include_NLO_hard_decay: bool = False,
+                             apply_delta_QCD: bool = False,
+                             alpha_s: float = ALPHA_S_MW_DEFAULT):
     """Total σ_WW = σ(e+e- → W+W-) at BFS LO_EFT, unpolarised initial state,
     summed over ALL 4-fermion final states.
 
@@ -374,15 +382,183 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
         sigma_LR = sigma_LR + s_LR_32a
         sigma_RL = sigma_RL + s_RL_32a
 
+    if include_NLO_hard_decay:
+        # BFS eq. (finalcross): NLO hard+soft+collinear + EW decay (eq. delta-decay)
+        # + Coulomb NLO (eq. 62). All three additive to σ_LR at NLO.
+        # LO σ_RL = 0 ⇒ no NLO via the RL channel either.
+        sigma_LR = sigma_LR + delta_sigma_NLO_hard_softcoll_specific_pb(
+            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+        sigma_LR = sigma_LR + delta_sigma_NLO_decay_specific_pb(
+            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+        sigma_LR = sigma_LR + delta_sigma_Coulomb_NLO_specific_pb(
+            s, mW, gammaW, apply_BR_correction=apply_BR_correction,
+            subleading_only=False)
+
     sigma_total_WW = (sigma_LR + sigma_RL) * 27.0 / 4.0
+    if apply_delta_QCD:
+        sigma_total_WW = sigma_total_WW * delta_QCD_factor(alpha_s)
+
     if np.ndim(s) == 0:
         return float(sigma_total_WW)
     return sigma_total_WW
 
 
+# ---------------------------------------------------------------------------
+# NLO hard+soft+collinear (eq. finalcross of arXiv:0707.0773)
+# ---------------------------------------------------------------------------
+
+# Real part of the hard matching coefficient c_p,LR^(1,fin) from BFS line 1797:
+#   c_p,LR^(1,fin) = -10.076 + 0.205 i
+# Computed at BFS reference parameters (m_W = 80.377, M_Z = 91.188, m_t = 174.2,
+# M_H = 115 GeV). The dependence on m_W in our fit range (80.0-80.7 GeV) is
+# sub-percent on Re(c); we treat it as a constant here. The imaginary part
+# does not contribute to the flavour-specific cross section (BFS section 4.2,
+# discussion around eq. ImAC) — only Re enters.
+_C_P_LR_1_FIN_RE = -10.076
+
+
+def delta_sigma_NLO_hard_softcoll_specific_pb(s, mW: float = M_W_DEFAULT,
+                                              gammaW: float = GAMMA_W_DEFAULT,
+                                              apply_BR_correction: bool = True):
+    """NLO hard + soft + collinear correction to σ_LR^specific (μ⁻ν̄_μ ud̄).
+
+    Bracket term of eq. (eq:finalcross) of arXiv:0707.0773:
+
+        Δσ̂_LR^(1,HSC)(s) = (4 α³)/(27 s_W^4 s) × Im{
+            -√(z) × [ 2 ln(4 z) + Re(c_p,LR^(1,fin)) + π²/4 + 1/2 ]
+        }
+
+    with z = -(E + i Γ_W)/M_W, E = √s − 2 m_W. This is the residue of the
+    HARD (eq. hardsigma) + SOFT (sec. 4.3) + COLLINEAR (sec. 4.4-4.5)
+    corrections after all 1/ε² and 1/ε poles cancel against each other and
+    against the conventional-scheme conversion of the LL ePDFs.
+
+    Combined with Δσ_Coulomb^(1) (eq. 62, ``delta_sigma_Coulomb_NLO_specific_pb``)
+    and Δσ_decay^(1) (eq. 49, ``delta_sigma_NLO_decay_specific_pb``) reproduces
+    the full NLO ``σ̂_LR_conv^(1)`` of BFS eq. (finalcross), the NLO correction
+    to the partonic σ_LR in the conventional ISR scheme.
+
+    Returns Δσ in pb for the specific channel μ⁻ν̄_μ ud̄. With
+    ``apply_BR_correction=True`` (default), the (Γ_W^(0)/Γ_W)² factor of BFS
+    section 6.1 is applied (same convention as for σ_LR^(0)).
+    """
+    s_arr = np.asarray(s, dtype=float)
+    alpha = alpha_Gmu(mW)
+    sW2 = sin2_thetaW_OS(mW)
+    sqrt_s = np.sqrt(s_arr)
+    E = sqrt_s - 2.0 * mW
+    z = np.asarray(-(E + 1j * gammaW) / mW, dtype=complex)
+
+    sqrt_z = np.sqrt(z)                              # principal branch
+    ln_4z = np.log(4.0 * z)                          # complex log, principal branch
+    bracket = (2.0 * ln_4z
+               + _C_P_LR_1_FIN_RE
+               + np.pi ** 2 / 4.0
+               + 0.5)
+    integrand = (-sqrt_z * bracket).imag
+    pref = (4.0 * alpha ** 3) / (27.0 * sW2 ** 2 * s_arr)
+    val = pref * integrand * GEV_M2_TO_PB
+    if apply_BR_correction:
+        val = val * _BR_correction(mW, gammaW)
+    return val
+
+
+# ---------------------------------------------------------------------------
+# NLO decay correction (eq. delta-decay / 60 of arXiv:0707.0773 — EW only)
+# ---------------------------------------------------------------------------
+
+def delta_QCD_factor(alpha_s: float = ALPHA_S_MW_DEFAULT) -> float:
+    """Universal QCD correction to hadronic partial widths, BFS eq. (delta_qcd):
+
+        δ_QCD(α_s) = 1 + α_s/π + 1.409 (α_s/π)²
+
+    α_s is α_s(M_W) in MS-bar. BFS section 6.1 (lines 2622-2637) explains that
+    multiplying the entire NLO electroweak cross section by δ_QCD reproduces
+    the QCD running of hadronic partial widths to NNLO precision.
+
+    At α_s = 0.1199 this evaluates to 1.04025 (≈ +4.0 % multiplicative).
+    Differential: ∂δ_QCD/∂α_s = 1/π + 2 × 1.409 × α_s/π² = +0.351 at the
+    reference α_s — gives a ~0.1 % shift on σ per 1 % shift on α_s.
+    """
+    x = alpha_s / np.pi
+    return 1.0 + x + 1.409 * x * x
+
+
+# BFS eq. (Gamma1ewFS) explicit formula for the EW one-loop correction to the
+# W partial width into a single lepton or quark doublet:
+#
+#   Γ_W,l/h^(1,ew) / Γ_W,l/h^(0) =
+#     (α/(2π)) × [ 2·Re(c_d,l/h^(1,fin))
+#                  + 101/12 + (19/2)·Q_f·Q̄_f
+#                  - 7π²/12 - (π²/6)·Q_f·Q̄_f ]
+#
+# c_d,l/h^(1,fin) are the finite parts of the leptonic and hadronic decay
+# matching coefficients computed in BFS appendix at the reference inputs
+# m_W = 80.377, M_Z = 91.188, m_t = 174.2 GeV, M_H = 115 GeV (paper line 1920):
+_C_D_L_1_FIN_RE = -2.709          # leptonic
+_C_D_H_1_FIN_RE = -2.034          # hadronic
+# Charge factors (BFS line 1916): leptonic has Q_f = -1, Q̄_f = 0 → product 0.
+# Hadronic: Q_f = 2/3, Q̄_f = -1/3 → product -2/9.
+_Q_PROD_L = 0.0
+_Q_PROD_H = -2.0 / 9.0
+
+
+def _delta_W_ew_partial(c_d_fin_re: float, q_prod: float, alpha: float) -> float:
+    """Γ_x^(1,ew) / Γ_x^(0) per BFS eq. (Gamma1ewFS)."""
+    bracket = (2.0 * c_d_fin_re
+               + 101.0 / 12.0
+               + (19.0 / 2.0) * q_prod
+               - 7.0 * np.pi ** 2 / 12.0
+               - (np.pi ** 2 / 6.0) * q_prod)
+    return alpha / (2.0 * np.pi) * bracket
+
+
+def delta_decay_EW_relative(mW: float = M_W_DEFAULT) -> float:
+    """δ_decay^(1,ew) = Γ_l^(1,ew)/Γ_l^(0) + Γ_h^(1,ew)/Γ_h^(0)  (BFS eq. delta-decay).
+
+    Computed from BFS eq. (Gamma1ewFS) with α = α_Gμ(m_W). The c_d,l/h^(1,fin)
+    are kept at their BFS reference values (sub-percent m_W variation neglected).
+    At m_W = 80.377 GeV: returns ≈ −0.0071 (−0.71 %).
+    """
+    alpha = alpha_Gmu(mW)
+    delta_l = _delta_W_ew_partial(_C_D_L_1_FIN_RE, _Q_PROD_L, alpha)
+    delta_h = _delta_W_ew_partial(_C_D_H_1_FIN_RE, _Q_PROD_H, alpha)
+    return delta_l + delta_h
+
+
+def delta_sigma_NLO_decay_specific_pb(s, mW: float = M_W_DEFAULT,
+                                      gammaW: float = GAMMA_W_DEFAULT,
+                                      apply_BR_correction: bool = True):
+    """NLO **electroweak-only** decay-side correction (BFS eq. delta-decay):
+
+        Δσ_decay^(1,ew) = ( Γ_l^(1,ew)/Γ_l^(0)
+                            + Γ_h^(1,ew)/Γ_h^(0) ) × σ^(0)
+
+    with Γ_x^(1,ew)/Γ_x^(0) given by BFS eq. (Gamma1ewFS) — explicit α/(2π)
+    times a kinematic factor depending on the W → final-state charges and
+    the finite decay-matching coefficients c_d,l/h^(1,fin) (BFS appendix).
+
+    The QCD content of the decay correction is intentionally NOT included
+    here; it is captured by the multiplicative ``delta_QCD_factor(α_s)``
+    (BFS eq. delta_qcd / section 6.1 lines 2622-2637). Including both
+    would double-count.
+
+    At BFS reference parameters this is ≈ −0.71 % × σ^(0). Returns Δσ in
+    pb. The (m_W, Γ_W) dependence is captured through α_Gμ(m_W) and
+    sigma_LR0_specific_pb(s, mW, gammaW); the m_W dependence of
+    c_d,l/h^(1,fin) themselves is sub-percent and is neglected.
+    """
+    sigma_LR0 = sigma_LR0_specific_pb(s, mW, gammaW,
+                                       apply_BR_correction=apply_BR_correction)
+    return delta_decay_EW_relative(mW) * sigma_LR0
+
+
 def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
                                  gammaW: float = GAMMA_W_DEFAULT,
-                                 order: str = "N3/2LO"):
+                                 order: str = "N3/2LO",
+                                 include_NLO_hard_decay: bool = False,
+                                 apply_delta_QCD: bool = False,
+                                 alpha_s: float = ALPHA_S_MW_DEFAULT):
     """σ(e+e- → μ⁻ν̄_μ ud̄) at BFS LO_EFT, unpolarised initial state, with
     the BR correction (BFS section 6.1, eq. 83) applied PER COMPONENT:
 
@@ -395,6 +571,13 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
 
     This is the entry point used by ``sigma_partonic_munuqq`` so that the
     BR factor's correct (m_W, Γ_W) dependence is preserved in the fit.
+
+    ``include_NLO_hard_decay`` adds the NLO hard+soft+collinear piece
+    (eq. finalcross bracket × √) and the decay correction (eq. 49) on
+    top of the σ_LR Born expansion. This is the bulk of the BFS NLO
+    physical-σ correction; the NLO Coulomb (eq. 62) is still handled
+    separately via ``coulomb_K_factor`` / ``BFSCorrections`` so users can
+    choose K_C vs eq. 62 without double-counting at LO.
 
     Parameters mirror ``sigma_BFS_LO_total_WW_pb``.
     """
@@ -418,8 +601,22 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
         sigma_LR = sigma_LR + s_LR_32a
         sigma_RL = sigma_RL + s_RL_32a
 
+    if include_NLO_hard_decay:
+        # BFS eq. (finalcross): HSC bracket + EW decay (eq. delta-decay)
+        # + Coulomb (eq. 62). All three are additive to σ_LR at NLO;
+        # σ_RL has no NLO via these channels (LO σ_RL = 0).
+        sigma_LR = sigma_LR + delta_sigma_NLO_hard_softcoll_specific_pb(
+            s, mW, gammaW, apply_BR_correction=True)
+        sigma_LR = sigma_LR + delta_sigma_NLO_decay_specific_pb(
+            s, mW, gammaW, apply_BR_correction=True)
+        sigma_LR = sigma_LR + delta_sigma_Coulomb_NLO_specific_pb(
+            s, mW, gammaW, apply_BR_correction=True, subleading_only=False)
+
     # Unpolarised specific = (σ_LR + σ_RL) / 4
     sigma_specific = (sigma_LR + sigma_RL) / 4.0
+    if apply_delta_QCD:
+        sigma_specific = sigma_specific * delta_QCD_factor(alpha_s)
+
     if np.ndim(s) == 0:
         return float(sigma_specific)
     return sigma_specific

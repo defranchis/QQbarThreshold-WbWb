@@ -59,9 +59,28 @@ def main():
 
     params = Parameters(card.PARAMETERS, scale_vars=[])
     bfs = BFSCorrections(enabled_coulomb_NLO=args.bfs_coulomb_nlo)
-    generator = WWGenerator(order=card.ORDER, bfs=bfs)
+
+    # Pick up theory inputs + NLO config from the card so each run records
+    # an explicit configuration (see cards/ww_default.py THEORY_INPUTS and
+    # NLO_CONFIG). Fall back to LO+Coulomb+ISR-only if the card has no NLO
+    # block (back-compat with older cards).
+    theory = getattr(card, "THEORY_INPUTS", {})
+    nlo_cfg = getattr(card, "NLO_CONFIG", {})
+    alpha_s = float(theory.get("alpha_s_MW", 0.1199))
+    generator = WWGenerator(
+        order=card.ORDER, bfs=bfs,
+        include_NLO_hard_decay=bool(nlo_cfg.get("include_NLO_hard_decay", False)),
+        apply_delta_QCD=bool(nlo_cfg.get("apply_delta_QCD", False)),
+        br_convention=str(nlo_cfg.get("br_convention", "pdg-constant")),
+        alpha_s=alpha_s,
+    )
     if args.bfs_coulomb_nlo:
         print("[BFS] NLO Coulomb correction ENABLED (eq. 62 of arXiv:0707.0773)")
+    if generator.include_NLO_hard_decay:
+        print(f"[BFS] NLO hard+soft+collinear + EW-decay ENABLED")
+    if generator.apply_delta_QCD:
+        print(f"[BFS] delta_QCD(alpha_s={alpha_s}) ENABLED — multiplicative QCD on σ")
+    print(f"[BFS] br_convention = {generator.br_convention}")
     mass_scale = card.RENORM_SCALES["mass"]
     width_scale = card.RENORM_SCALES["width"]
     mass_scheme = card.MASS_SCHEME

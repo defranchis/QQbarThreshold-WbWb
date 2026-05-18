@@ -32,9 +32,33 @@ from process.ww.bfs_eft import (
 )
 from process.ww.eft_xsec import (
     GAMMA_W_DEFAULT, M_W_DEFAULT,
-    coulomb_K_factor, sigma_partonic_munuqq, sigma_WW_Born,
+    coulomb_K_factor, sigma_partonic_munuqq as _sigma_partonic_munuqq_raw,
+    sigma_WW_Born,
 )
-from process.ww.isr import sigma_observed_munuqq
+from process.ww.isr import sigma_observed_munuqq as _sigma_observed_munuqq_raw
+from cards import ww_default as _card
+
+# Diagnostic plots always reflect the *card-configured* NLO behaviour so the
+# plots match what the fit actually sees. Curried wrappers below pick up the
+# NLO knobs from cards/ww_default.py NLO_CONFIG + THEORY_INPUTS.
+_NLO_KW = {
+    "include_NLO_hard_decay": _card.NLO_CONFIG.get("include_NLO_hard_decay", True),
+    "apply_delta_QCD":        _card.NLO_CONFIG.get("apply_delta_QCD", False),
+    "br_convention":          _card.NLO_CONFIG.get("br_convention", "pdg-constant"),
+    "alpha_s":                _card.THEORY_INPUTS.get("alpha_s_MW", 0.1199),
+}
+
+
+def sigma_partonic_munuqq(*args, **kwargs):
+    for k, v in _NLO_KW.items():
+        kwargs.setdefault(k, v)
+    return _sigma_partonic_munuqq_raw(*args, **kwargs)
+
+
+def sigma_observed_munuqq(*args, **kwargs):
+    for k, v in _NLO_KW.items():
+        kwargs.setdefault(k, v)
+    return _sigma_observed_munuqq_raw(*args, **kwargs)
 
 
 PLOT_DIR = "plots/ww_diagnostics"

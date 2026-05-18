@@ -44,22 +44,41 @@ from process.ww.eft_xsec import (
     ALPHA_EM_0, M_E,
     M_W_DEFAULT, GAMMA_W_DEFAULT,
     BFSCorrections,
+    alpha_Gmu,
     sigma_partonic_munuqq,
 )
 
 EULER_GAMMA = 0.5772156649015329
+
+# BFS prescription (arXiv:0707.0773 line 2514): use α_Gμ in the ISR β. The
+# value is evaluated at the BFS reference m_W = 80.377 since the ISR scale
+# is the soft/collinear photon, not the W resonance — changing this with
+# fit m_W would introduce a fictitious m_W dependence through the ISR
+# kernel. Default kept here as a module-level constant; callers can override
+# via the explicit ``alpha_em`` argument to ``beta_ISR`` / ``sigma_observed``.
+_DEFAULT_ISR_ALPHA = alpha_Gmu(80.377)   # ≈ 1/132.1
 
 
 # ---------------------------------------------------------------------------
 # ISR radiator
 # ---------------------------------------------------------------------------
 
-def beta_ISR(s: float) -> float:
+def beta_ISR(s: float, alpha_em: float | None = None) -> float:
     """LL exponent for the e+e- system (both legs combined):
-        β = (2α/π) (ln(s/m_e²) - 1).   At √s = 161 GeV: β ≈ 0.113.
+        β = (2α/π) (ln(s/m_e²) - 1).   At √s = 161 GeV: β ≈ 0.113-0.117.
+
+    The α used here is configurable: BFS prescribes "α_Gμ everywhere
+    including the initial-state radiation" (arXiv:0707.0773 line 2514).
+    The Skrzypek/Cacciari/Beenakker LEP2 YR convention historically uses
+    α(0) (Thomson) since the radiated photon is on-shell. The default
+    here is α_Gμ at m_W (the BFS prescription) for consistency with the
+    rest of the BFS chain — pass ``alpha_em=ALPHA_EM_0`` for the
+    historical α(0) convention.
     """
+    if alpha_em is None:
+        alpha_em = _DEFAULT_ISR_ALPHA
     L_e = np.log(s / (M_E * M_E))
-    return (2.0 * ALPHA_EM_0 / np.pi) * (L_e - 1.0)
+    return (2.0 * alpha_em / np.pi) * (L_e - 1.0)
 
 
 def H_SV(beta: float) -> float:
@@ -143,12 +162,17 @@ def sigma_ISR_convolution(sqrt_s,
                           gammaW: float = GAMMA_W_DEFAULT,
                           z_min: float = 0.10,
                           n_quad: int = 200,
+                          alpha_em: float | None = None,
                           **sigma_kwargs):
     """
     σ_obs(√s) = ∫_{z_min}^1 H(z; s) σ̂(z·s) dz.
 
     Endpoint substitution u = (1-z)^β → z = 1 − u^{1/β}, dz = −(1/β) u^{1/β−1} du.
     Integrand on [0, u_max] = [0, (1−z_min)^β] is smooth.
+
+    ``alpha_em`` selects the α used to build the LL exponent β_e. Default is
+    α_Gμ at m_W (BFS prescription, line 2514 of arXiv:0707.0773); pass
+    ``ALPHA_EM_0`` for the historical α(0) Thomson convention.
 
     Returns σ_obs in pb. ``sigma_partonic_fn`` must accept array-like ``s``.
     Vectorised in ``sqrt_s``: scalar or array.
@@ -158,7 +182,7 @@ def sigma_ISR_convolution(sqrt_s,
 
     for idx, sq in enumerate(sqrt_s_arr):
         s = sq * sq
-        beta = beta_ISR(s)
+        beta = beta_ISR(s, alpha_em=alpha_em)
         H_sv = H_SV(beta)
         u_max = (1.0 - z_min) ** beta
 
@@ -196,23 +220,36 @@ def sigma_observed_munuqq(sqrt_s,
                           n_quad: int = 200,
                           include_coulomb: bool = True,
                           bfs: BFSCorrections | None = None,
-                          br_convention: str = "pdg-constant"):
+                          br_convention: str = "pdg-constant",
+                          include_NLO_hard_decay: bool = False,
+                          apply_delta_QCD: bool = False,
+                          alpha_s: float = 0.1199,
+                          alpha_em_isr: float | None = None):
     """
     Observed σ(e+e- → μν qq̄) after ISR convolution, in pb. Vectorised in
-    ``sqrt_s``. ``br_convention`` forwarded to ``sigma_partonic_munuqq``;
-    default ``"pdg-constant"`` uses the fixed PDG BR (Γ_W enters σ only via
-    the propagator). Pass ``"bfs-eft"`` for the BFS section 6.1 theory-
-    fixed-partials convention.
+    ``sqrt_s``. ``br_convention`` and ``include_NLO_hard_decay`` are
+    forwarded to ``sigma_partonic_munuqq``.
+
+    ``include_NLO_hard_decay=True`` adds the BFS NLO hard+soft+collinear
+    correction (eq. finalcross bracket × √) plus the decay correction
+    (eq. 49) to the BFS Born expansion. Combined with the existing K_C
+    Coulomb resummation (toggle via ``include_coulomb``) and the optional
+    Coulomb NLO α² subleading piece (toggle via ``bfs``), this gives the
+    full BFS NLO partonic σ.
     """
     return sigma_ISR_convolution(
         sqrt_s,
         sigma_partonic_munuqq,
         mW=mW, gammaW=gammaW,
         z_min=z_min, n_quad=n_quad,
+        alpha_em=alpha_em_isr,
         channel=channel,
         include_coulomb=include_coulomb,
         bfs=bfs,
         br_convention=br_convention,
+        include_NLO_hard_decay=include_NLO_hard_decay,
+        apply_delta_QCD=apply_delta_QCD,
+        alpha_s=alpha_s,
     )
 
 
