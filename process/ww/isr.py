@@ -199,6 +199,31 @@ def _quad_nodes(n: int, lo: float, hi: float):
     return pts, wts
 
 
+def _endpoint_substitution(beta_exponent: float, x_min: float, n_quad: int):
+    """Build the u-substitution grid u = (1−x)^β_exp on [0, (1−x_min)^β_exp].
+
+    Returns ``(u, w, x_vals, one_minus_x, jac_NS)`` where:
+      - ``u, w``        Gauss-Legendre nodes/weights in u-space
+      - ``x_vals``      = 1 − u^{1/β_exp}
+      - ``one_minus_x`` = u^{1/β_exp}  (kept explicit to avoid 1.0−1.0=0)
+      - ``jac_NS``      = u^{1/β_exp − 1} / β_exp  with underflow guard
+
+    The exponent is ``β`` for the single-conv form (LEP2 YR α→2α) and
+    ``β/2`` for the per-leg 2-leg form (BFS eq. 71).
+    """
+    u_max = (1.0 - x_min) ** beta_exponent
+    u, w = _quad_nodes(n_quad, 0.0, u_max)
+    one_minus_x = u ** (1.0 / beta_exponent)
+    x_vals = 1.0 - one_minus_x
+    with np.errstate(over="ignore", invalid="ignore"):
+        jac_NS = np.where(
+            u > _SAFE_FLOOR,
+            u ** (1.0 / beta_exponent - 1.0) / beta_exponent,
+            0.0,
+        )
+    return u, w, x_vals, one_minus_x, jac_NS
+
+
 def sigma_ISR_convolution(sqrt_s,
                           sigma_partonic_fn,
                           mW: float = M_W_DEFAULT,
@@ -227,28 +252,16 @@ def sigma_ISR_convolution(sqrt_s,
         s = sq * sq
         beta = beta_ISR(s, alpha_em=alpha_em)
         H_sv = H_SV(beta)
-        u_max = (1.0 - z_min) ** beta
 
-        u, w = _quad_nodes(n_quad, 0.0, u_max)
-        # z(u) = 1 − u^{1/β};  carry one_minus_z = u^{1/β} explicitly so the
-        # H_NS log(1-z) factor never sees a catastrophic 1.0 - 1.0 = 0.
-        one_minus_z = u ** (1.0 / beta)
-        z_vals = 1.0 - one_minus_z
-        s_hat = z_vals * s
+        u, w, z_vals, one_minus_z, jac_NS = _endpoint_substitution(
+            beta, z_min, n_quad)
         sigma_hat = np.asarray(
-            sigma_partonic_fn(s_hat, mW, gammaW, **sigma_kwargs), dtype=float
-        )
-
-        # Singular piece: H_sv × σ̂  (Jacobian β(1-z)^{β-1} dz = du absorbed)
-        integrand_sing = H_sv * sigma_hat
-
-        # Non-singular piece: (1/β) u^{1/β − 1} × H_NS(z;β) × σ̂
-        with np.errstate(over="ignore", invalid="ignore"):
-            jac = np.where(u > 1e-300, u ** (1.0 / beta - 1.0) / beta, 0.0)
+            sigma_partonic_fn(z_vals * s, mW, gammaW, **sigma_kwargs),
+            dtype=float)
         NS_vals = H_NS(z_vals, beta, one_minus_z=one_minus_z)
-        integrand_ns = jac * NS_vals * sigma_hat
-
-        out[idx] = np.sum(w * (integrand_sing + integrand_ns))
+        # Singular piece's β(1-z)^{β-1}·dz = du factor is absorbed into the
+        # u-space measure; non-singular piece carries the explicit jac_NS.
+        out[idx] = np.sum(w * (H_sv + jac_NS * NS_vals) * sigma_hat)
 
     if np.ndim(sqrt_s) == 0:
         return float(out[0])
@@ -340,43 +353,24 @@ def sigma_ISR_2leg_convolution(sqrt_s,
         s = sq * sq
         beta = beta_ISR(s, alpha_em=alpha_em)
         H_sv = _H_SV_per_leg(beta)
-        half_b = beta / 2.0
-        u_max = (1.0 - x_min) ** half_b
 
-        u, w = _quad_nodes(n_quad, 0.0, u_max)
-        # 1D vectorisation: build per-leg arrays
-        one_minus_x = u ** (1.0 / half_b)
-        x_vals = 1.0 - one_minus_x
-        # u-side jacobian for NS piece: (2/β) u^(2/β - 1) = u^(1/half_b - 1) / half_b
-        with np.errstate(over="ignore", invalid="ignore"):
-            jac_NS = np.where(u > 1e-300,
-                              u ** (1.0 / half_b - 1.0) / half_b,
-                              0.0)
+        u, w, x_vals, one_minus_x, jac_NS = _endpoint_substitution(
+            beta / 2.0, x_min, n_quad)
         NS_vals = _Gee_per_leg_NS(x_vals, beta, one_minus_x=one_minus_x)
 
-        # Build 2D meshes:  x₁ on rows, x₂ on cols
+        # Per-leg integrand (1D) = singular H_sv (already u-measure) +
+        # non-singular jac_NS · NS. The 2-leg double integral factorises:
+        #   ∫∫ (S₁+NS₁)(S₂+NS₂) σ̂  =  ∫dw·∫dw  (per_leg_w · per_leg_w · σ̂)
+        per_leg = H_sv + jac_NS * NS_vals
         X1, X2 = np.meshgrid(x_vals, x_vals, indexing="ij")
-        s_hat_grid = X1 * X2 * s
         sigma_hat = np.asarray(
-            sigma_partonic_fn(s_hat_grid.ravel(), mW, gammaW, **sigma_kwargs),
+            sigma_partonic_fn((X1 * X2 * s).ravel(), mW, gammaW, **sigma_kwargs),
             dtype=float,
-        ).reshape(s_hat_grid.shape)
+        ).reshape(X1.shape)
 
-        # 4-piece integrand decomposition
-        # SS:     H_sv * H_sv * σ̂              integrated du₁ du₂
-        # SNS:    H_sv * NS₂ * jacNS₂ * σ̂      (S on leg 1, NS on leg 2)
-        # NSS:    NS₁ * jacNS₁ * H_sv * σ̂      (symmetric)
-        # NSNS:   NS₁·jacNS₁ * NS₂·jacNS₂ * σ̂
-        W1, W2 = np.meshgrid(w, w, indexing="ij")
-        NS_jac = (NS_vals * jac_NS)  # 1D array per leg
-        NS1_grid, NS2_grid = np.meshgrid(NS_jac, NS_jac, indexing="ij")
-
-        integrand = (H_sv * H_sv
-                     + H_sv * NS2_grid
-                     + NS1_grid * H_sv
-                     + NS1_grid * NS2_grid) * sigma_hat
-
-        out[idx] = np.sum(W1 * W2 * integrand)
+        # Outer product of per-leg weights+integrand: row-vector × column-vector
+        weight_1d = w * per_leg
+        out[idx] = np.einsum("i,j,ij->", weight_1d, weight_1d, sigma_hat)
 
     if np.ndim(sqrt_s) == 0:
         return float(out[0])
