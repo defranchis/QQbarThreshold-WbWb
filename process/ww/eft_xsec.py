@@ -131,6 +131,15 @@ _REF_SIGMA_BORN = np.array([
 _SQRTS_BFS_BOUNDARY = 161.33
 _S_BFS_BOUNDARY = _SQRTS_BFS_BOUNDARY ** 2
 
+# Lower validity limit for the BFS Born expansion. The BFS paper recommends
+# matching to a full calculation below ~155 GeV (paper sec. 6.2). The ξ(s),
+# χ(s) functions in eqs. (32)/(33)/(37) have spurious poles at s = M_Z²
+# (~91 GeV) which the ISR convolution would sample if not clamped. Set σ
+# to 0 below ~150 GeV — physically σ_WW is well below 0.01 pb there and
+# contributes negligibly to the ISR-convolved observed cross section.
+_SQRTS_BFS_FLOOR = 150.0
+_S_BFS_FLOOR = _SQRTS_BFS_FLOOR ** 2
+
 
 def _F_factor_grid():
     """
@@ -194,8 +203,10 @@ def sigma_WW_Born(s,
     sigma_GeVm2 = (np.pi * alpha ** 2) / (sW2 ** 2 * s_arr) * np.maximum(bM_real, 0.0) * F
     sigma_cal_pb = sigma_GeVm2 * GEV_M2_TO_PB
 
-    # BFS LO_EFT below the calibration boundary.
-    use_bfs = s_eff < _S_BFS_BOUNDARY
+    # BFS LO_EFT in (FLOOR, BOUNDARY]; clamp to 0 below FLOOR to avoid the
+    # spurious ξ(s)/χ(s) Z-pole the EFT picks up far below its validity.
+    use_bfs = (s_eff < _S_BFS_BOUNDARY) & (s_eff >= _S_BFS_FLOOR)
+    use_zero = s_eff < _S_BFS_FLOOR
     if np.any(use_bfs):
         from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
         sigma_bfs_raw = sigma_BFS_LO_total_WW_pb(s_arr, mW, gammaW, order="N3/2LO")
@@ -213,6 +224,7 @@ def sigma_WW_Born(s,
     else:
         sigma_pb = sigma_cal_pb
 
+    sigma_pb = np.where(use_zero, 0.0, sigma_pb)
     return np.where(sigma_pb > 0.0, sigma_pb, 0.0)
 
 
