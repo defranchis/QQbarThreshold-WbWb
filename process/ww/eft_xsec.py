@@ -249,8 +249,25 @@ def coulomb_K_factor(s,
     p = (√s/2) × Re[β_M],   κ = √(-m_W (E + i Γ_W)),   E = √s - 2 m_W.
 
     Refs:
-        Fadin, Khoze, Martin, Phys.Lett.B311 (1993) 311
-        Bardin, Riemann, hep-ph/9507422 eq. (9-10)
+        Fadin, Khoze, Martin, Phys.Lett.B311 (1993) 311 (arctan form)
+        Fadin, Khoze, Martin, Stirling, hep-ph/9507422 eq. (9-11), Z.Phys.C75 (1997) 53
+
+    NOTE on conventions: this implementation uses an off-shell EFT
+    momentum p = (√s/2) × Re[β_M_complex] (non-zero at threshold via
+    the finite-Γ_W prescription). FKM 1995 eq. (9) is formally derived
+    with the on-shell kinematic p (eq. 3 of that paper), which → 0 at
+    threshold; their +5 % first-order Coulomb at threshold comes from
+    the careful zero-limit expansion. Using off-shell p instead gives
+    +7.3 % at threshold (validated 2026-05-18 — see validation log).
+    The two are physically related but not literally identical — the
+    off-shell form is a partial-resummation flavour of the same physics.
+
+    BFS arXiv:0707.0773 eq. (62) is yet another formulation (EFT
+    Coulomb expansion in α, with on-shell limit), giving +5.2 % at
+    threshold (first-order log) + 0.18 % (NLO two-photon). Applying
+    both K_C and BFS eq. (62) overlaps at leading order. See
+    ``BFSCorrections.delta_NLO`` flag ``enabled_coulomb_NLO_subleading``
+    to pick up only the NLO two-photon piece K_C-safely.
 
     α = α(0) (Thomson limit) for the soft Coulomb photon. Vectorised in s.
     """
@@ -302,28 +319,40 @@ class BFSCorrections:
         Actis, Beneke, Falgari, Schwinn arXiv:0807.0102  (dominant NNLO)
 
     Per-piece flags:
-      * ``enabled_coulomb_NLO``: include eq. (62) of arXiv:0707.0773
-        (closed-form NLO Coulomb correction beyond the LO Sommerfeld /
-        Fadin-Khoze-Martin K_C); IR-finite. ~5% at threshold.
-      * ``enabled_hard_NLO``  : NOT YET IMPLEMENTED. Eq. (56) — requires
-        the one-loop matching coefficient c_p,LR^(1,fin) from ref. [13].
-      * ``enabled_soft_NLO``  : NOT YET IMPLEMENTED. Eq. (64)/(65) — has
-        ε-poles that cancel against the MS-bar ePDF; requires switching
-        from LL+YFS ISR to MS-bar (eMELA).
-      * ``enabled_decay_NLO`` : already absorbed via fixed PDG BRs in
-        ``sigma_partonic_munuqq``; no explicit term needed at LO.
+      * ``enabled_coulomb_NLO``: include FULL eq. (62) of arXiv:0707.0773
+        (one-photon log term ~5 % + two-photon ~0.2 %). IR-finite.
+        **OVERLAPS with the off-shell-resummed K_C** at leading order
+        (~5 % double-counting at threshold). Use this if K_C is OFF
+        (``WWGenerator(include_coulomb=False)``).
+      * ``enabled_coulomb_NLO_subleading``: include ONLY the NLO two-
+        photon term (second term of eq. 62), ~0.2 % at threshold. Safe
+        to combine with K_C (no leading-order overlap). Mutually
+        exclusive with ``enabled_coulomb_NLO``.
+      * ``enabled_hard_NLO``  : NOT YET IMPLEMENTED. Eq. (56) — needs
+        c_p,LR^(1,fin) from ref. [13].
+      * ``enabled_soft_NLO``  : NOT YET IMPLEMENTED. Eq. (64)/(65) —
+        IR poles need MS-bar ePDF for cancellation.
+      * ``enabled_decay_NLO`` : already absorbed via fixed PDG BRs.
       * ``enabled_NNLO``      : eq. (3.1) of arXiv:0807.0102 — NOT YET.
 
-    Use ``enabled`` (legacy bool) as a shortcut to turn ALL implemented
-    pieces on at once.
+    ``enabled`` (legacy bool) is a shortcut for
+    ``enabled_coulomb_NLO_subleading=True`` — the K_C-safe combination
+    that's the safe default for "add NLO Coulomb on top of K_C".
     """
     enabled: bool = False
     enabled_coulomb_NLO: bool = False
+    enabled_coulomb_NLO_subleading: bool = False
 
     def __post_init__(self):
-        # ``enabled=True`` legacy shortcut: enable all implemented pieces.
+        # Legacy ``enabled=True`` shortcut: K_C-safe NLO additions only
+        # (subleading Coulomb; hard/soft/NNLO when those get implemented).
         if self.enabled:
-            self.enabled_coulomb_NLO = True
+            self.enabled_coulomb_NLO_subleading = True
+        if self.enabled_coulomb_NLO and self.enabled_coulomb_NLO_subleading:
+            raise ValueError(
+                "enabled_coulomb_NLO and enabled_coulomb_NLO_subleading are "
+                "mutually exclusive: the former INCLUDES the latter."
+            )
 
     def delta_NLO(self, s, mW: float, gammaW: float):
         """Return the relative NLO correction δ s.t. σ_partonic
@@ -332,13 +361,16 @@ class BFSCorrections:
         Currently sums only the implemented pieces.
         """
         out = 0.0
-        if self.enabled_coulomb_NLO:
+        if self.enabled_coulomb_NLO or self.enabled_coulomb_NLO_subleading:
             from process.ww.bfs_eft import (
                 delta_sigma_Coulomb_NLO_specific_pb,
                 sigma_LR0_specific_pb,
             )
-            d_sigma_C = delta_sigma_Coulomb_NLO_specific_pb(s, mW, gammaW,
-                                                            apply_BR_correction=True)
+            d_sigma_C = delta_sigma_Coulomb_NLO_specific_pb(
+                s, mW, gammaW,
+                apply_BR_correction=True,
+                subleading_only=self.enabled_coulomb_NLO_subleading,
+            )
             sigma_LR0 = sigma_LR0_specific_pb(s, mW, gammaW,
                                               apply_BR_correction=True)
             with np.errstate(divide="ignore", invalid="ignore"):

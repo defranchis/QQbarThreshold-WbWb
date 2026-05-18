@@ -228,23 +228,38 @@ def sigma_LR_RL_half_specific_pb(s, mW: float = M_W_DEFAULT,
 
 def delta_sigma_Coulomb_NLO_specific_pb(s, mW: float = M_W_DEFAULT,
                                        gammaW: float = GAMMA_W_DEFAULT,
-                                       apply_BR_correction: bool = True):
+                                       apply_BR_correction: bool = True,
+                                       subleading_only: bool = False):
     """NLO Coulomb correction Δσ_Coulomb^(1), eq. (62) of arXiv:0707.0773.
 
-    Closed form, IR-finite. The leading-α/v Coulomb (= Sommerfeld factor)
-    is already in the framework via the Fadin-Khoze-Martin K_C; this
-    function returns the NLO addition to the Coulomb correction beyond
-    the LO Sommerfeld piece:
+    Closed form, IR-finite:
 
         Δσ_Coulomb^(1) = (4πα²)/(27 s_W^4 s) × Im[
-            -(α/2) ln(-(E + iΓ_W^(0))/M_W)        ← α correction
-            + (α² π²/12) × √(-M_W/(E + iΓ_W^(0))) ← α² correction
+            -(α/2) ln(-(E + iΓ_W^(0))/M_W)        ← term 1: N^(1/2)LO
+                                                    one-photon Coulomb,
+                                                    ~5 % at threshold
+            + (α² π²/12) × √(-M_W/(E + iΓ_W^(0))) ← term 2: NLO
+                                                    two-photon, ~0.2 %
         ]
+
+    Cross-checked numerically against FKM 1995 hep-ph/9507422 eq. (21)
+    at threshold: their X/2 = 5.21 % and X²/6 = 0.17 % match terms 1 and
+    2 here to within 1 %.
+
+    **Overlap warning**: term 1 is the *same physics* as the leading
+    α/v piece of the Fadin-Khoze-Martin K_C used in ``coulomb_K_factor``
+    (Bardin-Riemann eq. 9 form, ~7 % at threshold — larger than 5 %
+    because it uses off-shell momentum vs. FKM's on-shell limit). If
+    both K_C and ``subleading_only=False`` are applied to the same σ,
+    the leading Coulomb is double-counted at threshold (~5 %).
+
+    Use ``subleading_only=True`` to return only term 2 (the BFS NLO
+    two-photon Coulomb correction beyond the leading-α/v piece) — this
+    is safe to combine with K_C.
 
     Returns the absolute Δσ in pb for the specific channel μ⁻ν̄_μ ud̄.
     With ``apply_BR_correction=True`` (default), the (Γ_W^(0)/Γ_W)² BR
-    correction is applied (two-cut-propagator piece — same convention
-    as σ^(0), σ^(1)_pot, σ^(3/2),a).
+    correction is applied (two-cut-propagator piece).
     """
     s_arr = np.asarray(s, dtype=float)
     alpha = alpha_Gmu(mW)
@@ -252,19 +267,19 @@ def delta_sigma_Coulomb_NLO_specific_pb(s, mW: float = M_W_DEFAULT,
     sqrt_s = np.sqrt(s_arr)
     E = sqrt_s - 2.0 * mW
 
-    # z = -(E + iΓ_W)/M_W  (same as in σ_LR^(0) argument; principal branch)
     z = np.asarray(-(E + 1j * gammaW) / mW, dtype=complex)
 
-    # First term: -(α/2) ln(z)
+    # term 1: N^(1/2)LO one-photon Coulomb (~5% at threshold, overlaps K_C)
     term1 = -(alpha / 2.0) * np.log(z)
-    # Second term: (α² π²/12) × √(-1/(z/M_W × 1/M_W)) = √(M_W²/(M_W × -z))
-    # Actually eq. (62) is sqrt(-M_W/(E+iΓ_W)) = sqrt(M_W/(-E-iΓ_W)) = sqrt(M_W²/(M_W × z) × 1)
-    # Cleaner: write as sqrt(1/z) since -(E+iΓ_W)/M_W = z → -M_W/(E+iΓ_W) = M_W²/M_W × (-1/(E+iΓ_W)) = (1/z) × (M_W/M_W) → = 1/z when z is dimensionless ratio.
-    # Check: z = -(E+iΓ_W)/M_W, so 1/z = -M_W/(E+iΓ_W). ✓
+    # term 2: NLO two-photon (~0.2% at threshold, K_C-safe subleading)
     term2 = (alpha ** 2 * np.pi ** 2 / 12.0) * np.sqrt(1.0 / z)
 
     pref = (4.0 * np.pi * alpha ** 2) / (27.0 * sW2 ** 2 * s_arr)
-    delta_sigma = pref * (term1 + term2).imag * GEV_M2_TO_PB
+    if subleading_only:
+        bracket = term2
+    else:
+        bracket = term1 + term2
+    delta_sigma = pref * bracket.imag * GEV_M2_TO_PB
 
     if apply_BR_correction:
         delta_sigma = delta_sigma * _BR_correction(mW, gammaW)
