@@ -380,6 +380,51 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
     return sigma_total_WW
 
 
+def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
+                                 gammaW: float = GAMMA_W_DEFAULT,
+                                 order: str = "N3/2LO"):
+    """σ(e+e- → μ⁻ν̄_μ ud̄) at BFS LO_EFT, unpolarised initial state, with
+    the BR correction (BFS section 6.1, eq. 83) applied PER COMPONENT:
+
+      * σ^(0), σ^(1)_pot, σ^(3/2),a:  (Γ_W^(0)/Γ_W)²   (two cut propagators)
+      * σ^(1/2):                       Γ_W^(0)/Γ_W      (one cut propagator)
+
+    Returned value is the specific-channel (one quark generation, one W
+    charge) unpolarised cross section in pb. Inclusive μν qq̄ (both
+    charges × ud̄+cs̄ summed) is 4× this value at LO.
+
+    This is the entry point used by ``sigma_partonic_munuqq`` so that the
+    BR factor's correct (m_W, Γ_W) dependence is preserved in the fit.
+
+    Parameters mirror ``sigma_BFS_LO_total_WW_pb``.
+    """
+    # σ^(0)
+    sigma_LR = sigma_LR0_specific_pb(s, mW, gammaW, apply_BR_correction=True)
+    sigma_RL = np.zeros_like(np.asarray(sigma_LR, dtype=float))
+
+    if order in ("N1/2LO", "NLO", "N3/2LO"):
+        s_LR_12, s_RL_12 = sigma_LR_RL_half_specific_pb(
+            s, mW, gammaW, apply_BR_correction=True)   # LINEAR BR per eq. 83
+        sigma_LR = sigma_LR + s_LR_12
+        sigma_RL = sigma_RL + s_RL_12
+    if order in ("NLO", "N3/2LO"):
+        s_LR_NLO, s_RL_NLO = sigma_LR_RL_NLO_potential_specific_pb(
+            s, mW, gammaW, gammaW_NLO=0.0, apply_BR_correction=True)
+        sigma_LR = sigma_LR + s_LR_NLO
+        sigma_RL = sigma_RL + s_RL_NLO
+    if order == "N3/2LO":
+        s_LR_32a, s_RL_32a = sigma_LR_RL_three_half_a_specific_pb(
+            s, mW, gammaW, apply_BR_correction=True)
+        sigma_LR = sigma_LR + s_LR_32a
+        sigma_RL = sigma_RL + s_RL_32a
+
+    # Unpolarised specific = (σ_LR + σ_RL) / 4
+    sigma_specific = (sigma_LR + sigma_RL) / 4.0
+    if np.ndim(s) == 0:
+        return float(sigma_specific)
+    return sigma_specific
+
+
 # ---------------------------------------------------------------------------
 # Validation against Table 2 of arXiv:0707.0773
 # ---------------------------------------------------------------------------

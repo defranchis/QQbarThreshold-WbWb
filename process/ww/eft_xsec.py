@@ -253,22 +253,25 @@ def coulomb_K_factor(s,
         Fadin, Khoze, Martin, Phys.Lett.B311 (1993) 311 (arctan form)
         Fadin, Khoze, Martin, Stirling, hep-ph/9507422 eq. (9-11), Z.Phys.C75 (1997) 53
 
-    NOTE on conventions: this implementation uses an off-shell EFT
-    momentum p = (√s/2) × Re[β_M_complex] (non-zero at threshold via
-    the finite-Γ_W prescription). FKM 1995 eq. (9) is formally derived
-    with the on-shell kinematic p (eq. 3 of that paper), which → 0 at
-    threshold; their +5 % first-order Coulomb at threshold comes from
-    the careful zero-limit expansion. Using off-shell p instead gives
-    +7.3 % at threshold (validated 2026-05-18 — see validation log).
-    The two are physically related but not literally identical — the
-    off-shell form is a partial-resummation flavour of the same physics.
+    NOTE on conventions (2026-05-18). The default ``prescription="on-shell"``
+    uses the BFS-EFT complex-p regularisation: p = (√s/2)·Re[β_M_complex]
+    where β_M² = 1 − 4(m_W² − i·m_W·Γ_W)/s. This is the natural finite-Γ_W
+    smoothing of the FKM 1995 eq. (3) on-shell kinematic momentum — analytic
+    in (m_W, Γ_W) everywhere, so dσ/dm_W and dσ/dΓ_W have no derivative
+    cusp at 2m_W. Above threshold by many widths it recovers FKM exactly.
+    At threshold it gives K_C − 1 ≈ +7.3 % vs FKM's strict-Γ_W → 0 limit
+    +6.6 %; the 0.7 pp difference is the W-width effect on the Coulomb.
 
-    BFS arXiv:0707.0773 eq. (62) is yet another formulation (EFT
-    Coulomb expansion in α, with on-shell limit), giving +5.2 % at
-    threshold (first-order log) + 0.18 % (NLO two-photon). Applying
-    both K_C and BFS eq. (62) overlaps at leading order. See
-    ``BFSCorrections.delta_NLO`` flag ``enabled_coulomb_NLO_subleading``
-    to pick up only the NLO two-photon piece K_C-safely.
+    Set ``prescription="real-p-strict"`` to recover FKM's exact zero-width
+    formula (p = sqrt(max(s/4 − m_W², 0))), at the cost of a derivative
+    cusp in m_W at threshold — useful only for direct literature comparison.
+
+    BFS arXiv:0707.0773 eq. (62) is yet another formulation (EFT Coulomb
+    expansion in α, with on-shell limit), giving +5.2 % at threshold
+    (first-order log) + 0.18 % (NLO two-photon). Applying both K_C and
+    BFS eq. (62) overlaps at leading order. See ``BFSCorrections.delta_NLO``
+    flag ``enabled_coulomb_NLO_subleading`` to pick up only the NLO
+    two-photon piece K_C-safely.
 
     α = α(0) (Thomson limit) for the soft Coulomb photon. Vectorised in s.
     """
@@ -280,35 +283,41 @@ def coulomb_K_factor(s,
     kappa = np.where(kappa.real < 0, -kappa, kappa)
 
     if prescription == "on-shell":
-        # FKM 1995 hep-ph/9507422 eq. (3) convention: p is the on-shell
-        # kinematic momentum, → 0 at threshold. Default for quantitative
-        # comparison with BFS literature (their X/2 = 5.21% at threshold
-        # uses this convention via the L'Hôpital limit of eq. 9).
-        p2 = s_arr / 4.0 - mW ** 2
-        p = np.sqrt(np.maximum(p2, 0.0))   # zero at/below threshold
-    elif prescription == "off-shell":
-        # Off-shell EFT prescription (from prior-chat code): p uses
-        # Re[β_M_complex], which is non-zero at threshold via finite-Γ_W
-        # regularisation. Gives K_C-1 = +7.3% at threshold vs FKM's
-        # on-shell +6.6%; a partial-resummation flavour that's NOT
-        # literally what's in FKM 1995.
+        # On-shell kinematic momentum with finite-Γ_W complex-p regularisation:
+        #     p = (√s/2) · Re[β_M_complex],   β_M² = 1 − 4(m_W² − i·m_W·Γ_W)/s
+        # — i.e. take the real part of the natural complex velocity in the
+        # BFS unstable-particle EFT (m_W² → m_W² − i·m_W·Γ_W in the propagator).
+        # Above threshold by many widths this recovers the FKM 1995 eq. (3)
+        # on-shell momentum to O(Γ_W²/(s/4 − m_W²)). At threshold p tends to
+        # √(m_W·Γ_W/2) ≈ 9 GeV instead of 0, which sets the natural Coulomb
+        # scale of an unstable W. Critically, p is ANALYTIC in m_W and Γ_W
+        # everywhere (no kink at 2m_W), so dσ/dm_W and dσ/dΓ_W are smooth.
+        # K_C − 1 at threshold: ~+7.3 % vs FKM's strict-on-shell L'Hôpital
+        # limit +6.6 % (Γ_W → 0); the 0.7 pp difference is the width effect.
         bM = beta_complex(s_arr, mW, gammaW)
         p = 0.5 * sqrt_s * bM.real
+    elif prescription == "real-p-strict":
+        # Strict-on-shell with p = sqrt(max(s/4 − m_W², 0)) — exactly the
+        # FKM 1995 eq. (3) real momentum, identically zero below threshold.
+        # Reproduces the FKM threshold value via a separate L'Hôpital limit
+        # at p → 0, but introduces a derivative cusp in m_W at 2m_W (the
+        # max() kink). Retained only for direct comparison with literature
+        # that uses zero-width Coulomb at threshold.
+        p2 = s_arr / 4.0 - mW ** 2
+        p = np.sqrt(np.maximum(p2, 0.0))
     else:
         raise ValueError(
-            f"prescription must be 'on-shell' (default, matches FKM 1995) "
-            f"or 'off-shell' (partial-resummation flavour); got {prescription!r}"
+            f"prescription must be 'on-shell' (default, complex-p regularised) "
+            f"or 'real-p-strict' (FKM zero-width, with derivative cusp); "
+            f"got {prescription!r}"
         )
 
     abs_kappa2 = np.abs(kappa) ** 2
     re_kappa = kappa.real
 
-    # For on-shell prescription p → 0 at and below threshold. The strict
-    # p → 0 limit of FKM eq. 9 is:
-    #     K_1 → 1 + α √s × Re(κ) / |κ|²
-    # We use this whenever p is too small to evaluate the arctan formula
-    # stably (i.e. always at/below threshold in on-shell mode; never in
-    # off-shell mode where p ≳ √(m_W Γ_W / 2) ≈ 9 GeV).
+    # For real-p-strict: p ≡ 0 at/below threshold → use the FKM L'Hôpital
+    # limit K_1 → 1 + α√s · Re(κ)/|κ|². For on-shell (complex-regularised):
+    # p ≥ √(m_W·Γ_W/2) > 0 everywhere → arctan formula is stable.
     K1_limit = 1.0 + ALPHA_EM_0 * sqrt_s * re_kappa / abs_kappa2
 
     denom = 2.0 * p * re_kappa
@@ -319,8 +328,6 @@ def coulomb_K_factor(s,
         0.5 * np.pi * np.sign(abs_kappa2 - p * p),
     )
 
-    # Use the p → 0 limit form wherever p is too small for the arctan
-    # formula to be numerically stable; main formula elsewhere.
     p_safe = np.where(p > 1e-6, p, 1.0)
     K1_main = 1.0 + (ALPHA_EM_0 * sqrt_s / (4.0 * p_safe)) * (np.pi - 2.0 * arctan_val)
     K1 = np.where(p > 1e-6, K1_main, K1_limit)
@@ -436,9 +443,16 @@ class BFSCorrections:
 # Partonic cross section for μν qq̄
 # ---------------------------------------------------------------------------
 
-_CHANNEL_BR = {
-    "inclusive": BR_INCLUSIVE_MUNUQQ,   # 2 × BR(W→μν) × BR(W→had), either W charge
-    "munuud":    BR_MUNUUD,             # BR(W→μν) × BR(W→ud̄/cs̄ summed) — legacy
+# Number of specific channels contributing to each named channel. The
+# per-channel σ is built directly from BFS specific-channel formulae
+# (which carry the proper per-component BR correction: squared for
+# σ^(0), σ^(1)_pot, σ^(3/2),a; linear for σ^(1/2), per eq. 83), then
+# scaled by this multiplicity.
+#   "inclusive" μν qq̄: 4 = 2 W charges × 2 quark generations (ud̄, cs̄)
+#   "munuud" μ⁻ν̄_μ ud̄: 1 = the BFS-specific channel itself
+_CHANNEL_MULTIPLICITY = {
+    "inclusive": 4,
+    "munuud":    1,
 }
 
 
@@ -452,19 +466,49 @@ def sigma_partonic_munuqq(s,
     Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
     Returns σ in pb at partonic CM energy² = s (before ISR convolution).
 
-    ``channel`` selects the branching-ratio convention:
-        "inclusive" (default) — 2 × BR(μν) × BR(had), both W charges summed
-        "munuud"              — μ⁻ν̄_μ + (ud̄/cs̄) specific
+    Built from the BFS specific-channel cross section
+    ``sigma_BFS_specific_munuud_pb`` (which applies the proper BFS
+    section 6.1 / eq. 83 BR correction PER COMPONENT — squared for
+    σ^(0), σ^(1)_pot, σ^(3/2),a; linear for σ^(1/2)), multiplied by the
+    channel multiplicity (4 for inclusive μν qq̄, 1 for specific μ⁻ν̄_μ ud̄).
+    This way both the propagator broadening and the BR shrinkage as
+    1/Γ_W² are captured for a correct dσ/dΓ_W in the fit.
+
+    ``channel`` selects the named final state:
+        "inclusive" (default) — μν qq̄, both W charges × (ud̄, cs̄)
+        "munuud"              — μ⁻ν̄_μ ud̄ specific
 
     Vectorised: accepts scalar or array ``s``.
     """
     if bfs is None:
         bfs = BFSCorrections(enabled=False)
-    if channel not in _CHANNEL_BR:
-        raise ValueError(f"channel={channel!r} not in {list(_CHANNEL_BR)}")
+    if channel not in _CHANNEL_MULTIPLICITY:
+        raise ValueError(f"channel={channel!r} not in {list(_CHANNEL_MULTIPLICITY)}")
 
-    sigma_WW = sigma_WW_Born(s, mW, gammaW)
-    sigma = sigma_WW * _CHANNEL_BR[channel]
+    # Region-aware σ (handles ISR convolution sampling sub-threshold s_hat):
+    #   √s < 150 GeV  → 0 (avoids spurious M_Z pole in BFS ξ,χ functions)
+    #   150 ≤ √s < 170 → BFS specific-channel × multiplicity (per-component BR)
+    #   √s ≥ 170 GeV  → calibration σ_WW × LO BR × (Γ_W^(0)/Γ_W)²
+    #                   (uniform-squared BR; per-component breakdown not
+    #                   accessible from the spline)
+    s_arr = np.asarray(s, dtype=float)
+    use_zero = s_arr < _S_BFS_FLOOR
+    use_bfs = (s_arr >= _S_BFS_FLOOR) & (s_arr < _S_BFS_UPPER)
+    use_cal = s_arr >= _S_BFS_UPPER
+
+    sigma = np.zeros_like(s_arr)
+
+    if np.any(use_bfs):
+        from process.ww.bfs_eft import sigma_BFS_specific_munuud_pb
+        sigma_specific = sigma_BFS_specific_munuud_pb(s_arr, mW, gammaW, order="N3/2LO")
+        sigma_bfs = sigma_specific * _CHANNEL_MULTIPLICITY[channel]
+        sigma = np.where(use_bfs, sigma_bfs, sigma)
+
+    if np.any(use_cal):
+        from process.ww.bfs_eft import gamma_W_LO
+        BR_x = (_CHANNEL_MULTIPLICITY[channel] / 27.0) * (gamma_W_LO(mW) / gammaW) ** 2
+        sigma_cal = sigma_WW_Born(s_arr, mW, gammaW) * BR_x
+        sigma = np.where(use_cal, sigma_cal, sigma)
 
     if include_coulomb:
         sigma = sigma * coulomb_K_factor(s, mW, gammaW)

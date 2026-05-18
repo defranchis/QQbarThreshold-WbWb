@@ -24,6 +24,7 @@ import os
 import numpy as np
 
 from process.ww.bfs_eft import (
+    gamma_W_LO,
     sigma_LR0_specific_pb,
     sigma_LR_RL_half_specific_pb,
     sigma_LR_RL_NLO_potential_specific_pb,
@@ -31,7 +32,6 @@ from process.ww.bfs_eft import (
 )
 from process.ww.eft_xsec import (
     GAMMA_W_DEFAULT, M_W_DEFAULT,
-    BR_INCLUSIVE_MUNUQQ,
     coulomb_K_factor, sigma_partonic_munuqq, sigma_WW_Born,
 )
 from process.ww.isr import sigma_observed_munuqq
@@ -110,6 +110,11 @@ def plot_xsec_vs_sqrts():
     sigma_partonic = sigma_partonic_munuqq(s, mW, gW, channel="inclusive")
     sigma_observed = sigma_observed_munuqq(sqrts, mW=mW, gammaW=gW, channel="inclusive")
 
+    # LO inclusive BR factor consistent with sigma_partonic_munuqq:
+    # 4/27 × (Γ_W^(0)(m_W)/Γ_W)². At default (m_W, Γ_W) this is
+    # ≈ 0.142, vs PDG BR_INCLUSIVE_MUNUQQ ≈ 0.143 (0.6 % smaller).
+    BR_LO_incl = (4.0 / 27.0) * (gamma_W_LO(mW) / gW) ** 2
+
     fig, (ax_abs, ax_rat) = plt.subplots(2, 1, figsize=(8, 8), sharex=True,
                                           gridspec_kw={"height_ratios": [3, 1.5]})
 
@@ -117,13 +122,13 @@ def plot_xsec_vs_sqrts():
     bfs_curves = {}
     for o in orders:
         sigma_WW_bfs = _bfs_total_WW_order(s, mW, gW, o)
-        sigma_incl = sigma_WW_bfs * BR_INCLUSIVE_MUNUQQ
+        sigma_incl = sigma_WW_bfs * BR_LO_incl
         bfs_curves[o] = sigma_incl * 1e3   # pb → fb
         ax_abs.plot(sqrts, bfs_curves[o], label=labels[o], color=colors[o],
                     linewidth=1.3, linestyle="-")
 
     # Framework curves
-    ax_abs.plot(sqrts, sigma_WW * BR_INCLUSIVE_MUNUQQ * 1e3,
+    ax_abs.plot(sqrts, sigma_WW * BR_LO_incl * 1e3,
                 label=r"σ$_{WW}$ × BR (framework, RACOONWW above 161.33)",
                 color="black", linestyle=":", linewidth=1.6)
     ax_abs.plot(sqrts, sigma_partonic * 1e3,
@@ -149,7 +154,7 @@ def plot_xsec_vs_sqrts():
         ax_rat.plot(sqrts, bfs_curves[o] / np.maximum(denom, eps),
                     color=colors[o], linewidth=1.3)
     ax_rat.plot(sqrts,
-                (sigma_WW * BR_INCLUSIVE_MUNUQQ * 1e3) / np.maximum(denom, eps),
+                (sigma_WW * BR_LO_incl * 1e3) / np.maximum(denom, eps),
                 color="black", linestyle=":", linewidth=1.4)
     ax_rat.plot(sqrts, (sigma_partonic * 1e3) / np.maximum(denom, eps),
                 color="green", linestyle="--", linewidth=1.4)

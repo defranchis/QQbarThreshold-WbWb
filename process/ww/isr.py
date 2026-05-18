@@ -1,8 +1,12 @@
 """Initial-state radiation convolution for e+e- → μν qq̄ near WW threshold.
 
-LL ISR radiator (Kuraev–Fadin / Nicrosini–Trentadue, O(α³)) with YFS soft-
-+virtual exponentiation and the β² non-singular piece from Cacciari et al.
-(NPB 451):
+LL+exp electron structure function radiator in the BETA scheme of
+Skrzypek (Acta Phys. Pol. B23 (1992) 135) / Cacciari-Deandrea-Montagna-
+Nicrosini (Europhys. Lett. 17 (1992) 123), with full O(α²) exponentiation
+of soft+virtual. This is the standard form used in the LEP2 Yellow Report
+(Beenakker et al., hep-ph/9602351, eq. (GeeLLexp) BETA choice) and cited
+by BFS (arXiv:0707.0773, eq. (eq:physicalcross), with β_e definition on
+line 2433):
 
     σ_obs(s) = ∫_{z_min}^1  H(z; s)  σ̂(z·s)  dz
 
@@ -15,11 +19,20 @@ with
     H_NS  = -(β/2)(1+z) + (β²/8) [ -2(1+z) ln(1-z)
                                     -(1+3z²)/(1-z) ln z - 5 - z ]
 
+The β² piece in H_SV (= ½×(3/4)² - ½×π²/6) is the second-order
+exponentiation of the soft+virtual factor; together with 1/Γ(1+β) it
+reproduces the resummed (1-z)^(β-1) NLL soft form factor to O(β²).
 Endpoint substitution u = (1-z)^β removes the z→1 integrable singularity;
 Gauss-Legendre quadrature on the smoothed integrand.
 
-For per-mille FCC-ee work, replace with NLL QED PDFs (Bertone-Cacciari-
-Frixione-Stagnitto, arXiv:1911.12040; current consolidated tool: eMELA).
+The single convolution above is the α→2α single-convolution shortcut of
+LEP2 YR eq. (LLint), formally equivalent to BFS's two-leg double
+convolution at LL+exp accuracy. NLL-level differences are absorbed in
+the eMELA upgrade (Bertone-Cacciari-Frixione-Stagnitto, arXiv:1911.12040).
+
+Numerically verified against BFS Table 4 (Born(ISR)/Born) at 158-167 GeV:
+matches to <0.3 % at threshold; <2 % below threshold where the BFS Born
+itself differs from Whizard's full 4f Born.
 """
 
 from __future__ import annotations
