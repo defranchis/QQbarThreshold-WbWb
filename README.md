@@ -43,10 +43,17 @@ WW_threshold/
 │   │   └── scans.py        - WbWb-only scans: width, yukawa-constraint,
 │   │                         yukawa-theory, lumi-yukawa-ratio,
 │   │                         scale-vars-yukawa
-│   └── ww/                 - WW: EFT-based generator (LO+Coulomb+LL ISR)
-│       ├── eft_xsec.py       - σ_WW Born (RACOONWW-cal.) + Coulomb + BFS hooks
-│       ├── isr.py            - LL ISR convolution (YFS-exponentiated)
-│       ├── generator.py      - WWGenerator: do_scan writes ecm,xsec CSV
+│   └── ww/                 - WW: full BFS-EFT chain + LL+exp ISR
+│       ├── bfs_eft.py        - BFS-EFT N^(3/2)LO Born (eq. 17+33+37+39 of
+│       │                       arXiv:0707.0773) + h4-h7 single-resonant +
+│       │                       NLO loops (HSC + Coulomb_NLO + EW-decay)
+│       │                       + Whizard 4f Born anchor (sec. 6.2) + δ_QCD
+│       ├── eft_xsec.py       - σ partonic entry points + Fadin-Khoze-Martin
+│       │                       Coulomb K-factor + RACOONWW spline above 170 GeV
+│       ├── isr.py            - LL+exp BETA-scheme ISR (LEP2 YR eq. 67),
+│       │                       single-conv default + 2-leg per BFS eq. 71
+│       ├── generator.py      - WWGenerator + .from_card factory + chain-
+│       │                       kwargs helpers (single source of truth)
 │       └── fit.py            - WWFit (placeholder; inherits FitCore)
 ├── scripts/
 │   ├── _audit_common.py    - shared build_fit + SCAN_SPECS for the harness
@@ -384,41 +391,62 @@ intentional label / casing changes) across refactors.
 
 ## WW status
 
-The WW threshold fit is wired end-to-end. Quick start:
+The WW threshold fit is wired end-to-end and uses the **full BFS-EFT
+chain** as the default partonic cross section. Quick start:
 
 ```bash
 python3 compute_xsec_ww.py            # generate nominal + BEC-variation templates
 python3 doFit_ww.py --systTable       # canonical fit with full systematics table
+python3 -m scripts.validate_bfs_nlo   # validate against BFS Tables 1+2+3+4
+python3 -m scripts.plot_ww_diagnostics  # diagnostic plot set
 ```
 
 Cross-section pipeline (in `process/ww/`):
 
-* `eft_xsec.py` — doubly-resonant CC03 Born, calibrated against
-  RACOONWW reference values (161.33–500 GeV; power-law BW-tail
-  extrapolation 156–161 GeV — see TODO in the module header), with
-  Fadin-Khoze-Martin Coulomb (+ Bardin-Riemann α² extension). Inclusive
-  μν qq̄ channel (BR = 2 · BR(W→μν) · BR(W→had)). Empty BFS NLO/NNLO
-  hooks (`BFSCorrections.delta_NLO`, `.delta_NNLO`) raise
-  `NotImplementedError` until filled from arXiv:0707.0773 / 0807.0102.
-* `isr.py` — LL ISR convolution with YFS soft+virtual exponentiation
-  and the β² non-singular piece (Cacciari et al., NPB 451). Endpoint
-  substitution u = (1−z)^β removes the z→1 singularity. NLL upgrade
-  via eMELA (Bertone-Cacciari-Frixione-Stagnitto) is the next step.
-* `generator.py` — `WWGenerator.do_scan(values, …)` writes the
-  ecm,xsec CSV consumed by `common.fit_core.FitCore`. Accepts an
-  `ecm_shift_MeV` argument used by the BEC nuisance machinery.
+* `bfs_eft.py` — BFS-EFT N^(3/2)LO Born expansion from arXiv:0707.0773:
+  eq. (17) σ_LR^(0), eq. (33) σ^(1)_pot, eq. (37+38+appendix A)
+  σ^(1/2) including h1–h3 *and* h4–h7 single-resonant, eq. (39+40)
+  σ^(3/2),a. Plus NLO loops (HSC eq. 54-56, NLO Coulomb eq. 62, EW
+  decay eq. 60), δ_QCD multiplier (eq. delta_qcd), and the
+  Whizard 4f Born anchor (BFS sec. 6.2 prescription). All knobs
+  card-driven and on by default; see `cards/ww_default.py` NLO_CONFIG.
+* `eft_xsec.py` — partonic entry points `sigma_partonic_munuqq` and
+  `sigma_WW_partonic`. Coulomb K-factor (Fadin-Khoze-Martin +
+  Bardin-Riemann α²). Switches to a RACOONWW CC03 spline above
+  √s = 170 GeV (only the `--lastecm` 240-GeV point uses this region).
+* `isr.py` — LL+exp BETA-scheme ISR per LEP2 YR Beenakker eq. (67).
+  Two formally-equivalent implementations: `single_conv` (LEP2 YR α→2α
+  1D form, default) and `2leg` (BFS eq. 71 double convolution); they
+  agree to <0.1 %. NLL upgrade (analytic Skrzypek-Jadach or eMELA) is
+  the next step — removes BFS's own ~31 MeV ISR systematic on m_W.
+* `generator.py` — `WWGenerator.from_card(card)` factory + `.do_scan`
+  template writer + chain-kwargs helpers (`partonic_kwargs_from_card`,
+  `observed_kwargs_from_card`) as the single source of truth for
+  card-driven configuration.
 
-What's NOT yet in the calculation (priority order for MeV-level m_W):
+Validation (`scripts/validate_bfs_nlo.py`, 10 scenarios A–J):
+- Scenario A: BFS Table 1 (LO width, no BR corr) closes to **4-5 digits**.
+- Scenario B: BFS Table 2 (NLO+QCD width, BR corr) closes to 0.1 %
+  in the scan window, 0.8 % at 155 GeV (EFT-validity edge).
+- Scenario F: full NLO chain vs BFS Table 4 σ_obs — 0.4-1.0 % deficit,
+  driven by BFS using Whizard's own ISR for the Born vs my LEP2 YR
+  LL+exp (the same ~31 MeV NLL-ISR systematic BFS itself quotes).
+- Scenario I: Whizard-anchor closure to 4-5 digits at Table 1
+  reference points.
 
-1. BFS NLO matching coefficients ([arXiv:0707.0773](https://arxiv.org/abs/0707.0773))
-2. BFS dominant NNLO ([arXiv:0807.0102](https://arxiv.org/abs/0807.0102))
-3. Real Born values 156–161 GeV (currently a power-law BW-tail model;
-   replace with RACOONWW/MoCaNLO+RECOLA — chief obstacle to Γ_W
-   extraction and the below-threshold lever arm)
-4. NLL ISR via eMELA
-5. Singly-resonant CC10 contributions
+What's NOT yet in the calculation (priority order for sub-MeV m_W):
+
+1. **BFS dominant NNLO** ([arXiv:0807.0102](https://arxiv.org/abs/0807.0102))
+   — σ^(2) Born + NNLO Coulomb beyond eq. 62. Expected ~0.2-0.5 % on σ.
+2. **NLL ISR** — analytic Skrzypek-Jadach or eMELA
+   (Bertone-Cacciari-Frixione-Stagnitto). Removes the residual 0.7-1.0 %
+   ISR deficit to BFS and the ~31 MeV ISR systematic on m_W.
+3. **Finer Whizard anchor grid** — currently uses only the 6 √s × 2 Γ_W
+   reference points from BFS Tables 1+2; a denser grid (run Whizard
+   ourselves) would remove the 168-GeV dσ/dΓ_W bump and shrink the
+   Born-side ~0.3 MeV systematic.
 
 A parallel implementation based entirely on established generators
-(WHIZARD/SHERPA+Recola/MoCaNLO) is planned as a second `*Generator`
+(WHIZARD / Recola / MoCaNLO) is planned as a second `*Generator`
 class slotting into the same `do_scan` / `file_name` contract — needed
 for publication-level cross-validation.
