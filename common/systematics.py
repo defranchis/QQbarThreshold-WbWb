@@ -11,6 +11,7 @@ is read from ``card.POI_DISPLAY`` — adding a new POI is a card-only
 edit.
 """
 
+import math
 import os
 
 from common.fit_core import OFF, quadrature_subtract
@@ -202,6 +203,14 @@ def _display(raw, disp, central):
     return raw
 
 
+def _fmt_cell(raw, disp, central, width=12):
+    """Render one syst-table cell; NaN (diagonal POI-on-self entries from
+    ``_estimate_stat``) prints as a dash."""
+    if not math.isfinite(raw):
+        return f"{'--':<{width}}"
+    return f"{_display(raw, disp, central):<{width}.1f}"
+
+
 def _print_table(card, syst, totals, centrals):
     pois = list(syst.keys())
     sep_len = 12 * (1 + len(pois))
@@ -212,7 +221,7 @@ def _print_table(card, syst, totals, centrals):
     if pois:
         for s in next(iter(syst.values())):
             cells = " ".join(
-                f"{_display(syst[poi][s], card.POI_DISPLAY[poi], centrals[poi]):<12.1f}"
+                _fmt_cell(syst[poi][s], card.POI_DISPLAY[poi], centrals[poi])
                 for poi in pois)
             print(f"{s:<12} {cells}")
     print("-" * sep_len)
@@ -239,10 +248,15 @@ def _write_latex(card, syst, totals, centrals, path):
         f"Systematic & {header_cells} \\\\",
         r"\hline",
     ]
+    def _latex_cell(raw, disp, central):
+        if not math.isfinite(raw):
+            return "--"
+        return f"{_display(raw, disp, central):.1f}"
+
     if pois:
         for s in next(iter(syst.values())):
             row = " & ".join(
-                f"{_display(syst[poi][s], card.POI_DISPLAY[poi], centrals[poi]):.1f}"
+                _latex_cell(syst[poi][s], card.POI_DISPLAY[poi], centrals[poi])
                 for poi in pois)
             lines.append(f"{s} & {row} \\\\")
     lines.append(r"\hline")

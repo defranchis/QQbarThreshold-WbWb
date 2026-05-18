@@ -850,10 +850,15 @@ class FitCore:
             if name == "mass":
                 print(f"uncertainty in mass: {val.s * 1e3:.2f} MeV")
             print()
+        # Print the POI × POI block only. self.parameters.names is set from
+        # card.PARAMETERS at construction time and is never mutated by
+        # add_*_nuisance(), so it's the right slice length even when
+        # binned/global nuisances have extended self.param_names.
+        n_poi = len(self.parameters.names)
         print("Correlation matrix:")
-        print(self.param_names[:4])
+        print(self.param_names[:n_poi])
         corr = np.round(unc.correlation_matrix(params_w_cov), 2)
-        print(corr[:4, :4])
+        print(corr[:n_poi, :n_poi])
         self.last_fit_results = params_w_cov
 
     # ------------------------------------------------------------------
