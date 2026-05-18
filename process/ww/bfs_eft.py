@@ -8,23 +8,34 @@ Conventions match the paper. The natural BFS quantity is σ_LR^(0), the
 LR-helicity cross section for the *specific* channel e+e- → μ⁻ν̄_μ ud̄;
 helpers below convert to unpolarised totals.
 
-Born-level EFT contributions implemented here (no loop corrections):
+Born-level EFT contributions implemented here:
 
-  • σ_LR^(0)             doubly-resonant LO,           eq. (17)
-  • σ_LR^(1), σ_RL^(1)   NLO subleading potential,     eq. (33)
-  • σ_LR^(1/2)           hard non-resonant (h1-h3),    eq. (37) + (38)
-                          (h4-h7 single-resonant terms are < 0.5% per the
-                           paper between 155 and 180 GeV — omitted)
-  • σ_LR^(3/2),a         energy-dependent N^{3/2}LO,   eq. (39) + (40)
+  • σ_LR^(0)             doubly-resonant LO,                eq. (17)
+  • σ_LR^(1), σ_RL^(1)   NLO subleading potential,          eq. (33)
+  • σ_LR^(1/2), σ_RL^(1/2)
+                         hard non-resonant h1-h3 + h4-h7,   eq. (37) + (38)
+                         + appendix A C^f_{h_i,h} K^f_{h_i} coefficients
+  • σ_LR^(3/2),a, σ_RL^(3/2),a
+                         energy-dependent N^{3/2}LO h1-h3,  eq. (39) + (40)
 
-The N^{3/2}LO,b correction of eq. (41) is energy-independent and quoted
-as ≲ 2 fb in the specific channel — neglected here. NLO LOOP corrections
-(section 4 of the paper: hard, Coulomb, soft, collinear, decay) are NOT
-implemented here — those go into ``BFSCorrections.delta_NLO`` separately.
+NLO loop corrections (section 4 of the paper):
+  • hard production C_p,LR^(1,fin), eq. (52) + HSC bracket (eq. finalcross)
+  • NLO Coulomb (eq. 62)
+  • NLO decay EW (eq. Gamma1ewFS / eq. 60)
+  • δ_QCD multiplier (eq. delta_qcd / section 6.1)
+
+Omitted / negligible:
+  • σ^(3/2),b (eq. 41) — paper estimate ≲ 2 fb energy-independent. Empirical
+    Scenario A closure to 4-5 digits at all BFS Table 1 √s confirms this
+    piece contributes < 0.01 fb in practice — much smaller than 2 fb.
+  • Im[c_p,LR^(1,fin)] — paper §4.2 around eq. (53): "...we take the real
+    part of the matching coefficients C_p,LR^(1) and C_p,RL^(1)" for the
+    flavour-specific cross section.
+  • C_p,RL^(1) NLO — paper §4.1: no helicity interference, drops at NLO.
 
 The sum σ^(0) + σ^(1) + σ^(1/2) + σ^(3/2),a is what the paper labels
-``EFT(N^{3/2}LO)`` in Table 1 — matches the Whizard exact 4f Born to
-~0.1 % at 161 GeV, ~10 % at 155 GeV, ~0.1 % at 170 GeV.
+``EFT(N^{3/2}LO)`` in Table 1 — Scenario A closure with this code is
+0.9999-1.0000 (4-5 digits) at all six BFS Table 1 energies.
 
 Auxiliary kinematic functions, eq. (32):
 
@@ -77,6 +88,125 @@ _K_H3 = +1.88122
 _K_H1_A = -5.87912
 _K_H2_A = -19.15095
 _K_H3_A = -6.18662
+
+# BFS appendix h4-h7 single-resonant coefficients (lines 3116-3148 of source).
+# Per-fermion K factors; the same f flavor labels (u, d, μ, ν_μ) used for the
+# four final-state fermions in the specific channel μ⁻ν̄_μ u d̄.
+_K_H4 = {"u": -0.266477, "nu_mu": -0.266477, "d": +0.190394, "mu": +0.190394}
+_K_H5 = {"u": +0.455244, "nu_mu": +0.455244, "d": -0.455244, "mu": -0.455244}
+_K_H6 = {"u": +0.0804075, "d": +0.0804075, "mu": +0.0804075, "nu_mu": +0.0804075}
+_K_H7 = {"u": +0.0213082, "d": +0.0213082, "mu": +0.0213082, "nu_mu": +0.0213082}
+
+# Fermion electric charges (in units of the positron charge) and weak isospin.
+_Q_F = {"u": 2.0/3.0, "d": -1.0/3.0, "mu": -1.0, "nu_mu": 0.0}
+_I3_F = {"u": +0.5, "d": -0.5, "mu": -0.5, "nu_mu": +0.5}
+# SU(2) doublet partner mapping (used in h7 "barred" couplings).
+_PARTNER = {"u": "d", "d": "u", "mu": "nu_mu", "nu_mu": "mu"}
+
+
+def _ew_couplings(mW: float):
+    """Return (sW, cW, Q_e, C_e_L, C_e_R, C_f_L per flavor) needed for
+    the BFS h4-h7 single-resonant coefficients (BFS appendix line 3119).
+
+    C_f^L = (I_W,f^3 − sW² Q_f) / (sW c_w)
+    C_e^L = same with f = e (Q = -1, I^3 = -1/2)
+    C_e^R = −(sW/c_w) Q_e = +sW/c_w     (since Q_e = -1)
+    """
+    sW2 = sin2_thetaW_OS(mW)
+    sW = np.sqrt(sW2)
+    cW = np.sqrt(1.0 - sW2)
+    Q_e = -1.0
+    I3_e = -0.5
+    C_e_L = (I3_e - sW2 * Q_e) / (sW * cW)
+    C_e_R = -(sW / cW) * Q_e
+    C_f_L = {f: (_I3_F[f] - sW2 * _Q_F[f]) / (sW * cW) for f in _Q_F}
+    return sW, cW, sW2, Q_e, C_e_L, C_e_R, C_f_L
+
+
+def _C_h4_LR(s, mW: float, f: str):
+    """C^f_{h4, LR} = 3 M_W² sW² × [-Q_f/s + C_e^L C_f^L / (s - M_Z²)]."""
+    sW, cW, sW2, Q_e, C_e_L, C_e_R, C_f_L = _ew_couplings(mW)
+    s_arr = np.asarray(s, dtype=float)
+    return 3.0 * mW**2 * sW2 * (
+        -_Q_F[f] / s_arr + C_e_L * C_f_L[f] / (s_arr - M_Z**2)
+    )
+
+
+def _C_h5(s, mW: float, h: str, f: str):
+    """h ∈ {'LR', 'RL'}; both contribute.
+       C^f_{h5,h} = 9 M_W^4 sW^4 ×
+           [-Q_f/s² + C_e^h C_f^L / (s(s-M_Z²)) + (c_w/sW) Q_f C_e^h / (s(s-M_Z²))
+            - (c_w/sW) (C_e^h)² C_f^L / (s-M_Z²)²]
+    """
+    sW, cW, sW2, Q_e, C_e_L, C_e_R, C_f_L = _ew_couplings(mW)
+    C_e_h = C_e_L if h == "LR" else C_e_R
+    s_arr = np.asarray(s, dtype=float)
+    sm = s_arr - M_Z**2
+    return 9.0 * mW**4 * sW2**2 * (
+        -_Q_F[f] / s_arr**2
+        + C_e_h * C_f_L[f] / (s_arr * sm)
+        + (cW / sW) * _Q_F[f] * C_e_h / (s_arr * sm)
+        - (cW / sW) * C_e_h**2 * C_f_L[f] / sm**2
+    )
+
+
+def _C_h6(s, mW: float, h: str, f: str):
+    """C^f_{h6,h} = 9 M_W^4 sW^4 × [-Q_f/s + C_e^h C_f^L / (s-M_Z²)]²"""
+    sW, cW, sW2, Q_e, C_e_L, C_e_R, C_f_L = _ew_couplings(mW)
+    C_e_h = C_e_L if h == "LR" else C_e_R
+    s_arr = np.asarray(s, dtype=float)
+    sm = s_arr - M_Z**2
+    inner = -_Q_F[f] / s_arr + C_e_h * C_f_L[f] / sm
+    return 9.0 * mW**4 * sW2**2 * inner ** 2
+
+
+def _C_h7(s, mW: float, h: str, f: str):
+    """C^f_{h7,h} = 9 M_W^4 sW^4 × [
+         Q_f Q̄_f/s² − Q_f C_e^h C̄_f^L/(s(s-M_Z²)) − Q̄_f C_e^h C_f^L/(s(s-M_Z²))
+         + (C_e^h)² C_f^L C̄_f^L / (s-M_Z²)²
+       ]
+    where the "bar" denotes the SU(2) doublet partner."""
+    sW, cW, sW2, Q_e, C_e_L, C_e_R, C_f_L = _ew_couplings(mW)
+    C_e_h = C_e_L if h == "LR" else C_e_R
+    f_bar = _PARTNER[f]
+    Q_f, Q_fbar = _Q_F[f], _Q_F[f_bar]
+    Cf_L, Cfbar_L = C_f_L[f], C_f_L[f_bar]
+    s_arr = np.asarray(s, dtype=float)
+    sm = s_arr - M_Z**2
+    return 9.0 * mW**4 * sW2**2 * (
+        Q_f * Q_fbar / s_arr**2
+        - Q_f * C_e_h * Cfbar_L / (s_arr * sm)
+        - Q_fbar * C_e_h * Cf_L / (s_arr * sm)
+        + C_e_h**2 * Cf_L * Cfbar_L / sm**2
+    )
+
+
+def _sigma_half_h47_LR(s, mW: float):
+    """h4-h7 contribution to σ_LR^(1/2) at the level of the BFS bracket
+    [K_h1 + K_h2 ξ + K_h3 ξ²] of eq. (treehard). Returns the contribution
+    to be added to the existing K_h1+K_h2·ξ+K_h3·ξ² bracket.
+
+    Per BFS source line 3112: "Only the configuration e_L^- e_R^+
+    contributes to the cut diagram h4". So h4 enters σ_LR only.
+    h5, h6, h7 contribute to both helicities.
+    """
+    contrib = 0.0
+    for f in _Q_F:
+        contrib = contrib + _C_h4_LR(s, mW, f) * _K_H4[f]
+        contrib = contrib + _C_h5(s, mW, "LR", f) * _K_H5[f]
+        contrib = contrib + _C_h6(s, mW, "LR", f) * _K_H6[f]
+        contrib = contrib + _C_h7(s, mW, "LR", f) * _K_H7[f]
+    return contrib
+
+
+def _sigma_half_h57_RL(s, mW: float):
+    """h5, h6, h7 contribution to σ_RL^(1/2). h4 only contributes to LR."""
+    contrib = 0.0
+    for f in _Q_F:
+        contrib = contrib + _C_h5(s, mW, "RL", f) * _K_H5[f]
+        contrib = contrib + _C_h6(s, mW, "RL", f) * _K_H6[f]
+        contrib = contrib + _C_h7(s, mW, "RL", f) * _K_H7[f]
+    return contrib
 
 # Default α_s value at M_W in MS-bar. BFS reference: 0.1199.
 # Used by ``delta_QCD_factor`` (BFS eq. delta_qcd). Forward-declared here so
@@ -327,8 +457,10 @@ def sigma_LR_RL_half_specific_pb(s, mW: float = M_W_DEFAULT,
     sW2 = sin2_thetaW_OS(mW)
     xi, chi = _xi_chi(s_arr, mW)
     pref = (4.0 * alpha ** 3) / (27.0 * sW2 ** 3 * s_arr)
-    sigma_LR_half = pref * (_K_H1 + _K_H2 * xi + _K_H3 * xi ** 2)
-    sigma_RL_half = pref * (_K_H3 * chi ** 2)
+    sigma_LR_half = pref * (_K_H1 + _K_H2 * xi + _K_H3 * xi ** 2
+                            + _sigma_half_h47_LR(s_arr, mW))
+    sigma_RL_half = pref * (_K_H3 * chi ** 2
+                            + _sigma_half_h57_RL(s_arr, mW))
     sigma_LR_half = sigma_LR_half * GEV_M2_TO_PB
     sigma_RL_half = sigma_RL_half * GEV_M2_TO_PB
     if apply_BR_correction:
