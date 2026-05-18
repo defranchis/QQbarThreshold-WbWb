@@ -71,6 +71,24 @@ def sigma_observed_munuqq(*args, **kwargs):
 
 PLOT_DIR = "plots/ww_diagnostics"
 
+# FCC-ee primary scan window — read from cards/ww_default.py so a card edit
+# is the single source of truth (no copy in the plotting code).
+SCAN_WINDOW_GEV = (float(_card.SCENARIO["scan_min"]),
+                   float(_card.SCENARIO["scan_max"]))
+
+
+def _draw_scan_window(ax, *, label_top: bool = False):
+    """Overlay shaded scan window and vertical guides at the endpoints."""
+    lo, hi = SCAN_WINDOW_GEV
+    ax.axvspan(lo, hi, color="C2", alpha=0.06, zorder=0)
+    for x in (lo, hi):
+        ax.axvline(x, color="C2", alpha=0.55, linestyle="-", linewidth=1.0,
+                   zorder=1)
+    if label_top:
+        ax.text(0.5 * (lo + hi), ax.get_ylim()[1] * 0.97,
+                f"FCC-ee scan {lo:.0f}-{hi:.0f} GeV",
+                color="C2", alpha=0.9, fontsize=8, ha="center", va="top")
+
 
 # LEP-EWWG combined σ_WW (CC03 Born) measurements.
 # Source: ALEPH/DELPHI/L3/OPAL Phys.Rept.532 (2013) 119 ("Electroweak
@@ -170,6 +188,7 @@ def plot_xsec_vs_sqrts():
                 label=r"$+\,$LL+YFS ISR  (observed)",
                 color="red", linestyle="-", linewidth=2.0)
 
+    _draw_scan_window(ax_abs)
     ax_abs.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_abs.text(2 * mW + 0.05, ax_abs.get_ylim()[1] * 0.95, r"$2\,m_W$",
                 color="grey", alpha=0.6, fontsize=9, ha="left", va="top")
@@ -193,6 +212,7 @@ def plot_xsec_vs_sqrts():
     ax_rat.plot(sqrts, (sigma_observed * 1e3) / np.maximum(denom, eps),
                 color="red", linewidth=1.6)
 
+    _draw_scan_window(ax_rat)
     ax_rat.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
     ax_rat.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_rat.set_xlabel(r"$\sqrt{s}$ [GeV]")
@@ -250,6 +270,7 @@ def plot_sensitivity_vs_sqrts():
                linestyle="--", label="partonic (no ISR)")
     ax_mW.plot(sqrts, dsig_dmW_obs, color="C0", linewidth=2.0,
                label="observed (with LL+YFS ISR)")
+    _draw_scan_window(ax_mW)
     ax_mW.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_mW.axhline(0.0, color="grey", alpha=0.4, linewidth=0.6)
     ax_mW.set_ylabel(r"$d\sigma/dm_W$ [fb/MeV]")
@@ -262,6 +283,7 @@ def plot_sensitivity_vs_sqrts():
                linestyle="--", label="partonic (no ISR)")
     ax_gW.plot(sqrts, dsig_dgW_obs, color="C3", linewidth=2.0,
                label="observed (with LL+YFS ISR)")
+    _draw_scan_window(ax_gW)
     ax_gW.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_gW.axhline(0.0, color="grey", alpha=0.4, linewidth=0.6)
     ax_gW.set_xlabel(r"$\sqrt{s}$ [GeV]")
@@ -323,6 +345,7 @@ def plot_vs_LEP():
                     yerr=LEP_DATA["sigma_err"], fmt="o", color="black",
                     markersize=5, capsize=3, label="LEP-EWWG combined (CC03)")
 
+    _draw_scan_window(ax_abs)
     ax_abs.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_abs.axvline(170.0, color="grey", alpha=0.4, linestyle=":", linewidth=0.8)
     ax_abs.text(170.0, ax_abs.get_ylim()[1] * 0.05, "BFS→spline", color="grey",
@@ -352,6 +375,7 @@ def plot_vs_LEP():
                     yerr=LEP_DATA["sigma_err"] / sig_ref_lep,
                     fmt="o", color="black", markersize=4, capsize=2)
 
+    _draw_scan_window(ax_rat)
     ax_rat.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
     ax_rat.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_rat.axvline(170.0, color="grey", alpha=0.4, linestyle=":", linewidth=0.8)
@@ -396,6 +420,7 @@ def plot_ratios_vs_mW_GammaW():
         ax_mW.plot(sqrts, sigma_v / sigma_nom,
                    color=palette[d], linewidth=1.6,
                    label=fr"$\delta m_W = {d:+d}$ MeV")
+    _draw_scan_window(ax_mW)
     ax_mW.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
     ax_mW.axvline(2 * mW0, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_mW.set_ylabel(r"$\sigma_{\rm obs}(m_W + \delta m_W) / \sigma_{\rm obs}(m_W)$")
@@ -410,6 +435,7 @@ def plot_ratios_vs_mW_GammaW():
         ax_gW.plot(sqrts, sigma_v / sigma_nom,
                    color=palette[d], linewidth=1.6,
                    label=fr"$\delta \Gamma_W = {d:+d}$ MeV")
+    _draw_scan_window(ax_gW)
     ax_gW.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
     ax_gW.axvline(2 * mW0, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_gW.set_xlabel(r"$\sqrt{s}$ [GeV]")
@@ -469,6 +495,7 @@ def plot_normalised_xsec_hypotheses():
         ax_mW.plot(sqrts, R_h - R_nom,
                    color=palette[d], linewidth=1.6,
                    label=fr"$\delta m_W = {d:+d}$ MeV")
+    _draw_scan_window(ax_mW)
     ax_mW.axhline(0.0, color="grey", alpha=0.4, linewidth=0.7)
     ax_mW.axvline(2 * mW0, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_mW.axvline(s_ref, color="grey", alpha=0.4, linestyle=":", linewidth=0.8)
@@ -489,6 +516,7 @@ def plot_normalised_xsec_hypotheses():
         ax_gW.plot(sqrts, R_h - R_nom,
                    color=palette[d], linewidth=1.6,
                    label=fr"$\delta \Gamma_W = {d:+d}$ MeV")
+    _draw_scan_window(ax_gW)
     ax_gW.axhline(0.0, color="grey", alpha=0.4, linewidth=0.7)
     ax_gW.axvline(2 * mW0, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_gW.axvline(s_ref, color="grey", alpha=0.4, linestyle=":", linewidth=0.8)
@@ -557,6 +585,7 @@ def plot_azzurri_style_pm1GeV():
                 linestyle="--", label=rf"$m_W={mW_paper+1:.3f}$ GeV")
     ax_mW.plot(sqrts, sigma_mW_m, color="#54278f", linewidth=1.0,
                 linestyle=":",  label=rf"$m_W={mW_paper-1:.3f}$ GeV")
+    _draw_scan_window(ax_mW)
     ax_mW.axvline(2 * mW_paper, color="grey", alpha=0.4,
                    linestyle="--", linewidth=0.8)
     ax_mW.text(2 * mW_paper + 0.05, 0.1, r"$2\,m_W$", color="grey",
@@ -578,6 +607,7 @@ def plot_azzurri_style_pm1GeV():
                 linestyle="--", label=rf"$\Gamma_W={gW_paper+1:.3f}$ GeV")
     ax_gW.plot(sqrts, sigma_gW_m, color="#1b7837", linewidth=1.0,
                 linestyle=":",  label=rf"$\Gamma_W={gW_paper-1:.3f}$ GeV")
+    _draw_scan_window(ax_gW)
     ax_gW.axvline(2 * mW_paper, color="grey", alpha=0.4,
                    linestyle="--", linewidth=0.8)
     ax_gW.axvline(162.3, color="red", alpha=0.6,
@@ -662,6 +692,7 @@ def plot_bes_effect_on_variations():
                  linestyle="--", label=lbl_hi)
         ax.plot(sq, lo[sqrts_show], color=color_lo, linewidth=1.0,
                  linestyle=":", label=lbl_lo)
+        _draw_scan_window(ax)
         ax.axvline(2 * mW0, color="grey", alpha=0.3,
                     linestyle="--", linewidth=0.7)
         ax.set_xlim(155, 170)
