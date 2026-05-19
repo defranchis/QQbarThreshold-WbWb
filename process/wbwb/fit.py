@@ -133,13 +133,13 @@ class WbWbFit(FitCore):
 
         Returns ``1.3148 + 0.027 · (mt_pole − 172.69) + knob · 5 MeV``.
 
-        Needs a PS→pole conversion (via ``utils_convert.scheme_conversion``)
+        Needs a PS→pole conversion (via ``process.wbwb.xsec_calculator.scheme_conversion``)
         because the SM prediction is anchored in pole mass; therefore more
         expensive than the linearised form and requires the converter to be
         importable. Use when the linearisation anchor (``mass_var``) drifts
         away from the SM — re-wire ``physical_fit_params`` to call this.
         """
-        import utils_convert.scheme_conversion as scheme_conversion  # type: ignore
+        import process.wbwb.xsec_calculator.scheme_conversion as scheme_conversion  # type: ignore
         mt_ref = self.d_params["mass_var"]["mass"]
         mt_pole = mt_PS + scheme_conversion.calculate_mt_Pole(mt_ref, self.mass_scale) - mt_ref
         return 1.3148 + 0.027 * (mt_pole - 172.69) + theory_knob * 0.005

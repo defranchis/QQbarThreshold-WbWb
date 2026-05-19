@@ -8,7 +8,7 @@ So mine-no-anchor vs BFS Table 3 should equal (mine BFS-EFT × ISR) vs
 (BFS-Whizard × ISR). With the EFT vs Whizard partonic ratios from Table 2.
 """
 import numpy as np
-from process.ww.isr import sigma_observed_munuqq
+from process.ww.xsec_calculator.isr import sigma_observed_munuqq
 
 BFS_Born_ISR = {158: 45.64, 161: 108.60, 164: 219.7, 167: 310.2, 170: 378.4}
 sqrts = np.array(list(BFS_Born_ISR.keys()), dtype=float)

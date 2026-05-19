@@ -23,20 +23,20 @@ import os
 
 import numpy as np
 
-from process.ww.bfs_eft import (
+from process.ww.xsec_calculator.bfs_eft import (
     gamma_W_LO,
     sigma_LR0_specific_pb,
     sigma_LR_RL_half_specific_pb,
     sigma_LR_RL_NLO_potential_specific_pb,
     sigma_LR_RL_three_half_a_specific_pb,
 )
-from process.ww.eft_xsec import (
+from process.ww.xsec_calculator.eft_xsec import (
     BR_INCLUSIVE_MUNUQQ,
     GAMMA_W_DEFAULT, M_W_DEFAULT,
     coulomb_K_factor, sigma_partonic_munuqq as _sigma_partonic_munuqq_raw,
     sigma_WW_partonic,
 )
-from process.ww.isr import sigma_observed_munuqq as _sigma_observed_munuqq_raw
+from process.ww.xsec_calculator.isr import sigma_observed_munuqq as _sigma_observed_munuqq_raw
 from process.ww.generator import (
     partonic_kwargs_from_card, observed_kwargs_from_card,
 )
@@ -62,7 +62,7 @@ def sigma_observed_munuqq(*args, **kwargs):
     return _sigma_observed_munuqq_raw(*args, **kwargs)
 
 
-PLOT_DIR = "plots/ww_diagnostics"
+PLOT_DIR = "fit_output/ww/diagnostics"
 
 # FCC-ee primary scan window — read from cards/ww_default.py so a card edit
 # is the single source of truth (no copy in the plotting code).
@@ -638,7 +638,7 @@ def main():
     print("Done.")
 
     from common.eos_publish import publish
-    publish(PLOT_DIR, os.environ.get("WW_DIAGNOSTICS_PUBSUB", "ww_diagnostics"))
+    publish(PLOT_DIR, os.environ.get("WW_DIAGNOSTICS_PUBSUB", "ww/diagnostics"))
 
 
 if __name__ == "__main__":

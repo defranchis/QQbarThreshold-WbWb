@@ -4,7 +4,7 @@ Solve:  total_BFS = (σ^(0) + σ^(1)_pot + σ^(3/2),a) × c_sq + σ^(1/2) × c_X
 for c_X. If c_X is the same at every √s, that's BFS's convention.
 """
 import numpy as np
-from process.ww.bfs_eft import (
+from process.ww.xsec_calculator.bfs_eft import (
     sigma_LR0_specific_pb,
     sigma_LR_RL_half_specific_pb,
     sigma_LR_RL_NLO_potential_specific_pb,

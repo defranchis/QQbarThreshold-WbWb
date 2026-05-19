@@ -1,6 +1,6 @@
 """Verify our BORN+anchor reproduces Whizard at the BFS reference points."""
 import numpy as np
-from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
+from process.ww.xsec_calculator.bfs_eft import sigma_BFS_LO_total_WW_pb
 
 SQRTS = np.array([155.0, 158.0, 161.0, 164.0, 167.0, 170.0])
 # Whizard 4f Born total σ_WW (no BR) from BFS Tables × 27 (stripping 1/27)

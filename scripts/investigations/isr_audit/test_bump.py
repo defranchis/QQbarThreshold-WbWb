@@ -1,7 +1,7 @@
 """Check if the 168-GeV bump is a Whizard-anchor spline artifact."""
 import numpy as np
-from process.ww.bfs_eft import whizard_anchor_factor, sigma_BFS_specific_munuud_pb
-from process.ww.eft_xsec import sigma_partonic_munuqq
+from process.ww.xsec_calculator.bfs_eft import whizard_anchor_factor, sigma_BFS_specific_munuud_pb
+from process.ww.xsec_calculator.eft_xsec import sigma_partonic_munuqq
 
 # Fine grid through the suspect region
 sqrts = np.linspace(155.0, 170.0, 151)   # 0.1 GeV pitch

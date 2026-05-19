@@ -11,6 +11,8 @@ colleague's web area."""
 
 import os
 import shutil
+import subprocess
+from datetime import date
 
 EOS_BASE      = os.environ.get("EOS_BASE_DIR",
                                 "/eos/user/m/mdefranc/www/WW_threshold")
@@ -55,3 +57,13 @@ def publish(src_dir, subdir):
 
     print(f"[publish] copied {n_copied} files  →  {dst_root}")
     print(f"[publish] URL: {EOS_URL}/{subdir}/")
+
+
+def archive_tag():
+    """`<YYYY-MM-DD>_<short-sha>`; appends `-dirty` if the working tree has uncommitted changes."""
+    sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                         capture_output=True, text=True, check=True).stdout.strip()
+    dirty = subprocess.run(["git", "status", "--porcelain"],
+                           capture_output=True, text=True, check=True).stdout.strip()
+    suffix = "-dirty" if dirty else ""
+    return f"{date.today().isoformat()}_{sha}{suffix}"

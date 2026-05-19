@@ -1,7 +1,7 @@
 """Look at my β value vs BFS's β value at √s=161."""
 import numpy as np
-from process.ww.isr import beta_ISR
-from process.ww.eft_xsec import alpha_Gmu, M_E
+from process.ww.xsec_calculator.isr import beta_ISR
+from process.ww.xsec_calculator.eft_xsec import alpha_Gmu, M_E
 
 # At √s = 161 GeV
 s = 161.0**2

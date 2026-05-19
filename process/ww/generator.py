@@ -36,12 +36,12 @@ import os
 
 import numpy as np
 
-from process.ww.eft_xsec import (
+from process.ww.xsec_calculator.eft_xsec import (
     ALPHA_S_MW_DEFAULT, M_T_DEFAULT, M_H_DEFAULT,
     BFSCorrections,
     M_W_DEFAULT, GAMMA_W_DEFAULT,
 )
-from process.ww.isr import sigma_observed_munuqq
+from process.ww.xsec_calculator.isr import sigma_observed_munuqq
 
 
 # ---------------------------------------------------------------------------
@@ -226,13 +226,13 @@ class WWGenerator:
     # Template production
     # ------------------------------------------------------------------
     def do_scan(self, values: dict, *, mass_scale: float, width_scale: float,
-                mass_scheme: str = "OS", outdir: str = "output_WW",
+                mass_scheme: str = "OS", outdir: str = "output_xsec_ww/nominal",
                 ecm_shift_MeV: float = 0.0) -> str:
         """Compute σ_obs(√s; m_W, Γ_W) on the fine ECM grid and write CSV.
 
         ``ecm_shift_MeV`` shifts every √s in the output grid by the given
         amount (used by the BEC nuisance machinery, which expects templates
-        in ``BEC_variations_WW/scan_{p,m}{var}/``).
+        in ``output_xsec_ww/BEC/scan_{p,m}{var}/``).
 
         Returns the output file path.
         """

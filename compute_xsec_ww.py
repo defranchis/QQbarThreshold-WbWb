@@ -1,6 +1,6 @@
 """Batch driver for the WW threshold template generation.
 
-Analogue of ``compute_xsec_parallel.py`` (WbWb / QQbar_threshold), but
+Analogue of ``compute_xsec_wbwb.py`` (WbWb / QQbar_threshold), but
 calling :class:`process.ww.generator.WWGenerator` instead of the C++
 xsec_calc. Generates:
 
@@ -21,7 +21,7 @@ import time
 
 from cards import ww_default as card
 from common.parameters import Parameters
-from process.ww.eft_xsec import BFSCorrections
+from process.ww.xsec_calculator.eft_xsec import BFSCorrections
 from process.ww.generator import WWGenerator
 
 

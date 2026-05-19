@@ -49,7 +49,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from process.ww.eft_xsec import (
+from process.ww.xsec_calculator.eft_xsec import (
     ALPHA_EM_0,                         # not used for these LO formulae; kept for parity
     ALPHA_S_MW_DEFAULT,
     GEV_M2_TO_PB,
@@ -209,7 +209,7 @@ def _sigma_half_h57_RL(s, mW: float):
         contrib = contrib + _C_h7(s, mW, "RL", f) * _K_H7[f]
     return contrib
 
-# ALPHA_S_MW_DEFAULT is imported from process.ww.eft_xsec (single source of
+# ALPHA_S_MW_DEFAULT is imported from process.ww.xsec_calculator.eft_xsec (single source of
 # truth). Used by ``delta_QCD_factor`` (BFS eq. delta_qcd).
 
 

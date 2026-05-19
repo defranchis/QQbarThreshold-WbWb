@@ -34,7 +34,7 @@ print("Azzurri's claim of crossing at 162.3 GeV is CONSISTENT with this.")
 
 # Now our chain at the SAME inputs
 print(f"\n=== Our chain at the same inputs (BFS Tables 1+2 conditions) ===")
-from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
+from process.ww.xsec_calculator.bfs_eft import sigma_BFS_LO_total_WW_pb
 
 # Two columns: σ_WW_total computed by our chain at Table 1 / Table 2 inputs.
 # Use FULL chain (NLO+anchor+δ_QCD).

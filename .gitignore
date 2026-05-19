@@ -1,9 +1,9 @@
 zz_old
 zz_old/*
-output
-output_*
-BEC_variations
-BEC_variations_*
+output_xsec_ww
+output_xsec_wbwb
+fit_output
+archive
 plots
 plots_*
 bin

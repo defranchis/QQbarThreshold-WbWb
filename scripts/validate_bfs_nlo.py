@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from process.ww.bfs_eft import (
+from process.ww.xsec_calculator.bfs_eft import (
     delta_QCD_factor,
     delta_sigma_Coulomb_NLO_specific_pb,
     delta_sigma_NLO_hard_softcoll_specific_pb,
@@ -31,8 +31,8 @@ from process.ww.bfs_eft import (
     sigma_BFS_specific_munuud_pb,
     sigma_LR0_specific_pb,
 )
-from process.ww.eft_xsec import alpha_Gmu
-from process.ww.isr import sigma_observed_munuqq
+from process.ww.xsec_calculator.eft_xsec import alpha_Gmu
+from process.ww.xsec_calculator.isr import sigma_observed_munuqq
 
 # Framework default ISR α is now α_Gμ at m_W = 80.377 (BFS prescription,
 # line 2514 of arXiv:0707.0773). No monkeypatching needed.
@@ -195,7 +195,7 @@ def scenario_G():
     print("\n" + "=" * 72)
     print("Scenario G: PDG-constant vs bfs-eft BR conventions (inclusive μνqq̄)")
     print("=" * 72)
-    from process.ww.eft_xsec import BR_INCLUSIVE_MUNUQQ
+    from process.ww.xsec_calculator.eft_xsec import BR_INCLUSIVE_MUNUQQ
     if True:
         mW, gW = 80.379, 2.085
         print(f"  PDG BR inclusive = {BR_INCLUSIVE_MUNUQQ:.5f}")
@@ -247,8 +247,8 @@ def scenario_J_derivatives():
     """Check that the anchor preserves dσ/dm_W and dσ/dΓ_W derivatives
     within <1%. f(δ, Γ_W) varies smoothly, so the derivatives are
     dominated by σ_BFS_N32 with at most a small f' correction."""
-    from process.ww.isr import sigma_observed_munuqq
-    from process.ww.eft_xsec import BR_INCLUSIVE_MUNUQQ
+    from process.ww.xsec_calculator.isr import sigma_observed_munuqq
+    from process.ww.xsec_calculator.eft_xsec import BR_INCLUSIVE_MUNUQQ
     print("\n" + "=" * 72)
     print("Scenario J: dσ/dm_W and dσ/dΓ_W derivatives — anchor effect")
     print("=" * 72)
@@ -280,7 +280,7 @@ def scenario_H():
     the c_fin shift is sub-percent, and the impact on σ_NLO is below
     MeV-precision sensitivity. Here we just check that the framework's
     σ_NLO is stable under m_W variations consistent with this estimate."""
-    from process.ww.eft_xsec import alpha_Gmu
+    from process.ww.xsec_calculator.eft_xsec import alpha_Gmu
     print("\n" + "=" * 72)
     print("Scenario H: c_p,LR^(1,fin) m_W-dependence — quantitative check")
     print("=" * 72)

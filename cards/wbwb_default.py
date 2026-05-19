@@ -9,13 +9,13 @@ copy / override individual fields as needed (the entry script may also
 expose argparse overrides for the most common ones).
 
 The physics-parameters block (PARAMETERS / PARAMETERS_1S / ORDER /
-RENORM_SCALES) is derived from `xsec_calculator.parameter_def.parameters`
+RENORM_SCALES) is derived from `process.wbwb.xsec_calculator.parameter_def.parameters`
 — that class is the single source of truth for the values the C++
-template generator (`compute_xsec_parallel.py`) consumes. Card-only knobs
+template generator (`compute_xsec_wbwb.py`) consumes. Card-only knobs
 (`round_dec`, the alt-scale split in `RENORM_SCALES`) are added on top.
 """
 
-from xsec_calculator.parameter_def import parameters as _ParameterDef
+from process.wbwb.xsec_calculator.parameter_def import parameters as _ParameterDef
 
 # ---------------------------------------------------------------------------
 # Physics: parameters of interest (single source of truth: parameter_def)
@@ -102,9 +102,9 @@ SCENARIO_TWOPOINTS = {
 # (must match what the C++ scan was actually run with)
 # ---------------------------------------------------------------------------
 INPUT_VAR = {
-    "BEC":  10.0,    # MeV   - beam energy calibration shift baked into BEC_variations/
+    "BEC":  10.0,    # MeV   - beam energy calibration shift baked into output_xsec_wbwb/BEC/
     "BES":  0.1,     # 10%  - BES variation baked into the BES morph template
-    "sw2":  2.5e-6,  #        sw2 shift baked into output_sw2/
+    "sw2":  2.5e-6,  #        sw2 shift baked into output_xsec_wbwb/sw2/
 }
 
 # ---------------------------------------------------------------------------
@@ -186,17 +186,18 @@ THEORY_UNC = {
 # ---------------------------------------------------------------------------
 # Paths are interpreted relative to the working directory of the entry script.
 INPUT_DIRS = {
-    "nominal":    "output_full",
-    "scale_vars": "output_alternative",
-    "BEC":        "BEC_variations",
-    "sw2":        "output_sw2",
-    "pseudo":     "output_pseudo",
-    "nominal_1S": "output_1S",
-    "scale_1S":   "output_scale_1S",
+    "nominal":    "output_xsec_wbwb/nominal",
+    "scale_vars": "output_xsec_wbwb/scale_vars",
+    "BEC":        "output_xsec_wbwb/BEC",
+    "sw2":        "output_xsec_wbwb/sw2",
+    "pseudo":     "output_xsec_wbwb/pseudo",
+    "nominal_1S": "output_xsec_wbwb/nominal_1S",
+    "scale_1S":   "output_xsec_wbwb/scale_1S",
 }
 
-PLOT_DIR = "plots/fit"
-PLOT_DIR_1S = "plots/fit_1S"
+PLOT_DIR = "fit_output/wbwb/plots"
+PLOT_DIR_1S = "fit_output/wbwb/plots_1S"
+SYST_TABLE_PATH = "fit_output/wbwb/systematics_table.tex"
 
 # ---------------------------------------------------------------------------
 # Plot decoration

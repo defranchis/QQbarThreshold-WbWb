@@ -1,19 +1,19 @@
 """WbWb cross-section generator.
 
-Wraps the existing pybind11 extension ``xsec_calculator/xsec_calc`` (compiled
+Wraps the existing pybind11 extension ``process.wbwb.xsec_calculator/xsec_calc`` (compiled
 from ``ttThresholdScanISR.cpp``) and owns the on-disk file-name convention.
 
 ``FitCore`` calls :meth:`file_name` to locate an already-computed template;
-:meth:`do_scan` is the entry point used by ``compute_xsec_parallel.py`` to
+:meth:`do_scan` is the entry point used by ``compute_xsec_wbwb.py`` to
 produce new templates.
 """
 
 import os
 
-# The pybind11 module is built in place inside the original xsec_calculator/
+# The pybind11 module is built in place inside the process.wbwb.xsec_calculator/
 # directory; importing it works as long as that directory remains on the
-# Python path. The compile script lives at xsec_calculator/compile_calc.sh.
-import xsec_calculator.xsec_calc as _xsec_calc  # type: ignore
+# Python path. The compile script lives at process.wbwb.xsec_calculator/compile_calc.sh.
+import process.wbwb.xsec_calculator.xsec_calc as _xsec_calc  # type: ignore
 
 
 # Map from parameter name to the (tag, format) pair used by the C++ side

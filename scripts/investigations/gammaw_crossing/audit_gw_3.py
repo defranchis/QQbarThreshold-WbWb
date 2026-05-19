@@ -1,7 +1,7 @@
 """Check dσ/dΓ_W at successive BFS Born orders to isolate where the
 crossing comes from. CC03 ≈ BFS LO σ^(0) alone (pure doubly-resonant)."""
 import numpy as np
-from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
+from process.ww.xsec_calculator.bfs_eft import sigma_BFS_LO_total_WW_pb
 
 mW, gW = 80.385, 2.085
 DGW = 1e-3

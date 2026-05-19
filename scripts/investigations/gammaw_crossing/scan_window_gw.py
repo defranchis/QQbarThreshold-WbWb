@@ -1,8 +1,8 @@
 """Within the FCC-ee scan window [157, 163] GeV: where is dσ/dΓ_W?
 Verify whether anything in our chain crosses zero anywhere in this region."""
 import numpy as np
-from process.ww.eft_xsec import sigma_partonic_munuqq, sigma_WW_partonic
-from process.ww.isr import sigma_observed_munuqq
+from process.ww.xsec_calculator.eft_xsec import sigma_partonic_munuqq, sigma_WW_partonic
+from process.ww.xsec_calculator.isr import sigma_observed_munuqq
 
 mW, gW = 80.385, 2.085
 DGW = 1e-3

@@ -162,7 +162,7 @@ def main():
     if not args.noPlots:
         import os
         from common.eos_publish import publish
-        publish(card.PLOT_DIR, os.environ.get("WBWB_FIT_PUBSUB", "wbwb"))
+        publish(card.PLOT_DIR, os.environ.get("WBWB_FIT_PUBSUB", "wbwb/plots"))
 
 
 if __name__ == "__main__":

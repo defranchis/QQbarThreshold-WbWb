@@ -221,7 +221,7 @@ def sigma_WW_partonic(s,
     sigma_pb = np.zeros_like(s_arr)
 
     if np.any(use_bfs):
-        from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
+        from process.ww.xsec_calculator.bfs_eft import sigma_BFS_LO_total_WW_pb
         sigma_bfs_pb = sigma_BFS_LO_total_WW_pb(
             s_arr, mW, gammaW, order="N3/2LO",
             include_NLO_hard_decay=include_NLO_hard_decay,
@@ -428,7 +428,7 @@ class BFSCorrections:
         """
         out = 0.0
         if self.enabled_coulomb_NLO or self.enabled_coulomb_NLO_subleading:
-            from process.ww.bfs_eft import (
+            from process.ww.xsec_calculator.bfs_eft import (
                 delta_sigma_Coulomb_NLO_specific_pb,
                 sigma_LR0_specific_pb,
             )
@@ -542,7 +542,7 @@ def sigma_partonic_munuqq(s,
 
     if np.any(use_bfs):
         if br_convention == "bfs-eft":
-            from process.ww.bfs_eft import sigma_BFS_specific_munuud_pb
+            from process.ww.xsec_calculator.bfs_eft import sigma_BFS_specific_munuud_pb
             sigma_specific = sigma_BFS_specific_munuud_pb(
                 s_arr, mW, gammaW, order="N3/2LO",
                 include_NLO_hard_decay=include_NLO_hard_decay,
@@ -552,7 +552,7 @@ def sigma_partonic_munuqq(s,
             )
             sigma_bfs = sigma_specific * _CHANNEL_MULTIPLICITY[channel]
         else:   # pdg-constant: σ_WW_total × BR_PDG (no per-component BR corr)
-            from process.ww.bfs_eft import sigma_BFS_LO_total_WW_pb
+            from process.ww.xsec_calculator.bfs_eft import sigma_BFS_LO_total_WW_pb
             sigma_WW_total = sigma_BFS_LO_total_WW_pb(
                 s_arr, mW, gammaW,
                 order="N3/2LO",
@@ -567,7 +567,7 @@ def sigma_partonic_munuqq(s,
 
     if np.any(use_cal):
         if br_convention == "bfs-eft":
-            from process.ww.bfs_eft import gamma_W_LO
+            from process.ww.xsec_calculator.bfs_eft import gamma_W_LO
             BR_x = (_CHANNEL_MULTIPLICITY[channel] / 27.0) * (gamma_W_LO(mW) / gammaW) ** 2
         else:
             BR_x = BR_pdg

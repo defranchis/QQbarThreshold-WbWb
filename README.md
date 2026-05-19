@@ -33,38 +33,39 @@ WW_threshold/
 │   ├── systematics.py      - print_syst_table (text + LaTeX)
 │   └── parallel.py         - fork-based scan dispatcher
 ├── process/
-│   ├── wbwb/
-│   │   ├── generator.py    - thin wrapper around xsec_calculator.xsec_calc
-│   │   │                     (QQbar_threshold N3LO+ISR tt)
-│   │   ├── fit.py          - WbWbFit subclass: SM-width hook,
-│   │   │                     constrain_yukawa property, scenario validator,
-│   │   │                     pseudodata-tag / pull / print-extra / scannable
-│   │   │                     POI overrides
-│   │   └── scans.py        - WbWb-only scans: width, yukawa-constraint,
-│   │                         yukawa-theory, lumi-yukawa-ratio,
-│   │                         scale-vars-yukawa
-│   └── ww/                 - WW: full BFS-EFT chain + LL+exp ISR
-│       ├── bfs_eft.py        - BFS-EFT N^(3/2)LO Born (eq. 17+33+37+39 of
-│       │                       arXiv:0707.0773) + h4-h7 single-resonant +
-│       │                       NLO loops (HSC + Coulomb_NLO + EW-decay)
-│       │                       + Whizard 4f Born anchor (sec. 6.2) + δ_QCD
-│       ├── eft_xsec.py       - σ partonic entry points + Fadin-Khoze-Martin
-│       │                       Coulomb K-factor + RACOONWW spline above 170 GeV
-│       ├── isr.py            - LL+exp BETA-scheme ISR (LEP2 YR eq. 67),
-│       │                       single-conv default + 2-leg per BFS eq. 71
-│       ├── generator.py      - WWGenerator + .from_card factory + chain-
-│       │                       kwargs helpers (single source of truth)
-│       └── fit.py            - WWFit (placeholder; inherits FitCore)
+│   ├── wbwb/                 - WbWb process code (fit-side + calculation)
+│   │   ├── generator.py        - thin wrapper around xsec_calculator.xsec_calc
+│   │   │                         (QQbar_threshold N3LO+ISR tt)
+│   │   ├── fit.py              - WbWbFit subclass: SM-width hook,
+│   │   │                         constrain_yukawa property, scenario validator,
+│   │   │                         pseudodata-tag / pull / print-extra / scannable
+│   │   │                         POI overrides
+│   │   ├── scans.py            - WbWb-only scans: width, yukawa-constraint,
+│   │   │                         yukawa-theory, lumi-yukawa-ratio,
+│   │   │                         scale-vars-yukawa
+│   │   └── xsec_calculator/    - pybind11 wrappers around the C++ QQbar_threshold
+│   │                             library (tt N3LO+ISR template producer +
+│   │                             PS↔MS mass scheme conversion)
+│   └── ww/                   - WW process code (fit-side + calculation)
+│       ├── generator.py        - WWGenerator + .from_card factory + chain-
+│       │                         kwargs helpers (single source of truth)
+│       ├── fit.py              - WWFit (placeholder; inherits FitCore)
+│       └── xsec_calculator/    - WW BFS-EFT cross-section calculation (Python)
+│           ├── bfs_eft.py        - BFS-EFT N^(3/2)LO Born (eq. 17+33+37+39 of
+│           │                       arXiv:0707.0773) + h4-h7 single-resonant +
+│           │                       NLO loops (HSC + Coulomb_NLO + EW-decay)
+│           │                       + Whizard 4f Born anchor (sec. 6.2) + δ_QCD
+│           ├── eft_xsec.py       - σ partonic entry points + Fadin-Khoze-Martin
+│           │                       Coulomb K-factor + RACOONWW spline above 170 GeV
+│           └── isr.py            - LL+exp BETA-scheme ISR (LEP2 YR eq. 67),
+│                                   single-conv default + 2-leg per BFS eq. 71
 ├── scripts/
 │   ├── _audit_common.py    - shared build_fit + SCAN_SPECS for the harness
 │   ├── audit_scans.py      - state-isolation regression check
 │   └── scan_dump.py        - per-scan plot-data dumper (numerical regression check)
-├── xsec_calculator/        - pybind11 wrappers around the C++ QQbar_threshold
-│                             library (tt N3LO+ISR template producer)
-├── utils_convert/          - pybind11 wrapper for PS↔MS mass conversion
-├── legacy/                 - pre-refactor monolithic doFit.py + its driver
+├── legacy_code/            - pre-refactor monolithic doFit.py + its driver
 │                             scripts; archived for reference, not on the
-│                             import path (see legacy/README.md)
+│                             import path (see legacy_code/README.md)
 ├── allFits_wbwb.sh         - full WbWb diagnostic suite (every scan + syst table)
 ├── allFits_ww.sh           - same for WW
 ├── compute_xsec_ww.py      - WW template-generation driver (nominal + BEC vars)
@@ -138,7 +139,7 @@ lives in `SYSTEMATICS`. The two are physically separate so the same
 value never lives in two places.
 
 ```python
-# Physics parameters of interest — derived from xsec_calculator/parameter_def
+# Physics parameters of interest — derived from process.wbwb.xsec_calculator.parameter_def
 # so the card and the C++ template generator share one source of truth.
 PARAMETERS = {"mass": {...}, "width": {...}, "yukawa": {...}, "alphas": {...}}
 PARAMETERS_1S = {...}                                # alternate mass scheme
@@ -200,7 +201,7 @@ POI_DISPLAY = {
     "yukawa": {"symbol": r"y_t",      "unit": "%",   "scale": 100, "relative": True},
 }
 
-INPUT_DIRS = {"nominal": "output_full", "BEC": "BEC_variations", ...}
+INPUT_DIRS = {"nominal": "output_xsec_wbwb/nominal", "BEC": "output_xsec_wbwb/BEC", ...}
 THEORY_UNC = {"mass": 35.0, "width": 25.0, "yukawa": 10.0}
 ```
 
@@ -321,13 +322,13 @@ All hooks have sensible defaults in `FitCore`, so a no-op subclass
 The fit reads pre-computed cross-section templates from on-disk text files
 of the form `N3LO_scan_PS_ISR_massX.XX_widthY.YY_yukawaZ.ZZ_asVarA.AAAA_scaleM…_scaleW….txt`,
 one (ecm, xsec) per line. Templates are generated by the C++ extension
-`xsec_calculator/xsec_calc` (a pybind11 wrapper around Andreas Maier's
+`process/wbwb/xsec_calculator/xsec_calc` (a pybind11 wrapper around Andreas Maier's
 `QQbar_threshold` library). To re-generate:
 
 ```bash
-cd xsec_calculator
+cd process/wbwb/xsec_calculator
 bash compile_calc.sh        # builds xsec_calc.cpython-*.so
-python ../compute_xsec_parallel.py --ncores 8 --outdir ../output_full
+python ../../../compute_xsec_wbwb.py --ncores 8 --outdir ../../../output_xsec_wbwb/nominal
 ```
 
 The fit itself does not call do_scan; the entry scripts read existing

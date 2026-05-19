@@ -162,7 +162,7 @@ def estimate_systematic(fit, name, syst, breakdown_parametric=False):
 # ---------------------------------------------------------------------------
 # Orchestration: build the table, print, write LaTeX
 # ---------------------------------------------------------------------------
-def print_syst_table(fit, *, latex_path="systematics_table.tex"):
+def print_syst_table(fit, *, latex_path=None):
     """Iterate the configured systematics, capturing each one's quadrature
     contribution to the total uncertainty on each POI in ``card.POI_DISPLAY``.
 
@@ -170,7 +170,12 @@ def print_syst_table(fit, *, latex_path="systematics_table.tex"):
     restores the priors after each entry via ``reinitialise_to_nominal``;
     a final ``fit_parameters()`` in the ``finally`` block puts ``fit.minuit``
     back to its pre-call nominal-migrad state.
+
+    ``latex_path`` defaults to ``fit.card.SYST_TABLE_PATH``; pass ``""`` to
+    suppress LaTeX output entirely.
     """
+    if latex_path is None:
+        latex_path = fit.card.SYST_TABLE_PATH
     syst = {poi: {} for poi in fit.tracked_pois()}
 
     try:

@@ -1,6 +1,6 @@
 """Convergence test of 2-leg with increasing n_quad."""
 import numpy as np
-from process.ww.isr import sigma_observed_munuqq
+from process.ww.xsec_calculator.isr import sigma_observed_munuqq
 
 for n in [16, 32, 64, 128, 256]:
     sig = sigma_observed_munuqq(np.array([161.0]),

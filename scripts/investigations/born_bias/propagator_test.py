@@ -7,7 +7,7 @@ the BR correction with the full Γ_W = 2.09201 to convert from LO BR (1/27)
 to the NLO BR.
 """
 import numpy as np
-from process.ww.bfs_eft import (
+from process.ww.xsec_calculator.bfs_eft import (
     sigma_LR0_specific_pb,
     sigma_LR_RL_half_specific_pb,
     sigma_LR_RL_NLO_potential_specific_pb,

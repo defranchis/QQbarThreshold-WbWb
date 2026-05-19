@@ -1,7 +1,7 @@
 """Check the dσ/dΓ_W shape — looking for a bump near 168 GeV."""
 import numpy as np
-from process.ww.eft_xsec import sigma_partonic_munuqq
-from process.ww.isr import sigma_observed_munuqq
+from process.ww.xsec_calculator.eft_xsec import sigma_partonic_munuqq
+from process.ww.xsec_calculator.isr import sigma_observed_munuqq
 
 mW, gW = 80.379, 2.085
 DGW = 1e-3   # 1 MeV
