@@ -4,8 +4,6 @@ output_xsec/ww
 output_xsec/wbwb
 fit_output
 archive
-plots
-plots_*
 bin
 logs
 *~
