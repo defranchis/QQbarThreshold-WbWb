@@ -20,9 +20,9 @@ import os
 import time
 
 from cards import ww_default as card
-from common.parameters import Parameters
-from process.ww.xsec_calculator.eft_xsec import BFSCorrections
-from process.ww.generator import WWGenerator
+from framework.common.parameters import Parameters
+from framework.process.ww.xsec_calculator.eft_xsec import BFSCorrections
+from framework.process.ww.generator import WWGenerator
 
 
 def _generate_set(generator: WWGenerator, params: Parameters, *,

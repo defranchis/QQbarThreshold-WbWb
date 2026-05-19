@@ -12,7 +12,7 @@ plt.style.use(hep.style.CMS)
 
 sys.path.append(os.path.abspath(os.getcwd()))
 from doFit import formFileTag
-from process.wbwb.xsec_calculator.parameter_def import parameters
+from framework.process.wbwb.xsec_calculator.parameter_def import parameters
 
 input_dir = 'output_scale_vars'
 outdir = 'plots/scale_vars'

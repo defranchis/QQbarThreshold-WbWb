@@ -5,7 +5,7 @@ add any WW-specific hooks (e.g. mW / mZ correlations, ΓW SM-prediction
 constraint) here when the analysis requires them.
 """
 
-from common.fit_core import FitCore
+from framework.common.fit_core import FitCore
 
 
 class WWFit(FitCore):

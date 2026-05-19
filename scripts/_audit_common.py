@@ -20,11 +20,11 @@ import types
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cards import wbwb_default as base_card
-from common import scans
-from common.systematics import print_syst_table
-from process.wbwb import scans as wbwb_scans
-from process.wbwb.fit import WbWbFit
-from process.wbwb.generator import WbWbGenerator
+from framework.common import scans
+from framework.common.systematics import print_syst_table
+from framework.process.wbwb import scans as wbwb_scans
+from framework.process.wbwb.fit import WbWbFit
+from framework.process.wbwb.generator import WbWbGenerator
 
 
 def make_pseudo_subset(prefix, *, n=3, target_mass=None):

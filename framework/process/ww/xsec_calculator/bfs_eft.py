@@ -49,7 +49,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from process.ww.xsec_calculator.eft_xsec import (
+from framework.process.ww.xsec_calculator.eft_xsec import (
     ALPHA_EM_0,                         # not used for these LO formulae; kept for parity
     ALPHA_S_MW_DEFAULT,
     GEV_M2_TO_PB,

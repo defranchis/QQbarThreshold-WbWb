@@ -17,48 +17,49 @@ WW_threshold/
 ├── cards/                Steering cards (plain Python modules)
 │   ├── wbwb_default.py     - every magic number for the WbWb fit
 │   └── ww_default.py       - WW threshold scan
-├── common/               Process-agnostic fit machinery
-│   ├── parameters.py       - parameter bookkeeping (nominal / pseudo /
-│                              variation tags per fit parameter)
-│   ├── smearing.py         - Gaussian convolution with the beam-energy
-│                              spectrum
-│   ├── fit_core.py         - FitCore: read templates, smear, morph, build
-│                              scenarios, chi2, init_minuit, nuisances
-│   ├── plots.py            - shared plot decoration + the two top-level
-│                              diagnostic plots (fit_scenario,
-│                              parameter_variations)
-│   ├── scans.py            - process-agnostic scans: LS / BEC / BES / lumi /
-│                              alphaS / scale / shift / chi2 / true-value
-│                              (one impact line per POI)
-│   ├── systematics.py      - print_syst_table (text + LaTeX)
-│   └── parallel.py         - fork-based scan dispatcher
-├── process/
-│   ├── wbwb/                 - WbWb process code (fit-side + calculation)
-│   │   ├── generator.py        - thin wrapper around xsec_calculator.xsec_calc
-│   │   │                         (QQbar_threshold N3LO+ISR tt)
-│   │   ├── fit.py              - WbWbFit subclass: SM-width hook,
-│   │   │                         constrain_yukawa property, scenario validator,
-│   │   │                         pseudodata-tag / pull / print-extra / scannable
-│   │   │                         POI overrides
-│   │   ├── scans.py            - WbWb-only scans: width, yukawa-constraint,
-│   │   │                         yukawa-theory, lumi-yukawa-ratio,
-│   │   │                         scale-vars-yukawa
-│   │   └── xsec_calculator/    - pybind11 wrappers around the C++ QQbar_threshold
-│   │                             library (tt N3LO+ISR template producer +
-│   │                             PS↔MS mass scheme conversion)
-│   └── ww/                   - WW process code (fit-side + calculation)
-│       ├── generator.py        - WWGenerator + .from_card factory + chain-
-│       │                         kwargs helpers (single source of truth)
-│       ├── fit.py              - WWFit (placeholder; inherits FitCore)
-│       └── xsec_calculator/    - WW BFS-EFT cross-section calculation (Python)
-│           ├── bfs_eft.py        - BFS-EFT N^(3/2)LO Born (eq. 17+33+37+39 of
-│           │                       arXiv:0707.0773) + h4-h7 single-resonant +
-│           │                       NLO loops (HSC + Coulomb_NLO + EW-decay)
-│           │                       + Whizard 4f Born anchor (sec. 6.2) + δ_QCD
-│           ├── eft_xsec.py       - σ partonic entry points + Fadin-Khoze-Martin
-│           │                       Coulomb K-factor + RACOONWW spline above 170 GeV
-│           └── isr.py            - LL+exp BETA-scheme ISR (LEP2 YR eq. 67),
-│                                   single-conv default + 2-leg per BFS eq. 71
+├── framework/             All importable framework code (common + process)
+│   ├── common/               Process-agnostic fit machinery
+│   │   ├── parameters.py       - parameter bookkeeping (nominal / pseudo /
+│   │                              variation tags per fit parameter)
+│   │   ├── smearing.py         - Gaussian convolution with the beam-energy
+│   │                              spectrum
+│   │   ├── fit_core.py         - FitCore: read templates, smear, morph, build
+│   │                              scenarios, chi2, init_minuit, nuisances
+│   │   ├── plots.py            - shared plot decoration + the two top-level
+│   │                              diagnostic plots (fit_scenario,
+│   │                              parameter_variations)
+│   │   ├── scans.py            - process-agnostic scans: LS / BEC / BES / lumi /
+│   │                              alphaS / scale / shift / chi2 / true-value
+│   │                              (one impact line per POI)
+│   │   ├── systematics.py      - print_syst_table (text + LaTeX)
+│   │   └── parallel.py         - fork-based scan dispatcher
+│   └── process/
+│       ├── wbwb/                 - WbWb process code (fit-side + calculation)
+│       │   ├── generator.py        - thin wrapper around xsec_calculator.xsec_calc
+│       │   │                         (QQbar_threshold N3LO+ISR tt)
+│       │   ├── fit.py              - WbWbFit subclass: SM-width hook,
+│       │   │                         constrain_yukawa property, scenario validator,
+│       │   │                         pseudodata-tag / pull / print-extra / scannable
+│       │   │                         POI overrides
+│       │   ├── scans.py            - WbWb-only scans: width, yukawa-constraint,
+│       │   │                         yukawa-theory, lumi-yukawa-ratio,
+│       │   │                         scale-vars-yukawa
+│       │   └── xsec_calculator/    - pybind11 wrappers around the C++ QQbar_threshold
+│       │                             library (tt N3LO+ISR template producer +
+│       │                             PS↔MS mass scheme conversion)
+│       └── ww/                   - WW process code (fit-side + calculation)
+│           ├── generator.py        - WWGenerator + .from_card factory + chain-
+│           │                         kwargs helpers (single source of truth)
+│           ├── fit.py              - WWFit (placeholder; inherits FitCore)
+│           └── xsec_calculator/    - WW BFS-EFT cross-section calculation (Python)
+│               ├── bfs_eft.py        - BFS-EFT N^(3/2)LO Born (eq. 17+33+37+39 of
+│               │                       arXiv:0707.0773) + h4-h7 single-resonant +
+│               │                       NLO loops (HSC + Coulomb_NLO + EW-decay)
+│               │                       + Whizard 4f Born anchor (sec. 6.2) + δ_QCD
+│               ├── eft_xsec.py       - σ partonic entry points + Fadin-Khoze-Martin
+│               │                       Coulomb K-factor + RACOONWW spline above 170 GeV
+│               └── isr.py            - LL+exp BETA-scheme ISR (LEP2 YR eq. 67),
+│                                       single-conv default + 2-leg per BFS eq. 71
 ├── output_xsec/            - pre-computed σ-template input files for the
 │   ├── wbwb/                 fit (gitignored; one subdir per process, each
 │   └── ww/                   with {nominal,scale_vars,BEC,sw2,pseudo,…})
@@ -142,7 +143,7 @@ lives in `SYSTEMATICS`. The two are physically separate so the same
 value never lives in two places.
 
 ```python
-# Physics parameters of interest — derived from process.wbwb.xsec_calculator.parameter_def
+# Physics parameters of interest — derived from framework.process.wbwb.xsec_calculator.parameter_def
 # so the card and the C++ template generator share one source of truth.
 PARAMETERS = {"mass": {...}, "width": {...}, "yukawa": {...}, "alphas": {...}}
 PARAMETERS_1S = {...}                                # alternate mass scheme
@@ -325,13 +326,13 @@ All hooks have sensible defaults in `FitCore`, so a no-op subclass
 The fit reads pre-computed cross-section templates from on-disk text files
 of the form `N3LO_scan_PS_ISR_massX.XX_widthY.YY_yukawaZ.ZZ_asVarA.AAAA_scaleM…_scaleW….txt`,
 one (ecm, xsec) per line. Templates are generated by the C++ extension
-`process/wbwb/xsec_calculator/xsec_calc` (a pybind11 wrapper around Andreas Maier's
+`framework/process/wbwb/xsec_calculator/xsec_calc` (a pybind11 wrapper around Andreas Maier's
 `QQbar_threshold` library). To re-generate:
 
 ```bash
-cd process/wbwb/xsec_calculator
+cd framework/process/wbwb/xsec_calculator
 bash compile_calc.sh        # builds xsec_calc.cpython-*.so
-python ../../../compute_xsec_wbwb.py --ncores 8 --outdir ../../../output_xsec/wbwb/nominal
+python ../../../../compute_xsec_wbwb.py --ncores 8 --outdir ../../../../output_xsec/wbwb/nominal
 ```
 
 The fit itself does not call do_scan; the entry scripts read existing

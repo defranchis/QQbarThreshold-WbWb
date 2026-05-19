@@ -15,9 +15,9 @@ These complement the process-agnostic scans in :mod:`common.scans`:
 import matplotlib.pyplot as plt
 import numpy as np
 
-from common.fit_core import quadrature_subtract
-from common.plots import process_annotation, projection_title, save_figure
-from common.scans import (
+from framework.common.fit_core import quadrature_subtract
+from framework.common.plots import process_annotation, projection_title, save_figure
+from framework.common.scans import (
     impact,
     poi_symbol,
     run_local_migrad,

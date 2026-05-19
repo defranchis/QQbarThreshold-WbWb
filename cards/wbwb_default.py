@@ -15,7 +15,7 @@ template generator (`compute_xsec_wbwb.py`) consumes. Card-only knobs
 (`round_dec`, the alt-scale split in `RENORM_SCALES`) are added on top.
 """
 
-from process.wbwb.xsec_calculator.parameter_def import parameters as _ParameterDef
+from framework.process.wbwb.xsec_calculator.parameter_def import parameters as _ParameterDef
 
 # ---------------------------------------------------------------------------
 # Physics: parameters of interest (single source of truth: parameter_def)

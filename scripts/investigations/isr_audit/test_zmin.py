@@ -1,7 +1,7 @@
 """Test the BFS-style 155-GeV cutoff: z_min(s) = (155/√s)²."""
 import numpy as np
-from process.ww.xsec_calculator.isr import sigma_observed_munuqq, sigma_ISR_2leg_convolution
-from process.ww.xsec_calculator.eft_xsec import sigma_partonic_munuqq
+from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq, sigma_ISR_2leg_convolution
+from framework.process.ww.xsec_calculator.eft_xsec import sigma_partonic_munuqq
 
 BFS_Born_ISR = {158: 45.64, 161: 108.60, 164: 219.7, 167: 310.2, 170: 378.4}
 sqrts = np.array(list(BFS_Born_ISR.keys()), dtype=float)

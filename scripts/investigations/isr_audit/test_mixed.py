@@ -3,14 +3,14 @@ The difference from BETA is the (1+x) coefficient and the β² bracket use η in
 giving slightly more cross section."""
 import numpy as np
 from scipy.special import gamma as gamma_fn
-from process.ww.xsec_calculator.isr import (
+from framework.process.ww.xsec_calculator.isr import (
     sigma_ISR_2leg_convolution, beta_ISR, _quad_nodes,
 )
-from process.ww.xsec_calculator.eft_xsec import alpha_Gmu, M_E
+from framework.process.ww.xsec_calculator.eft_xsec import alpha_Gmu, M_E
 EULER_GAMMA = 0.5772156649015329
 
 # Override the per-leg NS function to use β_H = η = (2α/π)L
-import process.ww.xsec_calculator.isr as isr_mod
+import framework.process.ww.xsec_calculator.isr as isr_mod
 
 def _Gee_per_leg_NS_MIXED(x, beta_exp, beta_H, one_minus_x=None):
     """MIXED scheme: η in non-singular pieces, β in soft-singular kernel."""
@@ -65,7 +65,7 @@ def sigma_2leg_MIXED(sqrt_s, sigma_partonic_fn, mW, gammaW, x_min=0.316, n_quad=
         return float(out[0])
     return out
 
-from process.ww.xsec_calculator.eft_xsec import sigma_partonic_munuqq
+from framework.process.ww.xsec_calculator.eft_xsec import sigma_partonic_munuqq
 
 BFS = {158: 45.64, 161: 108.60, 164: 219.7, 167: 310.2, 170: 378.4}
 print("=== BETA vs MIXED scheme vs BFS Table 3 ===")

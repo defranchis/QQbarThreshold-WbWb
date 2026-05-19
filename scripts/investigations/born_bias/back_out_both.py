@@ -8,7 +8,7 @@ With two unknowns (r_sq, r_lin) need at least 2 √s to solve. Use 161 and 164
 (scan-window center), then test at all 6 √s.
 """
 import numpy as np
-from process.ww.xsec_calculator.bfs_eft import (
+from framework.process.ww.xsec_calculator.bfs_eft import (
     sigma_LR0_specific_pb, sigma_LR_RL_half_specific_pb,
     sigma_LR_RL_NLO_potential_specific_pb,
     sigma_LR_RL_three_half_a_specific_pb, gamma_W_LO,

@@ -1,7 +1,7 @@
 """Audit dσ/dΓ_W vs √s under every toggle to find any Γ_W dependence
 we may have missed vs Azzurri's expected zero-crossing at 162.3 GeV."""
 import numpy as np
-from process.ww.xsec_calculator.eft_xsec import sigma_partonic_munuqq
+from framework.process.ww.xsec_calculator.eft_xsec import sigma_partonic_munuqq
 
 mW, gW = 80.385, 2.085   # Azzurri central values
 DGW = 1e-3   # 1 MeV

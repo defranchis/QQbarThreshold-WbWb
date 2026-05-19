@@ -18,7 +18,7 @@ Even simpler: vary the BR convention on each component one at a time
 and see which choice makes Scenario B close to 4-5 digits.
 """
 import numpy as np
-from process.ww.xsec_calculator.bfs_eft import (
+from framework.process.ww.xsec_calculator.bfs_eft import (
     sigma_LR0_specific_pb,
     sigma_LR_RL_half_specific_pb,
     sigma_LR_RL_NLO_potential_specific_pb,

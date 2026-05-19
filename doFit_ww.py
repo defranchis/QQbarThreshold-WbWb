@@ -10,11 +10,11 @@ template files is produced (see ``INPUT_DIRS`` in ``cards/ww_default.py``).
 import argparse
 
 from cards import ww_default as card
-from common import scans
-from common.plots import plot_fit_scenario, plot_parameter_variations
-from common.systematics import print_syst_table
-from process.ww.fit import WWFit
-from process.ww.generator import WWGenerator
+from framework.common import scans
+from framework.common.plots import plot_fit_scenario, plot_parameter_variations
+from framework.common.systematics import print_syst_table
+from framework.process.ww.fit import WWFit
+from framework.process.ww.generator import WWGenerator
 
 
 def parse_args():
@@ -94,7 +94,7 @@ def main():
 
     if not args.noPlots:
         import os
-        from common.eos_publish import publish
+        from framework.common.eos_publish import publish
         publish(card.PLOT_DIR, os.environ.get("WW_FIT_PUBSUB", "ww/plots"))
 
 

@@ -50,7 +50,7 @@ from __future__ import annotations
 import numpy as np
 from scipy.special import gamma as gamma_fn
 
-from process.ww.xsec_calculator.eft_xsec import (
+from framework.process.ww.xsec_calculator.eft_xsec import (
     ALPHA_EM_0, M_E,
     ALPHA_S_MW_DEFAULT,
     M_W_DEFAULT, GAMMA_W_DEFAULT, M_W_BFS_REF,

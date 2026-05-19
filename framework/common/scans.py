@@ -15,8 +15,8 @@ import iminuit
 import matplotlib.pyplot as plt
 import numpy as np
 
-from common.fit_core import ecm_to_str, quadrature_subtract
-from common.plots import (
+from framework.common.fit_core import ecm_to_str, quadrature_subtract
+from framework.common.plots import (
     process_annotation,
     projection_title,
     save_figure,

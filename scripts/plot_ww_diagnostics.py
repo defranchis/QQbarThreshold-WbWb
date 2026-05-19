@@ -23,21 +23,21 @@ import os
 
 import numpy as np
 
-from process.ww.xsec_calculator.bfs_eft import (
+from framework.process.ww.xsec_calculator.bfs_eft import (
     gamma_W_LO,
     sigma_LR0_specific_pb,
     sigma_LR_RL_half_specific_pb,
     sigma_LR_RL_NLO_potential_specific_pb,
     sigma_LR_RL_three_half_a_specific_pb,
 )
-from process.ww.xsec_calculator.eft_xsec import (
+from framework.process.ww.xsec_calculator.eft_xsec import (
     BR_INCLUSIVE_MUNUQQ,
     GAMMA_W_DEFAULT, M_W_DEFAULT,
     coulomb_K_factor, sigma_partonic_munuqq as _sigma_partonic_munuqq_raw,
     sigma_WW_partonic,
 )
-from process.ww.xsec_calculator.isr import sigma_observed_munuqq as _sigma_observed_munuqq_raw
-from process.ww.generator import (
+from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq as _sigma_observed_munuqq_raw
+from framework.process.ww.generator import (
     partonic_kwargs_from_card, observed_kwargs_from_card,
 )
 from cards import ww_default as _card
@@ -534,7 +534,7 @@ def plot_bes_effect_on_variations():
     the band shape is preserved under BES smearing."""
     import matplotlib.pyplot as plt
     import pandas as pd
-    from common.smearing import convolute_gauss
+    from framework.common.smearing import convolute_gauss
 
     BES_pct = 0.105   # FCC FSR Vol 1 Table 14 (W+W- BS)
     mW0, gW0 = 80.385, 2.085
@@ -637,7 +637,7 @@ def main():
     plot_bes_effect_on_variations()
     print("Done.")
 
-    from common.eos_publish import publish
+    from framework.common.eos_publish import publish
     publish(PLOT_DIR, os.environ.get("WW_DIAGNOSTICS_PUBSUB", "ww/diagnostics"))
 
 

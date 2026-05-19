@@ -19,7 +19,7 @@ where ⟨·⟩ is the sample mean over the relevant √s grid (here, BFS referen
 points in the scan window).
 """
 import numpy as np
-from process.ww.xsec_calculator.bfs_eft import sigma_BFS_specific_munuud_pb
+from framework.process.ww.xsec_calculator.bfs_eft import sigma_BFS_specific_munuud_pb
 
 # Table 2 BFS reference points in the scan window
 SQRTS = np.array([158.0, 161.0, 164.0, 167.0])

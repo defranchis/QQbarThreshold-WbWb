@@ -13,7 +13,7 @@ import os
 # The pybind11 module is built in place inside the process.wbwb.xsec_calculator/
 # directory; importing it works as long as that directory remains on the
 # Python path. The compile script lives at process.wbwb.xsec_calculator/compile_calc.sh.
-import process.wbwb.xsec_calculator.xsec_calc as _xsec_calc  # type: ignore
+import framework.process.wbwb.xsec_calculator.xsec_calc as _xsec_calc  # type: ignore
 
 
 # Map from parameter name to the (tag, format) pair used by the C++ side

@@ -36,12 +36,12 @@ import os
 
 import numpy as np
 
-from process.ww.xsec_calculator.eft_xsec import (
+from framework.process.ww.xsec_calculator.eft_xsec import (
     ALPHA_S_MW_DEFAULT, M_T_DEFAULT, M_H_DEFAULT,
     BFSCorrections,
     M_W_DEFAULT, GAMMA_W_DEFAULT,
 )
-from process.ww.xsec_calculator.isr import sigma_observed_munuqq
+from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq
 
 
 # ---------------------------------------------------------------------------

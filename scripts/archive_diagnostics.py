@@ -6,7 +6,7 @@ scripts/plot_ww_diagnostics.py) — no local copy is kept. Tag is derived from
 `git rev-parse --short HEAD` plus today's date; `-dirty` is appended if the
 working tree has uncommitted changes."""
 
-from common.eos_publish import archive_tag, publish
+from framework.common.eos_publish import archive_tag, publish
 
 PLOT_DIR = "fit_output/ww/diagnostics"
 

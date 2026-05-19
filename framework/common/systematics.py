@@ -14,7 +14,7 @@ edit.
 import math
 import os
 
-from common.fit_core import OFF, quadrature_subtract
+from framework.common.fit_core import OFF, quadrature_subtract
 
 
 # ---------------------------------------------------------------------------

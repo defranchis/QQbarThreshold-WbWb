@@ -2,7 +2,7 @@
 YFSWW3 v1.18 has only CC03 doubly-resonant; modern 4f codes have single-res too.
 σ^(1/2) in BFS contains the h4-h7 single-resonant diagrams."""
 import numpy as np
-from process.ww.xsec_calculator.bfs_eft import (
+from framework.process.ww.xsec_calculator.bfs_eft import (
     sigma_LR0_specific_pb,
     sigma_LR_RL_half_specific_pb,
     sigma_LR_RL_NLO_potential_specific_pb,

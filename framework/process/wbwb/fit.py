@@ -14,7 +14,7 @@ process in the framework has this dual-use top yukawa parameter.
 
 import uncertainties as unc
 
-from common.fit_core import OFF, FitCore
+from framework.common.fit_core import OFF, FitCore
 
 
 class WbWbFit(FitCore):
@@ -139,7 +139,7 @@ class WbWbFit(FitCore):
         importable. Use when the linearisation anchor (``mass_var``) drifts
         away from the SM — re-wire ``physical_fit_params`` to call this.
         """
-        import process.wbwb.xsec_calculator.scheme_conversion as scheme_conversion  # type: ignore
+        import framework.process.wbwb.xsec_calculator.scheme_conversion as scheme_conversion  # type: ignore
         mt_ref = self.d_params["mass_var"]["mass"]
         mt_pole = mt_PS + scheme_conversion.calculate_mt_Pole(mt_ref, self.mass_scale) - mt_ref
         return 1.3148 + 0.027 * (mt_pole - 172.69) + theory_knob * 0.005

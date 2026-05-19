@@ -30,8 +30,8 @@ import scipy
 import uncertainties as unc
 from scipy.linalg import cho_factor, cho_solve
 
-from common.parameters import Parameters
-from common.smearing import convolute_gauss
+from framework.common.parameters import Parameters
+from framework.common.smearing import convolute_gauss
 
 
 def ecm_to_str(ecm):

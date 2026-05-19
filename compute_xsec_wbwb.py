@@ -1,5 +1,5 @@
-import process.wbwb.xsec_calculator.xsec_calc as xsec_calc # type: ignore
-from process.wbwb.xsec_calculator.parameter_def import parameters
+import framework.process.wbwb.xsec_calculator.xsec_calc as xsec_calc # type: ignore
+from framework.process.wbwb.xsec_calculator.parameter_def import parameters
 import multiprocessing, argparse, time, sys, copy
 import numpy as np
 

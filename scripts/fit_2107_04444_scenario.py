@@ -32,9 +32,9 @@ from __future__ import annotations
 import numpy as np
 
 from cards import ww_default as card
-from common.fit_core import ecm_to_str
-from process.ww.fit import WWFit
-from process.ww.generator import WWGenerator
+from framework.common.fit_core import ecm_to_str
+from framework.process.ww.fit import WWFit
+from framework.process.ww.generator import WWGenerator
 
 
 # 2107.04444 §2.4 optimal scenario

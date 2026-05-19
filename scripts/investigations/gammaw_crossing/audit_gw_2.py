@@ -1,7 +1,7 @@
 """Compare absolute σ_WW(total) and dσ/dΓ_W to Azzurri's Fig. 1 directly."""
 import numpy as np
-from process.ww.xsec_calculator.eft_xsec import sigma_WW_partonic, BR_INCLUSIVE_MUNUQQ, sigma_partonic_munuqq
-from process.ww.xsec_calculator.isr import sigma_observed_munuqq
+from framework.process.ww.xsec_calculator.eft_xsec import sigma_WW_partonic, BR_INCLUSIVE_MUNUQQ, sigma_partonic_munuqq
+from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq
 
 mW, gW = 80.385, 2.085   # Azzurri central
 DGW = 1e-3

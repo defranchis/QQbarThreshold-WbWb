@@ -3,7 +3,7 @@ If our anchored chain at BORN level matches Whizard dσ/dΓ_W, the issue is the
 NLO loops adding spurious Γ_W dependence. If it still differs, the BFS Born
 expansion's complex-velocity Γ_W treatment is the issue."""
 import numpy as np
-from process.ww.xsec_calculator.bfs_eft import sigma_BFS_LO_total_WW_pb
+from framework.process.ww.xsec_calculator.bfs_eft import sigma_BFS_LO_total_WW_pb
 
 SQRTS = np.array([155.0, 158.0, 161.0, 164.0, 167.0, 170.0])
 gW_T1, gW_T2 = 2.04483, 2.09201

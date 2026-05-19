@@ -9,13 +9,13 @@ scans / produce plots / build the systematic-uncertainty table.
 import argparse
 
 from cards import wbwb_default as card
-from common import scans
-from common.parallel import run_parallel
-from common.plots import plot_fit_scenario, plot_parameter_variations
-from common.systematics import print_syst_table
-from process.wbwb import scans as wbwb_scans
-from process.wbwb.fit import WbWbFit
-from process.wbwb.generator import WbWbGenerator
+from framework.common import scans
+from framework.common.parallel import run_parallel
+from framework.common.plots import plot_fit_scenario, plot_parameter_variations
+from framework.common.systematics import print_syst_table
+from framework.process.wbwb import scans as wbwb_scans
+from framework.process.wbwb.fit import WbWbFit
+from framework.process.wbwb.generator import WbWbGenerator
 
 
 def parse_args():
@@ -161,7 +161,7 @@ def main():
 
     if not args.noPlots:
         import os
-        from common.eos_publish import publish
+        from framework.common.eos_publish import publish
         publish(card.PLOT_DIR, os.environ.get("WBWB_FIT_PUBSUB", "wbwb/plots"))
 
 
