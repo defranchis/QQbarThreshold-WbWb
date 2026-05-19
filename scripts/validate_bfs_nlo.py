@@ -160,12 +160,13 @@ def scenario_F():
             born_isr_mine = sigma_observed_munuqq(
                 float(sq), mW=mW, gammaW=gW, channel="munuud",
                 br_convention="bfs-eft", include_coulomb=False,
-                include_NLO_hard_decay=False, apply_delta_QCD=False) * 1e3
+                include_NLO_hard_decay=False, apply_delta_QCD=False,
+                apply_whizard_anchor=False) * 1e3
             nlo_mine = sigma_observed_munuqq(
                 float(sq), mW=mW, gammaW=gW, channel="munuud",
                 br_convention="bfs-eft", include_coulomb=False,
                 include_NLO_hard_decay=True, apply_delta_QCD=True,
-                alpha_s=0.1199) * 1e3
+                alpha_s=0.1199, apply_whizard_anchor=False) * 1e3
             print(f"  {sq:>6}  {_fmt(born_isr_mine, 12)}    {_fmt(born_isr_paper, 12)}"
                   f"  {_fmt(nlo_mine, 8)}  {_fmt(nlo_paper, 8)}"
                   f"  {nlo_mine/nlo_paper:>9.4f}")

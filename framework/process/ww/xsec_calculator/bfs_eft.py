@@ -233,23 +233,35 @@ def _sigma_half_h57_RL(s, mW: float):
 
 
 def whizard_anchor_factor(s, mW: float = M_W_DEFAULT,
-                          gammaW: float = GAMMA_W_DEFAULT):
+                          gammaW: float = GAMMA_W_DEFAULT,
+                          *, apply_BR_correction: bool = True):
     """Multiplicative correction f(s, m_W, Γ_W) bringing the BFS-EFT
     N^(3/2)LO Born to the Whizard exact 4f Born.
+
+    The factor f is a *ratio* σ_Whiz/σ_EFT, so both sides must be in the
+    same BR-correction convention as the caller's σ_LR/σ_RL — otherwise
+    the multiplication σ_LR×f drops the (Γ^(0)/Γ_W)² factor and the result
+    is off by ~5 % at Γ_W far from Γ_W^(0). The `apply_BR_correction` flag
+    selects which convention the σ_EFT denominator uses; ``True`` matches
+    BFS Table 2's "with BR_corr" convention (used by
+    ``sigma_BFS_specific_munuud_pb``), ``False`` matches the
+    "no BR_corr" convention (used by ``sigma_BFS_LO_total_WW_pb`` when
+    invoked with ``apply_BR_correction=False``).
 
     Parameters
     ----------
     s : array-like
         Partonic CM energy² in GeV².
     mW, gammaW : float
-        W mass and width in GeV. Both axes are direct grid dimensions —
-        no spline extrapolation tricks.
+        W mass and width in GeV.
+    apply_BR_correction : bool, default True
+        Whether the σ_EFT denominator uses the BFS (Γ^(0)/Γ_W)² factor
+        from section 6.1. Must match the caller's setting.
 
     Returns
     -------
     f : array-like
-        Same shape as s. Typically f ≈ 0.998-1.05 in the FCC-ee scan window.
-        Vectorised in s.
+        Same shape as s. Vectorised in s.
     """
     # Late import: avoids loading scipy at module-import time, and lets users
     # who never apply the anchor (e.g. plot scripts) keep working if the
@@ -257,7 +269,7 @@ def whizard_anchor_factor(s, mW: float = M_W_DEFAULT,
     from framework.process.ww.xsec_calculator.whizard_grid import whizard_sigma
 
     sigma_LR, sigma_RL = _accumulate_born_orders(
-        s, mW, gammaW, "N3/2LO", apply_BR_correction=True)
+        s, mW, gammaW, "N3/2LO", apply_BR_correction=apply_BR_correction)
     sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * 1000.0   # pb → fb, unpolarised specific
     sigma_whiz_fb = whizard_sigma(s, mW, gammaW)
     f = sigma_whiz_fb / sigma_EFT_fb
@@ -613,8 +625,11 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
         s, mW, gammaW, order, apply_BR_correction=apply_BR_correction)
 
     # Whizard anchor on the Born sum only (NOT on the NLO loops below).
+    # Pass apply_BR_correction so the anchor's σ_EFT denominator matches the
+    # σ_LR/σ_RL convention we just computed.
     if apply_whizard_anchor:
-        f = whizard_anchor_factor(s, mW, gammaW)
+        f = whizard_anchor_factor(s, mW, gammaW,
+                                  apply_BR_correction=apply_BR_correction)
         sigma_LR = sigma_LR * f
         sigma_RL = sigma_RL * f
 
@@ -1033,11 +1048,12 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
         s, mW, gammaW, order, apply_BR_correction=True)   # LINEAR BR per eq. 83
 
     # BFS section 6.2: replace the EFT N^(3/2)LO Born by the Whizard 4f Born
-    # via the multiplicative anchor f(δ, Γ_W). Applied to the BORN SUM only
-    # — NOT to the NLO loop corrections, which are added on top per BFS
-    # eq. (finalcross).
+    # via the multiplicative anchor. Applied to the BORN SUM only — NOT to
+    # the NLO loop corrections, which are added on top per BFS eq.
+    # (finalcross). σ_LR/σ_RL above use apply_BR_correction=True (linear BR
+    # per eq. 83), so the anchor's σ_EFT denominator must match.
     if apply_whizard_anchor:
-        f = whizard_anchor_factor(s, mW, gammaW)
+        f = whizard_anchor_factor(s, mW, gammaW, apply_BR_correction=True)
         sigma_LR = sigma_LR * f
         sigma_RL = sigma_RL * f
 
