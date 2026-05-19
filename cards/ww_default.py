@@ -275,8 +275,11 @@ AZZURRI_OVERLAY_INFLATE = 100
 # not, preserving its legacy full-template view.
 RESTRICT_PARAM_VARIATIONS_PLOT_TO_SCAN = True
 
-# Constant that converts σ_template ( = σ_observed × BR ) to σ_WW for the
-# Azzurri-style overlay's y-axis. Matches the diagnostic plot's σ_WW
-# scale (≈ 0–15 pb) instead of σ_observed (≈ 0–1.7 pb). Set to None to
-# plot the raw template — WbWb does not divide.
-OBSERVED_TO_TOTAL_DIVISOR = 0.14331   # ≡ BR_INCLUSIVE_MUNUQQ from eft_xsec.py
+# ---------------------------------------------------------------------------
+# PDG branching ratios — single source of truth for the chain. All derived
+# combinations (BR_INCLUSIVE_MUNUQQ etc.) are computed in
+# framework/process/ww/xsec_calculator/eft_xsec.py from these primitives.
+# ---------------------------------------------------------------------------
+BR_W_MUNU = 0.1063   # PDG: BR(W → μν)
+BR_W_HAD  = 0.6741   # PDG: BR(W → hadrons), inclusive
+BR_W_UD   = 0.3358   # PDG: BR(W → up-type-quark generation), ud̄ + cs̄ ≈ BR_had / 2

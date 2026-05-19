@@ -62,14 +62,14 @@ M_W_BFS_REF        = 80.377    # m_W at which BFS Tables / c_fin are tabulated
 M_T_DEFAULT        = 174.2     # m_t (pole), BFS Table 4 input
 M_H_DEFAULT        = 115.0     # M_H, BFS Table 4 input
 
-BR_W_MUNU = 0.1063   # PDG
-BR_W_HAD  = 0.6741   # PDG, hadronic inclusive
-BR_W_UD   = 0.3358   # W → up-type-quark generation (ud̄ + cs̄ summed, ≈ BR_had/2)
+# PDG branching ratios — primitives live in the steering card (single source
+# of truth); the combinations below are derived once at module load.
+from cards.ww_default import BR_W_MUNU, BR_W_HAD, BR_W_UD  # noqa: E402
 
-# 2 × BR(W→μν) × BR(W→had):  factor 2 because either W can be the muonic one.
+# 2 × BR(W→μν) × BR(W→had): factor 2 because either W can be the muonic one.
 BR_INCLUSIVE_MUNUQQ = 2.0 * BR_W_MUNU * BR_W_HAD
-# BR(W→μν) × BR(W→ud̄/cs̄):  legacy convention from BFS tables (one specific
-# W charge × one specific up-type quark generation pair).
+# BR(W→μν) × BR(W→ud̄/cs̄): legacy single-specific-channel convention from
+# the BFS tables.
 BR_MUNUUD          = BR_W_MUNU * BR_W_UD
 
 

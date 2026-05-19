@@ -323,11 +323,14 @@ def plot_fit_input_azzurri_overlay(fit):
                ("#9ecae1", "#08519c")]
 
     inflate = int(getattr(fit.card, "AZZURRI_OVERLAY_INFLATE", 100))
-    # Optional template → σ_WW unit conversion so the y-axis matches the
-    # σ_WW scale of the diagnostic Azzurri overlay. WW divides by
-    # BR_INCLUSIVE_MUNUQQ ≈ 0.143 to lift σ_observed (≈ 0–1.7 pb) onto
-    # the σ_WW scale (≈ 0–15 pb). Cards without the constant plot raw σ.
-    divisor = float(getattr(fit.card, "OBSERVED_TO_TOTAL_DIVISOR", 1.0) or 1.0)
+    # Optional σ_template → σ_WW unit conversion so the y-axis matches the
+    # σ_WW scale of the diagnostic Azzurri overlay. For WW the templates
+    # are σ_observed = σ_WW × BR_inclusive(μν qq̄); divide by that BR to
+    # recover σ_WW (≈ 0–15 pb). Cards that don't expose W-leptonic /
+    # W-hadronic BR primitives (e.g. WbWb) plot the raw template σ.
+    br_munu = getattr(fit.card, "BR_W_MUNU", None)
+    br_had = getattr(fit.card, "BR_W_HAD", None)
+    divisor = 2.0 * br_munu * br_had if (br_munu and br_had) else 1.0
     fig, ax = plt.subplots(figsize=(7.5, 7.5))
     for (name, math_label, delta_disp, unit), (color_band, color_edge) in zip(pois, palette):
         sig_var = np.asarray(fit.template(f"{name}_var")["xsec"])
