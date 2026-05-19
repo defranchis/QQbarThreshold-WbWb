@@ -1,5 +1,9 @@
 zz_old
 zz_old/*
+
+# Claude Code per-machine permission allowlist (paths/hosts are
+# AFS-specific, not portable to other collaborators).
+.claude/settings.json
 output_xsec/ww
 output_xsec/wbwb
 fit_output
