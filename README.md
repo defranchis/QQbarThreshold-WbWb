@@ -435,9 +435,19 @@ Cross-section pipeline (in `framework/process/ww/xsec_calculator/`):
   decay eq. 60). Plus **BFS dominant NNLO** from arXiv:0807.0102
   eq. (49): C×[S+H] + NLO-C + C×decay + C×res + C3, all closed-form
   (eqs. 11, 34, 39, 40, 48). Plus δ_QCD multiplier (eq. delta_qcd)
-  and the Whizard 4f Born anchor (BFS sec. 6.2 prescription). All
+  and the Whizard 4f Born anchor (BFS sec. 6.2 prescription).
+  Anchor available in two sources — `spline` (BFS Tables 1+2, cubic
+  in δ=√s−2m_W + linear in Γ_W, default) and `grid` (1295-pt WHIZARD
+  3.1.5 scan, 3D trilinear) — selectable via
+  `NLO_CONFIG["whizard_anchor_source"]`. Both apply a fixed BR-strip
+  factor `(Γ_W / Γ_W^(0)(M_W_BFS_REF))²` when invoked through the
+  PDG-constant BR chain so σ_observed = σ_WW × BR_PDG (Azzurri picture;
+  the Γ_W lineshape crossing at √s ≈ 162 GeV is preserved). All chain
   knobs card-driven and on by default; see `cards/ww_default.py`
-  NLO_CONFIG (includes the new `include_BFS_NNLO`).
+  NLO_CONFIG (includes `include_BFS_NNLO` and `whizard_anchor_source`).
+  PDG branching ratios (`BR_W_MUNU`, `BR_W_HAD`, `BR_W_UD`) live in
+  the card as primitives; `BR_INCLUSIVE_MUNUQQ = 2·BR_μν·BR_had` and
+  `BR_MUNUUD = BR_μν·BR_ud` are derived once in `eft_xsec.py`.
 * `eft_xsec.py` — partonic entry points `sigma_partonic_munuqq` and
   `sigma_WW_partonic`. Coulomb K-factor (Fadin-Khoze-Martin +
   Bardin-Riemann α²). σ̂(s) is C² smoothly tapered to zero across
@@ -476,6 +486,36 @@ Validation (`scripts/validate_bfs_nlo.py`, 10 scenarios A–J):
   LL+exp (the same ~31 MeV NLL-ISR systematic BFS itself quotes).
 - Scenario I: Whizard-anchor closure to 4-5 digits at Table 1
   reference points.
+
+Fit output (`fit_output/ww/plots/`, written by `doFit_ww.py`):
+- `fit_scenario_asimov` / `fit_scenario_ratio_asimov`: pseudo/asimov
+  vs fitted lineshape + post-fit uncertainty band. Process + chain
+  caption sourced from `card.PROCESS_LABEL_SHORT` +
+  `card.GENERATOR_LABEL_SHORT` + `card.BES_LABEL`; bottom footer
+  carries the full traceability chain string read from the template
+  metadata.
+- `param_variations.png`: σ(±Δ)/σ_nom per parameter, legend annotated
+  with the variation magnitude.
+- `fit_input_ratios.{pdf,png}` / `fit_input_azzurri_overlay.{pdf,png}`:
+  read directly from the on-disk templates (no chain re-evaluation),
+  verify that the fit's input lineshape sensitivity matches the
+  diagnostic plots. The overlay divides templates by
+  `2·card.BR_W_MUNU·card.BR_W_HAD` to plot σ_WW on the diagnostic
+  plot's scale.
+- `fit_metadata.json`: timestamp, scenario, full chain string read
+  from the template the fit consumed.
+
+Card knobs unique to WW (in addition to NLO_CONFIG / THEORY_INPUTS):
+`PARAM_MATH_LABELS` + `PARAM_UNITS` (plain-LaTeX math symbols + units;
+`PARAM_LABELS` is derived on-demand via `plots.param_axis_label`),
+`POI_DISPLAY` (POI math/unit/scale for axis labels — drives
+`fit.tracked_pois()`), `PROCESS_LABEL_SHORT` /
+`GENERATOR_LABEL_SHORT` for the fit-scenario caption,
+`AZZURRI_OVERLAY_INFLATE` / `AZZURRI_OVERLAY_XLIM` /
+`AZZURRI_OVERLAY_YLIM` for the band visualisation,
+`RESTRICT_PARAM_VARIATIONS_PLOT_TO_SCAN` (WW: True), `SCAN_XLIM`
+(omitted on WW; `plots._scan_xlim` derives bounds from
+`SCENARIO["scan_min" / "scan_max"]`).
 
 NNLO validation (`scripts/investigations/bfs_nnlo/`):
 - All 5 NNLO pieces (eqs. 11, 34, 39, 40, 48) round-trip Table 1 of
