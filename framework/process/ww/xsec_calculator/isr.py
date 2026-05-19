@@ -398,6 +398,7 @@ def sigma_observed_munuqq(sqrt_s,
                           alpha_s: float = ALPHA_S_MW_DEFAULT,
                           alpha_em_isr: float | None = None,
                           apply_whizard_anchor: bool = True,
+                          whizard_anchor_source: str = "grid",
                           isr_scheme: str = "single_conv"):
     """
     Observed σ(e+e- → μν qq̄) after ISR convolution, in pb. Vectorised in
@@ -431,6 +432,7 @@ def sigma_observed_munuqq(sqrt_s,
         apply_delta_QCD=apply_delta_QCD,
         alpha_s=alpha_s,
         apply_whizard_anchor=apply_whizard_anchor,
+        whizard_anchor_source=whizard_anchor_source,
     )
     if isr_scheme == "single_conv":
         return sigma_ISR_convolution(

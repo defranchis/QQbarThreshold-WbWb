@@ -71,6 +71,7 @@ def partonic_kwargs_from_card(card) -> dict:
         apply_delta_QCD=bool(nlo.get("apply_delta_QCD", True)),
         alpha_s=float(theory.get("alpha_s_MW", ALPHA_S_MW_DEFAULT)),
         apply_whizard_anchor=bool(nlo.get("apply_whizard_anchor", True)),
+        whizard_anchor_source=str(nlo.get("whizard_anchor_source", "grid")),
     )
 
 
@@ -96,7 +97,8 @@ def chain_summary_latex(kwargs: dict) -> str:
     if kwargs.get("apply_delta_QCD", False):
         parts.append(r"$\delta_{\rm QCD}$")
     if kwargs.get("apply_whizard_anchor", False):
-        parts.append(r"anchor")
+        src = str(kwargs.get("whizard_anchor_source", "grid"))
+        parts.append(rf"anchor ({src})")
     if kwargs.get("include_coulomb", False):
         parts.append(r"$K_{\rm C}$")
     if "isr_scheme" in kwargs:
@@ -159,9 +161,12 @@ class WWGenerator:
                  br_convention: str = "pdg-constant",
                  # α_s(M_W) in MS-bar (enters δ_QCD):
                  alpha_s: float = ALPHA_S_MW_DEFAULT,
-                 # Whizard 4f Born anchor f(δ, Γ_W) — BFS sec. 6.2 prescription
+                 # Whizard 4f Born anchor — BFS sec. 6.2 prescription
                  # to replace BFS-EFT N^(3/2)LO Born by exact Whizard 4f Born:
                  apply_whizard_anchor: bool = True,
+                 # Anchor source: "grid" (1295-pt WHIZARD scan, default) or
+                 # "spline" (BFS Tables 1+2, smooth but only two Γ_W refs).
+                 whizard_anchor_source: str = "grid",
                  # ISR scheme: "single_conv" (LEP2 YR α→2α 1D form, default)
                  # or "2leg" (BFS eq. 71 full per-leg double conv). Both forms
                  # agree to <0.1 % at LL+exp; single-conv is faster (1D quad).
@@ -187,6 +192,7 @@ class WWGenerator:
         self.br_convention = br_convention
         self.alpha_s = alpha_s
         self.apply_whizard_anchor = apply_whizard_anchor
+        self.whizard_anchor_source = whizard_anchor_source
         self.isr_scheme = isr_scheme
         self.alpha_em_isr = alpha_em_isr
         self.m_t = m_t
@@ -228,6 +234,7 @@ class WWGenerator:
             "include_BFS_NNLO":       self.include_BFS_NNLO,
             "apply_delta_QCD":        self.apply_delta_QCD,
             "apply_whizard_anchor":   self.apply_whizard_anchor,
+            "whizard_anchor_source":  self.whizard_anchor_source,
             "include_coulomb":        self.include_coulomb,
             "isr_scheme":             self.isr_scheme,
         })
@@ -242,7 +249,7 @@ class WWGenerator:
             f"NLO_loops={self.include_NLO_hard_decay} "
             f"NNLO={self.include_BFS_NNLO}  "
             f"δ_QCD={self.apply_delta_QCD} (α_s={self.alpha_s})  "
-            f"anchor={self.apply_whizard_anchor}  "
+            f"anchor={self.apply_whizard_anchor}[{self.whizard_anchor_source}]  "
             f"ISR={self.isr_scheme} (α_em={alpha_em_str})  "
             f"m_t={self.m_t} M_H={self.M_H}"
         )
@@ -304,6 +311,7 @@ class WWGenerator:
             alpha_s=alpha_s_eff,
             br_convention=self.br_convention,
             apply_whizard_anchor=self.apply_whizard_anchor,
+            whizard_anchor_source=self.whizard_anchor_source,
             isr_scheme=self.isr_scheme,
             alpha_em_isr=self.alpha_em_isr,
         )

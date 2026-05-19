@@ -220,63 +220,178 @@ def _sigma_half_h57_RL(s, mW: float):
 # Table 4 numbers (paper line 2647-2656). We do the same: multiply the
 # BFS-EFT N^(3/2)LO Born by
 #
-#     f(s, m_W, Γ_W) = σ_Whizard(s, m_W, Γ_W) / σ_EFT-N3/2(s, m_W, Γ_W)
+#     f(s, m_W, Γ_W) = σ_Whizard / σ_EFT-N3/2
 #
-# σ_Whizard comes from the 1295-point WHIZARD grid produced by the pipeline
-# in ``WW_threshold/whizard/``, interpolated trilinearly in (√s, m_W, Γ_W).
-# σ_EFT-N3/2 is the framework's BFS Born expansion (Born → σ^(3/2),a, with
-# BR correction applied per section 6.1), evaluated at the same point.
+# Two sources are kept side-by-side and selectable via the ``source`` arg
+# of :func:`whizard_anchor_factor`:
 #
-# This replaces the original BFS Tables 1+2 spline (Γ_W ∈ {2.045, 2.092}
-# only, m_W via δ-shift) with a proper 3D interpolant — no extrapolation
-# in Γ_W needed, full m_W dependence captured.
+#   "spline" — BFS arXiv:0707.0773 Tables 1+2: cubic spline in
+#              δ = √s − 2 m_W, linear interp in Γ_W between the two
+#              reference points {2.04483, 2.09201}. Smooth in (s, m_W, Γ_W)
+#              with no MC stat noise, but only two Γ_W anchor points.
+#
+#   "grid"   — 1295-point WHIZARD 3.1.5 grid (5 m_W × 7 Γ_W × 37 √s)
+#              produced by ``WW_threshold/whizard/``, trilinear interp in
+#              (s, m_W, Γ_W). Full (m_W, Γ_W) coverage with no
+#              extrapolation, but carries ~0.05-0.2 % per-point MC stat
+#              noise that propagates into variation templates.
+#
+# Both implementations are BR-aware: when called with
+# ``apply_BR_correction=False`` the σ_EFT denominator is brought to the
+# same BR convention as the caller's σ_LR/σ_RL, avoiding the (Γ^(0)/Γ_W)²
+# factor mismatch.
+
+# ----- "spline" source: BFS Tables 1+2 ratios --------------------------------
+# Data taken directly from BFS arXiv:0707.0773:
+#   Table 1 (LO width): m_W = 80.377, Γ_W = Γ_W^(0)(80.377) = 2.04483 GeV
+#   Table 2 (NLO+QCD width): m_W = 80.379, Γ_W = 2.09201 GeV
+# Both at: M_Z = 91.188, m_t = 174.2, M_H = 115, G_μ = 1.16637e-5.
+#
+# δ = √s − 2 m_W is essentially the same at each √s for Tables 1 and 2 (the
+# 2 MeV m_W difference is negligible compared to the 3 GeV δ spacing). For
+# the spline we use the Table 1 δ values as the abscissa. The BFS Tables
+# use the per-component BR correction (eq. 83), so the spline's "native"
+# denominator is the BR-corrected σ_EFT.
+
+_BFS_TABLE_1_SQRTS = [155.0, 158.0, 161.0, 164.0, 167.0, 170.0]
+_BFS_TABLE_1_MW    = 80.377
+_BFS_TABLE_1_GW    = 2.04483
+_BFS_TABLE_1_EFT   = [31.30, 62.50, 160.89, 318.80, 429.70, 505.40]   # fb, EFT N^(3/2)LO
+_BFS_TABLE_1_WHIZ  = [34.43, 63.39, 160.62, 318.30, 428.60, 505.10]   # fb, Whizard 4f Born
+
+_BFS_TABLE_2_SQRTS = [155.0, 158.0, 161.0, 164.0, 167.0, 170.0]
+_BFS_TABLE_2_MW    = 80.379
+_BFS_TABLE_2_GW    = 2.09201
+_BFS_TABLE_2_EFT   = [30.54,  60.83, 154.44, 303.70, 409.30, 481.70]
+_BFS_TABLE_2_WHIZ  = [33.58,  61.67, 154.19, 303.00, 408.80, 481.70]
 
 
-def whizard_anchor_factor(s, mW: float = M_W_DEFAULT,
-                          gammaW: float = GAMMA_W_DEFAULT,
-                          *, apply_BR_correction: bool = True):
-    """Multiplicative correction f(s, m_W, Γ_W) bringing the BFS-EFT
-    N^(3/2)LO Born to the Whizard exact 4f Born.
+def _build_whizard_anchor_splines():
+    """Cubic splines of σ_Whiz(δ) at the two BFS reference Γ_W values.
+    Abscissa is δ = √s − 2 m_W from the Tables' (constant) m_W; natural BC.
 
-    The factor f is a *ratio* σ_Whiz/σ_EFT, so both sides must be in the
-    same BR-correction convention as the caller's σ_LR/σ_RL — otherwise
-    the multiplication σ_LR×f drops the (Γ^(0)/Γ_W)² factor and the result
-    is off by ~5 % at Γ_W far from Γ_W^(0). The `apply_BR_correction` flag
-    selects which convention the σ_EFT denominator uses; ``True`` matches
-    BFS Table 2's "with BR_corr" convention (used by
-    ``sigma_BFS_specific_munuud_pb``), ``False`` matches the
-    "no BR_corr" convention (used by ``sigma_BFS_LO_total_WW_pb`` when
-    invoked with ``apply_BR_correction=False``).
-
-    Parameters
-    ----------
-    s : array-like
-        Partonic CM energy² in GeV².
-    mW, gammaW : float
-        W mass and width in GeV.
-    apply_BR_correction : bool, default True
-        Whether the σ_EFT denominator uses the BFS (Γ^(0)/Γ_W)² factor
-        from section 6.1. Must match the caller's setting.
-
-    Returns
-    -------
-    f : array-like
-        Same shape as s. Vectorised in s.
+    We spline σ_Whiz (the Whizard column), NOT the σ_Whiz/σ_EFT ratio: the
+    σ_EFT denominator is recomputed at the actual (s, m_W, Γ_W) with the
+    caller's BR convention so the σ^(0):σ^(1/2):σ^(1)_pot:σ^(3/2),a mix
+    is handled correctly (the ratio splines would bake in the BFS BR
+    convention, miscorrecting the σ^(1/2) piece).
     """
-    # Late import: avoids loading scipy at module-import time, and lets users
-    # who never apply the anchor (e.g. plot scripts) keep working if the
-    # grid file is absent.
-    from framework.process.ww.xsec_calculator.whizard_grid import whizard_sigma
+    try:
+        from scipy.interpolate import CubicSpline
+    except ImportError:
+        CubicSpline = None
 
+    delta_T1 = np.array([s - 2.0 * _BFS_TABLE_1_MW for s in _BFS_TABLE_1_SQRTS])
+    delta_T2 = np.array([s - 2.0 * _BFS_TABLE_2_MW for s in _BFS_TABLE_2_SQRTS])
+    whiz_T1 = np.array(_BFS_TABLE_1_WHIZ, dtype=float)
+    whiz_T2 = np.array(_BFS_TABLE_2_WHIZ, dtype=float)
+
+    if CubicSpline is not None:
+        s1 = CubicSpline(delta_T1, whiz_T1, bc_type="natural", extrapolate=True)
+        s2 = CubicSpline(delta_T2, whiz_T2, bc_type="natural", extrapolate=True)
+        return s1, s2
+    return (lambda d: np.interp(d, delta_T1, whiz_T1),
+            lambda d: np.interp(d, delta_T2, whiz_T2))
+
+
+_WHIZ_SPLINE_T1, _WHIZ_SPLINE_T2 = _build_whizard_anchor_splines()
+
+
+def _bfs_table_whizard_sigma_fb(s, mW: float, gammaW: float):
+    """σ_Whiz(s, m_W, Γ_W) [fb, specific channel μνud̄] reconstructed from
+    BFS Tables 1+2 by cubic spline in δ = √s − 2 m_W and linear interp /
+    extrapolation in Γ_W between the two reference points.
+    """
+    s_arr = np.asarray(s, dtype=float)
+    delta = np.sqrt(s_arr) - 2.0 * mW
+    w1 = np.asarray(_WHIZ_SPLINE_T1(delta), dtype=float)
+    w2 = np.asarray(_WHIZ_SPLINE_T2(delta), dtype=float)
+    alpha = (gammaW - _BFS_TABLE_1_GW) / (_BFS_TABLE_2_GW - _BFS_TABLE_1_GW)
+    return (1.0 - alpha) * w1 + alpha * w2
+
+
+# WHIZARD's specific-channel σ has an implicit BR² squeeze: it computes σ
+# from a Lagrangian whose partial widths are SM-LO functions of m_W and the
+# EW couplings (independent of the `gw` parameter). As we step gw alone, the
+# propagator's Γ_W changes but Γ_partial stays at SM-LO, so the implicit BR
+# = Γ_partial / Γ_W shrinks. For the PDG-constant BR convention we want
+# σ_observed = σ_WW × BR_PDG (the Azzurri picture: Γ_W is a pure propagator
+# parameter, the decay sector is held at its measured PDG values). Strip
+# the implicit squeeze by multiplying σ_Whiz by (Γ_W/Γ_W^(0))² before
+# forming the anchor ratio. At the BFS-EFT (per-component BR²) convention
+# the caller wants σ_specific including the squeeze, so leave it alone.
+def _br_strip_factor(mW: float, gammaW: float, *, apply_BR_correction: bool):
+    if apply_BR_correction:
+        return 1.0
+    return (gammaW / gamma_W_LO(mW)) ** 2
+
+
+def whizard_anchor_factor_spline(s, mW: float = M_W_DEFAULT,
+                                 gammaW: float = GAMMA_W_DEFAULT,
+                                 *, apply_BR_correction: bool = True):
+    """f(s, m_W, Γ_W) bringing the BFS-EFT N^(3/2)LO Born to the Whizard
+    4f Born. σ_Whiz from BFS Tables 1+2 (spline in δ, linear in Γ_W).
+
+    When ``apply_BR_correction=False`` (PDG-constant chain), σ_Whiz is
+    multiplied by (Γ_W/Γ_W^(0))² so the anchor produces σ_WW (pure
+    W-pair, BR-independent). Otherwise σ_Whiz is used as-is so the
+    anchor produces σ_specific (with WHIZARD's implicit BR² squeeze
+    intact) for the BFS-EFT per-component chain.
+    """
+    sigma_whiz_fb = _bfs_table_whizard_sigma_fb(s, mW, gammaW)
+    sigma_whiz_fb = sigma_whiz_fb * _br_strip_factor(
+        mW, gammaW, apply_BR_correction=apply_BR_correction)
     sigma_LR, sigma_RL = _accumulate_born_orders(
         s, mW, gammaW, "N3/2LO", apply_BR_correction=apply_BR_correction)
     sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * 1000.0   # pb → fb, unpolarised specific
-    sigma_whiz_fb = whizard_sigma(s, mW, gammaW)
     f = sigma_whiz_fb / sigma_EFT_fb
 
     if np.ndim(s) == 0:
         return float(f)
     return np.asarray(f, dtype=float)
+
+
+def whizard_anchor_factor_grid(s, mW: float = M_W_DEFAULT,
+                               gammaW: float = GAMMA_W_DEFAULT,
+                               *, apply_BR_correction: bool = True):
+    """f(s, m_W, Γ_W) bringing the BFS-EFT N^(3/2)LO Born to the Whizard
+    4f Born. σ_Whiz from the 1295-pt WHIZARD scan (trilinear in (s, m_W,
+    Γ_W)). BR² stripped iff ``apply_BR_correction=False`` — see
+    :func:`whizard_anchor_factor_spline` docstring for the rationale.
+    """
+    from framework.process.ww.xsec_calculator.whizard_grid import whizard_sigma
+
+    sigma_LR, sigma_RL = _accumulate_born_orders(
+        s, mW, gammaW, "N3/2LO", apply_BR_correction=apply_BR_correction)
+    sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * 1000.0   # pb → fb, unpolarised specific
+    sigma_whiz_fb = whizard_sigma(s, mW, gammaW) * _br_strip_factor(
+        mW, gammaW, apply_BR_correction=apply_BR_correction)
+    f = sigma_whiz_fb / sigma_EFT_fb
+
+    if np.ndim(s) == 0:
+        return float(f)
+    return np.asarray(f, dtype=float)
+
+
+WHIZARD_ANCHOR_SOURCES = ("spline", "grid")
+
+
+def whizard_anchor_factor(s, mW: float = M_W_DEFAULT,
+                          gammaW: float = GAMMA_W_DEFAULT,
+                          *, apply_BR_correction: bool = True,
+                          source: str = "grid"):
+    """Dispatch to the spline (BFS Tables) or grid (WHIZARD scan) anchor.
+    Both are BR-aware: pass the same ``apply_BR_correction`` you used for
+    the σ_LR/σ_RL that the factor is multiplied with.
+    """
+    if source == "spline":
+        return whizard_anchor_factor_spline(
+            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+    if source == "grid":
+        return whizard_anchor_factor_grid(
+            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+    raise ValueError(f"whizard_anchor source must be one of "
+                     f"{WHIZARD_ANCHOR_SOURCES}; got {source!r}")
 
 
 def _xi_chi(s, mW: float):
@@ -583,7 +698,8 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
                              include_BFS_NNLO: bool = False,
                              apply_delta_QCD: bool = False,
                              alpha_s: float = ALPHA_S_MW_DEFAULT,
-                             apply_whizard_anchor: bool = False):
+                             apply_whizard_anchor: bool = False,
+                             whizard_anchor_source: str = "grid"):
     """Total σ_WW = σ(e+e- → W+W-) at BFS LO_EFT, unpolarised initial state,
     summed over ALL 4-fermion final states.
 
@@ -625,11 +741,12 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
         s, mW, gammaW, order, apply_BR_correction=apply_BR_correction)
 
     # Whizard anchor on the Born sum only (NOT on the NLO loops below).
-    # Pass apply_BR_correction so the anchor's σ_EFT denominator matches the
-    # σ_LR/σ_RL convention we just computed.
+    # apply_BR_correction is forwarded so the σ_EFT denominator matches the
+    # σ_LR/σ_RL convention we just computed (avoids (Γ^(0)/Γ_W)² mismatch).
     if apply_whizard_anchor:
         f = whizard_anchor_factor(s, mW, gammaW,
-                                  apply_BR_correction=apply_BR_correction)
+                                  apply_BR_correction=apply_BR_correction,
+                                  source=whizard_anchor_source)
         sigma_LR = sigma_LR * f
         sigma_RL = sigma_RL * f
 
@@ -1021,7 +1138,8 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
                                  include_BFS_NNLO: bool = False,
                                  apply_delta_QCD: bool = False,
                                  alpha_s: float = ALPHA_S_MW_DEFAULT,
-                                 apply_whizard_anchor: bool = False):
+                                 apply_whizard_anchor: bool = False,
+                                 whizard_anchor_source: str = "grid"):
     """σ(e+e- → μ⁻ν̄_μ ud̄) at BFS LO_EFT, unpolarised initial state, with
     the BR correction (BFS section 6.1, eq. 83) applied PER COMPONENT:
 
@@ -1049,11 +1167,13 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
 
     # BFS section 6.2: replace the EFT N^(3/2)LO Born by the Whizard 4f Born
     # via the multiplicative anchor. Applied to the BORN SUM only — NOT to
-    # the NLO loop corrections, which are added on top per BFS eq.
-    # (finalcross). σ_LR/σ_RL above use apply_BR_correction=True (linear BR
-    # per eq. 83), so the anchor's σ_EFT denominator must match.
+    # the NLO loop corrections, which are added on top per BFS
+    # eq. (finalcross). The σ_LR above use apply_BR_correction=True (linear
+    # BR per eq. 83), so the anchor's σ_EFT denominator must match.
     if apply_whizard_anchor:
-        f = whizard_anchor_factor(s, mW, gammaW, apply_BR_correction=True)
+        f = whizard_anchor_factor(s, mW, gammaW,
+                                  apply_BR_correction=True,
+                                  source=whizard_anchor_source)
         sigma_LR = sigma_LR * f
         sigma_RL = sigma_RL * f
 

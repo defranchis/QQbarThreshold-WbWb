@@ -212,7 +212,8 @@ def sigma_WW_partonic(s,
                   include_BFS_NNLO: bool = True,
                   apply_delta_QCD: bool = True,
                   alpha_s: float = ALPHA_S_MW_DEFAULT,
-                  apply_whizard_anchor: bool = True):
+                  apply_whizard_anchor: bool = True,
+                  whizard_anchor_source: str = "grid"):
     """
     Off-shell-convolved σ(e+e- → W+W- → 4f), full off-shell, in pb.
 
@@ -257,6 +258,7 @@ def sigma_WW_partonic(s,
             apply_delta_QCD=apply_delta_QCD,
             alpha_s=alpha_s,
             apply_whizard_anchor=apply_whizard_anchor,
+            whizard_anchor_source=whizard_anchor_source,
         )
         # Smooth-floor weight is 1 above 150 GeV, ramps to 0 across [149, 150]
         # to keep σ̂(s) C¹ for the ISR convolution kernel.
@@ -517,7 +519,8 @@ def sigma_partonic_munuqq(s,
                           include_BFS_NNLO: bool = True,
                           apply_delta_QCD: bool = True,
                           alpha_s: float = ALPHA_S_MW_DEFAULT,
-                          apply_whizard_anchor: bool = True):
+                          apply_whizard_anchor: bool = True,
+                          whizard_anchor_source: str = "grid"):
     """
     Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
     Returns σ in pb at partonic CM energy² = s (before ISR convolution).
@@ -584,6 +587,7 @@ def sigma_partonic_munuqq(s,
                 apply_delta_QCD=apply_delta_QCD,
                 alpha_s=alpha_s,
                 apply_whizard_anchor=apply_whizard_anchor,
+                whizard_anchor_source=whizard_anchor_source,
             )
             sigma_bfs = sigma_specific * _CHANNEL_MULTIPLICITY[channel]
         else:   # pdg-constant: σ_WW_total × BR_PDG (no per-component BR corr)
@@ -597,6 +601,7 @@ def sigma_partonic_munuqq(s,
                 apply_delta_QCD=apply_delta_QCD,
                 alpha_s=alpha_s,
                 apply_whizard_anchor=apply_whizard_anchor,
+                whizard_anchor_source=whizard_anchor_source,
             )
             sigma_bfs = sigma_WW_total * BR_pdg
         # Smooth-floor weight kills the hard step at 150 GeV that was

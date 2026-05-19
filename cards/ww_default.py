@@ -85,11 +85,20 @@ NLO_CONFIG = {
     "include_BFS_NNLO":       True,
     # Multiplicative δ_QCD(α_s) = 1 + α_s/π + 1.409(α_s/π)² on σ_partonic.
     "apply_delta_QCD":        True,
-    # Whizard 4f Born anchor f(δ, Γ_W) (BFS sec. 6.2 prescription). Closes
-    # the residual ~2 % absolute Born deficit; preserves analytic m_W/Γ_W
-    # dependence (m_W via δ = √s − 2m_W, Γ_W via linear interp between the
-    # two BFS reference Γ_W = {2.045, 2.092}).
+    # Whizard 4f Born anchor (BFS sec. 6.2 prescription). Closes the
+    # residual ~2 % absolute Born deficit.
     "apply_whizard_anchor":   True,
+    # Anchor source. Two implementations are kept side-by-side in
+    # ``bfs_eft.whizard_anchor_factor`` so they can be compared:
+    #   "grid"   — 1295-point WHIZARD 3.1.5 scan (5 m_W × 7 Γ_W × 37 √s)
+    #              produced by WW_threshold/whizard/, trilinear interp.
+    #              Full (m_W, Γ_W) coverage; carries ~0.05-0.2 % per-point
+    #              MC stat noise that propagates into variation templates.
+    #   "spline" — BFS arXiv:0707.0773 Tables 1+2: cubic spline in
+    #              δ = √s − 2m_W, linear interp in Γ_W between
+    #              {2.04483, 2.09201}. Smooth, no MC noise; limited to two
+    #              Γ_W anchor points (extrapolates linearly outside).
+    "whizard_anchor_source":  "spline",
     # DIAGNOSTIC ONLY — adds the BFS NLO Coulomb subleading piece (eq. 62 of
     # arXiv:0707.0773) via the standalone BFSCorrections.delta_NLO path.
     # When include_NLO_hard_decay=True (the production default), the FULL
