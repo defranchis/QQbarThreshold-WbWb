@@ -405,7 +405,21 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
     The WbWb-specific yukawa-vs-lumi-ratio panel lives in
     :func:`process.wbwb.scans.scan_lumi_yukawa_ratio` — call it
     alongside if needed.
+
+    Under ``LUMI_MODE='nuisance'`` the cov-matrix lumi terms are zero, so
+    the cov-mode scan loop is a no-op. Dispatch instead to the generic
+    binned-nuisance prior scanner — it sweeps the same ``card.PRIORS["lumi"]``
+    range via ``set_binned_nuisance_priors("lumi", ...)`` and writes the
+    same ``impact_lumi_<units>.pdf`` filenames, so downstream
+    consumers (plot panels, allFits sweeps) see no API difference.
     """
+    if "lumi" in fit._active_binned_nuisances:
+        base = fit.card.PRIORS["lumi"]["uncorr"]
+        variations = np.linspace(lo, hi, points) * base
+        _scan_nuisance(fit, "lumi", variations,
+                       axis_unit=100.0,
+                       axis_label="Integrated luminosity uncertainty [%]")
+        return
     base = fit.card.PRIORS["lumi"]["uncorr"]
     l_lumi = np.linspace(lo, hi, points) * base
     pois = fit.tracked_pois()

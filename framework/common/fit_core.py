@@ -168,6 +168,22 @@ class FitCore:
         # self._systematics_meta["binned" / "global" / "constraint"]
         # instead of separate top-level card dicts.
         self._systematics_meta = _split_systematics_by_type(card)
+        # Lumi-uncertainty mode: "cov" (default) keeps σ_lumi in the data
+        # covariance; "nuisance" represents it as a binned nuisance with
+        # a constant-shape morph (kind="flat"). The injected SYSTEMATICS
+        # entry lives only on this instance — the card stays unchanged
+        # so a parallel cov-mode fit can be constructed from the same card.
+        self.lumi_mode = getattr(card, "LUMI_MODE", "cov")
+        if self.lumi_mode not in ("cov", "nuisance"):
+            raise ValueError(
+                f"card.LUMI_MODE must be 'cov' or 'nuisance' (got {self.lumi_mode!r})")
+        if self.lumi_mode == "nuisance":
+            if "lumi" not in card.INPUT_VAR:
+                raise ValueError(
+                    "LUMI_MODE='nuisance' requires INPUT_VAR['lumi'] in the card "
+                    "(the fit-parameter unit, e.g. 0.01 for 1%).")
+            self._systematics_meta["binned"]["lumi"] = {
+                "type": "binned", "source": {"kind": "flat"}}
         self.generator = generator
         self.debug = debug
         self.asimov = asimov
@@ -485,6 +501,15 @@ class FitCore:
             elif kind == "smear_shift":
                 xsec_var = self.smear(self.xsec_dict["nominal"],
                                       bes=self.beam_energy_res * (1 + self.input_var[param]))
+            elif kind == "flat":
+                # Constant relative shift (lumi nuisance): a +1·input_var
+                # variation rescales σ uniformly across bins. Return
+                # xsec_var = xsec_nom · (1 + input_var) directly — the
+                # divide-then-subtract-1 below recovers +input_var per bin.
+                xsec_var = pd.DataFrame({
+                    "ecm":  xsec_nom["ecm"],
+                    "xsec": xsec_nom["xsec"] * (1.0 + self.input_var[param]),
+                })
             else:
                 raise ValueError(f"Unknown nuisance source kind: {kind!r}")
             if param in self._systematics_meta["global"]:
@@ -493,7 +518,17 @@ class FitCore:
                              "xsec": xsec_var["xsec"] / xsec_nom["xsec"] - 1})
 
     def _morph_cross_sections(self):
-        self.morph_dict = {p: self._morph_one(p) for p in self.param_names}
+        # Skip per-bin nuisance expansion names (e.g. ``BEC_bin0``,
+        # ``lumi_bin3``) — their morph rows are synthesised sparsely from
+        # ``morph_scenario[kind]`` in ``_build_chi2_caches``, never stored
+        # individually here. (Without this filter, ``update()`` after
+        # ``add_binned_nuisance(kind)`` would re-enter ``_morph_one`` with
+        # a per-bin name and raise on the ``_systematics_meta`` lookup.)
+        binned_kinds = tuple(self._systematics_meta["binned"])
+        def _is_per_bin(n):
+            return any(n.startswith(f"{k}_bin") for k in binned_kinds)
+        self.morph_dict = {p: self._morph_one(p)
+                           for p in self.param_names if not _is_per_bin(p)}
         if not self.read_scale_vars and self.mass_scheme != "1S" and not self.shift_scan:
             for kind in (*self._systematics_meta["binned"], *self._systematics_meta["global"]):
                 self.morph_dict[kind] = self._morph_one(kind)
@@ -562,6 +597,12 @@ class FitCore:
             "lumi_dict": lumi_dict,
         }
         self.create_scenario()
+        # In nuisance mode the lumi binned nuisance is *mandatory* (otherwise
+        # the lumi uncertainty is missing entirely — cov terms are skipped in
+        # _build_cov). Auto-activate here so entry scripts don't need a
+        # parallel BES/BEC-style flag for it.
+        if self.lumi_mode == "nuisance":
+            self.add_binned_nuisance("lumi")
 
     def create_scenario(self, *, init_vars=True, pseudodata=None):
         """Build the scenario tensors from ``self.scenario_dict``.
@@ -629,10 +670,36 @@ class FitCore:
                 self.pseudo_data_scenario = self._rng.normal(
                     self.pseudo_data_scenario, self.unc_pseudodata_scenario)
 
-        self.morph_scenario = {p: self.slice_to_scenario(self.morph_dict[p]) for p in self.param_names}
+        # Per-bin nuisance expansion names (``BEC_bin0`` etc.) aren't keys
+        # in ``morph_dict`` — they share the parent kind's morph, applied
+        # sparsely in ``_build_chi2_caches``. Skip them here for the same
+        # reason as ``_morph_cross_sections``.
+        binned_kinds = tuple(self._systematics_meta["binned"])
+        def _is_per_bin(n):
+            return any(n.startswith(f"{k}_bin") for k in binned_kinds)
+        self.morph_scenario = {p: self.slice_to_scenario(self.morph_dict[p])
+                               for p in self.param_names if not _is_per_bin(p)}
         for kind in (*self._systematics_meta["binned"], *self._systematics_meta["global"]):
             if kind in self.morph_dict:
                 self.morph_scenario[kind] = self.slice_to_scenario(self.morph_dict[kind])
+
+        # Above-threshold rescaling for the lumi nuisance morph: in cov
+        # mode the last-bin uncorr lumi unc is divided by sqrt(factor_above)
+        # (see ``_build_cov``); mirror that here by scaling the lumi morph
+        # at the above-threshold bin. The corr lumi component sees the
+        # same vector so it gets the same scaling — this is a small
+        # asymmetry vs the cov mode (which keeps the corr piece flat),
+        # negligible because the corr lumi contribution at the above-
+        # threshold bin is sub-dominant in the scenarios that use
+        # add_last_ecm.
+        if (self.lumi_mode == "nuisance"
+                and self.scenario_dict["add_last_ecm"]
+                and "lumi" in self.morph_scenario):
+            factor_above = self.scenario[ecm_to_str(self.last_ecm)] / self.scenario[list(self.scenario.keys())[0]]
+            morph = self.morph_scenario["lumi"].copy()
+            morph.iloc[-1, morph.columns.get_loc("xsec")] = (
+                morph.iloc[-1]["xsec"] / factor_above ** 0.5)
+            self.morph_scenario["lumi"] = morph
 
     def slice_to_scenario(self, df):
         """Select the rows of ``df`` whose ECM is in ``self.scenario``.
@@ -731,6 +798,13 @@ class FitCore:
         larger lumi at that point gives a proportionally smaller per-point
         uncertainty.
 
+        Under ``LUMI_MODE='nuisance'`` the lumi cov-matrix terms are
+        skipped: the same priors are absorbed into the binned-nuisance
+        chi² penalty (see ``add_binned_nuisance('lumi')`` auto-activation
+        in ``init_scenario``). ``lumi_uncorr_ecm`` is still computed in
+        that mode so downstream printouts (e.g. scan_lumi_yukawa_ratio)
+        retain their reference figure.
+
         TODO: re-introduce a way to rescale ``lumi.uncorr`` when the
         scenario's total lumi / N differs from the calibration assumption.
         The previous ``scale_uncorr`` card flag did this by multiplying by
@@ -751,9 +825,12 @@ class FitCore:
             lumi_uncorr_ecm[-1] = self.lumi_uncorr / factor_above ** 0.5
         self.lumi_uncorr_ecm = lumi_uncorr_ecm
 
-        cov_lumi_uncorr = np.diag(self.pseudo_data_scenario * lumi_uncorr_ecm) ** 2
-        cov_lumi_corr = np.outer(self.pseudo_data_scenario, self.pseudo_data_scenario) * self.lumi_corr ** 2
-        self.cov = cov_lumi_uncorr + cov_lumi_corr + cov_stat
+        if self.lumi_mode == "nuisance":
+            self.cov = cov_stat
+        else:
+            cov_lumi_uncorr = np.diag(self.pseudo_data_scenario * lumi_uncorr_ecm) ** 2
+            cov_lumi_corr = np.outer(self.pseudo_data_scenario, self.pseudo_data_scenario) * self.lumi_corr ** 2
+            self.cov = cov_lumi_uncorr + cov_lumi_corr + cov_stat
         # Pre-factor the (constant within migrad) covariance once; chi2 then
         # does a cheap triangular solve per call instead of a fresh LU.
         self._cov_factor = cho_factor(self.cov)

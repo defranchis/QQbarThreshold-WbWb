@@ -105,7 +105,22 @@ INPUT_VAR = {
     "BEC":  10.0,    # MeV   - beam energy calibration shift baked into output_xsec/wbwb/BEC/
     "BES":  0.1,     # 10%  - BES variation baked into the BES morph template
     "sw2":  2.5e-6,  #        sw2 shift baked into output_xsec/wbwb/sw2/
+    "lumi": 0.01,    # 1%   - fit-param unit for the lumi nuisance (LUMI_MODE="nuisance")
 }
+
+# ---------------------------------------------------------------------------
+# Lumi-uncertainty treatment.
+#   "cov":      σ_lumi enters the data covariance matrix (Σ_ij ∝ σ_th σ_th).
+#   "nuisance": σ_lumi is floated as a binned nuisance (one per-ECM-bin
+#               parameter + one fully-correlated parameter, exactly like
+#               BES/BEC). FitCore auto-activates the nuisance in
+#               ``init_scenario``; ``card.PRIORS["lumi"]`` provides the
+#               Gaussian priors in either mode. Equivalent to leading order
+#               in the prior; rebuilds analytically match cov mode for the
+#               threshold-only scan and after per-bin morph scaling when
+#               ``add_last_ecm=True``.
+# ---------------------------------------------------------------------------
+LUMI_MODE = "nuisance"   # "nuisance" | "cov"
 
 # ---------------------------------------------------------------------------
 # Priors / systematics schema (numbers in PRIORS, metadata in SYSTEMATICS)

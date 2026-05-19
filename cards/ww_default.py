@@ -143,11 +143,18 @@ SCENARIO = {
 INPUT_VAR = {
     "BEC":  10.0,    # MeV — matches output_xsec/ww/BEC/scan_{p,m}10/
     "BES":  0.1,
+    "lumi": 0.01,    # 1% — fit-param unit for the lumi nuisance (LUMI_MODE="nuisance")
     # sw2 nuisance is not implemented at the current order (sin²θ_W is
     # derived from m_W via the OS scheme, so its variation is absorbed
     # into the m_W variation). Re-add when running α(s) / NLO_EW are wired
     # in.
 }
+
+# ---------------------------------------------------------------------------
+# Lumi-uncertainty treatment ("cov" | "nuisance") — see
+# cards/wbwb_default.py for the schema convention.
+# ---------------------------------------------------------------------------
+LUMI_MODE = "nuisance"
 
 # ---------------------------------------------------------------------------
 # Priors / systematics schema — see cards/wbwb_default.py for the layout
