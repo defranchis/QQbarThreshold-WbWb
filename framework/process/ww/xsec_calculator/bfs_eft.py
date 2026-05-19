@@ -315,15 +315,21 @@ def _bfs_table_whizard_sigma_fb(s, mW: float, gammaW: float):
 # EW couplings (independent of the `gw` parameter). As we step gw alone, the
 # propagator's Γ_W changes but Γ_partial stays at SM-LO, so the implicit BR
 # = Γ_partial / Γ_W shrinks. For the PDG-constant BR convention we want
-# σ_observed = σ_WW × BR_PDG (the Azzurri picture: Γ_W is a pure propagator
-# parameter, the decay sector is held at its measured PDG values). Strip
-# the implicit squeeze by multiplying σ_Whiz by (Γ_W/Γ_W^(0))² before
-# forming the anchor ratio. At the BFS-EFT (per-component BR²) convention
-# the caller wants σ_specific including the squeeze, so leave it alone.
-def _br_strip_factor(mW: float, gammaW: float, *, apply_BR_correction: bool):
+# σ_observed = σ_WW × BR_PDG (Azzurri picture: Γ_W is a pure propagator
+# parameter, decays held at their PDG-measured values, *m_W-independent*).
+# Strip the implicit squeeze with (Γ_W / _GAMMA_W_LO_REF)² — a FIXED
+# reference, not Γ_W^(0)(running m_W). The running Γ_W^(0)(m_W) ∝ m_W³
+# would inject a spurious m_W slope ~6 ΔmW/m_W into the anchor: in
+# PDG-constant BR the decay sector knows nothing about the fit m_W. The
+# reference is gamma_W_LO(M_W_BFS_REF = 80.377 GeV) = 2.04485 GeV — the
+# same reference point BFS uses for Tables 1+2.
+_GAMMA_W_LO_REF = gamma_W_LO(M_W_BFS_REF)
+
+
+def _br_strip_factor(gammaW: float, *, apply_BR_correction: bool):
     if apply_BR_correction:
         return 1.0
-    return (gammaW / gamma_W_LO(mW)) ** 2
+    return (gammaW / _GAMMA_W_LO_REF) ** 2
 
 
 def whizard_anchor_factor_spline(s, mW: float = M_W_DEFAULT,
@@ -340,7 +346,7 @@ def whizard_anchor_factor_spline(s, mW: float = M_W_DEFAULT,
     """
     sigma_whiz_fb = _bfs_table_whizard_sigma_fb(s, mW, gammaW)
     sigma_whiz_fb = sigma_whiz_fb * _br_strip_factor(
-        mW, gammaW, apply_BR_correction=apply_BR_correction)
+        gammaW, apply_BR_correction=apply_BR_correction)
     sigma_LR, sigma_RL = _accumulate_born_orders(
         s, mW, gammaW, "N3/2LO", apply_BR_correction=apply_BR_correction)
     sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * 1000.0   # pb → fb, unpolarised specific
@@ -365,7 +371,7 @@ def whizard_anchor_factor_grid(s, mW: float = M_W_DEFAULT,
         s, mW, gammaW, "N3/2LO", apply_BR_correction=apply_BR_correction)
     sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * 1000.0   # pb → fb, unpolarised specific
     sigma_whiz_fb = whizard_sigma(s, mW, gammaW) * _br_strip_factor(
-        mW, gammaW, apply_BR_correction=apply_BR_correction)
+        gammaW, apply_BR_correction=apply_BR_correction)
     f = sigma_whiz_fb / sigma_EFT_fb
 
     if np.ndim(s) == 0:

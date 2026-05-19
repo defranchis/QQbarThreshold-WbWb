@@ -412,7 +412,7 @@ def plot_azzurri_style_pm1GeV():
     # --- m_W panel ---
     ax_mW.fill_between(sqrts, sigma_mW_m, sigma_mW_p,
                         color="#9e6bbf", alpha=0.35,
-                        label=rf"$m_W \pm {eff_d_mW:.1f}$ GeV band (×{int(inflate)} from $\pm 10$ MeV)")
+                        label=rf"$m_W \pm {int(d_calc*1000)}$ MeV $\times {int(inflate)}$")
     ax_mW.plot(sqrts, sigma_nom, color="black", linewidth=1.8,
                 label=rf"central: $m_W={mW_paper:.3f}$, $\Gamma_W={gW_paper:.3f}$ GeV")
     ax_mW.plot(sqrts, sigma_mW_p, color="#54278f", linewidth=1.0,
@@ -434,7 +434,7 @@ def plot_azzurri_style_pm1GeV():
     # --- Γ_W panel ---
     ax_gW.fill_between(sqrts, sigma_gW_m, sigma_gW_p,
                         color="#4daf4a", alpha=0.30,
-                        label=rf"$\Gamma_W \pm {eff_d_gW:.1f}$ GeV band (×{int(inflate)} from $\pm 10$ MeV)")
+                        label=rf"$\Gamma_W \pm {int(d_calc*1000)}$ MeV $\times {int(inflate)}$")
     ax_gW.plot(sqrts, sigma_nom, color="black", linewidth=1.8,
                 label=rf"central: $m_W={mW_paper:.3f}$, $\Gamma_W={gW_paper:.3f}$ GeV")
     ax_gW.plot(sqrts, sigma_gW_p, color="#1b7837", linewidth=1.0,
@@ -471,6 +471,83 @@ def plot_azzurri_style_pm1GeV():
     return out
 
 
+def plot_azzurri_style_overlay():
+    """Single-panel σ_WW vs √s with the m_W and Γ_W ±1 GeV-equivalent
+    bands overlaid. Same inflation trick as :func:`plot_azzurri_style_pm1GeV`
+    (compute at ±10 MeV, scale the deviation by ×100). Lets you see at a
+    glance where each parameter dominates the lineshape sensitivity and
+    where the Γ_W band collapses around the crossing at √s ≈ 162 GeV.
+    """
+    import matplotlib.pyplot as plt
+
+    sqrts = np.linspace(155.0, 170.0, 121)
+    mW_paper = 80.385
+    gW_paper = 2.085
+    d_calc = 0.010
+    inflate = 100.0
+    eff_d = d_calc * inflate   # = 1.0 GeV-equivalent for both
+
+    def _sigma_WW_obs(sqrts_arr, mW, gW):
+        return sigma_observed_munuqq(sqrts_arr, mW=mW, gammaW=gW,
+                                      channel="inclusive") / BR_INCLUSIVE_MUNUQQ
+
+    def _inflated(s_var, s_nom):
+        return s_nom + inflate * (s_var - s_nom)
+
+    sigma_nom  = _sigma_WW_obs(sqrts, mW_paper, gW_paper)
+    sigma_mW_p = _inflated(_sigma_WW_obs(sqrts, mW_paper + d_calc, gW_paper), sigma_nom)
+    sigma_mW_m = _inflated(_sigma_WW_obs(sqrts, mW_paper - d_calc, gW_paper), sigma_nom)
+    sigma_gW_p = _inflated(_sigma_WW_obs(sqrts, mW_paper, gW_paper + d_calc), sigma_nom)
+    sigma_gW_m = _inflated(_sigma_WW_obs(sqrts, mW_paper, gW_paper - d_calc), sigma_nom)
+
+    fig, ax = plt.subplots(figsize=(7.5, 7.5))
+
+    # m_W band (purple)
+    ax.fill_between(sqrts, sigma_mW_m, sigma_mW_p,
+                    color="#9e6bbf", alpha=0.35,
+                    label=rf"$m_W \pm {int(d_calc*1000)}$ MeV $\times {int(inflate)}$")
+    ax.plot(sqrts, sigma_mW_p, color="#54278f", linewidth=1.0, linestyle="--")
+    ax.plot(sqrts, sigma_mW_m, color="#54278f", linewidth=1.0, linestyle=":")
+
+    # Γ_W band (green)
+    ax.fill_between(sqrts, sigma_gW_m, sigma_gW_p,
+                    color="#4daf4a", alpha=0.30,
+                    label=rf"$\Gamma_W \pm {int(d_calc*1000)}$ MeV $\times {int(inflate)}$")
+    ax.plot(sqrts, sigma_gW_p, color="#1b7837", linewidth=1.0, linestyle="--")
+    ax.plot(sqrts, sigma_gW_m, color="#1b7837", linewidth=1.0, linestyle=":")
+
+    # Central curve on top
+    ax.plot(sqrts, sigma_nom, color="black", linewidth=1.8,
+            label=rf"central: $m_W={mW_paper:.3f}$, $\Gamma_W={gW_paper:.3f}$ GeV")
+
+    _draw_scan_window(ax)
+    ax.axvline(2 * mW_paper, color="grey", alpha=0.4,
+                linestyle="--", linewidth=0.8)
+    ax.text(2 * mW_paper + 0.05, 0.1, r"$2\,m_W$", color="grey",
+             alpha=0.7, fontsize=9, ha="left", va="bottom")
+    ax.axvline(162.3, color="red", alpha=0.6,
+                linestyle="-.", linewidth=0.9,
+                label=r"Azzurri $\Gamma_W$-crossing $\approx 162.3$ GeV")
+
+    ax.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax.set_ylabel(r"$\sigma_{\rm WW}$ [pb]  (with LL+YFS ISR)")
+    ax.set_title(rf"$m_W$ and $\Gamma_W$ $\pm {eff_d:.1f}$ GeV bands overlaid "
+                 rf"(linear from $\pm 10$ MeV, $\times {int(inflate)}$)")
+    ax.set_xlim(155, 170)
+    ax.legend(loc="upper left", fontsize=9, framealpha=0.9)
+    ax.grid(alpha=0.25)
+
+    plt.tight_layout(rect=[0, 0.03, 1, 1])
+    _add_chain_footer(plt.gcf())
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "azzurri_style_overlay.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
 def main():
     import matplotlib
     matplotlib.use("Agg")
@@ -479,6 +556,7 @@ def main():
     plot_sensitivity_vs_sqrts()
     plot_ratios_vs_mW_GammaW()
     plot_azzurri_style_pm1GeV()
+    plot_azzurri_style_overlay()
     print("Done.")
 
     from framework.common.eos_publish import publish
