@@ -24,9 +24,10 @@ MODE="$5"
 OUTPUT_DIR="$6"
 
 case "$MODE" in
-    bfs)  ITER_SPEC='8:200000:"gw",5:1000000' ;;   # target <0.1% MC stat
-    grid) ITER_SPEC='6:100000:"gw",3:300000'  ;;   # target ~0.05% MC stat
-    *)    echo "Unknown MODE: $MODE (expected bfs|grid)" >&2; exit 2 ;;
+    bfs)       ITER_SPEC='8:200000:"gw",5:1000000'  ;;  # target <0.1% MC stat
+    grid)      ITER_SPEC='6:100000:"gw",3:300000'   ;;  # target ~0.05% MC stat
+    highstats) ITER_SPEC='6:500000:"gw",5:5000000'  ;;  # target ~0.02% (~20x events); needs workday queue
+    *)         echo "Unknown MODE: $MODE (expected bfs|grid|highstats)" >&2; exit 2 ;;
 esac
 
 # OpenMP threads — match the condor request_cpus = 4 in the submit file.

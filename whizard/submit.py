@@ -38,6 +38,12 @@ MW_VALS    = [80.279, 80.329, 80.379, 80.429, 80.479]
 GW_VALS    = [2.04483, 2.045, 2.065, 2.085, 2.09201, 2.105, 2.125]
 SQRTS_PER_BLOCK = 6                                 # 37 / 6 = 7 blocks (6,6,6,6,6,6,1)
 
+# High-stats grid: finer m_W axis (25 MeV step → 9 m_W) at ~0.02% MC stat
+# per point. Written to grid_highstats/ to avoid clobbering the regular
+# 50 MeV / 0.1%-stat grid.
+HIGHSTATS_MW_VALS = [80.279 + 0.025 * i for i in range(9)]   # 9 pts, 25 MeV
+HIGHSTATS_GW_VALS = GW_VALS                                  # same Γ_W axis
+
 
 def sqrts_blocks(values, per_block):
     """Split a list into consecutive chunks of size ``per_block``."""
@@ -63,14 +69,16 @@ def write_submit(sub_path, header, jobs):
 
     No shell-style quoting: HTCondor's classic ``arguments =`` syntax splits
     on whitespace and ignores shell quotes. Our arg values contain no
-    whitespace by construction.
+    whitespace by construction. ``mw`` is formatted with 5-digit precision
+    so 5- and 6-decimal m_W values (e.g. 80.279 vs 80.304) survive
+    round-tripping through the args.
     """
     with open(sub_path, "w") as f:
         f.write(header)
         for label, mw, gw, sqrts, mode, subdir in jobs:
             outdir = CONDOR_DIR / subdir
             log_id = subdir.replace("/", "_")
-            args = " ".join([label, f"{mw:g}", f"{gw:g}", sqrts, mode, str(outdir)])
+            args = " ".join([label, f"{mw:.5f}", f"{gw:.5f}", sqrts, mode, str(outdir)])
             f.write(
                 f"\narguments = {args}\n"
                 f"output  = {CONDOR_DIR}/logs/{log_id}.out\n"
@@ -141,6 +149,22 @@ def main():
     print(f"Wrote {SCRIPTS_DIR / 'grid.sub'} ({len(full_jobs)} jobs "
           f"= {len(MW_VALS)} m_W * {len(GW_VALS)} Gamma_W * {n_blocks} sqrt(s) blocks)")
     print(f"Wrote {SCRIPTS_DIR / 'grid_augment.sub'} ({len(augment_jobs)} jobs — BFS reference Gamma_W only)")
+
+    # High-stats grid: finer m_W (25 MeV step → 9 pts) at ~0.02% MC stat per
+    # point. Lands in a separate `grid_highstats/` output tree so the regular
+    # grid is untouched. Uses workday queue (~3 h jobs).
+    highstats_jobs = []
+    for mw in HIGHSTATS_MW_VALS:
+        for gw in HIGHSTATS_GW_VALS:
+            for b_idx, block in enumerate(blocks):
+                label = f"hs_{mw_label(mw)}_{gw_label(gw)}_b{b_idx}"
+                subdir = f"grid_highstats/{mw_label(mw)}_{gw_label(gw)}/b{b_idx}"
+                highstats_jobs.append((label, mw, gw, csv(block), "highstats", subdir))
+    hs_header = HEADER.format(flavour="workday", cpus=4, memory=2048)
+    write_submit(SCRIPTS_DIR / "grid_highstats.sub", hs_header, highstats_jobs)
+    print(f"Wrote {SCRIPTS_DIR / 'grid_highstats.sub'} ({len(highstats_jobs)} jobs "
+          f"= {len(HIGHSTATS_MW_VALS)} m_W * {len(HIGHSTATS_GW_VALS)} Gamma_W "
+          f"* {n_blocks} sqrt(s) blocks; workday queue; writes to grid_highstats/)")
 
 
 if __name__ == "__main__":
