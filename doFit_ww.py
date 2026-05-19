@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from cards import ww_default as card
 from framework.common import scans
 from framework.common.plots import (
+    plot_fit_input_azzurri_overlay, plot_fit_input_ratios,
     plot_fit_scenario, plot_parameter_variations, set_active_chain_label,
 )
 from framework.common.systematics import print_syst_table
@@ -117,6 +118,8 @@ def main():
 
     if not args.noPlots:
         plot_parameter_variations(fit)
+        plot_fit_input_ratios(fit)
+        plot_fit_input_azzurri_overlay(fit)
 
     fit.fit_parameters()
     fit.fit_results()

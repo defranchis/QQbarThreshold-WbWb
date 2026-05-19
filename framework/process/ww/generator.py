@@ -88,23 +88,39 @@ def chain_summary_latex(kwargs: dict) -> str:
     Order of pieces matches the physics build-up: Born → NLO loops →
     NNLO → δ_QCD → anchor → K_C → ISR.
     """
-    base = r"BFS N$^{3/2}$LO"
-    parts = [base]
+    parts = [r"BFS N$^{3/2}$LO"]
     if kwargs.get("include_NLO_hard_decay", False):
-        parts.append(r"NLO loops")
+        parts.append("NLO")
     if kwargs.get("include_BFS_NNLO", False):
-        parts.append(r"NNLO")
+        parts.append("NNLO")
     if kwargs.get("apply_delta_QCD", False):
         parts.append(r"$\delta_{\rm QCD}$")
     if kwargs.get("apply_whizard_anchor", False):
-        src = str(kwargs.get("whizard_anchor_source", "grid"))
-        parts.append(rf"anchor ({src})")
+        parts.append("anchor")
     if kwargs.get("include_coulomb", False):
         parts.append(r"$K_{\rm C}$")
     if "isr_scheme" in kwargs:
         scheme = str(kwargs["isr_scheme"]).replace("_", "-")
         parts.append(rf"LL+exp ISR ({scheme})")
     return " + ".join(parts)
+
+
+def chain_short_summary_latex(kwargs: dict) -> str:
+    """One-line compact chain badge for prominent plot annotations. Carries
+    only the highest-order perturbative piece and whether ISR is on, in
+    the form ``NNLO EFT + LL ISR``. The full chain stays in
+    ``chain_summary_latex`` above — the long form lives in the template
+    metadata for traceability, this short form is the visible plot label."""
+    if kwargs.get("include_BFS_NNLO", False):
+        order = "NNLO"
+    elif kwargs.get("include_NLO_hard_decay", False):
+        order = "NLO"
+    else:
+        order = "Born"
+    pieces = [f"{order} EFT"]
+    if "isr_scheme" in kwargs:
+        pieces.append("LL ISR")
+    return " + ".join(pieces)
 
 
 def observed_kwargs_from_card(card) -> dict:
@@ -224,12 +240,8 @@ class WWGenerator:
             **observed_kwargs_from_card(card),
         )
 
-    def chain_label(self) -> str:
-        """LaTeX summary of *this generator's* chain configuration. Same
-        semantics as ``chain_summary_latex`` but derived from instance
-        state — used by ``do_scan`` to stamp the template header.
-        """
-        return chain_summary_latex({
+    def _chain_kwargs(self) -> dict:
+        return {
             "include_NLO_hard_decay": self.include_NLO_hard_decay,
             "include_BFS_NNLO":       self.include_BFS_NNLO,
             "apply_delta_QCD":        self.apply_delta_QCD,
@@ -237,7 +249,21 @@ class WWGenerator:
             "whizard_anchor_source":  self.whizard_anchor_source,
             "include_coulomb":        self.include_coulomb,
             "isr_scheme":             self.isr_scheme,
-        })
+        }
+
+    def chain_label(self) -> str:
+        """LaTeX summary of *this generator's* chain configuration — the
+        full, traceability-grade string stamped into the template header
+        by ``do_scan``. Never abbreviated; the long form is the integrity
+        check that ties every plot back to the templates it consumes."""
+        return chain_summary_latex(self._chain_kwargs())
+
+    def chain_short_label(self) -> str:
+        """Compact display badge (e.g. ``BFS NNLO+LL``) for prominent
+        plot annotations. Saved into the template header alongside the
+        full ``chain`` label so the visible sub-title also tracks the
+        templates."""
+        return chain_short_summary_latex(self._chain_kwargs())
 
     def describe(self) -> str:
         """One-line summary of the chain configuration (for log lines)."""
@@ -325,6 +351,7 @@ class WWGenerator:
         # against the *actual* templates rather than the live card.
         header = compose_header({
             "chain": self.chain_label(),
+            "chain_short": self.chain_short_label(),
             "isr_scheme": self.isr_scheme,
             "channel": self.channel,
             "br_convention": self.br_convention,

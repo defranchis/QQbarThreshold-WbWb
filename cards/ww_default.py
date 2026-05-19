@@ -16,8 +16,8 @@ Remaining open work for sub-MeV m_W: NLL ISR (eMELA / Skrzypek-Jadach).
 # Yukawa is not part of the WW fit; alpha_s is the same convention as for
 # WbWb (offset wrt. PDG/world average, not an absolute value).
 PARAMETERS = {
-    "mass":   {"nominal": 80.379, "pseudo":  0.005,   "variation": 0.030,  "round_dec": 3},
-    "width":  {"nominal": 2.085,  "pseudo": -0.010,   "variation": 0.030,  "round_dec": 3},
+    "mass":   {"nominal": 80.379, "pseudo":  0.005,   "variation": 0.010,  "round_dec": 3},
+    "width":  {"nominal": 2.085,  "pseudo": -0.010,   "variation": 0.010,  "round_dec": 3},
     "alphas": {"nominal": 0.0,    "pseudo": -0.0001,  "variation": 0.0003, "round_dec": 4},
 }
 
@@ -237,13 +237,46 @@ SYST_TABLE_PATH = "fit_output/ww/systematics_table.tex"
 # Plot decoration
 # ---------------------------------------------------------------------------
 PROCESS_LABEL = r"$e^+e^-\rightarrow\mu\nu q\bar q$ at WW threshold"
+# Process label without the descriptive suffix, used when combining with the
+# chain badge on a single line (see plot_fit_scenario annotation).
+PROCESS_LABEL_SHORT = r"$e^+e^-\rightarrow\mu\nu q\bar q$"
 GENERATOR_LABEL = (r"BFS N$^{3/2}$LO + NLO loops + dominant NNLO + "
                    r"$\delta_{\rm QCD}$ + Whizard anchor + K$_{\rm C}$ + LL+exp ISR")
+# Compact generator badge for the lower-right fit-scenario caption.
+GENERATOR_LABEL_SHORT = r"NNLO EFT + LL ISR"
 GENERATOR_REF = r"arXiv:0707.0773 + arXiv:0807.0102 (Beneke-Falgari-Schwinn et al.)"
 BES_LABEL = r"+ FCC-ee BES"
 
-PARAM_LABELS = {
-    "mass":   r"$m_W$ [GeV]",
-    "width":  r"$\Gamma_W$ [GeV]",
-    "alphas": r"\alpha_S",
+# Plain LaTeX math symbols (no $, no units) — the atomic piece used to
+# compose every other label (axis titles, ratio captions, legend entries).
+PARAM_MATH_LABELS = {
+    "mass":   r"m_W",
+    "width":  r"\Gamma_W",
+    "alphas": r"\alpha_s",
 }
+PARAM_UNITS = {
+    "mass":   "GeV",
+    "width":  "GeV",
+    "alphas": "",
+}
+
+# ---------------------------------------------------------------------------
+# Plot-output tunables
+# ---------------------------------------------------------------------------
+# Linear-inflation factor for the Azzurri-style overlay generated from fit
+# inputs. Multiplies the (σ_var − σ_nom) deviation read from the templates
+# so the band is visible on the σ_WW scale. With PARAMETERS["mass"]["variation"]
+# = 0.010 (= ±10 MeV), 100 produces a ±1 GeV-equivalent band — Azzurri
+# 2107.04444 Fig. 1 scale.
+AZZURRI_OVERLAY_INFLATE = 100
+
+# Clip ``plot_parameter_variations`` to the fit scan range (driven by
+# ``_scan_xlim`` in framework/common/plots.py). WW opts in; WbWb does
+# not, preserving its legacy full-template view.
+RESTRICT_PARAM_VARIATIONS_PLOT_TO_SCAN = True
+
+# Constant that converts σ_template ( = σ_observed × BR ) to σ_WW for the
+# Azzurri-style overlay's y-axis. Matches the diagnostic plot's σ_WW
+# scale (≈ 0–15 pb) instead of σ_observed (≈ 0–1.7 pb). Set to None to
+# plot the raw template — WbWb does not divide.
+OBSERVED_TO_TOTAL_DIVISOR = 0.14331   # ≡ BR_INCLUSIVE_MUNUQQ from eft_xsec.py

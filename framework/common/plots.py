@@ -90,6 +90,24 @@ def save_figure(plot_dir, name, *, also_pdf=True, clf=True):
 # ---------------------------------------------------------------------------
 # Top-level diagnostics
 # ---------------------------------------------------------------------------
+def _fit_scenario_caption(fit, *, ax=None, x=0.92, y=0.17):
+    """Two-line process + generator + BES annotation, drawn at the same
+    lower-right position and fontsizes as the legacy ``process_annotation``.
+    Line 1 merges the card's ``PROCESS_LABEL_SHORT`` with
+    ``GENERATOR_LABEL_SHORT``; line 2 is ``BES_LABEL``. Card-driven so
+    every panel of :func:`plot_fit_scenario` carries an identical caption."""
+    ax = ax or plt.gca()
+    process_short = getattr(fit.card, "PROCESS_LABEL_SHORT",
+                            fit.card.PROCESS_LABEL.split(" at ")[0])
+    gen_short = getattr(fit.card, "GENERATOR_LABEL_SHORT", "")
+    lines = [f"{process_short} {gen_short}".strip()]
+    if fit.card.BES_LABEL:
+        lines.append(fit.card.BES_LABEL)
+    for i, line in enumerate(lines):
+        ax.text(x, y - i * 0.04, line, transform=ax.transAxes,
+                ha="right", fontsize=23 if i == 0 else 21)
+
+
 def plot_fit_scenario(fit):
     """Pseudo/asimov data vs. fitted lineshape (and ratio panel)."""
     suffix = "asimov" if fit.asimov else "pseudo"
@@ -111,6 +129,7 @@ def plot_fit_scenario(fit):
     plt.xlabel(r"$\sqrt{s}$ [GeV]")
     plt.ylabel("Cross section [pb]")
     plt.legend()
+    _fit_scenario_caption(fit)
     save_figure(fit.plot_dir, f"fit_scenario_{suffix}", also_pdf=False)
 
     # Ratio to nominal -------------------------------------------------------
@@ -128,26 +147,31 @@ def plot_fit_scenario(fit):
     pseudo_label = "Pseudodata cross section" if not fit.asimov else "Asimov cross section"
     plt.plot(xsec_pseudo["ecm"], xsec_pseudo["xsec"] / xsec_nom["xsec"],
              label=pseudo_label, linestyle="--", linewidth=2)
-    plt.axhline(1, color="grey", linestyle="--", label="Reference cross section", linewidth=2)
     plt.xlabel(r"$\sqrt{s}$ [GeV]")
-    plt.ylabel(f"{fit.card.PROCESS_LABEL.split(' ')[0]} total cross section ratio")
+    plt.ylabel(r"$\sigma / \sigma_{\rm nom}$")
     plt.title(projection_title(fit.scenario_dict["total_lumi"]), loc="right", fontsize=20)
-    plt.legend(loc="lower right", fontsize=20)
-    if not fit.scenario_dict["add_last_ecm"]:
-        plt.xlim(339.7, 347.3)
-    process_annotation(fit.card, x=0.96, y=0.45, include_reference=True,
-                       chain_label=fit.template_metadata().get("chain"))
+    plt.legend(loc="upper left", fontsize=20)
+    xlim = _scan_xlim(fit)
+    if xlim is not None:
+        plt.xlim(*xlim)
+    _fit_scenario_caption(fit)
 
     save_figure(fit.plot_dir, f"fit_scenario_ratio_{suffix}", also_pdf=not fit.asimov)
 
 
 def plot_parameter_variations(fit):
-    """Per-parameter variation templates, normalised to the nominal lineshape."""
+    """Per-parameter variation templates, normalised to the nominal lineshape.
+    Legend annotates each curve with the ±Δ magnitude (from the card's
+    ``PARAMETERS[name]["variation"]``) so the reader sees at a glance which
+    variation the line corresponds to.
+    """
     plt.figure()
     xsec_nom = fit.template()
     plt.plot(xsec_nom["ecm"], np.ones(len(xsec_nom["ecm"])),
              label="Nominal model", linestyle="--", color="C0")
     binned_kinds = set(fit._systematics_meta["binned"])
+    poi_display = getattr(fit.card, "POI_DISPLAY", {})
+    math_labels = getattr(fit.card, "PARAM_MATH_LABELS", {})
     for i, name in enumerate(fit.param_names):
         if name in binned_kinds or i in fit._per_bin_meta:
             continue
@@ -155,14 +179,178 @@ def plot_parameter_variations(fit):
         factor = 1000 if name == "sw2" else 1
         ratio = (xsec_var["xsec"] / xsec_nom["xsec"] - 1) * factor + 1
         inv_ratio = (xsec_nom["xsec"] / xsec_var["xsec"] - 1) * factor + 1
-        label = fit.card.PARAM_LABELS.get(name, name)
+        # Compose "$<sym> \pm <Δ>$ <unit>" using the POI display spec when
+        # available (POI's scale/unit), or fall back to the math label and
+        # raw card variation.
+        spec = poi_display.get(name, {})
+        symbol = spec.get("symbol", math_labels.get(name, name))
+        delta = float(fit.card.PARAMETERS[name]["variation"])
+        scale = float(spec.get("scale", 1.0))
+        unit = spec.get("unit", "")
+        delta_disp = delta * scale
+        delta_str = f"{int(delta_disp)}" if unit == "MeV" else f"{delta_disp:g}"
+        unit_str = f" {unit}" if unit else ""
+        label = rf"${symbol} \pm {delta_str}${unit_str}"
         plt.plot(xsec_nom["ecm"], ratio, label=label, color=f"C{i+1}")
         plt.plot(xsec_nom["ecm"], inv_ratio, linestyle="--", color=f"C{i+1}")
     plt.xlabel(r"$\sqrt{s}$ [GeV]")
     plt.ylabel("Cross section variation")
-    plt.legend()
-    plt.title("Parameter variations normalized to nominal cross section")
+    # Opt-in scan-window clipping (only set on cards that want it — WW does,
+    # WbWb keeps its legacy full-template view).
+    if getattr(fit.card, "RESTRICT_PARAM_VARIATIONS_PLOT_TO_SCAN", False):
+        xlim = _scan_xlim(fit)
+        if xlim is not None:
+            plt.xlim(*xlim)
+    plt.legend(fontsize=20)
     save_figure(fit.plot_dir, "param_variations", also_pdf=False)
+
+
+# ---------------------------------------------------------------------------
+# Fit-input validation plots
+# ---------------------------------------------------------------------------
+# Read the on-disk templates the fit consumes and reproduce the
+# m_W / Γ_W variation visualisations directly from them — no re-evaluation
+# of the cross-section chain. The point is to *prove* the fit inputs
+# carry the expected behaviour. The ±σ ratio is the ±(POI-variation)/σ_nom
+# at the variation magnitude declared in the card; the negative side is
+# the linear-morph reflection (2σ_nom − σ_var)/σ_nom, which is exactly the
+# template the fit's morphing extrapolates to.
+def param_axis_label(card, name: str) -> str:
+    """Compose a full axis label ``"$<math>$ [<unit>]"`` for parameter
+    ``name`` from the card's ``PARAM_MATH_LABELS`` and ``PARAM_UNITS``
+    dicts. Falls back to the bare name if no math symbol is registered."""
+    math = getattr(card, "PARAM_MATH_LABELS", {}).get(name, name)
+    unit = getattr(card, "PARAM_UNITS", {}).get(name, "")
+    return rf"${math}$" + (f" [{unit}]" if unit else "")
+
+
+def _scan_xlim(fit, pad_factor: float = 0.05):
+    """Return ``(lo, hi)`` for the fit's scan window. Card may declare an
+    explicit ``SCAN_XLIM = (lo, hi)`` override (used by WbWb to preserve
+    legacy plot bounds); otherwise the range is derived from
+    ``card.SCENARIO["scan_min" / "scan_max"]`` with a small padding so
+    edge points stay clear of the axis. Returns ``None`` when
+    ``add_last_ecm`` is set, so the caller can display the full template
+    range including the far reference point."""
+    if fit.scenario_dict.get("add_last_ecm"):
+        return None
+    explicit = getattr(fit.card, "SCAN_XLIM", None)
+    if explicit is not None:
+        return tuple(explicit)
+    lo = float(fit.card.SCENARIO["scan_min"])
+    hi = float(fit.card.SCENARIO["scan_max"])
+    pad = (hi - lo) * pad_factor
+    return (lo - pad, hi + pad)
+
+
+def _fit_input_poi_variations(fit):
+    """For each POI return (name, math_label, Δ_display, unit_str). Iterates
+    ``fit.tracked_pois()`` (POIs declared in ``card.POI_DISPLAY`` and free
+    in the fit — constrained nuisances like α_s are skipped). Reads the
+    math symbol from ``card.POI_DISPLAY[name]["symbol"]`` and rescales the
+    card's variation by ``POI_DISPLAY[name]["scale"]`` into the declared
+    display unit."""
+    pd = fit.card.POI_DISPLAY
+    out = []
+    for name in fit.tracked_pois():
+        spec = pd.get(name, {})
+        delta = float(fit.card.PARAMETERS[name]["variation"])
+        scale = float(spec.get("scale", 1.0))
+        unit = spec.get("unit", "")
+        symbol = spec.get("symbol", name)
+        out.append((name, symbol, delta * scale, unit))
+    return out
+
+
+def plot_fit_input_ratios(fit):
+    """Two-panel σ(var)/σ(nom) for ``mass`` and ``width`` from the fit's
+    own templates. Equivalent to the diagnostic ``ratios_mW_GammaW`` plot
+    but sourced from disk so it reflects what the fit actually consumes.
+    """
+    xsec_nom = fit.template()
+    ecm = np.asarray(xsec_nom["ecm"])
+    sig_nom = np.asarray(xsec_nom["xsec"])
+
+    pois = _fit_input_poi_variations(fit)
+    if not pois:
+        return
+
+    n = len(pois)
+    fig, axes = plt.subplots(n, 1, figsize=(8.5, 4.0 * n), sharex=True)
+    if n == 1:
+        axes = [axes]
+
+    xlim = _scan_xlim(fit)
+    for ax, (name, math_label, delta_disp, unit) in zip(axes, pois):
+        sig_p = np.asarray(fit.template(f"{name}_var")["xsec"])
+        ratio_p = sig_p / sig_nom
+        ratio_m = 2.0 - ratio_p   # linear-morph −Δ counterpart
+        d_str = f"{int(delta_disp)}" if unit == "MeV" else f"{delta_disp:g}"
+        u = f" {unit}" if unit else ""
+        ax.plot(ecm, ratio_p, color="#a50f15", linewidth=1.8,
+                label=rf"${math_label} + {d_str}${u} (template)")
+        ax.plot(ecm, ratio_m, color="#08519c", linewidth=1.8,
+                label=rf"${math_label} - {d_str}${u} (linear morph)")
+        ax.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
+        ax.set_ylabel(rf"$\sigma({math_label} \pm \delta)/\sigma_{{\rm nom}}$")
+        if xlim is not None:
+            ax.set_xlim(*xlim)
+        ax.legend(loc="best", fontsize=16, framealpha=0.9)
+        ax.grid(alpha=0.25)
+    axes[-1].set_xlabel(r"$\sqrt{s}$ [GeV]")
+    plt.tight_layout()
+    save_figure(fit.plot_dir, "fit_input_ratios")
+
+
+def plot_fit_input_azzurri_overlay(fit):
+    """Single square panel: every POI's variation band overlaid on the
+    nominal σ, each linearly inflated by ``card.AZZURRI_OVERLAY_INFLATE``
+    so the band is visible (×100 turns a ±10 MeV mass/width template into
+    a ±1 GeV-equivalent band — Azzurri 2107.04444 Fig. 1 scale). The
+    deviation σ_var − σ_nom is read straight from the fit's templates
+    and scaled — purely visual, no extra physics."""
+    xsec_nom = fit.template()
+    ecm = np.asarray(xsec_nom["ecm"])
+    sig_nom = np.asarray(xsec_nom["xsec"])
+
+    pois = _fit_input_poi_variations(fit)
+    if not pois:
+        return
+
+    palette = [("#9e6bbf", "#54278f"),
+               ("#4daf4a", "#1b7837"),
+               ("#fdae6b", "#a63603"),
+               ("#9ecae1", "#08519c")]
+
+    inflate = int(getattr(fit.card, "AZZURRI_OVERLAY_INFLATE", 100))
+    # Optional template → σ_WW unit conversion so the y-axis matches the
+    # σ_WW scale of the diagnostic Azzurri overlay. WW divides by
+    # BR_INCLUSIVE_MUNUQQ ≈ 0.143 to lift σ_observed (≈ 0–1.7 pb) onto
+    # the σ_WW scale (≈ 0–15 pb). Cards without the constant plot raw σ.
+    divisor = float(getattr(fit.card, "OBSERVED_TO_TOTAL_DIVISOR", 1.0) or 1.0)
+    fig, ax = plt.subplots(figsize=(7.5, 7.5))
+    for (name, math_label, delta_disp, unit), (color_band, color_edge) in zip(pois, palette):
+        sig_var = np.asarray(fit.template(f"{name}_var")["xsec"])
+        sig_p = (sig_nom + inflate * (sig_var - sig_nom)) / divisor
+        sig_m = (sig_nom - inflate * (sig_var - sig_nom)) / divisor
+        d_str = f"{int(delta_disp)}" if unit == "MeV" else f"{delta_disp:g}"
+        u = f" {unit}" if unit else ""
+        ax.fill_between(ecm, sig_m, sig_p, color=color_band, alpha=0.30,
+                        label=rf"${math_label} \pm {d_str}${u} $\times {inflate}$")
+        ax.plot(ecm, sig_p, color=color_edge, linewidth=1.0, linestyle="--")
+        ax.plot(ecm, sig_m, color=color_edge, linewidth=1.0, linestyle=":")
+
+    ax.plot(ecm, sig_nom / divisor, color="black", linewidth=1.8, label="nominal (template)")
+    ax.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax.set_ylabel(r"$\sigma_{WW}$ [pb]" if divisor != 1.0 else r"$\sigma$ [pb]")
+    # Match the diagnostic Azzurri overlay's view: full lineshape range,
+    # so the rising shoulder + above-threshold plateau are both visible.
+    ax.set_xlim(*getattr(fit.card, "AZZURRI_OVERLAY_XLIM", (155, 170)))
+    ax.set_ylim(*getattr(fit.card, "AZZURRI_OVERLAY_YLIM", (0.0, 13.0)))
+    ax.legend(loc="upper left", fontsize=16, framealpha=0.9)
+    ax.grid(alpha=0.25)
+    plt.tight_layout()
+    save_figure(fit.plot_dir, "fit_input_azzurri_overlay")
 
 
 def _fit_xsec_with_uncert(fit):

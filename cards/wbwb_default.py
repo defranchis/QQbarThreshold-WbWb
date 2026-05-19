@@ -222,10 +222,28 @@ GENERATOR_LABEL = r"QQbar_Threshold $N^{3}LO$+ISR"
 GENERATOR_REF = r"[JHEP 02 (2018) 125]"
 BES_LABEL = r"+ FCC-ee BES"
 
-PARAM_LABELS = {
-    "mass":   r"$m_t$ [GeV]",
-    "width":  r"$\Gamma_t$ [GeV]",
+# Plain LaTeX math symbols (no $, no units) — the atomic piece used to
+# compose every other label (axis titles, ratio captions, legend entries).
+PARAM_MATH_LABELS = {
+    "mass":   r"m_t",
+    "width":  r"\Gamma_t",
     "yukawa": r"y_t",
-    "alphas": r"\alpha_S",
-    "sw2":    r"$\sin^2(\theta_W)$",
+    "alphas": r"\alpha_s",
+    "sw2":    r"\sin^2\theta_W",
 }
+PARAM_UNITS = {
+    "mass":   "GeV",
+    "width":  "GeV",
+    "yukawa": "",
+    "alphas": "",
+    "sw2":    "",
+}
+
+# Linear-inflation factor for the Azzurri-style overlay (see ww_default).
+AZZURRI_OVERLAY_INFLATE = 100
+
+# Legacy hardcoded scan-window x-axis for fit-output plots. WbWb has
+# historically displayed 339.7-347.3 GeV irrespective of the scan range
+# configured in SCENARIO; keep that behaviour by overriding here. WW
+# omits this constant and falls through to SCENARIO-derived bounds.
+SCAN_XLIM = (339.7, 347.3)

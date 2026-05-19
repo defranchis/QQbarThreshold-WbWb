@@ -747,7 +747,8 @@ def scan_chi2(fit):
     (cov factor, morph matrix, smeared templates) is read-only inside
     ``chi2``, so cloning the whole object per iteration is wasted work.
     """
-    labels = fit.card.PARAM_LABELS
+    from framework.common.plots import param_axis_label
+    labels = {p: param_axis_label(fit.card, p) for p in fit.param_names}
     keys = _scan_keys(fit)
     start = list(fit.minuit.values)  # warm-start every profile fit from the global best
 
