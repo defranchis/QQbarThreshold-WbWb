@@ -637,6 +637,9 @@ def main():
     plot_bes_effect_on_variations()
     print("Done.")
 
+    from common.eos_publish import publish
+    publish(PLOT_DIR, os.environ.get("WW_DIAGNOSTICS_PUBSUB", "ww_diagnostics"))
+
 
 if __name__ == "__main__":
     main()

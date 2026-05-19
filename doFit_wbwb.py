@@ -159,6 +159,11 @@ def main():
     if args.systTable:
         print_syst_table(fit)
 
+    if not args.noPlots:
+        import os
+        from common.eos_publish import publish
+        publish(card.PLOT_DIR, os.environ.get("WBWB_FIT_PUBSUB", "wbwb"))
+
 
 if __name__ == "__main__":
     main()
