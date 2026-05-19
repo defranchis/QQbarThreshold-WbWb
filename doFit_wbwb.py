@@ -10,8 +10,8 @@ import argparse
 
 from cards import wbwb_default as card
 from framework.common import scans
-from framework.common.parallel import run_parallel
 from framework.common.plots import plot_fit_scenario, plot_parameter_variations
+from framework.common.scans import run_parallel
 from framework.common.systematics import print_syst_table
 from framework.process.wbwb import scans as wbwb_scans
 from framework.process.wbwb.fit import WbWbFit
