@@ -8,6 +8,8 @@ Two scopes:
   diagnostic plots historically baked into the ``fit`` class itself.
 """
 
+from __future__ import annotations
+
 import os
 
 import matplotlib.pyplot as plt
@@ -145,8 +147,9 @@ def plot_parameter_variations(fit):
     xsec_nom = fit.template()
     plt.plot(xsec_nom["ecm"], np.ones(len(xsec_nom["ecm"])),
              label="Nominal model", linestyle="--", color="C0")
+    binned_kinds = set(fit._systematics_meta["binned"])
     for i, name in enumerate(fit.param_names):
-        if "BEC" in name or "BES" in name:
+        if name in binned_kinds or i in fit._per_bin_meta:
             continue
         xsec_var = fit.template(f"{name}_var")
         factor = 1000 if name == "sw2" else 1
@@ -171,8 +174,9 @@ def _fit_xsec_with_uncert(fit):
 
     params = fit.fit_params_with_cov()
     th = np.array(fit.template()["xsec"])
-    for name in fit.param_names:
-        if "BEC_bin" in name or "BES_bin" in name or name in ("BES", "BEC"):
+    binned_kinds = set(fit._systematics_meta["binned"])
+    for i, name in enumerate(fit.param_names):
+        if name in binned_kinds or i in fit._per_bin_meta:
             continue
         p = params[fit._idx[name]]
         th = th * (1 + p * np.array(fit.morph_dict[name]["xsec"]))

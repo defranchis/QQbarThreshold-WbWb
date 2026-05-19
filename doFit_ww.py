@@ -36,9 +36,9 @@ def dump_fit_metadata(fit, args):
         "template":         fit.template_metadata(),
         "fit": {
             "asimov":          fit.asimov,
-            "scan_min":        fit.scenario_dict["scan_min"],
-            "scan_max":        fit.scenario_dict["scan_max"],
-            "scan_step":       fit.scenario_dict["scan_step"],
+            "scan_min":        card.SCENARIO["scan_min"],
+            "scan_max":        card.SCENARIO["scan_max"],
+            "scan_step":       card.SCENARIO["scan_step"],
             "total_lumi":      fit.scenario_dict["total_lumi"],
             "scale_vars":      args.scaleVars,
             "lastecm":         args.lastecm,
