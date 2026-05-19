@@ -36,6 +36,9 @@ def parse_args():
     parser.add_argument("--chi2scans", action="store_true")
     parser.add_argument("--systTable", action="store_true")
     parser.add_argument("--noPlots", action="store_true")
+    parser.add_argument("--parallel", type=int, default=6, metavar="N",
+                        help="run the requested scans in parallel with up to N worker "
+                             "processes (default: 6; pass --parallel 1 to force sequential)")
     return parser.parse_args()
 
 
@@ -77,18 +80,26 @@ def main():
     if not args.noPlots:
         plot_fit_scenario(fit)
 
+    scan_jobs = []
     if args.LSscan:
-        scans.scan_beam_resolution(fit)
+        scan_jobs.append(lambda: scans.scan_beam_resolution(fit))
     if args.BECscans:
-        scans.scan_bec(fit)
+        scan_jobs.append(lambda: scans.scan_bec(fit))
     if args.BESscans:
-        scans.scan_bes(fit)
+        scan_jobs.append(lambda: scans.scan_bes(fit))
     if args.lumiscans:
-        scans.scan_lumi(fit)
+        scan_jobs.append(lambda: scans.scan_lumi(fit))
     if args.alphaSscan:
-        scans.scan_alphas(fit)
+        scan_jobs.append(lambda: scans.scan_alphas(fit))
     if args.chi2scans:
-        scans.scan_chi2(fit)
+        scan_jobs.append(lambda: scans.scan_chi2(fit))
+
+    if args.parallel > 1 and len(scan_jobs) > 1:
+        scans.run_parallel(scan_jobs, max_workers=args.parallel)
+    else:
+        for job in scan_jobs:
+            job()
+
     if args.systTable:
         print_syst_table(fit)
 

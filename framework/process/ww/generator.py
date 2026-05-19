@@ -39,7 +39,6 @@ import numpy as np
 from framework.process.ww.xsec_calculator.eft_xsec import (
     ALPHA_S_MW_DEFAULT, M_T_DEFAULT, M_H_DEFAULT,
     BFSCorrections,
-    M_W_DEFAULT, GAMMA_W_DEFAULT,
 )
 from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq
 
@@ -167,24 +166,14 @@ class WWGenerator:
         """
         nlo_cfg = getattr(card, "NLO_CONFIG", {})
         theory = getattr(card, "THEORY_INPUTS", {})
-        kw = observed_kwargs_from_card(card)
         if bfs is None and bool(nlo_cfg.get("diagnostic_bfs_coulomb_nlo", False)):
             bfs = BFSCorrections(enabled_coulomb_NLO=True)
         return cls(
             order=card.ORDER,
             bfs=bfs,
-            channel=kw["channel"],
-            include_coulomb=kw["include_coulomb"],
-            n_quad=kw["n_quad"], z_min=kw["z_min"],
-            include_NLO_hard_decay=kw["include_NLO_hard_decay"],
-            apply_delta_QCD=kw["apply_delta_QCD"],
-            br_convention=kw["br_convention"],
-            alpha_s=kw["alpha_s"],
-            apply_whizard_anchor=kw["apply_whizard_anchor"],
-            isr_scheme=kw["isr_scheme"],
-            alpha_em_isr=kw["alpha_em_isr"],
             m_t=float(theory.get("m_t", M_T_DEFAULT)),
             M_H=float(theory.get("M_H", M_H_DEFAULT)),
+            **observed_kwargs_from_card(card),
         )
 
     def describe(self) -> str:

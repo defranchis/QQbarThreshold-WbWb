@@ -38,6 +38,11 @@ def ecm_to_str(ecm):
     return f"{ecm:.1f}"
 
 
+def bec_var_dir(var: float) -> str:
+    """Signed-MeV BEC shift → BEC-variation subdir name (``scan_p10`` / ``scan_m30``)."""
+    return f"scan_p{var:.0f}" if var >= 0 else f"scan_m{abs(var):.0f}"
+
+
 def quadrature_subtract(total, partial):
     """Return ``sqrt(total**2 - partial**2)`` (clipped at zero), elementwise.
 
@@ -295,7 +300,7 @@ class FitCore:
                 continue
             path = self.card.INPUT_DIRS[kind]
             if source.get("var_subdir"):
-                path = os.path.join(path, self._bec_var_dir(self.input_var[kind]))
+                path = os.path.join(path, bec_var_dir(self.input_var[kind]))
             raw = self._scan_for_tag("nominal", indir=path)
             if source.get("snap_to_grid"):
                 raw["ecm"] = raw["ecm"].round(1)
@@ -493,14 +498,6 @@ class FitCore:
             for kind in (*self._systematics_meta["binned"], *self._systematics_meta["global"]):
                 self.morph_dict[kind] = self._morph_one(kind)
 
-    @staticmethod
-    def _bec_var_dir(var):
-        return f"scan_p{var:.0f}" if var >= 0 else f"scan_m{abs(var):.0f}"
-
-    @staticmethod
-    def _bec_dir_to_var(directory):
-        s = directory.replace("scan_p", "").replace("scan_m", "")
-        return float(s) * (-1 if directory.startswith("scan_m") else 1)
 
     # ------------------------------------------------------------------
     # Parameter <-> value conversion

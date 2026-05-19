@@ -1,12 +1,4 @@
-"""Gaussian smearing of a cross-section lineshape by the beam-energy spectrum.
-
-Replaces the helper in ``utils_fit/fitUtils.py`` from the original tree.
-The change vs. the old code is:
-  * the uniform-pitch check actually works now (the original compared a Python
-    list to a scalar, then called ``.all()`` on the resulting bool — it never
-    raised, but it also never validated anything);
-  * names follow PEP-8.
-"""
+"""Gaussian smearing of a cross-section lineshape by the beam-energy spectrum."""
 
 import numpy as np
 import pandas as pd

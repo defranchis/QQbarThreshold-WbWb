@@ -51,7 +51,7 @@ import numpy as np
 from scipy.special import gamma as gamma_fn
 
 from framework.process.ww.xsec_calculator.eft_xsec import (
-    ALPHA_EM_0, M_E,
+    M_E,
     ALPHA_S_MW_DEFAULT,
     M_W_DEFAULT, GAMMA_W_DEFAULT, M_W_BFS_REF,
     BFSCorrections,
@@ -158,10 +158,6 @@ def H_NS(z, beta: float, one_minus_z=None):
     a floor when only ``z`` is provided.
 
     Vectorised in ``z``.
-
-    History: prior to 2026-05-18, the coefficient on (1+z)ln(1-z) was
-    erroneously 2 (instead of 4), giving a ~1 % σ_obs deficit vs BFS
-    Table 4. Fixed and validated 2026-05-18 (validation log item 24).
     """
     logz, log1mz, one_minus_z, z = _safe_log_pair(z, one_minus_z)
     NS1 = -0.5 * beta * (1.0 + z)

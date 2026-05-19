@@ -20,6 +20,7 @@ import os
 import time
 
 from cards import ww_default as card
+from framework.common.fit_core import bec_var_dir
 from framework.common.parameters import Parameters
 from framework.process.ww.xsec_calculator.eft_xsec import BFSCorrections
 from framework.process.ww.generator import WWGenerator
@@ -80,10 +81,9 @@ def main():
 
     if not args.no_bec:
         for var in args.bec_vars_MeV:
-            for sign, sub in (("+", "p"), ("-", "m")):
-                shift = (+var if sign == "+" else -var)
-                subdir = os.path.join(args.bec_outdir, f"scan_{sub}{int(var)}")
-                print(f"\n[ BEC {sign}{var:.0f} MeV ]  outdir = {subdir}")
+            for shift in (+var, -var):
+                subdir = os.path.join(args.bec_outdir, bec_var_dir(shift))
+                print(f"\n[ BEC {shift:+.0f} MeV ]  outdir = {subdir}")
                 _generate_set(generator, params,
                               mass_scale=mass_scale, width_scale=width_scale,
                               mass_scheme=mass_scheme, outdir=subdir,

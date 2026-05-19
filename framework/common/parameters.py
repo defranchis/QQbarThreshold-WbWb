@@ -11,9 +11,8 @@ Tags produced:
   * ``<param>_var`` — central + ``variation`` for ``<param>``, central for
                       every other parameter; used to build morphing templates.
 
-Compared to the old ``process.wbwb.xsec_calculator/parameter_def.py``, the parameter list
-is no longer hardcoded — it follows the keys of the card dictionary, so
-adding/removing parameters of interest is a card-level change only.
+The parameter list follows the keys of the card dictionary, so adding /
+removing parameters of interest is a card-level change only.
 """
 
 import copy
