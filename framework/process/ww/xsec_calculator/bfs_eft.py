@@ -53,7 +53,7 @@ from framework.process.ww.xsec_calculator.eft_xsec import (
     ALPHA_EM_0,                         # not used for these LO formulae; kept for parity
     ALPHA_S_MW_DEFAULT,
     GEV_M2_TO_PB,
-    M_W_DEFAULT, GAMMA_W_DEFAULT, M_Z, M_W_BFS_REF,
+    M_W_DEFAULT, GAMMA_W_DEFAULT, M_Z, M_W_BFS_REF, PB_TO_FB,
     alpha_Gmu, sin2_thetaW_OS,
 )
 
@@ -254,7 +254,7 @@ def _sigma_half_h57_RL(s, mW: float):
 # denominator is the BR-corrected σ_EFT.
 
 _BFS_TABLE_1_SQRTS = [155.0, 158.0, 161.0, 164.0, 167.0, 170.0]
-_BFS_TABLE_1_MW    = 80.377
+_BFS_TABLE_1_MW    = 80.377   # BFS Table 1 reference m_W [GeV]
 _BFS_TABLE_1_GW    = 2.04483
 _BFS_TABLE_1_EFT   = [31.30, 62.50, 160.89, 318.80, 429.70, 505.40]   # fb, EFT N^(3/2)LO
 _BFS_TABLE_1_WHIZ  = [34.43, 63.39, 160.62, 318.30, 428.60, 505.10]   # fb, Whizard 4f Born
@@ -349,7 +349,7 @@ def whizard_anchor_factor_spline(s, mW: float = M_W_DEFAULT,
         gammaW, apply_BR_correction=apply_BR_correction)
     sigma_LR, sigma_RL = _accumulate_born_orders(
         s, mW, gammaW, "N3/2LO", apply_BR_correction=apply_BR_correction)
-    sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * 1000.0   # pb → fb, unpolarised specific
+    sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * PB_TO_FB
     f = sigma_whiz_fb / sigma_EFT_fb
 
     if np.ndim(s) == 0:
@@ -369,7 +369,7 @@ def whizard_anchor_factor_grid(s, mW: float = M_W_DEFAULT,
 
     sigma_LR, sigma_RL = _accumulate_born_orders(
         s, mW, gammaW, "N3/2LO", apply_BR_correction=apply_BR_correction)
-    sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * 1000.0   # pb → fb, unpolarised specific
+    sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * PB_TO_FB
     sigma_whiz_fb = whizard_sigma(s, mW, gammaW) * _br_strip_factor(
         gammaW, apply_BR_correction=apply_BR_correction)
     f = sigma_whiz_fb / sigma_EFT_fb
@@ -836,21 +836,25 @@ def delta_sigma_NLO_hard_softcoll_specific_pb(s, mW: float = M_W_DEFAULT,
 # NLO decay correction (eq. delta-decay / 60 of arXiv:0707.0773 — EW only)
 # ---------------------------------------------------------------------------
 
+# NNLO α_s² coefficient (Chetyrkin-Kühn-Kwiatkowski, PRL 1997).
+_DELTA_QCD_C2 = 1.409
+
+
 def delta_QCD_factor(alpha_s: float = ALPHA_S_MW_DEFAULT) -> float:
     """Universal QCD correction to hadronic partial widths, BFS eq. (delta_qcd):
 
-        δ_QCD(α_s) = 1 + α_s/π + 1.409 (α_s/π)²
+        δ_QCD(α_s) = 1 + α_s/π + c₂ (α_s/π)²,   c₂ = _DELTA_QCD_C2 = 1.409
 
     α_s is α_s(M_W) in MS-bar. BFS section 6.1 (lines 2622-2637) explains that
     multiplying the entire NLO electroweak cross section by δ_QCD reproduces
     the QCD running of hadronic partial widths to NNLO precision.
 
     At α_s = 0.1199 this evaluates to 1.04025 (≈ +4.0 % multiplicative).
-    Differential: ∂δ_QCD/∂α_s = 1/π + 2 × 1.409 × α_s/π² = +0.351 at the
-    reference α_s — gives a ~0.1 % shift on σ per 1 % shift on α_s.
+    Differential: ∂δ_QCD/∂α_s = 1/π + 2 c₂ α_s/π² = +0.351 at the BFS
+    reference α_s — justifies treating α_s as an actively fit nuisance.
     """
     x = alpha_s / np.pi
-    return 1.0 + x + 1.409 * x * x
+    return 1.0 + x + _DELTA_QCD_C2 * x * x
 
 
 # BFS eq. (Gamma1ewFS) explicit formula for the EW one-loop correction to the
@@ -1232,7 +1236,7 @@ def _self_test_specific_channel(mW: float, gammaW: float,
         s, mW, gammaW, gammaW_NLO=0.0, apply_BR_correction=apply_BR_correction)
     sLR32a, sRL32a = sigma_LR_RL_three_half_a_specific_pb(s, mW, gammaW, apply_BR_correction=apply_BR_correction)
     sigma_specific = (sLR0 + sLR12 + sLR_NLO + sLR32a + sRL12 + sRL_NLO + sRL32a) / 4.0
-    sigma_specific_fb = sigma_specific * 1e3
+    sigma_specific_fb = sigma_specific * PB_TO_FB
     for i in range(len(sqrts_GeV)):
         print(f"  {sqrts_GeV[i]:5.1f}  {sigma_specific_fb[i]:11.2f} fb  "
               f"{paper_col_fb[i]:13.2f} fb  {whizard_fb[i]:14.2f} fb  "

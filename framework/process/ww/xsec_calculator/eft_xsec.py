@@ -49,6 +49,7 @@ G_F             = 1.1663787e-5
 ALPHA_EM_0      = 1.0 / 137.035999084
 ALPHA_EM_MZ     = 1.0 / 128.943
 GEV_M2_TO_PB    = 3.8937937217e8
+PB_TO_FB        = 1000.0   # picobarn → femtobarn
 
 # ---------------------------------------------------------------------------
 # WW-chain defaults (single source of truth; imported by bfs_eft, isr,

@@ -82,6 +82,28 @@ def parse_args():
     return parser.parse_args()
 
 
+def _check_template_freshness(fit, generator):
+    """Abort if any field of the template's stored ``template_fingerprint``
+    disagrees with what the live card+generator would produce. Templates
+    without a fingerprint (older runs) are skipped silently."""
+    metadata = fit.template_metadata()
+    if not metadata:
+        return
+    diffs = [
+        f"  {k}: template={metadata[k]!r}  card={v!r}"
+        for k, v in generator.template_fingerprint().items()
+        if k in metadata and metadata[k] != v
+    ]
+    if diffs:
+        raise SystemExit(
+            "\n[stale templates] The following input(s) in the templates\n"
+            "do not match the current card:\n"
+            + "\n".join(diffs) + "\n"
+            "→ regenerate templates: `python compute_xsec_ww.py`\n"
+            "→ then re-run this script. Refusing to fit on outdated templates."
+        )
+
+
 def main():
     args = parse_args()
 
@@ -95,6 +117,7 @@ def main():
         mass_scheme=card.MASS_SCHEME,
         debug=args.debug,
     )
+    _check_template_freshness(fit, generator)
 
     fit.init_scenario(
         scan_min=card.SCENARIO["scan_min"],

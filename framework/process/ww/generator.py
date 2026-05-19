@@ -105,24 +105,6 @@ def chain_summary_latex(kwargs: dict) -> str:
     return " + ".join(parts)
 
 
-def chain_short_summary_latex(kwargs: dict) -> str:
-    """One-line compact chain badge for prominent plot annotations. Carries
-    only the highest-order perturbative piece and whether ISR is on, in
-    the form ``NNLO EFT + LL ISR``. The full chain stays in
-    ``chain_summary_latex`` above — the long form lives in the template
-    metadata for traceability, this short form is the visible plot label."""
-    if kwargs.get("include_BFS_NNLO", False):
-        order = "NNLO"
-    elif kwargs.get("include_NLO_hard_decay", False):
-        order = "NLO"
-    else:
-        order = "Born"
-    pieces = [f"{order} EFT"]
-    if "isr_scheme" in kwargs:
-        pieces.append("LL ISR")
-    return " + ".join(pieces)
-
-
 def observed_kwargs_from_card(card) -> dict:
     """Card NLO_CONFIG + THEORY_INPUTS → kwargs for ``sigma_observed_munuqq``
     (partonic kwargs + ISR-only kwargs).
@@ -195,7 +177,12 @@ class WWGenerator:
                  # — currently treated as constants in the hardcoded c_fin =
                  # -10.076; recorded here so a future update can propagate
                  # m_t/M_H variations into the matching coefficient).
-                 m_t: float = M_T_DEFAULT, M_H: float = M_H_DEFAULT):
+                 m_t: float = M_T_DEFAULT, M_H: float = M_H_DEFAULT,
+                 # Steering card reference — kept so ``template_fingerprint``
+                 # can include card-level primitives (PDG BRs, PARAMETERS
+                 # variation magnitudes) in the integrity check. ``None``
+                 # is allowed for direct (test) construction.
+                 card=None):
         self.order = order              # informational; recorded in filename
         self.channel = channel
         self.include_coulomb = include_coulomb
@@ -213,6 +200,7 @@ class WWGenerator:
         self.alpha_em_isr = alpha_em_isr
         self.m_t = m_t
         self.M_H = M_H
+        self.card = card
 
     @classmethod
     def from_card(cls, card, *, bfs: BFSCorrections | None = None):
@@ -237,6 +225,7 @@ class WWGenerator:
             bfs=bfs,
             m_t=float(theory.get("m_t", M_T_DEFAULT)),
             M_H=float(theory.get("M_H", M_H_DEFAULT)),
+            card=card,
             **observed_kwargs_from_card(card),
         )
 
@@ -258,12 +247,38 @@ class WWGenerator:
         check that ties every plot back to the templates it consumes."""
         return chain_summary_latex(self._chain_kwargs())
 
-    def chain_short_label(self) -> str:
-        """Compact display badge (e.g. ``BFS NNLO+LL``) for prominent
-        plot annotations. Saved into the template header alongside the
-        full ``chain`` label so the visible sub-title also tracks the
-        templates."""
-        return chain_short_summary_latex(self._chain_kwargs())
+    def template_fingerprint(self) -> dict:
+        """Stringified snapshot of every input that affects σ_template.
+        Stamped into the template header by ``do_scan``; the fit's
+        :func:`_check_template_freshness` reads it back and refuses to
+        run if any field disagrees with the live card. This is the
+        integrity check that catches "I edited the card but forgot to
+        regenerate templates" mistakes."""
+        fp = {
+            "chain":          self.chain_label(),
+            "channel":        self.channel,
+            "br_convention":  self.br_convention,
+            "alpha_s":        f"{self.alpha_s:.5f}",
+            "alpha_em_isr":   ("auto" if self.alpha_em_isr is None
+                                else f"{self.alpha_em_isr:.6f}"),
+            "isr_scheme":     self.isr_scheme,
+            "n_quad":         str(self.n_quad),
+            "z_min":          f"{self.z_min:.4f}",
+            "m_t":            f"{self.m_t:.3f}",
+            "M_H":            f"{self.M_H:.3f}",
+            "anchor_source":  self.whizard_anchor_source,
+        }
+        if self.card is not None:
+            # PDG branching-ratio primitives (PDG-constant chain uses BR_INCLUSIVE_MUNUQQ;
+            # the Azzurri overlay divides by 2·BR_W_MUNU·BR_W_HAD).
+            for name in ("BR_W_MUNU", "BR_W_HAD", "BR_W_UD"):
+                if hasattr(self.card, name):
+                    fp[name] = f"{getattr(self.card, name):.5f}"
+            # PARAMETERS variation magnitudes — change the variation
+            # template's δ and the fit's morphing inputs change.
+            for poi, spec in getattr(self.card, "PARAMETERS", {}).items():
+                fp[f"{poi}_variation"] = f"{float(spec['variation']):.6f}"
+        return fp
 
     def describe(self) -> str:
         """One-line summary of the chain configuration (for log lines)."""
@@ -349,14 +364,7 @@ class WWGenerator:
         # preamble carries the active chain configuration so consumers
         # (fit plot footers, downstream tooling) can label themselves
         # against the *actual* templates rather than the live card.
-        header = compose_header({
-            "chain": self.chain_label(),
-            "chain_short": self.chain_short_label(),
-            "isr_scheme": self.isr_scheme,
-            "channel": self.channel,
-            "br_convention": self.br_convention,
-            "alpha_s": f"{self.alpha_s:.5f}",
-        })
+        header = compose_header(self.template_fingerprint())
         with open(path, "w") as fh:
             fh.write(header)
             for ecm, sigma in zip(ecm_grid, sigma_obs):

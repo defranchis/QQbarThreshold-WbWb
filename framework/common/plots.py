@@ -170,28 +170,18 @@ def plot_parameter_variations(fit):
     plt.plot(xsec_nom["ecm"], np.ones(len(xsec_nom["ecm"])),
              label="Nominal model", linestyle="--", color="C0")
     binned_kinds = set(fit._systematics_meta["binned"])
-    poi_display = getattr(fit.card, "POI_DISPLAY", {})
-    math_labels = getattr(fit.card, "PARAM_MATH_LABELS", {})
     for i, name in enumerate(fit.param_names):
         if name in binned_kinds or i in fit._per_bin_meta:
             continue
         xsec_var = fit.template(f"{name}_var")
-        factor = 1000 if name == "sw2" else 1
-        ratio = (xsec_var["xsec"] / xsec_nom["xsec"] - 1) * factor + 1
-        inv_ratio = (xsec_nom["xsec"] / xsec_var["xsec"] - 1) * factor + 1
-        # Compose "$<sym> \pm <Δ>$ <unit>" using the POI display spec when
-        # available (POI's scale/unit), or fall back to the math label and
-        # raw card variation.
-        spec = poi_display.get(name, {})
-        symbol = spec.get("symbol", math_labels.get(name, name))
-        delta = float(fit.card.PARAMETERS[name]["variation"])
-        scale = float(spec.get("scale", 1.0))
-        unit = spec.get("unit", "")
-        delta_disp = delta * scale
-        delta_str = f"{int(delta_disp)}" if unit == "MeV" else f"{delta_disp:g}"
-        unit_str = f" {unit}" if unit else ""
-        label = rf"${symbol} \pm {delta_str}${unit_str}"
-        plt.plot(xsec_nom["ecm"], ratio, label=label, color=f"C{i+1}")
+        # Visible-deviation amplification: scale lifts the lineshape ratio
+        # into display units (×1000 for mass/width in GeV→MeV, ×1 for
+        # dimensionless POIs) so the analysis-target distortion is visible.
+        _, scale, _ = _poi_display_spec(fit.card, name)
+        ratio = (xsec_var["xsec"] / xsec_nom["xsec"] - 1) * scale + 1
+        inv_ratio = (xsec_nom["xsec"] / xsec_var["xsec"] - 1) * scale + 1
+        plt.plot(xsec_nom["ecm"], ratio, label=_poi_pm_label(fit.card, name),
+                 color=f"C{i+1}")
         plt.plot(xsec_nom["ecm"], inv_ratio, linestyle="--", color=f"C{i+1}")
     plt.xlabel(r"$\sqrt{s}$ [GeV]")
     plt.ylabel("Cross section variation")
@@ -224,6 +214,32 @@ def param_axis_label(card, name: str) -> str:
     return rf"${math}$" + (f" [{unit}]" if unit else "")
 
 
+def _format_delta(delta_disp: float, unit: str) -> str:
+    """Δ magnitude as ``"<value> <unit>"`` — integer for MeV, %g elsewhere."""
+    d_str = f"{int(delta_disp)}" if unit == "MeV" else f"{delta_disp:g}"
+    return d_str + (f" {unit}" if unit else "")
+
+
+def _poi_display_spec(card, name: str) -> tuple[str, float, str]:
+    """``(math_symbol, display_scale, unit)`` for ``name`` from
+    ``card.POI_DISPLAY``, falling back to ``PARAM_MATH_LABELS`` (symbol)
+    and ``(1.0, "")`` (scale, unit)."""
+    spec = getattr(card, "POI_DISPLAY", {}).get(name, {})
+    symbol = spec.get(
+        "symbol", getattr(card, "PARAM_MATH_LABELS", {}).get(name, name))
+    return symbol, float(spec.get("scale", 1.0)), spec.get("unit", "")
+
+
+def _poi_pm_label(card, name: str) -> str:
+    """LaTeX ``"<sym> ± <Δ> <unit>"`` for parameter ``name``. Single point
+    that resolves the POI display spec + the card's variation magnitude
+    + the dimension-aware Δ formatting — used by every plot that draws
+    "POI ± Δ" curves so they stay consistent."""
+    symbol, scale, unit = _poi_display_spec(card, name)
+    delta = float(card.PARAMETERS[name]["variation"]) * scale
+    return rf"${symbol} \pm {_format_delta(delta, unit)}$"
+
+
 def _scan_xlim(fit, pad_factor: float = 0.05):
     """Return ``(lo, hi)`` for the fit's scan window. Card may declare an
     explicit ``SCAN_XLIM = (lo, hi)`` override (used by WbWb to preserve
@@ -244,20 +260,14 @@ def _scan_xlim(fit, pad_factor: float = 0.05):
 
 
 def _fit_input_poi_variations(fit):
-    """For each POI return (name, math_label, Δ_display, unit_str). Iterates
-    ``fit.tracked_pois()`` (POIs declared in ``card.POI_DISPLAY`` and free
-    in the fit — constrained nuisances like α_s are skipped). Reads the
-    math symbol from ``card.POI_DISPLAY[name]["symbol"]`` and rescales the
-    card's variation by ``POI_DISPLAY[name]["scale"]`` into the declared
-    display unit."""
-    pd = fit.card.POI_DISPLAY
+    """For each POI return ``(name, math_label, Δ_display, unit_str)``.
+    Iterates ``fit.tracked_pois()`` (POIs declared in ``card.POI_DISPLAY``
+    and free in the fit — constrained nuisances like α_s are skipped).
+    Symbol / scale / unit come from :func:`_poi_display_spec`."""
     out = []
     for name in fit.tracked_pois():
-        spec = pd.get(name, {})
+        symbol, scale, unit = _poi_display_spec(fit.card, name)
         delta = float(fit.card.PARAMETERS[name]["variation"])
-        scale = float(spec.get("scale", 1.0))
-        unit = spec.get("unit", "")
-        symbol = spec.get("symbol", name)
         out.append((name, symbol, delta * scale, unit))
     return out
 
@@ -285,12 +295,11 @@ def plot_fit_input_ratios(fit):
         sig_p = np.asarray(fit.template(f"{name}_var")["xsec"])
         ratio_p = sig_p / sig_nom
         ratio_m = 2.0 - ratio_p   # linear-morph −Δ counterpart
-        d_str = f"{int(delta_disp)}" if unit == "MeV" else f"{delta_disp:g}"
-        u = f" {unit}" if unit else ""
+        delta_str = _format_delta(delta_disp, unit)
         ax.plot(ecm, ratio_p, color="#a50f15", linewidth=1.8,
-                label=rf"${math_label} + {d_str}${u} (template)")
+                label=rf"${math_label} + {delta_str}$ (template)")
         ax.plot(ecm, ratio_m, color="#08519c", linewidth=1.8,
-                label=rf"${math_label} - {d_str}${u} (linear morph)")
+                label=rf"${math_label} - {delta_str}$ (linear morph)")
         ax.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
         ax.set_ylabel(rf"$\sigma({math_label} \pm \delta)/\sigma_{{\rm nom}}$")
         if xlim is not None:
@@ -336,10 +345,9 @@ def plot_fit_input_azzurri_overlay(fit):
         sig_var = np.asarray(fit.template(f"{name}_var")["xsec"])
         sig_p = (sig_nom + inflate * (sig_var - sig_nom)) / divisor
         sig_m = (sig_nom - inflate * (sig_var - sig_nom)) / divisor
-        d_str = f"{int(delta_disp)}" if unit == "MeV" else f"{delta_disp:g}"
-        u = f" {unit}" if unit else ""
+        delta_str = _format_delta(delta_disp, unit)
         ax.fill_between(ecm, sig_m, sig_p, color=color_band, alpha=0.30,
-                        label=rf"${math_label} \pm {d_str}${u} $\times {inflate}$")
+                        label=rf"${math_label} \pm {delta_str}$ $\times {inflate}$")
         ax.plot(ecm, sig_p, color=color_edge, linewidth=1.0, linestyle="--")
         ax.plot(ecm, sig_m, color=color_edge, linewidth=1.0, linestyle=":")
 
