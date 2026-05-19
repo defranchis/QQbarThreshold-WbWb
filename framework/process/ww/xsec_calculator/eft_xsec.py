@@ -126,11 +126,16 @@ _REF_SIGMA_BORN = np.array([
 ])
 
 # Cross-section model regions:
-#   s < (150 GeV)²       : σ = 0 (ξ(s), χ(s) have spurious Z-pole far below
+#   √s < 149 GeV         : σ = 0 (ξ(s), χ(s) have spurious Z-pole far below
 #                          BFS validity; ISR convolution would sample it)
-#   (150 GeV)² ≤ s < (170 GeV)² : pure BFS LO_EFT N^(3/2)LO Born
+#   149 ≤ √s ≤ 150 GeV   : BFS LO_EFT × smoothstep ramp (0 → 1) — softens
+#                          the lower floor so the ISR convolution kernel
+#                          doesn't pick up quadrature noise from a hard
+#                          step. BFS values are still positive in this
+#                          range (~0.1–0.4 pb) so the ramp is physical.
+#   150 ≤ √s < 170 GeV   : pure BFS LO_EFT N^(3/2)LO Born
 #                          (matches Whizard exact 4f Born to 1% over 155–170)
-#   s ≥ (170 GeV)²       : RACOONWW calibration spline (LEP2-era CC03 Born)
+#   √s ≥ 170 GeV         : RACOONWW calibration spline (LEP2-era CC03 Born)
 #                          retained for the 240 GeV reference point used
 #                          when --lastecm is enabled.
 #
@@ -141,8 +146,30 @@ _REF_SIGMA_BORN = np.array([
 _SQRTS_BFS_UPPER = 170.0
 _S_BFS_UPPER = _SQRTS_BFS_UPPER ** 2
 
-_SQRTS_BFS_FLOOR = 150.0
+# Floor: BFS evaluation extends to 149 GeV (still positive there); a smooth
+# weight ramps 0 → 1 across the 1-GeV window [149, 150]. Below 149 GeV,
+# σ = 0. The smoothstep choice 3t² − 2t³ is C¹ — enough to eliminate the
+# discontinuity-driven kink in the ISR-convolved variation-template ratios
+# (was visible as a "kink near 159 GeV" before this softening).
+_SQRTS_BFS_FLOOR = 149.0
 _S_BFS_FLOOR = _SQRTS_BFS_FLOOR ** 2
+_SQRTS_BFS_RAMP_TOP = 150.0
+
+
+def _bfs_floor_weight(s_arr):
+    """Quintic smoothstep ramp 0 → 1 across [149, 150] GeV applied to BFS σ̂.
+    Returns a vector of weights ∈ [0, 1] for the input ``s_arr`` (GeV²).
+    Below 149 GeV the weight is 0 (hard zero); above 150 GeV it is 1 (BFS
+    unchanged); in between the weight is the C² quintic smoothstep
+    6t⁵ − 15t⁴ + 10t³ (zero 1st AND 2nd derivative at both ends), so the
+    ISR integrand is C² continuous across the boundary — the C¹ cubic
+    smoothstep still leaked a small d² residual into the variation-ratio
+    plots near 157 GeV.
+    """
+    sqrt_s = np.sqrt(np.asarray(s_arr, dtype=float))
+    t = np.clip((sqrt_s - _SQRTS_BFS_FLOOR)
+                / (_SQRTS_BFS_RAMP_TOP - _SQRTS_BFS_FLOOR), 0.0, 1.0)
+    return t ** 3 * (10.0 + t * (-15.0 + 6.0 * t))
 
 
 def _F_factor_grid():
@@ -178,10 +205,11 @@ def sigma_WW_partonic(s,
                   mW: float = M_W_DEFAULT,
                   gammaW: float = GAMMA_W_DEFAULT,
                   # Defaults below are the project's "best calculation":
-                  # full BFS NLO chain + δ_QCD + Whizard anchor (= what the
-                  # production fit templates use). Toggle individual knobs
+                  # full BFS NLO+NNLO chain + δ_QCD + Whizard anchor (= what
+                  # the production fit templates use). Toggle individual knobs
                   # off for diagnostic / Born-only comparisons.
                   include_NLO_hard_decay: bool = True,
+                  include_BFS_NNLO: bool = True,
                   apply_delta_QCD: bool = True,
                   alpha_s: float = ALPHA_S_MW_DEFAULT,
                   apply_whizard_anchor: bool = True):
@@ -225,10 +253,14 @@ def sigma_WW_partonic(s,
         sigma_bfs_pb = sigma_BFS_LO_total_WW_pb(
             s_arr, mW, gammaW, order="N3/2LO",
             include_NLO_hard_decay=include_NLO_hard_decay,
+            include_BFS_NNLO=include_BFS_NNLO,
             apply_delta_QCD=apply_delta_QCD,
             alpha_s=alpha_s,
             apply_whizard_anchor=apply_whizard_anchor,
         )
+        # Smooth-floor weight is 1 above 150 GeV, ramps to 0 across [149, 150]
+        # to keep σ̂(s) C¹ for the ISR convolution kernel.
+        sigma_bfs_pb = sigma_bfs_pb * _bfs_floor_weight(s_arr)
         sigma_pb = np.where(use_bfs, sigma_bfs_pb, sigma_pb)
 
     if np.any(use_cal):
@@ -478,9 +510,11 @@ def sigma_partonic_munuqq(s,
                           bfs: BFSCorrections | None = None,
                           br_convention: str = "pdg-constant",
                           # Defaults below are the project's "best calculation"
-                          # — full BFS NLO chain + δ_QCD + Whizard anchor.
-                          # Validation: scripts/validate_bfs_nlo.py.
+                          # — full BFS NLO+NNLO chain + δ_QCD + Whizard anchor.
+                          # Validation: scripts/validate_bfs_nlo.py +
+                          # scripts/investigations/bfs_nnlo/.
                           include_NLO_hard_decay: bool = True,
+                          include_BFS_NNLO: bool = True,
                           apply_delta_QCD: bool = True,
                           alpha_s: float = ALPHA_S_MW_DEFAULT,
                           apply_whizard_anchor: bool = True):
@@ -546,6 +580,7 @@ def sigma_partonic_munuqq(s,
             sigma_specific = sigma_BFS_specific_munuud_pb(
                 s_arr, mW, gammaW, order="N3/2LO",
                 include_NLO_hard_decay=include_NLO_hard_decay,
+                include_BFS_NNLO=include_BFS_NNLO,
                 apply_delta_QCD=apply_delta_QCD,
                 alpha_s=alpha_s,
                 apply_whizard_anchor=apply_whizard_anchor,
@@ -558,11 +593,15 @@ def sigma_partonic_munuqq(s,
                 order="N3/2LO",
                 apply_BR_correction=False,
                 include_NLO_hard_decay=include_NLO_hard_decay,
+                include_BFS_NNLO=include_BFS_NNLO,
                 apply_delta_QCD=apply_delta_QCD,
                 alpha_s=alpha_s,
                 apply_whizard_anchor=apply_whizard_anchor,
             )
             sigma_bfs = sigma_WW_total * BR_pdg
+        # Smooth-floor weight kills the hard step at 150 GeV that was
+        # seeding ISR quadrature noise (kink in σ-variation ratios).
+        sigma_bfs = sigma_bfs * _bfs_floor_weight(s_arr)
         sigma = np.where(use_bfs, sigma_bfs, sigma)
 
     if np.any(use_cal):

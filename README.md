@@ -432,22 +432,40 @@ Cross-section pipeline (in `framework/process/ww/xsec_calculator/`):
   eq. (17) σ_LR^(0), eq. (33) σ^(1)_pot, eq. (37+38+appendix A)
   σ^(1/2) including h1–h3 *and* h4–h7 single-resonant, eq. (39+40)
   σ^(3/2),a. Plus NLO loops (HSC eq. 54-56, NLO Coulomb eq. 62, EW
-  decay eq. 60), δ_QCD multiplier (eq. delta_qcd), and the
-  Whizard 4f Born anchor (BFS sec. 6.2 prescription). All knobs
-  card-driven and on by default; see `cards/ww_default.py` NLO_CONFIG.
+  decay eq. 60). Plus **BFS dominant NNLO** from arXiv:0807.0102
+  eq. (49): C×[S+H] + NLO-C + C×decay + C×res + C3, all closed-form
+  (eqs. 11, 34, 39, 40, 48). Plus δ_QCD multiplier (eq. delta_qcd)
+  and the Whizard 4f Born anchor (BFS sec. 6.2 prescription). All
+  knobs card-driven and on by default; see `cards/ww_default.py`
+  NLO_CONFIG (includes the new `include_BFS_NNLO`).
 * `eft_xsec.py` — partonic entry points `sigma_partonic_munuqq` and
   `sigma_WW_partonic`. Coulomb K-factor (Fadin-Khoze-Martin +
-  Bardin-Riemann α²). Switches to a RACOONWW CC03 spline above
-  √s = 170 GeV (only the `--lastecm` 240-GeV point uses this region).
+  Bardin-Riemann α²). σ̂(s) is C² smoothly tapered to zero across
+  [149, 150] GeV via a quintic smoothstep so the ISR convolution
+  kernel sees no discontinuity (without this the variation-template
+  ratios show kinks from quadrature noise). Switches to a RACOONWW
+  CC03 spline above √s = 170 GeV (only the `--lastecm` 240-GeV
+  point uses this region).
 * `isr.py` — LL+exp BETA-scheme ISR per LEP2 YR Beenakker eq. (67).
   Two formally-equivalent implementations: `single_conv` (LEP2 YR α→2α
-  1D form, default) and `2leg` (BFS eq. 71 double convolution); they
-  agree to <0.1 %. NLL upgrade (analytic Skrzypek-Jadach or eMELA) is
-  the next step — removes BFS's own ~31 MeV ISR systematic on m_W.
+  1D form, **default** at n_quad=200) and `2leg` (BFS eq. 71 double
+  convolution, n_quad=128 per leg). They are algebraically identical
+  at LL+exp; single-conv is ~10× faster for the same residual
+  quadrature noise. NLL upgrade (analytic Skrzypek-Jadach or eMELA)
+  is the next step — removes BFS's own ~31 MeV ISR systematic on m_W.
 * `generator.py` — `WWGenerator.from_card(card)` factory + `.do_scan`
   template writer + chain-kwargs helpers (`partonic_kwargs_from_card`,
-  `observed_kwargs_from_card`) as the single source of truth for
-  card-driven configuration.
+  `observed_kwargs_from_card`) + `chain_summary_latex(kwargs)` for
+  dynamic LaTeX labels. `do_scan` stamps a `# chain: …` preamble on
+  every template CSV via `template_metadata.compose_header` so the
+  fit can label its plots against the *actual* templates being read.
+* `template_metadata.py` — `compose_header` / `read_header` for the
+  `# key: value` preamble that templates carry (chain summary, ISR
+  scheme, channel, BR convention, α_s). `FitCore.read_xsec` ignores
+  these via pandas `comment='#'`; `FitCore.template_metadata()`
+  caches the parsed dict; `doFit_ww.py` writes a `fit_metadata.json`
+  next to its plots and stamps the chain summary at the bottom of
+  every figure via `plots.set_active_chain_label`.
 
 Validation (`scripts/validate_bfs_nlo.py`, 10 scenarios A–J):
 - Scenario A: BFS Table 1 (LO width, no BR corr) closes to **4-5 digits**.
@@ -459,14 +477,21 @@ Validation (`scripts/validate_bfs_nlo.py`, 10 scenarios A–J):
 - Scenario I: Whizard-anchor closure to 4-5 digits at Table 1
   reference points.
 
+NNLO validation (`scripts/investigations/bfs_nnlo/`):
+- All 5 NNLO pieces (eqs. 11, 34, 39, 40, 48) round-trip Table 1 of
+  arXiv:0807.0102 to ≤ 0.0006 fb on each piece (paper precision is
+  0.001 fb). Combined σ̂^(3/2) sum agrees with the paper's second
+  column to the same precision.
+- ISR-improved σ_ISR^(3/2) agrees with Table 2 column to ~3 mfb in
+  the scan window (30 mfb at 170 GeV, ISR-scheme NLL-level).
+
 What's NOT yet in the calculation (priority order for sub-MeV m_W):
 
-1. **BFS dominant NNLO** ([arXiv:0807.0102](https://arxiv.org/abs/0807.0102))
-   — σ^(2) Born + NNLO Coulomb beyond eq. 62. Expected ~0.2-0.5 % on σ.
-2. **NLL ISR** — analytic Skrzypek-Jadach or eMELA
+1. **NLL ISR** — analytic Skrzypek-Jadach or eMELA
    (Bertone-Cacciari-Frixione-Stagnitto). Removes the residual 0.7-1.0 %
-   ISR deficit to BFS and the ~31 MeV ISR systematic on m_W.
-3. **Finer Whizard anchor grid** — currently uses only the 6 √s × 2 Γ_W
+   ISR deficit to BFS and the ~31 MeV ISR systematic on m_W. Will also
+   be the natural moment to revisit single-conv vs 2-leg ISR.
+2. **Finer Whizard anchor grid** — currently uses only the 6 √s × 2 Γ_W
    reference points from BFS Tables 1+2; a denser grid (run Whizard
    ourselves) would remove the 168-GeV dσ/dΓ_W bump and shrink the
    Born-side ~0.3 MeV systematic.

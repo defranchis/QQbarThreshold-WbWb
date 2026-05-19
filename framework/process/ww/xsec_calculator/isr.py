@@ -393,6 +393,7 @@ def sigma_observed_munuqq(sqrt_s,
                           # alpha_em_isr=None uses module default α_Gμ(M_W_BFS_REF)
                           # per BFS prescription (avoids fictitious m_W-dep in ISR).
                           include_NLO_hard_decay: bool = True,
+                          include_BFS_NNLO: bool = True,
                           apply_delta_QCD: bool = True,
                           alpha_s: float = ALPHA_S_MW_DEFAULT,
                           alpha_em_isr: float | None = None,
@@ -426,6 +427,7 @@ def sigma_observed_munuqq(sqrt_s,
         bfs=bfs,
         br_convention=br_convention,
         include_NLO_hard_decay=include_NLO_hard_decay,
+        include_BFS_NNLO=include_BFS_NNLO,
         apply_delta_QCD=apply_delta_QCD,
         alpha_s=alpha_s,
         apply_whizard_anchor=apply_whizard_anchor,
@@ -440,9 +442,14 @@ def sigma_observed_munuqq(sqrt_s,
         # Convert single-conv z_min (lower bound on z = x₁ x₂) to a per-leg
         # x_min by taking √z_min — both legs equal at the cutoff edge.
         x_min = float(np.sqrt(z_min))
-        # n_quad for 2-leg is per-leg; default to 32 (≈ 1024 σ̂ evals) if
-        # the user passed the single-conv default of 200.
-        n_q_2leg = 32 if n_quad >= 100 else n_quad
+        # n_quad for 2-leg is per-leg. Callers passing the single-conv
+        # default of 200 get the auto-mapped 2-leg default; explicit
+        # values are forwarded as-is so test scripts can dial it up.
+        # 128 per leg = 16k σ̂ evals: gets the residual second-difference
+        # noise on the Γ_W-variation ratios at the 0.1-GeV grid step
+        # down to ~3.4×10⁻⁶ (cf. 6.5×10⁻⁶ at 64 per leg). Higher counts
+        # converge slowly (~3.2×10⁻⁶ at 192 per leg, 8× the cost).
+        n_q_2leg = 128 if n_quad == 200 else n_quad
         return sigma_ISR_2leg_convolution(
             sqrt_s, sigma_partonic_munuqq,
             x_min=x_min, n_quad=n_q_2leg,

@@ -1,13 +1,13 @@
 """Default steering card for the WW threshold fit.
 
 The generator is :class:`process.ww.generator.WWGenerator` — full BFS-EFT
-N^(3/2)LO chain: Born + NLO loops (HSC + Coulomb_NLO + EW-decay) + δ_QCD
-+ Whizard 4f Born anchor + LL+exp ISR (BETA scheme). RACOONWW CC03
-calibration spline kicks in only above √s = 170 GeV. Channel: inclusive
-μν qq̄ (BR = 2 × BR(W→μν) × BR(W→had), PDG-constant convention).
+N^(3/2)LO chain: Born + NLO loops (HSC + Coulomb_NLO + EW-decay) + BFS
+dominant NNLO (arXiv:0807.0102 eq. 49) + δ_QCD + Whizard 4f Born anchor
++ LL+exp ISR (BETA scheme). RACOONWW CC03 calibration spline kicks in
+only above √s = 170 GeV. Channel: inclusive μν qq̄ (BR = 2 × BR(W→μν) ×
+BR(W→had), PDG-constant convention).
 
-Remaining open work for sub-MeV m_W: BFS dominant NNLO (arXiv:0807.0102)
-and NLL ISR (eMELA / Skrzypek-Jadach). Both deferred.
+Remaining open work for sub-MeV m_W: NLL ISR (eMELA / Skrzypek-Jadach).
 """
 
 # ---------------------------------------------------------------------------
@@ -77,6 +77,12 @@ NLO_CONFIG = {
     "include_coulomb":        True,
     # BFS NLO loop chain (HSC + Coulomb_NLO + EW decay correction).
     "include_NLO_hard_decay": True,
+    # BFS dominant NNLO (arXiv:0807.0102 eq. 49) — C×[S+H] + NLO-C +
+    # C×decay + C×res + C3. All five pieces are closed-form analytic;
+    # validated to 4 digits vs Table 1 of the paper. Combined NNLO is
+    # ~+1 fb at the WW peak; m_W impact ~3 MeV (5 MeV pre-ISR) per BFS
+    # sec. 6.4. See [[reference-bfs-nnlo]] for the equation map.
+    "include_BFS_NNLO":       True,
     # Multiplicative δ_QCD(α_s) = 1 + α_s/π + 1.409(α_s/π)² on σ_partonic.
     "apply_delta_QCD":        True,
     # Whizard 4f Born anchor f(δ, Γ_W) (BFS sec. 6.2 prescription). Closes
@@ -94,9 +100,16 @@ NLO_CONFIG = {
     "diagnostic_bfs_coulomb_nlo": False,
     # ---- ISR -------------------------------------------------------------
     # ISR scheme — LL+exp BETA per LEP2 YR Beenakker hep-ph/9602351 eq. (67).
-    #   "single_conv": LEP2 YR α→2α 1D convolution shortcut (default, fastest).
-    #   "2leg":        full per-leg double-convolution per BFS eq. 71. Agrees
-    #                  with single_conv to <0.1 % — formal LL+exp equivalence.
+    # The two schemes are algebraically equivalent at LL+exp; the only
+    # difference is the quadrature density per dimension.
+    #   "single_conv": LEP2 YR α→2α 1D shortcut, n_quad=200. Default.
+    #                  ~10× faster than 2-leg for the same residual noise
+    #                  floor (see [[project-followup-isr-scheme]]). Revisit
+    #                  when NLL ISR lands — at that point the 2-leg
+    #                  textbook form will be the natural starting point.
+    #   "2leg":        full per-leg double-convolution per BFS eq. 71. The
+    #                  canonical "textbook" form; available as an opt-in
+    #                  for cross-checks / future NLL upgrades.
     "isr_scheme":             "single_conv",
     # ISR α: None = α_Gμ(M_W_BFS_REF) per BFS prescription (constant across
     # the fit to avoid fictitious m_W dependence in the ISR kernel). Override
@@ -215,9 +228,9 @@ SYST_TABLE_PATH = "fit_output/ww/systematics_table.tex"
 # Plot decoration
 # ---------------------------------------------------------------------------
 PROCESS_LABEL = r"$e^+e^-\rightarrow\mu\nu q\bar q$ at WW threshold"
-GENERATOR_LABEL = (r"BFS N$^{3/2}$LO + NLO loops + $\delta_{\rm QCD}$ + "
-                   r"Whizard anchor + K$_{\rm C}$ + LL+exp ISR")
-GENERATOR_REF = r"arXiv:0707.0773 (Beneke-Falgari-Schwinn et al.)"
+GENERATOR_LABEL = (r"BFS N$^{3/2}$LO + NLO loops + dominant NNLO + "
+                   r"$\delta_{\rm QCD}$ + Whizard anchor + K$_{\rm C}$ + LL+exp ISR")
+GENERATOR_REF = r"arXiv:0707.0773 + arXiv:0807.0102 (Beneke-Falgari-Schwinn et al.)"
 BES_LABEL = r"+ FCC-ee BES"
 
 PARAM_LABELS = {

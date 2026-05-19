@@ -416,8 +416,37 @@ class FitCore:
     def read_xsec(self, path):
         if not os.path.exists(path):
             raise FileNotFoundError(f"Cross-section template not found: {path}")
+        # ``comment='#'`` lets templates carry a ``# key: value`` preamble
+        # (see e.g. framework.process.ww.template_metadata) without breaking
+        # the (ecm, xsec) parser.
         with open(path) as fh:
-            return pd.read_csv(fh, header=None, names=["ecm", "xsec"])
+            return pd.read_csv(fh, header=None, names=["ecm", "xsec"], comment="#")
+
+    def template_metadata(self) -> dict:
+        """Return the ``# key: value`` preamble of the nominal template, if
+        any. Cached on the first call. Empty dict for templates predating
+        the metadata header. The preferred entry point for plot/fit code
+        that wants to describe the *actual* templates being read rather
+        than the live card configuration.
+        """
+        cached = getattr(self, "_template_metadata_cache", None)
+        if cached is not None:
+            return cached
+        try:
+            from framework.process.ww.template_metadata import read_header
+        except ImportError:
+            self._template_metadata_cache = {}
+            return self._template_metadata_cache
+        values = self.d_params["nominal"]
+        path = self.generator.file_name(
+            values, mass_scale=self.mass_scale, width_scale=self.width_scale,
+            mass_scheme=self.mass_scheme, indir=self.input_dir,
+        )
+        try:
+            self._template_metadata_cache = read_header(path)
+        except OSError:
+            self._template_metadata_cache = {}
+        return self._template_metadata_cache
 
     def _scan_for_tag(self, tag, mass_scale=None, width_scale=None, indir=None):
         if mass_scale is None:

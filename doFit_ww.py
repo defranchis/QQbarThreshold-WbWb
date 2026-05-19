@@ -8,13 +8,52 @@ template files is produced (see ``INPUT_DIRS`` in ``cards/ww_default.py``).
 """
 
 import argparse
+import json
+import os
+from datetime import datetime, timezone
 
 from cards import ww_default as card
 from framework.common import scans
-from framework.common.plots import plot_fit_scenario, plot_parameter_variations
+from framework.common.plots import (
+    plot_fit_scenario, plot_parameter_variations, set_active_chain_label,
+)
 from framework.common.systematics import print_syst_table
 from framework.process.ww.fit import WWFit
 from framework.process.ww.generator import WWGenerator
+
+
+def dump_fit_metadata(fit, args):
+    """Write a ``fit_metadata.json`` next to the fit plots describing the
+    chain that produced the input templates, the fit-time flags, and the
+    timestamp. ``fit.template_metadata()`` returns the ``# key: value``
+    preamble read from one of the input CSVs (chain summary, ISR scheme,
+    etc.); we merge it with the fit-side run knobs.
+    """
+    payload = {
+        "timestamp_utc":    datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "input_dir":        fit.input_dir,
+        "plot_dir":         fit.plot_dir,
+        "template":         fit.template_metadata(),
+        "fit": {
+            "asimov":          fit.asimov,
+            "scan_min":        fit.scenario_dict["scan_min"],
+            "scan_max":        fit.scenario_dict["scan_max"],
+            "scan_step":       fit.scenario_dict["scan_step"],
+            "total_lumi":      fit.scenario_dict["total_lumi"],
+            "scale_vars":      args.scaleVars,
+            "lastecm":         args.lastecm,
+            "BECnuisances":    args.BECnuisances,
+            "BESnuisances":    args.BESnuisances,
+        },
+    }
+    os.makedirs(fit.plot_dir, exist_ok=True)
+    out = os.path.join(fit.plot_dir, "fit_metadata.json")
+    with open(out, "w") as fh:
+        json.dump(payload, fh, indent=2, sort_keys=True)
+    print(f"[metadata] wrote {out}")
+    chain = payload["template"].get("chain")
+    if chain:
+        print(f"[metadata] template chain: {chain}")
 
 
 def parse_args():
@@ -71,6 +110,11 @@ def main():
     if args.BESnuisances or args.BESscans or args.systTable:
         fit.add_binned_nuisance("BES")
 
+    dump_fit_metadata(fit, args)
+    # Make the chain summary from the actual templates show up at the
+    # bottom of every saved plot. ``None`` (= no header) disables it.
+    set_active_chain_label(fit.template_metadata().get("chain"))
+
     if not args.noPlots:
         plot_parameter_variations(fit)
 
@@ -104,7 +148,6 @@ def main():
         print_syst_table(fit)
 
     if not args.noPlots:
-        import os
         from framework.common.eos_publish import publish
         publish(card.PLOT_DIR, os.environ.get("WW_FIT_PUBSUB", "ww/plots"))
 

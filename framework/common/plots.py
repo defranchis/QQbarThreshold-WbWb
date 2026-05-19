@@ -32,13 +32,20 @@ def projection_title(total_lumi, unit="fb", fmt="{:.0f}"):
 
 
 def process_annotation(card, *, ax=None, x=0.92, y=0.17, ha="right", offset=0.0,
-                       include_reference=False):
-    """Stamp the standard process / generator / BES annotation."""
+                       include_reference=False, chain_label=None):
+    """Stamp the standard process / generator / BES annotation.
+
+    ``chain_label`` overrides the static ``card.GENERATOR_LABEL`` — pass
+    the value read from the actual template preamble (via
+    ``FitCore.template_metadata()``) so the plot describes the templates
+    being fit, not the live card.
+    """
     ax = ax or plt.gca()
     lines = [card.PROCESS_LABEL]
     if include_reference:
-        if card.GENERATOR_LABEL:
-            lines.append(card.GENERATOR_LABEL)
+        gen_label = chain_label if chain_label else card.GENERATOR_LABEL
+        if gen_label:
+            lines.append(gen_label)
         if card.GENERATOR_REF:
             lines.append(card.GENERATOR_REF)
     if card.BES_LABEL:
@@ -48,8 +55,28 @@ def process_annotation(card, *, ax=None, x=0.92, y=0.17, ha="right", offset=0.0,
                 transform=ax.transAxes, ha=ha)
 
 
+_ACTIVE_CHAIN_LABEL: str | None = None
+
+
+def set_active_chain_label(label: str | None) -> None:
+    """Set the chain-summary string stamped at the bottom of every figure
+    saved via :func:`save_figure`. Pass ``None`` to disable. Used by the
+    fit entry points so every fit plot reflects which physics chain
+    produced the input templates.
+    """
+    global _ACTIVE_CHAIN_LABEL
+    _ACTIVE_CHAIN_LABEL = label
+
+
 def save_figure(plot_dir, name, *, also_pdf=True, clf=True):
-    """Save ``<plot_dir>/<name>.png`` and (optionally) the matching ``.pdf``."""
+    """Save ``<plot_dir>/<name>.png`` and (optionally) the matching ``.pdf``.
+
+    If a chain label has been set via :func:`set_active_chain_label`, it
+    is stamped at the bottom of the figure before saving.
+    """
+    if _ACTIVE_CHAIN_LABEL:
+        plt.gcf().text(0.5, 0.005, _ACTIVE_CHAIN_LABEL, ha="center", va="bottom",
+                       fontsize=7, color="0.35")
     os.makedirs(plot_dir, exist_ok=True)
     plt.savefig(os.path.join(plot_dir, f"{name}.png"))
     if also_pdf:
@@ -106,7 +133,8 @@ def plot_fit_scenario(fit):
     plt.legend(loc="lower right", fontsize=20)
     if not fit.scenario_dict["add_last_ecm"]:
         plt.xlim(339.7, 347.3)
-    process_annotation(fit.card, x=0.96, y=0.45, include_reference=True)
+    process_annotation(fit.card, x=0.96, y=0.45, include_reference=True,
+                       chain_label=fit.template_metadata().get("chain"))
 
     save_figure(fit.plot_dir, f"fit_scenario_ratio_{suffix}", also_pdf=not fit.asimov)
 

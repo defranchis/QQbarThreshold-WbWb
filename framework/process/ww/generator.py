@@ -12,6 +12,9 @@ Physics chain — defaults are the project's "best calculation":
     (apply_whizard_anchor=True).
   • BFS NLO loops: hard+soft+collinear (eq. 56), NLO Coulomb (eq. 62),
     EW decay (eq. 60) — include_NLO_hard_decay=True.
+  • BFS dominant NNLO (arXiv:0807.0102 eq. 49): C×[S+H] + NLO-C + C×decay
+    + C×res + C3 — include_BFS_NNLO=True. ~+1 fb at peak (~3 MeV m_W
+    impact per BFS sec. 6.4 after ISR convolution).
   • δ_QCD multiplier 1 + α_s/π + 1.409(α_s/π)² — apply_delta_QCD=True.
   • Coulomb K-factor resummation (Fadin-Khoze-Martin + Bardin-Riemann α²).
   • LL+exp ISR (LEP2 YR BETA scheme); single-conv default, 2-leg available.
@@ -20,10 +23,12 @@ Physics chain — defaults are the project's "best calculation":
 
 Validation: scripts/validate_bfs_nlo.py. Closure to BFS Tables 1+2 at
 4-5 digits (Born); to BFS Table 3+4 at 0.4-1.0 % (NLO + ISR, residual is
-NLL beyond LL+exp — BFS's own 31 MeV systematic).
+NLL beyond LL+exp — BFS's own 31 MeV systematic). NNLO pieces match
+arXiv:0807.0102 Table 1 to 4 digits via
+scripts/investigations/bfs_nnlo/check_closed_form_pieces.py.
 
-Remaining open work: BFS dominant NNLO (arXiv:0807.0102) and NLL ISR
-(eMELA / Skrzypek-Jadach). Both deferred — see project-followup memories.
+Remaining open work: NLL ISR (eMELA / Skrzypek-Jadach) — see
+project-followup-nll-isr-plan memory.
 
 The ``mass_scale`` / ``width_scale`` parameters are recorded in the
 filename but currently have no effect on the cross section (no
@@ -41,6 +46,7 @@ from framework.process.ww.xsec_calculator.eft_xsec import (
     BFSCorrections,
 )
 from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq
+from framework.process.ww.template_metadata import compose_header
 
 
 # ---------------------------------------------------------------------------
@@ -61,10 +67,42 @@ def partonic_kwargs_from_card(card) -> dict:
         include_coulomb=bool(nlo.get("include_coulomb", True)),
         br_convention=str(nlo.get("br_convention", "pdg-constant")),
         include_NLO_hard_decay=bool(nlo.get("include_NLO_hard_decay", True)),
+        include_BFS_NNLO=bool(nlo.get("include_BFS_NNLO", True)),
         apply_delta_QCD=bool(nlo.get("apply_delta_QCD", True)),
         alpha_s=float(theory.get("alpha_s_MW", ALPHA_S_MW_DEFAULT)),
         apply_whizard_anchor=bool(nlo.get("apply_whizard_anchor", True)),
     )
+
+
+def chain_summary_latex(kwargs: dict) -> str:
+    """LaTeX-friendly summary of the chain configuration, built **dynamically**
+    from a kwargs dict matching the signature of ``sigma_observed_munuqq`` /
+    ``sigma_partonic_munuqq``. Used by the diagnostic plots so the chain
+    label always reflects the actual flags driving the calculation.
+
+    ISR fragment is included iff ``isr_scheme`` is present in ``kwargs`` —
+    i.e. observed-level kwargs produce ``... + LL+exp ISR (single-conv)``
+    while partonic-level kwargs stop at the partonic chain.
+
+    Order of pieces matches the physics build-up: Born → NLO loops →
+    NNLO → δ_QCD → anchor → K_C → ISR.
+    """
+    base = r"BFS N$^{3/2}$LO"
+    parts = [base]
+    if kwargs.get("include_NLO_hard_decay", False):
+        parts.append(r"NLO loops")
+    if kwargs.get("include_BFS_NNLO", False):
+        parts.append(r"NNLO")
+    if kwargs.get("apply_delta_QCD", False):
+        parts.append(r"$\delta_{\rm QCD}$")
+    if kwargs.get("apply_whizard_anchor", False):
+        parts.append(r"anchor")
+    if kwargs.get("include_coulomb", False):
+        parts.append(r"$K_{\rm C}$")
+    if "isr_scheme" in kwargs:
+        scheme = str(kwargs["isr_scheme"]).replace("_", "-")
+        parts.append(rf"LL+exp ISR ({scheme})")
+    return " + ".join(parts)
 
 
 def observed_kwargs_from_card(card) -> dict:
@@ -110,6 +148,9 @@ class WWGenerator:
                  # ----------------------------------------------------------
                  # BFS NLO loop chain (HSC + Coulomb_NLO + EW-decay correction):
                  include_NLO_hard_decay: bool = True,
+                 # BFS dominant NNLO (arXiv:0807.0102 eq. 49):
+                 #   C×[S+H] + NLO-C + C×decay + C×res + C3.
+                 include_BFS_NNLO: bool = True,
                  # Multiplicative δ_QCD(α_s) = 1 + α_s/π + 1.409(α_s/π)² —
                  # makes α_s a physically active fit parameter:
                  apply_delta_QCD: bool = True,
@@ -141,6 +182,7 @@ class WWGenerator:
         self.n_quad = n_quad
         self.z_min = z_min
         self.include_NLO_hard_decay = include_NLO_hard_decay
+        self.include_BFS_NNLO = include_BFS_NNLO
         self.apply_delta_QCD = apply_delta_QCD
         self.br_convention = br_convention
         self.alpha_s = alpha_s
@@ -176,6 +218,20 @@ class WWGenerator:
             **observed_kwargs_from_card(card),
         )
 
+    def chain_label(self) -> str:
+        """LaTeX summary of *this generator's* chain configuration. Same
+        semantics as ``chain_summary_latex`` but derived from instance
+        state — used by ``do_scan`` to stamp the template header.
+        """
+        return chain_summary_latex({
+            "include_NLO_hard_decay": self.include_NLO_hard_decay,
+            "include_BFS_NNLO":       self.include_BFS_NNLO,
+            "apply_delta_QCD":        self.apply_delta_QCD,
+            "apply_whizard_anchor":   self.apply_whizard_anchor,
+            "include_coulomb":        self.include_coulomb,
+            "isr_scheme":             self.isr_scheme,
+        })
+
     def describe(self) -> str:
         """One-line summary of the chain configuration (for log lines)."""
         alpha_em_str = (f"{self.alpha_em_isr:.6f}" if self.alpha_em_isr is not None
@@ -184,6 +240,7 @@ class WWGenerator:
             f"WWGenerator order={self.order} channel={self.channel}  "
             f"BR={self.br_convention}  "
             f"NLO_loops={self.include_NLO_hard_decay} "
+            f"NNLO={self.include_BFS_NNLO}  "
             f"δ_QCD={self.apply_delta_QCD} (α_s={self.alpha_s})  "
             f"anchor={self.apply_whizard_anchor}  "
             f"ISR={self.isr_scheme} (α_em={alpha_em_str})  "
@@ -242,6 +299,7 @@ class WWGenerator:
             n_quad=self.n_quad,
             z_min=self.z_min,
             include_NLO_hard_decay=self.include_NLO_hard_decay,
+            include_BFS_NNLO=self.include_BFS_NNLO,
             apply_delta_QCD=self.apply_delta_QCD,
             alpha_s=alpha_s_eff,
             br_convention=self.br_convention,
@@ -253,8 +311,19 @@ class WWGenerator:
         os.makedirs(outdir, exist_ok=True)
         path = self.file_name(values, mass_scale=mass_scale, width_scale=width_scale,
                               mass_scheme=mass_scheme, indir=outdir)
-        # CSV: ecm, xsec (no header) — matches FitCore.read_csv contract.
+        # CSV: optional ``# key: value`` preamble + (ecm, xsec) rows. The
+        # preamble carries the active chain configuration so consumers
+        # (fit plot footers, downstream tooling) can label themselves
+        # against the *actual* templates rather than the live card.
+        header = compose_header({
+            "chain": self.chain_label(),
+            "isr_scheme": self.isr_scheme,
+            "channel": self.channel,
+            "br_convention": self.br_convention,
+            "alpha_s": f"{self.alpha_s:.5f}",
+        })
         with open(path, "w") as fh:
+            fh.write(header)
             for ecm, sigma in zip(ecm_grid, sigma_obs):
                 fh.write(f"{ecm:.4f}, {sigma:.8f}\n")
         return path

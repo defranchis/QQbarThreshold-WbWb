@@ -39,6 +39,7 @@ from framework.process.ww.xsec_calculator.eft_xsec import (
 from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq as _sigma_observed_munuqq_raw
 from framework.process.ww.generator import (
     partonic_kwargs_from_card, observed_kwargs_from_card,
+    chain_summary_latex,
 )
 from cards import ww_default as _card
 
@@ -48,6 +49,19 @@ from cards import ww_default as _card
 # (this script's plots are about the inclusive μν qq̄ scan).
 _PARTONIC_KW = partonic_kwargs_from_card(_card) | {"channel": "inclusive"}
 _OBSERVED_KW = observed_kwargs_from_card(_card) | {"channel": "inclusive"}
+
+# Dynamic chain labels — derived from the kwargs so toggling any flag in
+# the card automatically updates every plot label and footer. Adding a
+# new physics knob requires editing chain_summary_latex(), not these
+# strings.
+_LABEL_PARTONIC = chain_summary_latex(_PARTONIC_KW)
+_LABEL_OBSERVED = chain_summary_latex(_OBSERVED_KW)
+
+
+def _add_chain_footer(fig):
+    """Stamp the active chain configuration at the bottom of every figure."""
+    fig.text(0.5, 0.005, _LABEL_OBSERVED, ha="center", va="bottom",
+             fontsize=7, color="0.35")
 
 
 def sigma_partonic_munuqq(*args, **kwargs):
@@ -157,16 +171,20 @@ def plot_xsec_vs_sqrts():
         ax_abs.plot(sqrts, bfs_curves[o], label=labels[o], color=colors[o],
                     linewidth=1.3, linestyle="-")
 
-    # Framework curves (all use cards/ww_default.py best-calc defaults:
-    # BFS NLO loops + δ_QCD + Whizard anchor; RACOONWW spline above 170 GeV).
+    # Framework curves — labels derived dynamically from the card-driven
+    # kwargs via chain_summary_latex(). RACOONWW spline above 170 GeV.
+    # Partonic-no-K_C label drops the K_C piece from the full partonic label.
+    label_partonic_noKC = chain_summary_latex(
+        {k: v for k, v in _PARTONIC_KW.items() if k != "include_coulomb"}
+        | {"include_coulomb": False})
     ax_abs.plot(sqrts, sigma_WW * BR_LO_incl * 1e3,
-                label=r"BFS N$^{3/2}$LO + NLO loops + $\delta_{\rm QCD}$ + anchor",
+                label=label_partonic_noKC,
                 color="black", linestyle=":", linewidth=1.6)
     ax_abs.plot(sqrts, sigma_partonic * 1e3,
-                label=r"$+\,K_{\rm Coulomb}$  (partonic, PDG BR)",
+                label=_LABEL_PARTONIC + r"  (partonic, PDG BR)",
                 color="green", linestyle="--", linewidth=1.6)
     ax_abs.plot(sqrts, sigma_observed * 1e3,
-                label=r"$+\,$LL+exp ISR  (observed)",
+                label=_LABEL_OBSERVED + r"  (observed)",
                 color="red", linestyle="-", linewidth=2.0)
 
     _draw_scan_window(ax_abs)
@@ -201,7 +219,8 @@ def plot_xsec_vs_sqrts():
     ax_rat.set_ylim(0.0, 1.6)
     ax_rat.grid(alpha=0.25)
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.03, 1, 1])  # reserve 3% at the bottom for the chain footer
+    _add_chain_footer(plt.gcf())
     os.makedirs(PLOT_DIR, exist_ok=True)
     out = os.path.join(PLOT_DIR, "xsec_vs_sqrts.pdf")
     plt.savefig(out, bbox_inches="tight")
@@ -272,7 +291,8 @@ def plot_sensitivity_vs_sqrts():
     ax_gW.legend(loc="best", fontsize=9)
     ax_gW.grid(alpha=0.25)
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.03, 1, 1])  # reserve 3% at the bottom for the chain footer
+    _add_chain_footer(plt.gcf())
     os.makedirs(PLOT_DIR, exist_ok=True)
     out = os.path.join(PLOT_DIR, "sensitivity_vs_sqrts.pdf")
     plt.savefig(out, bbox_inches="tight")
@@ -331,7 +351,8 @@ def plot_ratios_vs_mW_GammaW():
     ax_gW.legend(loc="best", fontsize=9, framealpha=0.9)
     ax_gW.grid(alpha=0.25)
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.03, 1, 1])  # reserve 3% at the bottom for the chain footer
+    _add_chain_footer(plt.gcf())
     os.makedirs(PLOT_DIR, exist_ok=True)
     out = os.path.join(PLOT_DIR, "ratios_mW_GammaW.pdf")
     plt.savefig(out, bbox_inches="tight")
@@ -415,7 +436,8 @@ def plot_normalised_xsec_hypotheses():
     ax_gW.legend(loc="best", fontsize=9, framealpha=0.9)
     ax_gW.grid(alpha=0.25)
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.03, 1, 1])  # reserve 3% at the bottom for the chain footer
+    _add_chain_footer(plt.gcf())
     os.makedirs(PLOT_DIR, exist_ok=True)
     out = os.path.join(PLOT_DIR, "normalised_xsec_hypotheses.pdf")
     plt.savefig(out, bbox_inches="tight")
@@ -511,7 +533,8 @@ def plot_azzurri_style_pm1GeV():
 
     plt.suptitle("Azzurri 2107.04444 Fig. 1 style — BFS LO_EFT N$^{3/2}$LO Born + Coulomb + LL+YFS ISR",
                   fontsize=11)
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.03, 1, 1])  # reserve 3% at the bottom for the chain footer
+    _add_chain_footer(plt.gcf())
     os.makedirs(PLOT_DIR, exist_ok=True)
     out = os.path.join(PLOT_DIR, "azzurri_style_pm1GeV.pdf")
     plt.savefig(out, bbox_inches="tight")
@@ -615,7 +638,8 @@ def plot_bes_effect_on_variations():
     plt.suptitle(r"BES smearing effect on $m_W$ and $\Gamma_W$ variations  "
                   rf"(central $m_W = {mW0:.3f}$, $\Gamma_W = {gW0:.3f}$ GeV)",
                   fontsize=11)
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.03, 1, 1])  # reserve 3% at the bottom for the chain footer
+    _add_chain_footer(plt.gcf())
     os.makedirs(PLOT_DIR, exist_ok=True)
     out = os.path.join(PLOT_DIR, "bes_effect_on_variations.pdf")
     plt.savefig(out, bbox_inches="tight")
