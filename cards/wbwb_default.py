@@ -102,9 +102,9 @@ SCENARIO_TWOPOINTS = {
 # (must match what the C++ scan was actually run with)
 # ---------------------------------------------------------------------------
 INPUT_VAR = {
-    "BEC":  10.0,    # MeV   - beam energy calibration shift baked into process/wbwb/output_xsec/BEC/
+    "BEC":  10.0,    # MeV   - beam energy calibration shift baked into output_xsec/wbwb/BEC/
     "BES":  0.1,     # 10%  - BES variation baked into the BES morph template
-    "sw2":  2.5e-6,  #        sw2 shift baked into process/wbwb/output_xsec/sw2/
+    "sw2":  2.5e-6,  #        sw2 shift baked into output_xsec/wbwb/sw2/
 }
 
 # ---------------------------------------------------------------------------
@@ -186,13 +186,13 @@ THEORY_UNC = {
 # ---------------------------------------------------------------------------
 # Paths are interpreted relative to the working directory of the entry script.
 INPUT_DIRS = {
-    "nominal":    "process/wbwb/output_xsec/nominal",
-    "scale_vars": "process/wbwb/output_xsec/scale_vars",
-    "BEC":        "process/wbwb/output_xsec/BEC",
-    "sw2":        "process/wbwb/output_xsec/sw2",
-    "pseudo":     "process/wbwb/output_xsec/pseudo",
-    "nominal_1S": "process/wbwb/output_xsec/nominal_1S",
-    "scale_1S":   "process/wbwb/output_xsec/scale_1S",
+    "nominal":    "output_xsec/wbwb/nominal",
+    "scale_vars": "output_xsec/wbwb/scale_vars",
+    "BEC":        "output_xsec/wbwb/BEC",
+    "sw2":        "output_xsec/wbwb/sw2",
+    "pseudo":     "output_xsec/wbwb/pseudo",
+    "nominal_1S": "output_xsec/wbwb/nominal_1S",
+    "scale_1S":   "output_xsec/wbwb/scale_1S",
 }
 
 PLOT_DIR = "fit_output/wbwb/plots"

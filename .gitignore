@@ -1,7 +1,7 @@
 zz_old
 zz_old/*
-process/ww/output_xsec
-process/wbwb/output_xsec
+output_xsec/ww
+output_xsec/wbwb
 fit_output
 archive
 plots

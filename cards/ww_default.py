@@ -141,7 +141,7 @@ SCENARIO = {
 # Template-variation sizes used to build the morphing templates
 # ---------------------------------------------------------------------------
 INPUT_VAR = {
-    "BEC":  10.0,    # MeV — matches process/ww/output_xsec/BEC/scan_{p,m}10/
+    "BEC":  10.0,    # MeV — matches output_xsec/ww/BEC/scan_{p,m}10/
     "BES":  0.1,
     # sw2 nuisance is not implemented at the current order (sin²θ_W is
     # derived from m_W via the OS scheme, so its variation is absorbed
@@ -195,10 +195,10 @@ THEORY_UNC = {
 # I/O
 # ---------------------------------------------------------------------------
 INPUT_DIRS = {
-    "nominal":    "process/ww/output_xsec/nominal",
-    "scale_vars": "process/ww/output_xsec/scale_vars",
-    "BEC":        "process/ww/output_xsec/BEC",
-    "pseudo":     "process/ww/output_xsec/pseudo",
+    "nominal":    "output_xsec/ww/nominal",
+    "scale_vars": "output_xsec/ww/scale_vars",
+    "BEC":        "output_xsec/ww/BEC",
+    "pseudo":     "output_xsec/ww/pseudo",
 }
 
 PLOT_DIR = "fit_output/ww/plots"
