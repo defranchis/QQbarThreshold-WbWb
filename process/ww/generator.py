@@ -226,13 +226,13 @@ class WWGenerator:
     # Template production
     # ------------------------------------------------------------------
     def do_scan(self, values: dict, *, mass_scale: float, width_scale: float,
-                mass_scheme: str = "OS", outdir: str = "output_xsec_ww/nominal",
+                mass_scheme: str = "OS", outdir: str = "process/ww/output_xsec/nominal",
                 ecm_shift_MeV: float = 0.0) -> str:
         """Compute σ_obs(√s; m_W, Γ_W) on the fine ECM grid and write CSV.
 
         ``ecm_shift_MeV`` shifts every √s in the output grid by the given
         amount (used by the BEC nuisance machinery, which expects templates
-        in ``output_xsec_ww/BEC/scan_{p,m}{var}/``).
+        in ``process/ww/output_xsec/BEC/scan_{p,m}{var}/``).
 
         Returns the output file path.
         """
