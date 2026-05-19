@@ -214,110 +214,57 @@ def _sigma_half_h57_RL(s, mW: float):
 
 
 # ---------------------------------------------------------------------------
-# Whizard-anchor correction f(δ, Γ_W) — BFS section 6.2 prescription
+# Whizard-anchor correction — BFS section 6.2 prescription
 # ---------------------------------------------------------------------------
-# BFS itself replaces the EFT Born by the Whizard exact 4f Born in their
-# published Table 4 numbers (paper line 2647-2656). We do the same by
-# multiplying the BFS-EFT N^(3/2)LO Born by the smooth correction
-# f(δ, Γ_W) = σ_Whizard / σ_EFT-N3/2 from BFS Tables 1 and 2.
+# BFS replaces the EFT Born by the Whizard exact 4f Born in their published
+# Table 4 numbers (paper line 2647-2656). We do the same: multiply the
+# BFS-EFT N^(3/2)LO Born by
 #
-# The correction depends primarily on δ = √s − 2 m_W (the kinematic distance
-# from threshold, which controls the EFT-expansion convergence). The Γ_W
-# dependence is sub-0.3 % over the two BFS reference Γ_W values and is
-# captured by linear interpolation between Tables 1 and 2.
+#     f(s, m_W, Γ_W) = σ_Whizard(s, m_W, Γ_W) / σ_EFT-N3/2(s, m_W, Γ_W)
 #
-# Data taken directly from BFS arXiv:0707.0773:
-#   Table 1 (LO width): m_W = 80.377, Γ_W = Γ_W^(0)(80.377) = 2.04483 GeV
-#   Table 2 (NLO+QCD width): m_W = 80.379, Γ_W = 2.09201 GeV
-# Both at: M_Z = 91.188, m_t = 174.2, M_H = 115, G_μ = 1.16637e-5.
+# σ_Whizard comes from the 1295-point WHIZARD grid produced by the pipeline
+# in ``WW_threshold/whizard/``, interpolated trilinearly in (√s, m_W, Γ_W).
+# σ_EFT-N3/2 is the framework's BFS Born expansion (Born → σ^(3/2),a, with
+# BR correction applied per section 6.1), evaluated at the same point.
 #
-# δ = √s − 2 m_W is essentially the same at each √s for Tables 1 and 2 (the
-# 2 MeV m_W difference is negligible compared to the 3 GeV δ spacing). For
-# the spline we use the Table 1 δ values as the abscissa.
-
-_BFS_TABLE_1_SQRTS = [155.0, 158.0, 161.0, 164.0, 167.0, 170.0]
-_BFS_TABLE_1_MW    = 80.377
-_BFS_TABLE_1_GW    = 2.04483
-_BFS_TABLE_1_EFT   = [31.30, 62.50, 160.89, 318.80, 429.70, 505.40]   # fb, EFT N^(3/2)LO
-_BFS_TABLE_1_WHIZ  = [34.43, 63.39, 160.62, 318.30, 428.60, 505.10]   # fb, Whizard 4f Born
-
-_BFS_TABLE_2_SQRTS = [155.0, 158.0, 161.0, 164.0, 167.0, 170.0]
-_BFS_TABLE_2_MW    = 80.379
-_BFS_TABLE_2_GW    = 2.09201
-_BFS_TABLE_2_EFT   = [30.54,  60.83, 154.44, 303.70, 409.30, 481.70]
-_BFS_TABLE_2_WHIZ  = [33.58,  61.67, 154.19, 303.00, 408.80, 481.70]
-
-
-def _build_whizard_anchor_splines():
-    """Build two cubic splines f_T1(δ), f_T2(δ) of Whizard/EFT-N3/2 vs
-    δ = √s − 2 m_W from BFS Tables 1 and 2.
-
-    Linear interpolation between the splines in Γ_W gives the 2D anchor.
-    Natural BC on the splines so they don't oscillate near the endpoints."""
-    try:
-        from scipy.interpolate import CubicSpline
-    except ImportError:
-        CubicSpline = None
-
-    delta_T1 = np.array([s - 2.0 * _BFS_TABLE_1_MW for s in _BFS_TABLE_1_SQRTS])
-    delta_T2 = np.array([s - 2.0 * _BFS_TABLE_2_MW for s in _BFS_TABLE_2_SQRTS])
-    f_T1 = np.array(_BFS_TABLE_1_WHIZ) / np.array(_BFS_TABLE_1_EFT)
-    f_T2 = np.array(_BFS_TABLE_2_WHIZ) / np.array(_BFS_TABLE_2_EFT)
-
-    if CubicSpline is not None:
-        s1 = CubicSpline(delta_T1, f_T1, bc_type="natural", extrapolate=True)
-        s2 = CubicSpline(delta_T2, f_T2, bc_type="natural", extrapolate=True)
-        return s1, s2, delta_T1, delta_T2, f_T1, f_T2
-    # Fallback: linear interp (used only if scipy missing).
-    return (lambda d: np.interp(d, delta_T1, f_T1),
-            lambda d: np.interp(d, delta_T2, f_T2),
-            delta_T1, delta_T2, f_T1, f_T2)
-
-
-_WHIZ_SPLINE_T1, _WHIZ_SPLINE_T2, _WHIZ_DELTA_T1, _WHIZ_DELTA_T2, _WHIZ_F_T1, _WHIZ_F_T2 = \
-    _build_whizard_anchor_splines()
+# This replaces the original BFS Tables 1+2 spline (Γ_W ∈ {2.045, 2.092}
+# only, m_W via δ-shift) with a proper 3D interpolant — no extrapolation
+# in Γ_W needed, full m_W dependence captured.
 
 
 def whizard_anchor_factor(s, mW: float = M_W_DEFAULT,
                           gammaW: float = GAMMA_W_DEFAULT):
-    """Multiplicative correction f(δ, Γ_W) bringing the BFS-EFT N^(3/2)LO
-    Born to the Whizard exact 4f Born (BFS section 6.2 prescription).
+    """Multiplicative correction f(s, m_W, Γ_W) bringing the BFS-EFT
+    N^(3/2)LO Born to the Whizard exact 4f Born.
 
     Parameters
     ----------
     s : array-like
         Partonic CM energy² in GeV².
     mW, gammaW : float
-        Fit m_W and Γ_W. The kinematic δ = √s − 2 m_W shifts the spline
-        abscissa as m_W varies — captures the m_W dependence analytically.
-        Linear interpolation between the BFS Table 1 (Γ_W=2.045) and Table 2
-        (Γ_W=2.092) splines captures the Γ_W dependence; beyond [2.045,
-        2.092] the linear interpolation extrapolates.
+        W mass and width in GeV. Both axes are direct grid dimensions —
+        no spline extrapolation tricks.
 
     Returns
     -------
     f : array-like
-        Same shape as s. Near threshold (δ ∈ [-1, +10] GeV) f ≈ 0.998-1.002;
-        below 155 GeV f grows to ~1.10. Vectorised in s.
+        Same shape as s. Typically f ≈ 0.998-1.05 in the FCC-ee scan window.
+        Vectorised in s.
     """
-    s_arr = np.asarray(s, dtype=float)
-    sqrt_s = np.sqrt(s_arr)
-    delta = sqrt_s - 2.0 * mW
+    # Late import: avoids loading scipy at module-import time, and lets users
+    # who never apply the anchor (e.g. plot scripts) keep working if the
+    # grid file is absent.
+    from framework.process.ww.xsec_calculator.whizard_grid import whizard_sigma
 
-    f1 = np.asarray(_WHIZ_SPLINE_T1(delta), dtype=float)
-    f2 = np.asarray(_WHIZ_SPLINE_T2(delta), dtype=float)
-
-    # Linear interpolation in Γ_W between Table 1 and Table 2 reference values.
-    # Note: this extrapolates linearly outside [Γ_W_T1, Γ_W_T2] — fine for the
-    # FCC-ee fit range (Γ_W within ±50 MeV of PDG = 2.085 GeV).
-    g_T1 = _BFS_TABLE_1_GW
-    g_T2 = _BFS_TABLE_2_GW
-    alpha = (gammaW - g_T1) / (g_T2 - g_T1)
-    f = (1.0 - alpha) * f1 + alpha * f2
+    sigma_LR, sigma_RL = _accumulate_born_orders(
+        s, mW, gammaW, "N3/2LO", apply_BR_correction=True)
+    sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * 1000.0   # pb → fb, unpolarised specific
+    sigma_whiz_fb = whizard_sigma(s, mW, gammaW)
+    f = sigma_whiz_fb / sigma_EFT_fb
 
     if np.ndim(s) == 0:
         return float(f)
-    return f
+    return np.asarray(f, dtype=float)
 
 
 def _xi_chi(s, mW: float):
