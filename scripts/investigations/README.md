@@ -42,6 +42,21 @@ hypotheses tested, none uniformly closes the residual.
 | `propagator_test.py` | test propagator Γ_W^(0) vs Γ_W^phys hypotheses |
 | `quantify_v2.py` | rigorous m_W bias at BFS reference points |
 
+## `whizard_grid_highstats/` — morphing scheme validation on the highstats grid
+
+Triggered by the highstats-grid campaign (9 m_W × 7 Γ_W × 37 √s @ ~0.016% MC).
+Verdict: per-√s independent quadratic morphs in (m_W, Γ_W) + a single
+bilinear cross-term coefficient β(√s) + cubic-spline of all 8 coefficients
+along √s reproduces σ to MC-bar (~0.05% interior) — sub-MeV m_W-bias-safe.
+
+| script | what it does |
+|---|---|
+| `morph.py` | shared primitives: fit_morph_at_sqrts, build_splines, sigma_morph |
+| `plot_axes_loo.py` | 1D LOO on m_W and Γ_W axes (input grid quality test) |
+| `plot_morphing_scheme.py` | per-√s naive vs bilinear morphing residual (scheme buildup) |
+| `plot_morph_predictions.py` | smooth σ(√s), Azzurri σ_obs, 4D LOO-on-√s validation |
+| `plot_validate_substep.py` | held-out 1-MeV (m_W, Γ_W) plane vs morph (depends on grid_validate/) |
+
 ## `isr_audit/` — 2-leg ISR vs single-conv, anchor checks, β audits
 
 From the 2-leg LL+exp ISR implementation work and earlier audits.

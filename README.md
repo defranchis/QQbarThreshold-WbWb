@@ -437,9 +437,12 @@ Cross-section pipeline (in `framework/process/ww/xsec_calculator/`):
   (eqs. 11, 34, 39, 40, 48). Plus δ_QCD multiplier (eq. delta_qcd)
   and the Whizard 4f Born anchor (BFS sec. 6.2 prescription).
   Anchor available in two sources — `spline` (BFS Tables 1+2, cubic
-  in δ=√s−2m_W + linear in Γ_W, default) and `grid` (1295-pt WHIZARD
-  3.1.5 scan, 3D trilinear) — selectable via
-  `NLO_CONFIG["whizard_anchor_source"]`. Both apply a fixed BR-strip
+  in δ=√s−2m_W + linear in Γ_W) and `grid` (1295-pt WHIZARD 3.1.5
+  scan, 3D trilinear; a 2331-pt highstats grid at ~0.016% MC plus a
+  densification campaign in the threshold region is in flight, fed
+  into the per-√s quadratic + bilinear morphing scheme validated
+  under `scripts/investigations/whizard_grid_highstats/`) — selectable
+  via `NLO_CONFIG["whizard_anchor_source"]`. Both apply a fixed BR-strip
   factor `(Γ_W / Γ_W^(0)(M_W_BFS_REF))²` when invoked through the
   PDG-constant BR chain so σ_observed = σ_WW × BR_PDG (Azzurri picture;
   the Γ_W lineshape crossing at √s ≈ 162 GeV is preserved). All chain

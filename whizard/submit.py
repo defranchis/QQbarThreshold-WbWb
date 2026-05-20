@@ -44,6 +44,21 @@ SQRTS_PER_BLOCK = 6                                 # 37 / 6 = 7 blocks (6,6,6,6
 HIGHSTATS_MW_VALS = [80.279 + 0.025 * i for i in range(9)]   # 9 pts, 25 MeV
 HIGHSTATS_GW_VALS = GW_VALS                                  # same Γ_W axis
 
+# Densification: extra √s points at 0.25 GeV step inserted between the
+# existing 0.5 GeV grid in [157, 163] GeV. The peak-rise + peak region is
+# where σ_nom(s) and the bilinear cross term β(s) vary fastest, so the
+# cubic-spline-along-√s residual is largest there. Output lands in
+# grid_highstats/ alongside the existing 0.5 GeV pts.
+DENSIFY_SQRTS_VALS = [157.0 + 0.25 + 0.5 * i for i in range(12)]  # 12 pts: 157.25..162.75
+
+# 1-MeV-scale validation set: a fine (m_W, Γ_W) plane sampled at three
+# √s slices through the threshold to stress-test the morph at sub-step
+# resolutions. Operationally these are NOT used to build the morph —
+# they're held-out truth for residual diagnostics.
+VALIDATE_MW_VALS    = [80.377 + 0.001 * i for i in range(5)]     # 80.377..80.381, 1 MeV step
+VALIDATE_GW_VALS    = [2.083 + 0.001 * i for i in range(5)]      # 2.083..2.087, 1 MeV step
+VALIDATE_SQRTS_VALS = [161.0, 162.0, 163.0]
+
 
 def sqrts_blocks(values, per_block):
     """Split a list into consecutive chunks of size ``per_block``."""
@@ -165,6 +180,42 @@ def main():
     print(f"Wrote {SCRIPTS_DIR / 'grid_highstats.sub'} ({len(highstats_jobs)} jobs "
           f"= {len(HIGHSTATS_MW_VALS)} m_W * {len(HIGHSTATS_GW_VALS)} Gamma_W "
           f"* {n_blocks} sqrt(s) blocks; workday queue; writes to grid_highstats/)")
+
+    # Densification: 12 extra √s pts at 0.25 GeV step in [157.25, 162.75] for
+    # every (m_W, Γ_W) pair of the highstats grid. Written to a separate
+    # tree (grid_highstats_densify/) so the aggregator can pick it up
+    # alongside the 0.5 GeV grid_highstats/. tomorrow queue (highstats
+    # iter spec hit the 8 h wall-clock cap on workday for some pairs).
+    dens_blocks = sqrts_blocks(DENSIFY_SQRTS_VALS, SQRTS_PER_BLOCK)
+    densify_jobs = []
+    for mw in HIGHSTATS_MW_VALS:
+        for gw in HIGHSTATS_GW_VALS:
+            for b_idx, block in enumerate(dens_blocks):
+                label = f"hsd_{mw_label(mw)}_{gw_label(gw)}_b{b_idx}"
+                subdir = f"grid_highstats_densify/{mw_label(mw)}_{gw_label(gw)}/b{b_idx}"
+                densify_jobs.append((label, mw, gw, csv(block), "highstats", subdir))
+    dens_header = HEADER.format(flavour="tomorrow", cpus=4, memory=2048)
+    write_submit(SCRIPTS_DIR / "grid_highstats_densify.sub", dens_header, densify_jobs)
+    print(f"Wrote {SCRIPTS_DIR / 'grid_highstats_densify.sub'} ({len(densify_jobs)} jobs "
+          f"= {len(HIGHSTATS_MW_VALS)} m_W * {len(HIGHSTATS_GW_VALS)} Gamma_W "
+          f"* {len(dens_blocks)} sqrt(s) blocks @ 0.25 GeV in [157.25, 162.75]; tomorrow queue)")
+
+    # Validation: 1-MeV-scale (m_W, Γ_W) plane at 3 √s slices through the
+    # threshold. Held-out truth for sub-step morph-residual diagnostics —
+    # NOT used by the morph fit itself.
+    val_blocks = sqrts_blocks(VALIDATE_SQRTS_VALS, SQRTS_PER_BLOCK)
+    validate_jobs = []
+    for mw in VALIDATE_MW_VALS:
+        for gw in VALIDATE_GW_VALS:
+            for b_idx, block in enumerate(val_blocks):
+                label = f"val_{mw_label(mw)}_{gw_label(gw)}_b{b_idx}"
+                subdir = f"grid_validate/{mw_label(mw)}_{gw_label(gw)}/b{b_idx}"
+                validate_jobs.append((label, mw, gw, csv(block), "highstats", subdir))
+    val_header = HEADER.format(flavour="tomorrow", cpus=4, memory=2048)
+    write_submit(SCRIPTS_DIR / "grid_validate.sub", val_header, validate_jobs)
+    print(f"Wrote {SCRIPTS_DIR / 'grid_validate.sub'} ({len(validate_jobs)} jobs "
+          f"= {len(VALIDATE_MW_VALS)} m_W * {len(VALIDATE_GW_VALS)} Gamma_W "
+          f"* {len(val_blocks)} sqrt(s) blocks at {VALIDATE_SQRTS_VALS} GeV; tomorrow queue)")
 
 
 if __name__ == "__main__":

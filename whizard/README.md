@@ -2,11 +2,13 @@
 
 End-to-end recipe to (re)produce the channel-specific 4f Born grid
 σ(e⁺e⁻ → μ⁻ν̄_μ ud̄) on the (√s, m_W, Γ_W) cube that anchors the WW EFT
-calculation. Final product:
+calculation. Final products:
 
 ```
-../whizard/work/grid/grid.csv      # 1295 rows = 37 √s × 5 m_W × 7 Γ_W
-../whizard/work/grid/provenance.json
+../whizard/work/grid/grid.csv                       # 1295 rows = 37 √s × 5 m_W × 7 Γ_W (0.05% MC)
+../whizard/work/grid_highstats/grid.csv             # 2331 rows = 37 √s × 9 m_W × 7 Γ_W (~0.016% MC)
+../whizard/work/grid_highstats_densify/grid.csv     # 756 rows  = 12 √s × 9 m_W × 7 Γ_W (extra 0.25-GeV-step √s)
+../whizard/work/grid_validate/grid.csv              # 75 rows   = 3 √s × 5 m_W × 5 Γ_W (1-MeV-step held-out test set)
 ```
 
 `../whizard/` (sibling of `WW_threshold/`) is the install + workspace; the
@@ -16,12 +18,15 @@ scripts here orchestrate everything.
 
 ```
 WW_threshold/whizard/
-├── install.sh   ← bootstrap WHIZARD 3.1.5 into ../whizard/install/
-├── job.sh       ← per-job condor wrapper (runs WHIZARD on a worker node)
-├── submit.py    ← generates bfs_table.sub + grid.sub + grid_augment.sub
-├── parse.py     ← extracts RESULT lines from each whizard.log → results.csv
-├── aggregate.py ← merges all results.csv → grid.csv + provenance.json
-└── fixup.py     ← scans existing data for gaps; emits grid_fixup.sub
+├── install.sh           ← bootstrap WHIZARD 3.1.5 into ../whizard/install/
+├── job.sh               ← per-job condor wrapper (runs WHIZARD on a worker node)
+├── submit.py            ← emits all *.sub files (bfs_table, grid, grid_augment, grid_highstats,
+│                          grid_highstats_densify, grid_validate)
+├── parse.py             ← extracts RESULT lines from each whizard.log → results.csv
+├── aggregate.py         ← merges results.csv per campaign → grid.csv + provenance.json
+├── fixup.py             ← grid: emit grid_fixup.sub for any missing (m_W, Γ_W) pairs
+└── highstats_fixup.py   ← grid_highstats: emit grid_highstats_retry.sub for batches that
+                           missed the wall-clock cap (uses tomorrow queue)
 ```
 
 ## Cold-start workflow (≈ 30 min wall on lxplus + HTCondor)
@@ -30,30 +35,37 @@ WW_threshold/whizard/
 # 1. Build WHIZARD locally (lxplus, ~15 min).
 ./whizard/install.sh
 
-# 2. Generate the HTCondor submit files.
+# 2. Generate ALL the HTCondor submit files.
 python3 whizard/submit.py
-#   → whizard/bfs_table.sub   2 jobs, BFS Tables 1+2 validation
-#   → whizard/grid.sub        245 jobs, full production grid
-#   → whizard/grid_augment.sub  70 jobs, BFS reference Γ_W only (subset of grid.sub)
+#   → whizard/bfs_table.sub                2 jobs, BFS Tables 1+2 validation
+#   → whizard/grid.sub                     245 jobs, full production grid (0.5 GeV step, 0.05% MC)
+#   → whizard/grid_augment.sub             70 jobs, BFS reference Γ_W subset of grid.sub
+#   → whizard/grid_highstats.sub           441 jobs, 9 m_W × 7 Γ_W × 7 √s blocks (~0.016% MC)
+#   → whizard/grid_highstats_densify.sub   126 jobs, 12 extra √s at 0.25 GeV in [157.25, 162.75]
+#   → whizard/grid_validate.sub            25 jobs, 1-MeV (m_W, Γ_W) plane at √s ∈ {161, 162, 163}
 
-# 3. Submit to HTCondor (lxplus). Both clusters run in parallel.
+# 3. Submit (lxplus). Multiple clusters run in parallel.
 cd whizard
 condor_submit bfs_table.sub
-condor_submit grid.sub
+condor_submit grid.sub                  # production grid (~3 h on longlunch queue)
+condor_submit grid_highstats.sub        # ~8 h on workday (use tomorrow if any wall-clock retries needed)
+condor_submit grid_highstats_densify.sub  # ~8 h on tomorrow
+condor_submit grid_validate.sub         # ~3 h on tomorrow
 cd ..
 
-# 4. Wait for the queue to drain (~10-15 min for the grid, ~30 min for BFS).
-condor_q                  # or: condor_wait whizard/work/condor/logs/grid.log
+# 4. Wait for queues to drain.
+condor_q
 
-# 5. Parse RESULT lines from each job's whizard.log, then aggregate.
+# 5. Parse RESULT lines, then aggregate (one CSV + provenance per campaign).
 python3 whizard/parse.py
-python3 whizard/aggregate.py
+python3 whizard/aggregate.py                       # all campaigns, strict (raises on gaps)
+# or, while jobs are still landing:
+python3 whizard/aggregate.py --mode grid_highstats --allow-gaps
 
-# 6. Verify the grid is gap-free. If not, submit the suggested fixup.
-python3 whizard/fixup.py
-# If output reports "Grid is complete", you're done. Otherwise:
-cd whizard && condor_submit grid_fixup.sub && cd ..
-# Then re-run parse.py + aggregate.py.
+# 6. Gap-fill if necessary.
+python3 whizard/fixup.py             # production grid: missing (m_W, Γ_W) pairs → grid_fixup.sub
+python3 whizard/highstats_fixup.py   # highstats grid: missing b-batches      → grid_highstats_retry.sub
+# Re-submit if any retry sub is emitted, then re-run parse.py + aggregate.py.
 ```
 
 The aggregator keys on the in-row (m_W, Γ_W, √s) values, not directory
@@ -102,9 +114,25 @@ BFS-2007 numbers essentially bit-for-bit.
 ## Tuning knobs
 
 * **Iteration spec** — fixed in `job.sh` per mode:
-  * `bfs`: `8:200000:"gw",5:1000000` (target ≤ 0.1% MC stat)
-  * `grid`: `6:100000:"gw",3:300000` (target ≈ 0.05% MC stat)
+  * `bfs`:        `8:200000:"gw",5:1000000`  (target ≤ 0.1% MC stat)
+  * `grid`:       `6:100000:"gw",3:300000`   (target ≈ 0.05% MC stat)
+  * `highstats`:  `6:500000:"gw",5:5000000`  (target ≈ 0.016% MC stat; needs ≥ tomorrow queue)
 * **Cores per job** — `request_cpus = 4` in submit files; `OMP_NUM_THREADS=4` in `job.sh`.
 * **WHIZARD version** — pinned in `install.sh` (`VERSION=3.1.5`).
 * **Channel** — `e1, E1 => e2, N2, u, D` in `job.sh` (μνqq specific 4f).
   Multiply σ by 27 for the all-flavour 4f sum (BFS convention).
+
+## Downstream — morphing scheme
+
+The highstats / densify / validate campaigns feed the morphing-scheme
+validation under `scripts/investigations/whizard_grid_highstats/`. The
+operational predictor is
+
+    σ_pred(√s, m_W, Γ_W) = σ_nom(√s) × R_m(√s, m_W) × R_Γ(√s, Γ_W)
+                                    × [1 + β(√s)·(m_W−m_W₀)(Γ_W−Γ_W₀)]
+
+with per-√s quadratic m_W and Γ_W morphs + one bilinear cross-term
+coefficient β(s) absorbing the joint coupling at the threshold rise.
+All 8 √s-dependent quantities are cubic-spline-interpolated along √s.
+Reproduces σ at sub-step (m_W, Γ_W, √s) resolutions to ≲ MC-bar
+(~0.05% in the operational √s range, ≪ 1 MeV m_W-bias-equivalent).

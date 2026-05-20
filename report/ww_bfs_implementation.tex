@@ -332,8 +332,14 @@ are wired in and selectable via \code{NLO\_CONFIG["whizard\_anchor\_source"]}:
   arXiv:0707.0773.
 \item \texttt{grid} — trilinear interpolation in $(\sqrts,\mW,\GammaW)$
   on a 1295-point WHIZARD~3.1.5 scan
-  ($5\,\mW \times 7\,\GammaW \times 37\,\sqrts$) produced by the
-  pipeline in \texttt{WW\_threshold/whizard/}.
+  ($5\,\mW \times 7\,\GammaW \times 37\,\sqrts$, $\sim$0.05\,\% MC stat
+  per point) produced by the pipeline in \texttt{WW\_threshold/whizard/}.
+  A 2331-point highstats variant
+  ($9\,\mW \times 7\,\GammaW \times 37\,\sqrts$ at $\sim$0.016\,\% MC stat,
+  i.e.\ 25-MeV $\mW$ step) plus a threshold-region densification
+  (extra 12 $\sqrts$ points at 0.25-GeV step in $[157.25, 162.75]$~GeV)
+  is in flight; the morphing scheme it feeds is described in
+  section~\ref{sec:morphing}.
 \end{itemize}
 WHIZARD computes the specific channel $\mu^-\bar\nu_\mu u\bar d$ with
 SM-LO partial widths fixed by the EW input scheme, so as the propagator
@@ -352,6 +358,40 @@ derived once in \code{eft_xsec.py}.
 
 Closure of $\sigma_\mathrm{BFS}\!\cdot\!f$ against the BFS Whizard
 reference column is shown in section~\ref{sec:val-anchor}.
+
+\subsubsection{Morphing scheme (highstats grid)}\label{sec:morphing}
+
+For the highstats grid the operational predictor is not a trilinear
+interpolation of $\sigma_\mathrm{Whizard}$ directly but a per-$\sqrts$
+analytic morph fitted from the grid:
+\begin{equation}
+\sigma_\text{pred}(\sqrts,\mW,\GammaW) =
+\sigma_0(\sqrts)\,
+\mathcal{R}_m\!\left(\sqrts,\mW\right)\,
+\mathcal{R}_\Gamma\!\left(\sqrts,\GammaW\right)\,
+\bigl[1 + \beta(\sqrts)\,(\mW-\mW^0)(\GammaW-\GammaW^0)\bigr],
+\end{equation}
+with $\mW^0=80.379$\,GeV, $\GammaW^0=2.085$\,GeV. At each grid $\sqrts$:
+$\mathcal{R}_m$ and $\mathcal{R}_\Gamma$ are quadratic LSQ fits along the
+respective 1D axis at nominal value of the other parameter; $\beta(\sqrts)$
+is a single scalar fitted from the doubly-off-axis residual to absorb the
+joint $(\mW,\GammaW)$ coupling. Each of the eight $\sqrts$-dependent
+quantities ($\sigma_0$, $\sigma_0|_{\mW}$, $\sigma_0|_{\GammaW}$,
+three coefficients of $\mathcal{R}_m$, three of $\mathcal{R}_\Gamma$, $\beta$) is
+then natural-cubic-spline interpolated along the dense $\sqrts$ axis.
+
+The bilinear cross-term coefficient peaks at $\beta\simeq+0.26$~GeV$^{-2}$
+at $\sqrts\approx161$~GeV (the threshold rise, where the $\mW$
+threshold-position shift and the $\GammaW$-driven smearing are most
+coupled) and decays to $\sim\!0$ above the peak. Naive independent
+quadratic morphing (without $\beta$) leaves a $\sim$0.14\,\% residual at
+the worst $\sqrts$; the cross term reduces it to MC-bar level
+($\sim$0.05\,\%). Leave-one-out cross-validation on the $\sqrts$ axis
+confirms the cubic spline along $\sqrts$ adds no precision overhead:
+the median LOO residual at interior $\sqrts$ matches the per-point MC
+bar (0.017\,\%), the maximum hits $\sim$0.1\,\% at the peak-rise.
+Diagnostics under
+\code{scripts/investigations/whizard\_grid\_highstats/}.
 
 \subsection{ISR convolution}\label{sec:isr}
 
