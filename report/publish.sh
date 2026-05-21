@@ -16,15 +16,22 @@ EOS_URL=${EOS_REPORT_URL:-https://mdefranc.web.cern.ch/WW_threshold/report}
 
 # Refresh investigation figures embedded in the report: morphing-scheme
 # validation lives in plots/whizard_grid_highstats/ (gitignored). Copy the
-# 3 PDFs the .tex references into figs/ with a `morph_` prefix.
+# PDFs the appendix references into figs/ with a `morph_` prefix.
 MORPH_SRC="../plots/whizard_grid_highstats"
 if [[ -d "$MORPH_SRC" ]]; then
     mkdir -p figs
     # Source filename → report-figs filename. `morph_` prefix on dest names
-    # tags them in the figs/ namespace.
+    # tags them in the figs/ namespace (sources already so-prefixed keep it).
     declare -A MORPH_FIGS=(
-        [morphing_bilinear]=morph_morphing_bilinear
+        [grid_overview]=morph_grid_overview
+        [axis_fits]=morph_axis_fits
+        [cross_term]=morph_cross_term
+        [sqrts_interpolation]=morph_sqrts_interpolation
+        [sqrts_validation]=morph_sqrts_validation
         [4d_morphing_loo]=morph_4d_morphing_loo
+        [validate_substep]=morph_validate_substep
+        [validate_bfs_tables]=morph_validate_bfs_tables
+        [morph_smooth_sigma_sqrts]=morph_smooth_sigma_sqrts
         [morph_azzurri]=morph_azzurri
     )
     for src in "${!MORPH_FIGS[@]}"; do

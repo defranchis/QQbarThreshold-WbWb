@@ -30,9 +30,9 @@ import mplhep as hep
 import numpy as np
 import pandas as pd
 
-from morph import (build_morph_from_grid, build_splines, fit_morph_at_sqrts,
-                   filter_uniform_gw, load_grid, sigma_morph,
-                   GW_UNIFORM, GW0, MW0)
+from morph import (build_morph_from_grid, build_splines, denoise_grid,
+                   fit_morph_at_sqrts, filter_uniform_gw, load_grid,
+                   sigma_morph, GW_UNIFORM, GW0, MW0)
 
 plt.style.use(hep.style.CMS)
 
@@ -223,8 +223,9 @@ def main():
     print(f"morph fitted at {len(sqrts_axis)} √s values "
           f"({'highstats + densify' if DENSIFY_CSV.exists() else 'highstats only'})")
 
-    # Raw highstats df is needed by plot_smooth and plot_4d_loo (independent of densify)
-    df_fit = filter_uniform_gw(load_grid(HIGHSTATS_CSV))
+    # highstats df (denoised, as the operational morph uses it) for
+    # plot_smooth and plot_4d_loo — independent of the densify campaign
+    df_fit = denoise_grid(filter_uniform_gw(load_grid(HIGHSTATS_CSV)))
     plot_smooth(splines, sqrts_axis, df_fit)
     plot_azzurri(splines, sqrts_axis)
     plot_4d_loo(df_fit)

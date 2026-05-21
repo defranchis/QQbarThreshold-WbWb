@@ -34,3 +34,22 @@ Every table in section 3 corresponds to a script in the repo:
 | 3.4 Whizard anchor closure          | `python scripts/validate_bfs_nlo.py` Scenario I        | BFS NLO paper §6.2 |
 | 3.5 NNLO Table 1 (each piece + sum) | `python scripts/investigations/bfs_nnlo/check_closed_form_pieces.py` | BFS NNLO paper §4 |
 | 3.6 NNLO ISR-improved (Table 2 col) | `python scripts/investigations/bfs_nnlo/check_isr_table2.py`         | BFS NNLO paper §4 |
+
+## Appendix B — morphing-scheme validation
+
+Appendix B documents and validates the WHIZARD-grid morphing predictor
+of §3.6.1. Its figures are produced by scripts under
+`scripts/investigations/whizard_grid_highstats/` and mirrored into
+`figs/` (with a `morph_` prefix) by `publish.sh`:
+
+| Appendix figure | Script |
+|---|---|
+| input grid (B.2)                 | `plot_grid_overview.py` |
+| per-√s quadratic fits (B.3)       | `plot_axis_fits.py` |
+| bilinear cross term (B.4)         | `plot_cross_term.py` |
+| √s interpolation of morph quantities (B.5) | `plot_sqrts_interpolation.py` |
+| √s blind test on densify (B.5)    | `plot_sqrts_validation.py` |
+| √s leave-one-out (B.5)            | `plot_morph_predictions.py` |
+| 1-MeV held-out closure (B.6)      | `plot_validate_substep.py` |
+| BFS-table closure (B.6)           | `validate_bfs_tables.py` |
+| line shape + Azzurri (B.7)        | `plot_morph_predictions.py` |

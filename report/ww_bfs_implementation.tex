@@ -376,63 +376,28 @@ $\mathcal{R}_m$ and $\mathcal{R}_\Gamma$ are quadratic LSQ fits along the
 respective 1D axis at nominal value of the other parameter; $\beta(\sqrts)$
 is a single scalar fitted from the doubly-off-axis residual to absorb the
 joint $(\mW,\GammaW)$ coupling. Each of the eight $\sqrts$-dependent
-quantities ($\sigma_0$, $\sigma_0|_{\mW}$, $\sigma_0|_{\GammaW}$,
-three coefficients of $\mathcal{R}_m$, three of $\mathcal{R}_\Gamma$, $\beta$) is
-then natural-cubic-spline interpolated along the dense $\sqrts$ axis.
+quantities ($\sigma_0$, three coefficients each of $\mathcal{R}_m$ and
+$\mathcal{R}_\Gamma$, $\beta$) is then carried along the dense $\sqrts$
+axis with a natural cubic spline --- after the grid has been denoised
+in $\sqrts$ so the spline threads clean points rather than propagating
+Monte-Carlo fluctuations (Appendix~\ref{sec:morphval}).
 
-The bilinear cross-term coefficient peaks at $\beta\simeq+0.26$~GeV$^{-2}$
-at $\sqrts\approx161$~GeV (the threshold rise, where the $\mW$
+The bilinear cross-term coefficient peaks at $\beta\simeq+0.31$~GeV$^{-2}$
+at $\sqrts\approx160.5$~GeV (the threshold rise, where the $\mW$
 threshold-position shift and the $\GammaW$-driven smearing are most
 coupled) and decays to $\sim\!0$ above the peak. Naive independent
-quadratic morphing (without $\beta$) leaves a $\sim$0.14\,\% residual at
+quadratic morphing (without $\beta$) leaves a $\sim$0.16\,\% residual at
 the worst $\sqrts$; the cross term reduces it to MC-bar level
-($\sim$0.05\,\%). Leave-one-out cross-validation on the $\sqrts$ axis
+($\sim$0.08\,\%). Leave-one-out cross-validation on the $\sqrts$ axis
 confirms the cubic spline along $\sqrts$ adds no precision overhead:
-the median LOO residual at interior $\sqrts$ matches the per-point MC
-bar (0.017\,\%), the maximum hits $\sim$0.1\,\% at the peak-rise.
+the median LOO residual at interior $\sqrts$ sits at the per-point MC
+bar (0.013\,\%), the maximum below $0.1\,\%$ at the peak-rise.
+The construction is taken apart and validated extensively in
+Appendix~\ref{sec:morphval}: the input grid, the per-$\sqrts$
+quadratic fits, the bilinear cross term, the $\sqrts$ interpolation,
+held-out and external (BFS-table) closure, and physics-sanity checks.
 Diagnostics under
-\code{scripts/investigations/whizard\_grid\_highstats/}.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.93\linewidth]{morph_morphing_bilinear}
-\caption{Doubly-off-axis residual of the per-$\sqrts$ morphing scheme
-on the highstats grid (one panel per $\sqrts$ slice, points coloured by
-$\GammaW$). With the bilinear cross term the residual collapses to
-MC-bar level across all $\sqrts$; the largest $\beta$ value, +0.26~GeV$^{-2}$,
-sits at the peak rise $\sqrts\!\simeq\!161$~GeV where the
-$(\mW,\GammaW)$ coupling is strongest.}
-\label{fig:morph_bilinear}
-\end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.93\linewidth]{morph_4d_morphing_loo}
-\caption{Leave-one-out cross-validation on the $\sqrts$ axis: each grid
-$\sqrts_i$ is held out, the cubic splines of the eight morph
-quantities are refitted from the remaining 36 $\sqrts$ values, and the
-full 45-point $(\mW,\GammaW)$ plane is predicted at $\sqrts_i$. Top:
-per-point residuals coloured by axis class (nominal, off-$\mW$ only,
-off-$\GammaW$ only, doubly off-axis). Bottom (log-$y$): median and max
-$|\text{residual}|$ vs $\sqrts$. The interior is MC-bar limited; the
-boundary spikes are LOO extrapolation artifacts (the operational
-interpolator stays inside the grid).}
-\label{fig:morph_4dloo}
-\end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.93\linewidth]{morph_azzurri}
-\caption{Azzurri-style $\sigma_\text{obs}(\sqrts) = \sigma_\text{morph} \times
-(\GammaW/\GammaW^{(0),\text{REF}})^2$ from the morphing scheme. Top:
-absolute $\sigma_\text{obs}$ for $\GammaW$ and $\mW$ variations around
-nominal. Bottom: ratio to the nominal curve, showing the classic
-$\GammaW$-induced crossing at $\sqrts \simeq 161.9$~GeV (consistent
-with Azzurri 2107.04444, $\sqrts\!\simeq\!162$~GeV). $\mW$ variations
-do not cross (BR factor is $\mW$-independent in the PDG-constant
-convention).}
-\label{fig:morph_azzurri}
-\end{figure}
+\code{scripts/investigations/whizard_grid_highstats/}.
 
 \subsection{ISR convolution}\label{sec:isr}
 
@@ -938,6 +903,262 @@ section~\ref{sec:anchor} is applied.}
 \caption{Same calculation as the previous figure, with both
 $\mW \pm 10\,\mathrm{MeV} \times 100$ and $\GammaW \pm 10\,\mathrm{MeV}
 \times 100$ bands overlaid on a single square panel.}
+\end{figure}
+
+\clearpage
+% ---------------------------------------------------------------
+\section{Validation of the WHIZARD-grid morphing scheme}\label{sec:morphval}
+% ---------------------------------------------------------------
+
+This appendix documents the construction and the validation of the
+morphing predictor introduced in section~\ref{sec:morphing}. Every plot
+is produced by a script under
+\code{scripts/investigations/whizard_grid_highstats/} and refreshed into
+\code{report/figs/} by \code{report/publish.sh}.
+
+\subsection{Strategy}\label{sec:morphval-strategy}
+
+The morph turns a discrete WHIZARD grid into a smooth, differentiable
+$\sigma(\sqrts,\mW,\GammaW)$ usable as the exact-Born anchor. It is
+built and validated in well-separated steps, each isolating a single
+ingredient so that a failure can be attributed unambiguously:
+\begin{enumerate}
+\item \textbf{Input grid.} WHIZARD 3.1.5 four-fermion Born for the
+specific channel $e^+e^-\!\to\!\munuqq$ on a rectangular
+$(\sqrts,\mW,\GammaW)$ cube: 2331 highstats points
+($37\times9\times7$) plus 756 densify points at half-step $\sqrts$,
+each at $\sim$0.016\,\% Monte-Carlo precision
+(Fig.~\ref{fig:mv-grid}).
+\item \textbf{Per-$\sqrts$ 1D fits.} At every grid $\sqrts$ the $\mW$
+and $\GammaW$ dependence is described by independent quadratic LSQ
+fits $\mathcal{R}_m$, $\mathcal{R}_\Gamma$, taken at the nominal value
+of the other parameter (Fig.~\ref{fig:mv-axisfits}).
+\item \textbf{Joint coupling.} A single bilinear scalar $\beta(\sqrts)$
+absorbs the $(\mW,\GammaW)$ cross term that the product of the two 1D
+morphs cannot reproduce (Fig.~\ref{fig:mv-cross}).
+\item \textbf{$\sqrts$ interpolation.} The eight $\sqrts$-dependent
+quantities are carried between grid $\sqrts$ by natural cubic splines
+(Figs.~\ref{fig:mv-sqrts}, \ref{fig:mv-sqrtsval}, \ref{fig:mv-4dloo}).
+\item \textbf{Closure.} The predictor is checked against held-out
+WHIZARD points at 1-MeV $(\mW,\GammaW)$ steps
+(Fig.~\ref{fig:mv-substep}) and against the published BFS WHIZARD 4f
+Born tables (Fig.~\ref{fig:mv-bfs}).
+\item \textbf{Physics sanity.} The morphed line shape and the
+$\GammaW$-induced threshold crossing are inspected
+(Figs.~\ref{fig:mv-smooth}, \ref{fig:mv-azzurri}).
+\end{enumerate}
+
+The predictor is
+\begin{equation*}
+\sigma_\text{pred}=\sigma_0(\sqrts)\,
+\mathcal{R}_m(\sqrts,\mW)\,
+\mathcal{R}_\Gamma(\sqrts,\GammaW)\,
+\bigl[1+\beta(\sqrts)\,(\mW-\mW^0)(\GammaW-\GammaW^0)\bigr],
+\end{equation*}
+with the eight $\sqrts$-dependent quantities --- $\sigma_0$, three
+coefficients each of $\mathcal{R}_m$ and $\mathcal{R}_\Gamma$, and
+$\beta$ --- fitted independently at every grid $\sqrts$ and then
+interpolated along $\sqrts$ with a natural cubic spline.
+
+An interpolating spline threads every node, so per-$\sqrts$
+Monte-Carlo fluctuations would be propagated as a ripple. To prevent
+that the grid is \emph{denoised along $\sqrts$ before the morph fits
+it}. The denoising is done on physical, slowly-varying quantities,
+never on the morph coefficients: the ratios
+$\sigma/\sigma_0$ --- flat in $\sqrts$, since the steep threshold rise
+cancels --- are smoothed with a $\chi^2$-targeted penalised spline
+(consistent with the MC error bars, not threaded through every point),
+and $\sigma_0$ itself, too steep to $\sqrts$-smooth without rounding
+the threshold knee, is denoised instead by averaging across the
+$(\mW,\GammaW)$ plane ($\approx\!\sqrt{45}$ noise reduction). Smoothing
+the three strongly anti-correlated $\mathcal{R}_m$ / $\mathcal{R}_\Gamma$
+polynomial coefficients directly was tried and rejected --- it breaks
+the cancellation that makes their combination $\mathcal{R}(\cdot)$
+accurate and inflates the $\sqrts$ leave-one-out residual roughly
+threefold --- which is why the denoising acts on the physical $\sigma$
+ratios. Every morph input is then smooth in $\sqrts$ and the cubic
+spline threads clean points.
+
+\subsection{Input grid}\label{sec:morphval-grid}
+
+The morph is built from a single rectangular WHIZARD grid. The $(\mW,\GammaW)$ block is identical at every $\sqrts$ --- this is what makes the factorised per-$\sqrts$ fit possible --- and the Monte-Carlo precision is uniform at the few-$10^{-4}$ level across the scan.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth]{morph_grid_overview}
+\caption{The WHIZARD 3.1.5 highstats grid the morph is built on. Left:
+the $(\mW,\GammaW)$ sampling plane, a $9\times7$ rectangular grid
+repeated at every $\sqrts$; the gold star marks the morph nominal
+point $(\mW^0,\GammaW^0)$, the dashed red lines the two
+BFS-reference $\GammaW$ values that are kept in the grid but excluded
+from the morph fit (they are used later for the external closure).
+Right: the per-point Monte-Carlo relative precision at
+$(\mW^0,\GammaW^0)$ for the highstats ($0.5\GeV$ $\sqrts$ spacing) and
+densify ($0.25\GeV$) campaigns --- flat at $\sim$0.016\,\%, the floor
+against which all morph residuals below are compared.}
+\label{fig:mv-grid}
+\end{figure}
+
+\subsection{Per-$\sqrts$ morph fits}\label{sec:morphval-axis}
+
+At each grid $\sqrts$ the one-dimensional $\mW$ and $\GammaW$ responses are fitted with quadratics. Fig.~\ref{fig:mv-axisfits} shows the fits are adequate over the whole range: the quadratic residual is structureless and at the MC floor, a linear model is visibly insufficient, and a cubic term brings no gain.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{morph_axis_fits}
+\caption{Dissection of the per-$\sqrts$ 1D morph fits --- top row the
+$\mW$ axis, bottom row the $\GammaW$ axis, colour encoding $\sqrts$.
+Left: the fitted morph factor $\mathcal{R}=\sigma/\sigma_0$ family,
+showing how the curvature of each response evolves across the
+threshold. Middle: the fractional residual of the quadratic fit ---
+structureless and within the per-point MC band at every $\sqrts$,
+i.e.\ the quadratic leaves no significant trend. Right: the RMS
+fractional residual of a linear, quadratic and cubic fit as a function
+of $\sqrts$; the linear fit sits several times above the MC bar, the
+quadratic reaches it, and the cubic adds nothing. The quadratic is
+therefore the correct model order on both axes over the whole range.}
+\label{fig:mv-axisfits}
+\end{figure}
+
+\subsection{Joint coupling and the bilinear cross term}
+\label{sec:morphval-cross}
+
+The product $\sigma_0\mathcal{R}_m\mathcal{R}_\Gamma$ of the two 1D morphs misses the joint coupling near threshold. Fig.~\ref{fig:mv-cross} shows the missing piece is a clean bilinear $(\mW-\mW^0)(\GammaW-\GammaW^0)$ term, absorbed by the single scalar $\beta(\sqrts)$.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{morph_cross_term}
+\caption{Dissection of the bilinear cross term $\beta$. Top two rows:
+the residual of the naive product morph
+$\sigma_0\mathcal{R}_m\mathcal{R}_\Gamma$ and of the full morph with
+the $\beta$ term, shown as $(\mW,\GammaW)$ residual maps at five
+$\sqrts$ spanning the analysis range. The naive map carries a clear
+$\mW\!\cdot\!\GammaW$ saddle --- opposite-sign corners --- strongest at
+the threshold rise; the cross term flattens it. Bottom: (left) the
+naive fractional residual is linear in
+$(\mW-\mW^0)(\GammaW-\GammaW^0)$, which validates the bilinear ansatz,
+with slope $\beta$; (middle) the fitted $\beta(\sqrts)$, peaking near
+$+0.3\GeV^{-2}$ at $\sqrts\simeq160.5\GeV$ and decaying to zero away
+from threshold; (right) the maximum residual over the doubly-off-axis
+points, naive versus full morph, versus $\sqrts$ --- the cross term
+brings it down to the MC bar everywhere.}
+\label{fig:mv-cross}
+\end{figure}
+
+\subsection{$\sqrts$ interpolation}\label{sec:morphval-sqrts}
+
+Between grid $\sqrts$ the eight morph quantities are carried by natural cubic splines through the denoised grid. Fig.~\ref{fig:mv-sqrts} contrasts the raw per-$\sqrts$ fit with the denoised curve actually used, Fig.~\ref{fig:mv-sqrtsval} is a blind test on the half-step densify points, and Fig.~\ref{fig:mv-4dloo} the leave-one-out cross-check.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\linewidth]{morph_sqrts_interpolation}
+\caption{The $\sqrts$ carrying of the morph quantities, each shown as
+the deviation from the denoised curve the operational morph uses (the
+zero line). Points are the raw per-$\sqrts$ fit nodes; the thin line is
+an interpolating cubic spline through them --- the ripple that would be
+propagated if the grid were not denoised. $\beta$ is the noisiest
+quantity ($\sim$20\,\% per node). \code{denoise_grid} removes the
+ripple by $\chi^2$-smoothing the slowly-varying ratios $\sigma/\sigma_0$
+along $\sqrts$ and averaging $\sigma_0$ across the $(\mW,\GammaW)$
+plane, so the morph carries the smooth zero-line curve.}
+\label{fig:mv-sqrts}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth]{morph_sqrts_validation}
+\caption{Blind test of the $\sqrts$ interpolation. The densify points
+lie at the $0.25\GeV$ midpoints between the highstats $\sqrts$ nodes;
+predicting them from a morph built on the highstats grid \emph{only}
+tests the cubic spline at genuine un-fitted $\sqrts$ (a stronger test
+than leave-one-out, which removes a node the spline would otherwise
+anchor on). Left: the per-point residual vs $\sqrts$ (top) and its
+median and maximum (bottom) --- MC-bar limited, maximum $0.08\,\%$.
+Right: the pull $(\sigma_\text{morph}-\sigma_\text{WHIZARD})/
+\delta\sigma_\text{MC}$, centred on zero (no systematic bias); its
+width $\sim$1.4 --- down from $\sim$1.6 before the grid was denoised
+--- shows the morph prediction is now interpolation-limited rather
+than dominated by propagated node noise.}
+\label{fig:mv-sqrtsval}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth]{morph_4d_morphing_loo}
+\caption{Leave-one-out cross-validation on the $\sqrts$ axis: each grid
+$\sqrts_i$ is held out, the cubic splines of the eight morph
+quantities are refitted from the remaining nodes, and the full
+$(\mW,\GammaW)$ plane is predicted at $\sqrts_i$. Top: per-point
+residuals coloured by axis class. Bottom (log scale): median and
+maximum $|\text{residual}|$ vs $\sqrts$. The interior is MC-bar
+limited; the spikes at the two extreme $\sqrts$ are LOO extrapolation
+artifacts --- the operational interpolator never leaves the grid. The
+denoised blind test of Fig.~\ref{fig:mv-sqrtsval} is the leak-free
+companion measure.}
+\label{fig:mv-4dloo}
+\end{figure}
+
+\subsection{Held-out and external closure}\label{sec:morphval-closure}
+
+Two independent closure tests bound the total morph error: held-out WHIZARD points at 1-MeV $(\mW,\GammaW)$ spacing (Fig.~\ref{fig:mv-substep}) and the published BFS WHIZARD 4f Born tables (Fig.~\ref{fig:mv-bfs}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{morph_validate_substep}
+\caption{Held-out closure at sub-grid resolution. A dedicated WHIZARD
+campaign generated a $5\times5$ $(\mW,\GammaW)$ plane at 1-MeV steps
+for $\sqrts\in\{161,162,163\}\GeV$; none of these points enters the
+morph. The residual $(\sigma_\text{morph}-\sigma_\text{WHIZARD})/\sigma$
+scatters within the MC band with no trend --- maximum $0.04\,\%$,
+median $0.01$--$0.02\,\%$ --- so the morph is sub-MeV-safe at the
+$(\mW,\GammaW)$ resolution of the fit.}
+\label{fig:mv-substep}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.88\linewidth]{morph_validate_bfs_tables}
+\caption{External closure against BFS \cite{BFSnlo}. The morph is
+evaluated at the BFS Table~1 ($\mW=80.377$, $\GammaW=2.04483\GeV$) and
+Table~2 ($\mW=80.379$, $\GammaW=2.09201\GeV$) reference points and
+compared with the paper's WHIZARD 4f Born column. Top: absolute
+$\sigma(\sqrts)$ --- the morph curve, the raw grid and the BFS points
+coincide. Bottom: the ratio to the BFS values. Agreement is
+$<0.15\,\%$ at every $\sqrts$; the morph/BFS ratio tracks the
+raw-grid/BFS ratio closely, so the residual is the genuine
+WHIZARD-3.1.5-versus-BFS-era generator difference and not a morph
+interpolation error. This is the morphing analogue of the
+single-anchor closure of section~\ref{sec:val-anchor}.}
+\label{fig:mv-bfs}
+\end{figure}
+
+\subsection{Physics sanity}\label{sec:morphval-physics}
+
+Finally, the morphed cross section is inspected as a physical line shape (Fig.~\ref{fig:mv-smooth}) and through the $\GammaW$-induced threshold crossing (Fig.~\ref{fig:mv-azzurri}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.82\linewidth]{morph_smooth_sigma_sqrts}
+\caption{Smooth $\sigma(\sqrts)$ reconstructed from the morph for a set
+of $\mW$ and $\GammaW$ variations around nominal; open markers are the
+underlying grid points. Top: absolute $\sigma$. Bottom: ratio to the
+nominal curve. The morph produces sensible, smooth threshold curves
+between the grid $\sqrts$ knots for every variation.}
+\label{fig:mv-smooth}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.82\linewidth]{morph_azzurri}
+\caption{Azzurri-style $\sigma_\text{obs}(\sqrts)=
+\sigma_\text{morph}\times(\GammaW/\Gamma_W^{(0),\mathrm{REF}})^2$ from
+the morphing scheme. Top: absolute $\sigma_\text{obs}$ for $\GammaW$
+and $\mW$ variations. Bottom: ratio to nominal, showing the
+$\GammaW$-induced crossing at $\sqrts\simeq161.9\GeV$, consistent with
+the $\sqrts\!\simeq\!162\GeV$ of Azzurri (\arxiv{2107.04444}); the
+$\mW$ variations do not cross, as expected for the $\mW$-independent
+PDG-constant BR factor.}
+\label{fig:mv-azzurri}
 \end{figure}
 
 % ---------------------------------------------------------------
