@@ -9,11 +9,18 @@ papers, [arXiv:0707.0773](https://arxiv.org/abs/0707.0773) and
 
 ```bash
 make            # pdflatex twice (resolves the references)
+make publish    # build + mirror PDF to EOS (run after every .tex edit)
 make clean      # remove aux files
 ```
 
 Output: `ww_bfs_implementation.pdf`. Requires `pdflatex`, `amsmath`,
 `booktabs`, `hyperref`, `microtype` — all in a vanilla TeX Live.
+
+`make publish` (or `./publish.sh` directly) builds the PDF and copies
+it to `/eos/user/m/mdefranc/www/WW_threshold/report/` so the version at
+<https://mdefranc.web.cern.ch/WW_threshold/report/ww_bfs_implementation.pdf>
+matches the source. Run it any time the .tex changes. The destination
+can be overridden via the `EOS_REPORT_DEST` / `EOS_REPORT_URL` env vars.
 
 ## Reproducing the validation numbers
 

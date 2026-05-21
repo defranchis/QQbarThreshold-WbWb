@@ -393,6 +393,47 @@ bar (0.017\,\%), the maximum hits $\sim$0.1\,\% at the peak-rise.
 Diagnostics under
 \code{scripts/investigations/whizard\_grid\_highstats/}.
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.93\linewidth]{morph_morphing_bilinear}
+\caption{Doubly-off-axis residual of the per-$\sqrts$ morphing scheme
+on the highstats grid (one panel per $\sqrts$ slice, points coloured by
+$\GammaW$). With the bilinear cross term the residual collapses to
+MC-bar level across all $\sqrts$; the largest $\beta$ value, +0.26~GeV$^{-2}$,
+sits at the peak rise $\sqrts\!\simeq\!161$~GeV where the
+$(\mW,\GammaW)$ coupling is strongest.}
+\label{fig:morph_bilinear}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.93\linewidth]{morph_4d_morphing_loo}
+\caption{Leave-one-out cross-validation on the $\sqrts$ axis: each grid
+$\sqrts_i$ is held out, the cubic splines of the eight morph
+quantities are refitted from the remaining 36 $\sqrts$ values, and the
+full 45-point $(\mW,\GammaW)$ plane is predicted at $\sqrts_i$. Top:
+per-point residuals coloured by axis class (nominal, off-$\mW$ only,
+off-$\GammaW$ only, doubly off-axis). Bottom (log-$y$): median and max
+$|\text{residual}|$ vs $\sqrts$. The interior is MC-bar limited; the
+boundary spikes are LOO extrapolation artifacts (the operational
+interpolator stays inside the grid).}
+\label{fig:morph_4dloo}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.93\linewidth]{morph_azzurri}
+\caption{Azzurri-style $\sigma_\text{obs}(\sqrts) = \sigma_\text{morph} \times
+(\GammaW/\GammaW^{(0),\text{REF}})^2$ from the morphing scheme. Top:
+absolute $\sigma_\text{obs}$ for $\GammaW$ and $\mW$ variations around
+nominal. Bottom: ratio to the nominal curve, showing the classic
+$\GammaW$-induced crossing at $\sqrts \simeq 161.9$~GeV (consistent
+with Azzurri 2107.04444, $\sqrts\!\simeq\!162$~GeV). $\mW$ variations
+do not cross (BR factor is $\mW$-independent in the PDG-constant
+convention).}
+\label{fig:morph_azzurri}
+\end{figure}
+
 \subsection{ISR convolution}\label{sec:isr}
 
 We use the LL$+$exp electron structure function in the BETA scheme of
