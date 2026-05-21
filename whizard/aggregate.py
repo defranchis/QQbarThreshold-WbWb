@@ -66,6 +66,26 @@ CAMPAIGNS = {
         "expected_n_pairs": 5 * 5,
         "iter_spec": '6:500000:"gw",5:5000000',
     },
+    # Fine √s grid: 0.1 GeV step in [155, 165], full 9 m_W × 7 Γ_W plane,
+    # at 4× highstats MC (~0.008%). Operational successor to the 0.5 GeV
+    # highstats + 0.25 GeV densify grids in the analysis window.
+    "grid_fine": {
+        "condor_subdir": "grid_fine",
+        "output_subdir": "grid_fine",
+        "expected_n_sqrts_per_pair": 101,
+        "expected_n_pairs": 9 * 7,
+        "iter_spec": '6:500000:"gw",5:20000000',
+    },
+    # Fine (m_W, Γ_W) 1D scans (0.1-MeV steps to ±1 MeV, 0.2-MeV to
+    # ±3 MeV) at 3 √s, ~0.005% MC. Held out — bounds the morph's sub-MeV
+    # interpolation bias. 81 1D-scan points, not a rectangular plane.
+    "grid_validate_fine": {
+        "condor_subdir": "grid_validate_fine",
+        "output_subdir": "grid_validate_fine",
+        "expected_n_sqrts_per_pair": 3,
+        "expected_n_pairs": 81,
+        "iter_spec": '6:500000:"gw",5:50000000',
+    },
 }
 
 

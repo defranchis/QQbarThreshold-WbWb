@@ -59,6 +59,32 @@ VALIDATE_MW_VALS    = [80.377 + 0.001 * i for i in range(5)]     # 80.377..80.38
 VALIDATE_GW_VALS    = [2.083 + 0.001 * i for i in range(5)]      # 2.083..2.087, 1 MeV step
 VALIDATE_SQRTS_VALS = [161.0, 162.0, 163.0]
 
+# Fine √s grid: 0.1 GeV step in [155, 165] for the full 9 m_W × 7 Γ_W
+# plane, at 4× the highstats MC (mode "fine", target ~0.008%). The
+# analysis window is [157, 163]; [155, 165] leaves >=2 GeV margin so the
+# √s spline never extrapolates, and the existing 0.5 GeV highstats wings
+# (154-154.5, 165.5-172) remain as the outer spline support.
+FINE_SQRTS_VALS      = [round(155.0 + 0.1 * i, 1) for i in range(101)]  # 101 pts
+SQRTS_PER_BLOCK_FINE = 5
+
+# Fine (m_W, Γ_W) validation: 1D scans of m_W and of Γ_W about the morph
+# nominal (80.379, 2.085), at 0.1-MeV steps to +-1 MeV and 0.2-MeV steps
+# to +-3 MeV. Held-out truth to bound the morph's sub-MeV interpolation
+# bias; run at ~0.005% MC (mode "ultra") so a 0.1-MeV step (~0.019% in σ)
+# is cleanly resolved. The bilinear cross term is negligible at this
+# scale, so 1D scans suffice.
+VALIDATE_FINE_NOMINAL = (80.379, 2.085)
+VALIDATE_FINE_SQRTS   = [159.0, 161.0, 163.0]
+
+
+def fine_offsets_gev():
+    """Offsets about nominal, in GeV: 0.1-MeV steps to +-1 MeV, then
+    0.2-MeV steps to +-3 MeV (41 values, symmetric, 0 included)."""
+    pos = [round(0.1 * i, 1) for i in range(0, 11)]            # 0.0 .. 1.0
+    pos += [round(1.0 + 0.2 * i, 1) for i in range(1, 11)]     # 1.2 .. 3.0
+    offs = sorted(set(pos) | {-p for p in pos})
+    return [round(o / 1000.0, 7) for o in offs]                # MeV -> GeV
+
 
 def sqrts_blocks(values, per_block):
     """Split a list into consecutive chunks of size ``per_block``."""
@@ -216,6 +242,47 @@ def main():
     print(f"Wrote {SCRIPTS_DIR / 'grid_validate.sub'} ({len(validate_jobs)} jobs "
           f"= {len(VALIDATE_MW_VALS)} m_W * {len(VALIDATE_GW_VALS)} Gamma_W "
           f"* {len(val_blocks)} sqrt(s) blocks at {VALIDATE_SQRTS_VALS} GeV; tomorrow queue)")
+
+    # Fine √s grid: 0.1 GeV step in [155, 165], full 9 m_W × 7 Γ_W plane,
+    # mode "fine" (4× highstats MC). nextweek queue — at 4× MC a 5-√s
+    # block runs well inside the 1-week wall-clock cap, so jobs are not
+    # evicted. Writes to grid_fine/.
+    fine_blocks = sqrts_blocks(FINE_SQRTS_VALS, SQRTS_PER_BLOCK_FINE)
+    fine_jobs = []
+    for mw in HIGHSTATS_MW_VALS:
+        for gw in GW_VALS:
+            for b_idx, block in enumerate(fine_blocks):
+                label = f"fine_{mw_label(mw)}_{gw_label(gw)}_b{b_idx}"
+                subdir = f"grid_fine/{mw_label(mw)}_{gw_label(gw)}/b{b_idx}"
+                fine_jobs.append((label, mw, gw, csv(block), "fine", subdir))
+    fine_header = HEADER.format(flavour="nextweek", cpus=4, memory=2048)
+    write_submit(SCRIPTS_DIR / "grid_fine.sub", fine_header, fine_jobs)
+    print(f"Wrote {SCRIPTS_DIR / 'grid_fine.sub'} ({len(fine_jobs)} jobs "
+          f"= {len(HIGHSTATS_MW_VALS)} m_W * {len(GW_VALS)} Gamma_W "
+          f"* {len(fine_blocks)} sqrt(s) blocks @ 0.1 GeV in [155, 165]; "
+          f"nextweek queue; writes to grid_fine/)")
+
+    # Fine (m_W, Γ_W) validation: 1D scans of m_W (Γ_W nominal) and of
+    # Γ_W (m_W nominal), mode "ultra" (~0.005% MC). Index-based subdirs —
+    # a 0.1-MeV m_W step is below the resolution of mw_label. One √s per
+    # job so each stays well inside the nextweek wall-clock cap.
+    mw0, gw0 = VALIDATE_FINE_NOMINAL
+    vf_offsets = fine_offsets_gev()
+    vf_points = [(round(mw0 + o, 7), gw0) for o in vf_offsets]
+    vf_points += [(mw0, round(gw0 + o, 7)) for o in vf_offsets if o != 0.0]
+    vf_jobs = []
+    for idx, (mw, gw) in enumerate(vf_points):
+        for s in VALIDATE_FINE_SQRTS:
+            si = int(round(s * 10))
+            label = f"vf_p{idx:03d}_s{si}"
+            subdir = f"grid_validate_fine/p{idx:03d}/s{si}"
+            vf_jobs.append((label, mw, gw, csv([s]), "ultra", subdir))
+    vf_header = HEADER.format(flavour="nextweek", cpus=4, memory=2048)
+    write_submit(SCRIPTS_DIR / "grid_validate_fine.sub", vf_header, vf_jobs)
+    print(f"Wrote {SCRIPTS_DIR / 'grid_validate_fine.sub'} ({len(vf_jobs)} jobs "
+          f"= {len(vf_points)} (m_W,Gamma_W) 1D-scan points "
+          f"* {len(VALIDATE_FINE_SQRTS)} sqrt(s); nextweek queue; "
+          f"writes to grid_validate_fine/)")
 
 
 if __name__ == "__main__":

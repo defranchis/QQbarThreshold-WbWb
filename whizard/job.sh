@@ -27,7 +27,9 @@ case "$MODE" in
     bfs)       ITER_SPEC='8:200000:"gw",5:1000000'  ;;  # target <0.1% MC stat
     grid)      ITER_SPEC='6:100000:"gw",3:300000'   ;;  # target ~0.05% MC stat
     highstats) ITER_SPEC='6:500000:"gw",5:5000000'  ;;  # target ~0.02% (~20x events); needs workday queue
-    *)         echo "Unknown MODE: $MODE (expected bfs|grid|highstats)" >&2; exit 2 ;;
+    fine)      ITER_SPEC='6:500000:"gw",5:20000000' ;;  # 4x highstats events, target ~0.008%; needs nextweek queue
+    ultra)     ITER_SPEC='6:500000:"gw",5:50000000' ;;  # 10x highstats events, target ~0.005%; fine (m_W,Γ_W) validation
+    *)         echo "Unknown MODE: $MODE (expected bfs|grid|highstats|fine|ultra)" >&2; exit 2 ;;
 esac
 
 # OpenMP threads — match the condor request_cpus = 4 in the submit file.
