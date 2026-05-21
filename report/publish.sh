@@ -26,6 +26,7 @@ if [[ -d "$MORPH_SRC" ]]; then
         [grid_overview]=morph_grid_overview
         [axis_fits]=morph_axis_fits
         [cross_term]=morph_cross_term
+        [sqrts_quantities]=morph_sqrts_quantities
         [sqrts_interpolation]=morph_sqrts_interpolation
         [sqrts_validation]=morph_sqrts_validation
         [4d_morphing_loo]=morph_4d_morphing_loo

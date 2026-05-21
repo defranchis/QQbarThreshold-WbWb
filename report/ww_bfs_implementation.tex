@@ -1047,7 +1047,21 @@ brings it down to the MC bar everywhere.}
 
 \subsection{$\sqrts$ interpolation}\label{sec:morphval-sqrts}
 
-Between grid $\sqrts$ the eight morph quantities are carried by natural cubic splines through the denoised grid. Fig.~\ref{fig:mv-sqrts} contrasts the raw per-$\sqrts$ fit with the denoised curve actually used, Fig.~\ref{fig:mv-sqrtsval} is a blind test on the half-step densify points, and Fig.~\ref{fig:mv-4dloo} the leave-one-out cross-check.
+Between grid $\sqrts$ the eight morph quantities are carried by natural cubic splines through the denoised grid. Fig.~\ref{fig:mv-sqrts-abs} shows the quantities themselves and Fig.~\ref{fig:mv-sqrts} the deviation of the raw per-$\sqrts$ fit from the denoised curve actually used; Fig.~\ref{fig:mv-sqrtsval} is a blind test on the half-step densify points, and Fig.~\ref{fig:mv-4dloo} the leave-one-out cross-check.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\linewidth]{morph_sqrts_quantities}
+\caption{The morph quantities as a function of $\sqrts$ --- absolute
+values. Points are the raw per-$\sqrts$ fit nodes, the line the
+denoised curve the operational morph carries. $\sigma_0$ is the steep
+threshold line shape; $\beta$ is the bilinear cross term, peaking near
+$+0.3\GeV^{-2}$ at the rise; $R_m$ and $R_\Gamma$ are the $m_W$ /
+$\GammaW$ morph factors, shown at $\mp100\MeV$ and $\mp40\MeV$ off
+nominal. Fig.~\ref{fig:mv-sqrts} shows the same quantities as the
+deviation from the denoised curve.}
+\label{fig:mv-sqrts-abs}
+\end{figure}
 
 \begin{figure}[htbp]
 \centering
