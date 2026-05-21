@@ -9,7 +9,14 @@ calculation. Final products:
 ../whizard/work/grid_highstats/grid.csv             # 2331 rows = 37 √s × 9 m_W × 7 Γ_W (~0.016% MC)
 ../whizard/work/grid_highstats_densify/grid.csv     # 756 rows  = 12 √s × 9 m_W × 7 Γ_W (extra 0.25-GeV-step √s)
 ../whizard/work/grid_validate/grid.csv              # 75 rows   = 3 √s × 5 m_W × 5 Γ_W (1-MeV-step held-out test set)
+../whizard/work/grid_fine/grid.csv                  # 6363 rows = 101 √s × 9 m_W × 7 Γ_W (0.1-GeV-step √s in [155,165], ~0.008% MC)
+../whizard/work/grid_validate_fine/grid.csv         # 243 rows  = 81 (m_W,Γ_W) 1D-scan pts × 3 √s (0.1-MeV steps, ~0.005% MC)
 ```
+
+The fit currently anchors on `grid/grid.csv` (the 1295-pt grid, trilinear
+interpolation in `framework/.../whizard_grid.py`). The highstats / densify
+/ fine campaigns feed the morphing scheme (below), which is validated but
+not yet wired into the fit.
 
 `../whizard/` (sibling of `WW_threshold/`) is the install + workspace; the
 scripts here orchestrate everything.
@@ -21,7 +28,7 @@ WW_threshold/whizard/
 ├── install.sh           ← bootstrap WHIZARD 3.1.5 into ../whizard/install/
 ├── job.sh               ← per-job condor wrapper (runs WHIZARD on a worker node)
 ├── submit.py            ← emits all *.sub files (bfs_table, grid, grid_augment, grid_highstats,
-│                          grid_highstats_densify, grid_validate)
+│                          grid_highstats_densify, grid_validate, grid_fine, grid_validate_fine)
 ├── parse.py             ← extracts RESULT lines from each whizard.log → results.csv
 ├── aggregate.py         ← merges results.csv per campaign → grid.csv + provenance.json
 ├── fixup.py             ← grid: emit grid_fixup.sub for any missing (m_W, Γ_W) pairs
@@ -117,6 +124,8 @@ BFS-2007 numbers essentially bit-for-bit.
   * `bfs`:        `8:200000:"gw",5:1000000`  (target ≤ 0.1% MC stat)
   * `grid`:       `6:100000:"gw",3:300000`   (target ≈ 0.05% MC stat)
   * `highstats`:  `6:500000:"gw",5:5000000`  (target ≈ 0.016% MC stat; needs ≥ tomorrow queue)
+  * `fine`:       `6:500000:"gw",5:20000000` (target ≈ 0.008%; 4× highstats; needs nextweek queue)
+  * `ultra`:      `6:500000:"gw",5:50000000` (target ≈ 0.005%; 10× highstats; fine (m_W,Γ_W) validation)
 * **Cores per job** — `request_cpus = 4` in submit files; `OMP_NUM_THREADS=4` in `job.sh`.
 * **WHIZARD version** — pinned in `install.sh` (`VERSION=3.1.5`).
 * **Channel** — `e1, E1 => e2, N2, u, D` in `job.sh` (μνqq specific 4f).
@@ -124,15 +133,22 @@ BFS-2007 numbers essentially bit-for-bit.
 
 ## Downstream — morphing scheme
 
-The highstats / densify / validate campaigns feed the morphing-scheme
-validation under `scripts/investigations/whizard_grid_highstats/`. The
-operational predictor is
+The highstats / densify / fine campaigns feed the morphing scheme under
+`scripts/investigations/whizard_grid_highstats/`; grid_validate and
+grid_validate_fine are its held-out test sets. The predictor is
 
     σ_pred(√s, m_W, Γ_W) = σ_nom(√s) × R_m(√s, m_W) × R_Γ(√s, Γ_W)
                                     × [1 + β(√s)·(m_W−m_W₀)(Γ_W−Γ_W₀)]
 
 with per-√s quadratic m_W and Γ_W morphs + one bilinear cross-term
 coefficient β(s) absorbing the joint coupling at the threshold rise.
-All 8 √s-dependent quantities are cubic-spline-interpolated along √s.
-Reproduces σ at sub-step (m_W, Γ_W, √s) resolutions to ≲ MC-bar
-(~0.05% in the operational √s range, ≪ 1 MeV m_W-bias-equivalent).
+The 8 √s-dependent quantities are cubic-spline-interpolated along √s,
+on a grid first denoised in √s (`denoise_grid`) so MC ripple is not
+propagated. Reproduces σ at sub-step (m_W, Γ_W, √s) resolutions to
+≲ MC-bar (≲ 0.1%, ≪ 1 MeV m_W-bias-equivalent). Construction +
+validation are documented in report Appendix B.
+
+**Not yet wired into the fit** — `framework/.../whizard_grid.py` still
+does trilinear interpolation on `grid/grid.csv`. Plumbing the morph in
+(replacing the trilinear `grid` anchor) is the next step once grid_fine
+lands; see `project_followup_morphing_scheme.md` in the project memory.

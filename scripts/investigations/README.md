@@ -45,17 +45,27 @@ hypotheses tested, none uniformly closes the residual.
 ## `whizard_grid_highstats/` — morphing scheme validation on the highstats grid
 
 Triggered by the highstats-grid campaign (9 m_W × 7 Γ_W × 37 √s @ ~0.016% MC).
-Verdict: per-√s independent quadratic morphs in (m_W, Γ_W) + a single
-bilinear cross-term coefficient β(√s) + cubic-spline of all 8 coefficients
-along √s reproduces σ to MC-bar (~0.05% interior) — sub-MeV m_W-bias-safe.
+Verdict: per-√s quadratic morphs in (m_W, Γ_W) + a single bilinear
+cross-term coefficient β(√s) + cubic-spline of all 8 morph quantities
+along √s — on a grid first denoised in √s — reproduces σ to MC-bar
+(≲ 0.1% interior), sub-MeV m_W-bias-safe. Dissected + documented in
+report Appendix B. NOT yet wired into the fit (the anchor still uses
+trilinear interpolation; see `project_followup_morphing_scheme.md`).
 
 | script | what it does |
 |---|---|
-| `morph.py` | shared primitives: fit_morph_at_sqrts, build_splines, sigma_morph |
+| `morph.py` | shared primitives: denoise_grid, fit_morph_at_sqrts, build_splines, sigma_morph, build_morph_from_grid |
+| `plot_grid_overview.py` | input grid: (m_W, Γ_W) plane + per-point MC precision vs √s |
+| `plot_axis_fits.py` | per-√s quadratic R_m/R_Γ fits dissected — families, residuals, linear/quad/cubic model order |
 | `plot_axes_loo.py` | 1D LOO on m_W and Γ_W axes (input grid quality test) |
+| `plot_cross_term.py` | bilinear β dissected — (m_W, Γ_W) residual heatmaps, β linearity, β(√s) |
+| `plot_sqrts_quantities.py` | morph quantities vs √s, absolute values (raw nodes + denoised curve) |
+| `plot_sqrts_interpolation.py` | morph quantities vs √s, deviation of the raw per-√s fit from the denoised curve |
+| `plot_sqrts_validation.py` | √s-interpolation blind test on the 0.25-GeV-offset densify points |
 | `plot_morphing_scheme.py` | per-√s naive vs bilinear morphing residual (scheme buildup) |
 | `plot_morph_predictions.py` | smooth σ(√s), Azzurri σ_obs, 4D LOO-on-√s validation |
 | `plot_validate_substep.py` | held-out 1-MeV (m_W, Γ_W) plane vs morph (depends on grid_validate/) |
+| `validate_bfs_tables.py` | morph vs BFS arXiv:0707.0773 Tables 1/2 (external closure) |
 
 ## `isr_audit/` — 2-leg ISR vs single-conv, anchor checks, β audits
 
