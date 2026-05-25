@@ -1006,6 +1006,15 @@ denoising removes is already small, and the procedure is largely
 cosmetic; the algorithm is left enabled by default to absorb residual
 fluctuations and keep the recipe identical to the half-density-grid
 configuration used in earlier validations.
+The single scalar $\beta(\sqrts)$ is treated separately: it is not
+part of an anti-correlated coefficient group, so a $\chi^2$-targeted
+weighted \texttt{UnivariateSpline} (the same recipe used on the
+$\sigma/\sigma_0$ ratios) is applied to the per-$\sqrts$ $\beta$
+series directly, with weights derived from the per-$\sqrts$ error
+$1/\sqrt{\sum_k w_k A_k^2}$ propagated from the bilinear LSQ. The
+cubic spline that the morph carries threads the smoothed $\beta$
+nodes, dropping the step-to-step ripple by $\approx$10\,\% beyond
+the upstream denoising without affecting any held-out closure metric.
 
 \subsection{Input grid}\label{sec:morphval-grid}
 
@@ -1068,9 +1077,11 @@ $\mW\!\cdot\!\GammaW$ saddle --- opposite-sign corners --- strongest at
 the threshold rise; the cross term flattens it. Bottom: (left) the
 naive fractional residual is linear in
 $(\mW-\mW^0)(\GammaW-\GammaW^0)$, which validates the bilinear ansatz,
-with slope $\beta$; (middle) the fitted $\beta(\sqrts)$, peaking near
-$+0.29\GeV^{-2}$ at $\sqrts\simeq160.5\GeV$ and decaying to zero away
-from threshold; (right) the maximum residual over the doubly-off-axis
+with slope $\beta$; (middle) the per-$\sqrts$ fitted $\beta(\sqrts)$,
+peaking near $+0.29\GeV^{-2}$ at $\sqrts\simeq160.5\GeV$ and decaying
+to zero away from threshold (the $\chi^2$-smoothed curve actually
+carried by the morph is shown in Fig.~\ref{fig:mv-sqrts-abs}); (right)
+the maximum residual over the doubly-off-axis
 points, naive versus full morph, versus $\sqrts$ --- the cross term
 brings it down to the MC bar everywhere in the analysis window
 (naive max 0.13\,\%, bilinear max 0.08\,\%).}
@@ -1089,11 +1100,12 @@ values. Points are the raw per-$\sqrts$ fit nodes, the line the
 denoised curve the operational morph carries. The orange band marks
 the \texttt{grid\_fine} window (0.1-GeV $\sqrts$ step); outside it the
 0.5-GeV wings are used as spline support. $\sigma_0$ is the steep
-threshold line shape; $\beta$ is the bilinear cross term, peaking near
-$+0.29\GeV^{-2}$ at the rise; $R_m$ and $R_\Gamma$ are the $m_W$ /
-$\GammaW$ morph factors, shown at $\mp100\MeV$ and $\mp40\MeV$ off
-nominal. Fig.~\ref{fig:mv-sqrts} shows the same quantities as the
-deviation from the denoised curve.}
+threshold line shape; $\beta$ is the bilinear cross term, with the
+per-$\sqrts$ fit peaking near $+0.29\GeV^{-2}$ at the rise and the
+$\chi^2$-smoothed curve carried by the morph at $+0.27\GeV^{-2}$;
+$R_m$ and $R_\Gamma$ are the $m_W$ / $\GammaW$ morph factors, shown
+at $\mp100\MeV$ and $\mp40\MeV$ off nominal. Fig.~\ref{fig:mv-sqrts}
+shows the same quantities as the deviation from the denoised curve.}
 \label{fig:mv-sqrts-abs}
 \end{figure}
 
@@ -1110,8 +1122,12 @@ denoising acts as a thin smoothing pass on top of an already-clean
 spline; on the noisier 0.5-GeV wings (orange band excluded) it still
 visibly tightens the curve. \code{denoise_grid} removes the ripple by
 $\chi^2$-smoothing the slowly-varying ratios $\sigma/\sigma_0$ along
-$\sqrts$ and averaging $\sigma_0$ across the $(\mW,\GammaW)$ plane, so
-the morph carries the smooth zero-line curve.}
+$\sqrts$ and averaging $\sigma_0$ across the $(\mW,\GammaW)$ plane,
+so the morph carries the smooth zero-line curve. $\beta$ receives an
+additional $\chi^2$-targeted smoothing along $\sqrts$ (with weights
+$1/\sigma_\beta$ from the per-$\sqrts$ bilinear LSQ); the zero line
+here is therefore the smoothed $\beta$, and the raw nodes scatter
+around it.}
 \label{fig:mv-sqrts}
 \end{figure}
 
@@ -1130,7 +1146,7 @@ would otherwise anchor on. Left: the per-point residual vs $\sqrts$
 $0.037\,\%$ and median $0.007\,\%$. Right: the pull
 $(\sigma_\text{morph}-\sigma_\text{WHIZARD})/
 \delta\sigma_\text{MC}$, centred on zero (no systematic bias); its
-width $\sim$1.24, demonstrating the morph prediction is
+width $\sim$1.25, demonstrating the morph prediction is
 interpolation-limited rather than dominated by propagated node noise.}
 \label{fig:mv-sqrtsval}
 \end{figure}
@@ -1144,7 +1160,7 @@ quantities are refitted from the remaining nodes, and the full
 $(\mW,\GammaW)$ plane is predicted at $\sqrts_i$. Top: per-point
 residuals coloured by axis class. Bottom (log scale): median and
 maximum $|\text{residual}|$ vs $\sqrts$. The interior is MC-bar
-limited (median $0.005\,\%$, max $0.083\,\%$); the spikes at the two
+limited (median $0.005\,\%$, max $0.088\,\%$); the spikes at the two
 extreme $\sqrts$ are LOO extrapolation artifacts --- the operational
 interpolator never leaves the grid. The thinned-grid blind test of
 Fig.~\ref{fig:mv-sqrtsval} is the leak-free companion measure.}

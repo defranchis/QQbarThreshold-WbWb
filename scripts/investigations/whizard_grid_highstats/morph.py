@@ -177,33 +177,66 @@ def fit_morph_at_sqrts(slice_df: pd.DataFrame, *,
     A = sigma_pred_no_cross * dm * dG
     b = off.sigma_fb.values - sigma_pred_no_cross
     w = 1.0 / off.err_fb.values**2
-    beta = np.sum(w * A * b) / np.sum(w * A * A) if np.sum(w * A * A) > 0 else 0.0
+    waa = float(np.sum(w * A * A))
+    if waa > 0:
+        beta = float(np.sum(w * A * b) / waa)
+        beta_err = float(1.0 / np.sqrt(waa))
+    else:
+        beta = 0.0
+        beta_err = float("inf")
 
     return {
         "sigma_nom": sigma_nom,
         "coef_m":    coef_m,
         "coef_g":    coef_g,
         "beta":      beta,
+        "beta_err":  beta_err,
     }
 
 
-def build_splines(sqrts_axis: np.ndarray, morphs: list[dict]) -> dict:
+def build_splines(sqrts_axis: np.ndarray, morphs: list[dict], *,
+                  denoise_beta: bool = True,
+                  beta_chi2_per_dof: float = 1.0) -> dict:
     """Interpolating natural cubic spline of each of the 8 morph numbers
     along √s. Returns a dict keyed by name (sigma_nom, beta,
     coef_m_{0..2}, coef_g_{0..2}); each value is a scipy CubicSpline.
 
-    Interpolation is safe here because the per-√s MC noise is removed
-    upstream by ``denoise_grid`` — the morph numbers fed in are already
-    smooth in √s, so the spline threads clean points without rippling.
-    Smoothing must not be applied to these coefficients directly: the
-    three R_m / R_Γ coefficients are strongly anti-correlated and
-    polyval(coef, ·) is accurate only because their errors cancel, a
-    cancellation interpolation preserves (it commutes with polyval) but
-    independent coefficient smoothing destroys."""
+    Interpolation is safe for σ_nom and the R_m/R_Γ coefficients because
+    the per-√s MC noise is removed upstream by ``denoise_grid`` — those
+    morph numbers are smooth in √s, so the spline threads clean points
+    without rippling. The three R_m / R_Γ coefficients must not be
+    smoothed directly: they are strongly anti-correlated and
+    ``polyval(coef, ·)`` is accurate only because their errors cancel, a
+    cancellation interpolation preserves (it commutes with ``polyval``)
+    but independent coefficient smoothing destroys.
+
+    β is a scalar (not part of an anti-correlated coefficient group), so
+    a χ²-targeted weighted spline can be applied to its per-√s series
+    directly without disturbing the other morph quantities. When
+    ``denoise_beta`` is True (default) and a per-√s ``beta_err`` is
+    available from :func:`fit_morph_at_sqrts`, β is replaced by a
+    weighted ``UnivariateSpline`` evaluated at the same nodes before the
+    cubic spline is built. Set ``beta_chi2_per_dof`` to control the
+    target χ² (=1.0 means the spline is consistent with the β error
+    bars).
+    """
     kw = dict(bc_type="natural", extrapolate=True)
+
+    beta_vals = np.array([m["beta"] for m in morphs], dtype=float)
+    if denoise_beta and all("beta_err" in m and np.isfinite(m["beta_err"])
+                            for m in morphs):
+        beta_err = np.array([m["beta_err"] for m in morphs], dtype=float)
+        # χ²-targeted weighted spline through (sqrts, β) ± beta_err.
+        # Same recipe as ``denoise_grid`` uses on the σ/σ_nom ratios.
+        beta_spl = UnivariateSpline(sqrts_axis, beta_vals, w=1.0 / beta_err,
+                                    s=beta_chi2_per_dof * len(sqrts_axis))
+        beta_smooth = beta_spl(sqrts_axis)
+    else:
+        beta_smooth = beta_vals
+
     spl = {
         "sigma_nom": CubicSpline(sqrts_axis, [m["sigma_nom"] for m in morphs], **kw),
-        "beta":      CubicSpline(sqrts_axis, [m["beta"]      for m in morphs], **kw),
+        "beta":      CubicSpline(sqrts_axis, beta_smooth, **kw),
     }
     cm = np.array([m["coef_m"] for m in morphs])
     cg = np.array([m["coef_g"] for m in morphs])
@@ -253,7 +286,13 @@ def build_morph_from_df(df: pd.DataFrame, *,
     """Same as :func:`build_morph_from_grid` but takes an in-memory frame
     (already restricted to uniform Γ_W). Lets callers assemble custom input
     grids — combined campaigns, thinned LOO subsets — without round-tripping
-    through CSVs."""
+    through CSVs.
+
+    The ``denoise`` toggle controls both the upstream σ-ratio denoising
+    (:func:`denoise_grid`) and the χ²-targeted β-spline smoothing inside
+    :func:`build_splines`, so ``denoise=False`` reproduces the raw
+    per-√s morph faithfully (for raw-vs-denoised diagnostic plots).
+    """
     if denoise:
         df = denoise_grid(df)
     sqrts_grid = np.array(sorted(df.sqrts.unique()))
@@ -264,7 +303,8 @@ def build_morph_from_df(df: pd.DataFrame, *,
             morphs.append(m)
             kept.append(s)
     sqrts_axis = np.array(kept)
-    return sqrts_axis, build_splines(sqrts_axis, morphs), morphs
+    return sqrts_axis, build_splines(sqrts_axis, morphs,
+                                     denoise_beta=denoise), morphs
 
 
 def build_operational_morph(*, denoise: bool = True
