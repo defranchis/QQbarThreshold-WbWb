@@ -18,8 +18,7 @@ This is the morph analogue of validate_bfs_nlo.py:scenario_I_anchor (the
                     WHIZARD-version offset from the morph interpolation
                     error.
 
-  required: grid_highstats/grid.csv
-  optional: grid_highstats_densify/grid.csv  (auto-used if present)
+  morph input: grid_fine + outer 0.5-GeV wings (load_operational_grid)
 """
 
 from __future__ import annotations
@@ -30,7 +29,8 @@ import matplotlib.pyplot as plt
 import mplhep as hep
 import numpy as np
 
-from morph import build_morph_from_grid, load_grid, sigma_morph
+from morph import (build_operational_morph, load_operational_grid,
+                    sigma_morph)
 
 plt.style.use(hep.style.CMS)
 
@@ -38,9 +38,6 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 PLOTS = ROOT / "plots" / "whizard_grid_highstats"
 PLOTS.mkdir(parents=True, exist_ok=True)
-WHIZARD_TOP = ROOT.parent / "whizard"
-HIGHSTATS_CSV = WHIZARD_TOP / "work" / "grid_highstats" / "grid.csv"
-DENSIFY_CSV   = WHIZARD_TOP / "work" / "grid_highstats_densify" / "grid.csv"
 
 # BFS arXiv:0707.0773 Tables 1 & 2 — WHIZARD 4f Born column, specific
 # μ⁻ν̄_μ ud̄ channel, σ in fb. Identical to validate_bfs_nlo.py's
@@ -75,10 +72,10 @@ def grid_lookup(df, sqrts, mW, gammaW):
 
 
 def main():
-    sqrts_axis, splines, _ = build_morph_from_grid(HIGHSTATS_CSV, DENSIFY_CSV)
+    sqrts_axis, splines, _ = build_operational_morph()
     print(f"morph fitted at {len(sqrts_axis)} √s values "
-          f"({'highstats + densify' if DENSIFY_CSV.exists() else 'highstats only'})")
-    df_full = load_grid(HIGHSTATS_CSV)  # unfiltered: keeps the BFS Γ_W columns
+          f"(grid_fine + outer 0.5-GeV wings)")
+    df_full = load_operational_grid()  # unfiltered: keeps the BFS Γ_W columns
 
     grid_sqrts = np.array(sorted(df_full.sqrts.unique()))
     s_fine = np.linspace(grid_sqrts[0], grid_sqrts[-1], 400)

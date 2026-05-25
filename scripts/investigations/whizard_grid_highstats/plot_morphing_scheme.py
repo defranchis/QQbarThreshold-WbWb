@@ -25,7 +25,7 @@ import mplhep as hep
 import numpy as np
 import pandas as pd
 
-from morph import filter_uniform_gw, load_grid, MW0, GW0
+from morph import filter_uniform_gw, load_operational_grid, MW0, GW0
 
 plt.style.use(hep.style.CMS)
 
@@ -33,8 +33,6 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 PLOTS = ROOT / "plots" / "whizard_grid_highstats"
 PLOTS.mkdir(parents=True, exist_ok=True)
-WHIZARD_TOP = ROOT.parent / "whizard"
-HIGHSTATS_CSV = WHIZARD_TOP / "work" / "grid_highstats" / "grid.csv"
 
 SQRTS_PANELS = [156.0, 161.0, 162.5, 167.0]
 
@@ -131,7 +129,7 @@ def plot_scheme(df: pd.DataFrame, *, use_cross: bool, out_png: Path, out_pdf: Pa
 
 
 def main():
-    df = filter_uniform_gw(load_grid(HIGHSTATS_CSV))
+    df = filter_uniform_gw(load_operational_grid())
 
     plot_scheme(df, use_cross=False,
                 out_png=PLOTS / "morphing_naive.png",

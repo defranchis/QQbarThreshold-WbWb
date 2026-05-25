@@ -27,8 +27,8 @@ import matplotlib.pyplot as plt
 import mplhep as hep
 import numpy as np
 
-from morph import (load_grid, filter_uniform_gw, fit_morph_at_sqrts,
-                    MW0, GW0)
+from morph import (load_operational_grid, filter_uniform_gw,
+                    fit_morph_at_sqrts, MW0, GW0)
 
 plt.style.use(hep.style.CMS)
 
@@ -36,9 +36,6 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 PLOTS = ROOT / "plots" / "whizard_grid_highstats"
 PLOTS.mkdir(parents=True, exist_ok=True)
-WHIZARD_TOP = ROOT.parent / "whizard"
-HIGHSTATS_CSV = WHIZARD_TOP / "work" / "grid_highstats" / "grid.csv"
-DENSIFY_CSV   = WHIZARD_TOP / "work" / "grid_highstats_densify" / "grid.csv"
 
 HEATMAP_SQRTS = [157.0, 159.0, 161.0, 163.0, 165.0]   # full analysis range
 LINFIT_SQRTS  = 161.0
@@ -52,11 +49,7 @@ def naive(m, mw, gw):
 
 
 def main():
-    df = filter_uniform_gw(load_grid(HIGHSTATS_CSV))
-    if DENSIFY_CSV.exists():
-        import pandas as pd
-        df = pd.concat([df, filter_uniform_gw(load_grid(DENSIFY_CSV))],
-                       ignore_index=True)
+    df = filter_uniform_gw(load_operational_grid())
     mw_ax = np.array(sorted(df.mW.unique()))
     gw_ax = np.array(sorted(df.gammaW.unique()))
     sqrts = np.array(sorted(df.sqrts.unique()))

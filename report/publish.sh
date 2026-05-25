@@ -31,6 +31,8 @@ if [[ -d "$MORPH_SRC" ]]; then
         [sqrts_validation]=morph_sqrts_validation
         [4d_morphing_loo]=morph_4d_morphing_loo
         [validate_substep]=morph_validate_substep
+        [validate_fine_mW]=morph_validate_fine_mW
+        [validate_fine_gW]=morph_validate_fine_gW
         [validate_bfs_tables]=morph_validate_bfs_tables
         [morph_smooth_sigma_sqrts]=morph_smooth_sigma_sqrts
         [morph_azzurri]=morph_azzurri

@@ -44,12 +44,13 @@ of §3.6.1. Its figures are produced by scripts under
 
 | Appendix figure | Script |
 |---|---|
-| input grid (B.2)                 | `plot_grid_overview.py` |
-| per-√s quadratic fits (B.3)       | `plot_axis_fits.py` |
-| bilinear cross term (B.4)         | `plot_cross_term.py` |
-| √s interpolation of morph quantities (B.5) | `plot_sqrts_interpolation.py` |
-| √s blind test on densify (B.5)    | `plot_sqrts_validation.py` |
-| √s leave-one-out (B.5)            | `plot_morph_predictions.py` |
-| 1-MeV held-out closure (B.6)      | `plot_validate_substep.py` |
-| BFS-table closure (B.6)           | `validate_bfs_tables.py` |
-| line shape + Azzurri (B.7)        | `plot_morph_predictions.py` |
+| input grid (B.2)                          | `plot_grid_overview.py` |
+| per-√s quadratic fits (B.3)               | `plot_axis_fits.py` |
+| bilinear cross term (B.4)                 | `plot_cross_term.py` |
+| √s morph quantities, abs + dev (B.5)      | `plot_sqrts_quantities.py`, `plot_sqrts_interpolation.py` |
+| √s thinned-grid LOO blind test (B.5)      | `plot_sqrts_validation.py` |
+| 4D √s leave-one-out (B.5)                 | `plot_morph_predictions.py` |
+| 1-MeV (m_W,Γ_W) held-out closure (B.6)    | `plot_validate_substep.py` |
+| sub-MeV (m_W,Γ_W) held-out closure (B.6)  | `plot_validate_fine.py` |
+| BFS-table closure (B.6)                   | `validate_bfs_tables.py` |
+| line shape + Azzurri (B.7)                | `plot_morph_predictions.py` |

@@ -4,10 +4,9 @@ campaign). The validation points are NOT used to build the morph — the
 residual here directly bounds the m_W bias the morph would introduce at
 sub-step resolutions.
 
-  required:  grid_highstats/grid.csv
-  optional:  grid_highstats_densify/grid.csv  (auto-used if present)
-  test:      grid_validate/grid.csv           (must exist or script
-                                                prints a no-op message)
+  morph input:  grid_fine + outer 0.5-GeV wings (load_operational_grid)
+  test:         grid_validate/grid.csv         (must exist or script
+                                                 prints a no-op message)
 """
 
 from __future__ import annotations
@@ -18,7 +17,8 @@ import matplotlib.pyplot as plt
 import mplhep as hep
 import numpy as np
 
-from morph import build_morph_from_grid, load_grid, sigma_morph, MW0
+from morph import (build_operational_morph, load_grid, sigma_morph,
+                    GRID_VALIDATE_CSV, MW0)
 
 plt.style.use(hep.style.CMS)
 
@@ -26,24 +26,20 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 PLOTS = ROOT / "plots" / "whizard_grid_highstats"
 PLOTS.mkdir(parents=True, exist_ok=True)
-WHIZARD_TOP = ROOT.parent / "whizard"
-HIGHSTATS_CSV = WHIZARD_TOP / "work" / "grid_highstats" / "grid.csv"
-DENSIFY_CSV   = WHIZARD_TOP / "work" / "grid_highstats_densify" / "grid.csv"
-VALIDATE_CSV  = WHIZARD_TOP / "work" / "grid_validate" / "grid.csv"
 
 
 def main():
-    if not VALIDATE_CSV.exists():
-        print(f"validate grid not found at {VALIDATE_CSV}.")
-        print("Run `python3 whizard/aggregate.py --mode grid_validate --allow-gaps` "
+    if not GRID_VALIDATE_CSV.exists():
+        print(f"validate grid not found at {GRID_VALIDATE_CSV}.")
+        print("Run `python3 whizard/aggregate.py --mode all --allow-gaps` "
               "after the grid_validate cluster jobs land.")
         return
 
-    sqrts_axis, splines, _ = build_morph_from_grid(HIGHSTATS_CSV, DENSIFY_CSV)
+    sqrts_axis, splines, _ = build_operational_morph()
     print(f"morph fitted at {len(sqrts_axis)} √s values "
-          f"({'highstats + densify' if DENSIFY_CSV.exists() else 'highstats only'})")
+          f"(grid_fine + outer 0.5-GeV wings)")
 
-    df_val = load_grid(VALIDATE_CSV)
+    df_val = load_grid(GRID_VALIDATE_CSV)
     print(f"validation set: {len(df_val)} points")
     df_val["sigma_pred"] = [float(sigma_morph(r.sqrts, r.mW, r.gammaW, splines=splines))
                             for r in df_val.itertuples()]

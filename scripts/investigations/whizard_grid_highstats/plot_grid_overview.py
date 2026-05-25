@@ -1,13 +1,13 @@
-"""Overview of the WHIZARD highstats grid the morph is built on.
+"""Overview of the WHIZARD grid the operational morph is built on.
 
 Two panels:
   left   the (m_W, Γ_W) sampling plane — 9 × 7 rectangular grid, with
          the nominal morph point and the two BFS-reference Γ_W columns
          (excluded from the morph fit) marked.
   right  per-point Monte-Carlo relative precision err/σ vs √s at the
-         nominal (m_W, Γ_W), for the highstats and densify campaigns —
-         shows the ~0.016% statistical floor the morph residuals are
-         compared against.
+         nominal (m_W, Γ_W), separating the dense grid_fine campaign
+         (0.1 GeV step in [155, 165], ~0.008 % MC) from the 0.5-GeV
+         outer wings (taken from grid_highstats as spline support).
 """
 
 from __future__ import annotations
@@ -18,7 +18,8 @@ import matplotlib.pyplot as plt
 import mplhep as hep
 import numpy as np
 
-from morph import load_grid, MW0, GW0, GW_UNIFORM
+from morph import (load_grid, GRID_FINE_CSV, GRID_HIGHSTATS_CSV,
+                    MW0, GW0, GW_UNIFORM)
 
 plt.style.use(hep.style.CMS)
 
@@ -26,20 +27,19 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 PLOTS = ROOT / "plots" / "whizard_grid_highstats"
 PLOTS.mkdir(parents=True, exist_ok=True)
-WHIZARD_TOP = ROOT.parent / "whizard"
-HIGHSTATS_CSV = WHIZARD_TOP / "work" / "grid_highstats" / "grid.csv"
-DENSIFY_CSV   = WHIZARD_TOP / "work" / "grid_highstats_densify" / "grid.csv"
 
 
 def main():
-    hs = load_grid(HIGHSTATS_CSV)
-    dn = load_grid(DENSIFY_CSV) if DENSIFY_CSV.exists() else None
+    fine = load_grid(GRID_FINE_CSV)
+    hs   = load_grid(GRID_HIGHSTATS_CSV)
+    fine_sqrts = set(np.round(fine.sqrts.unique(), 4))
+    wings = hs[~np.round(hs.sqrts, 4).isin(fine_sqrts)].copy()
 
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(15, 6))
 
     # --- (m_W, Γ_W) sampling plane --------------------------------------
-    mw = np.array(sorted(hs.mW.unique()))
-    gw = np.array(sorted(hs.gammaW.unique()))
+    mw = np.array(sorted(fine.mW.unique()))
+    gw = np.array(sorted(fine.gammaW.unique()))
     MW, GW = np.meshgrid(mw, gw)
     axL.plot(MW.ravel(), GW.ravel(), "o", ms=7, color="#1f5fa8",
              label=f"grid nodes ({len(mw)}×{len(gw)})")
@@ -59,15 +59,18 @@ def main():
     def nom_slice(df):
         sl = df[np.isclose(df.mW, MW0) & np.isclose(df.gammaW, GW0)]
         return sl.sort_values("sqrts")
-    hs_n = nom_slice(hs)
-    axR.plot(hs_n.sqrts, hs_n.err_fb / hs_n.sigma_fb * 100, "o", ms=6,
-             color="#1f5fa8", label=f"highstats ({hs.sqrts.nunique()} √s @ 0.5 GeV)")
-    if dn is not None:
-        dn_n = nom_slice(dn)
-        axR.plot(dn_n.sqrts, dn_n.err_fb / dn_n.sigma_fb * 100, "s", ms=6,
-                 color="#ff7f0e",
-                 label=f"densify ({dn.sqrts.nunique()} √s @ 0.25 GeV)")
-    axR.axhline(0.016, color="grey", ls=":", lw=1.2, label=r"$\sim$0.016% floor")
+    fine_n = nom_slice(fine)
+    wing_n = nom_slice(wings)
+    axR.plot(fine_n.sqrts, fine_n.err_fb / fine_n.sigma_fb * 100, "o", ms=4,
+             color="#1f5fa8",
+             label=f"grid_fine ({fine.sqrts.nunique()} √s @ 0.1 GeV)")
+    axR.plot(wing_n.sqrts, wing_n.err_fb / wing_n.sigma_fb * 100, "s", ms=6,
+             color="#ff7f0e",
+             label=f"outer wings ({wings.sqrts.nunique()} √s @ 0.5 GeV)")
+    axR.axhline(0.008, color="grey", ls=":", lw=1.2,
+                label=r"$\sim$0.008% (grid_fine floor)")
+    axR.axhline(0.016, color="grey", ls="-.", lw=0.8,
+                label=r"$\sim$0.016% (wings floor)")
     axR.set_xlabel(r"$\sqrt{s}$ [GeV]")
     axR.set_ylabel(r"MC relative precision  $\delta\sigma/\sigma$ [%]")
     axR.set_title(r"MC precision at $(m_W^0,\Gamma_W^0)$", fontsize=13)
@@ -80,10 +83,9 @@ def main():
     out_png = PLOTS / "grid_overview.png"
     fig.savefig(out_pdf, bbox_inches="tight")
     fig.savefig(out_png, dpi=150, bbox_inches="tight")
-    print(f"highstats: {len(hs)} pts, {hs.sqrts.nunique()} √s × "
+    print(f"grid_fine: {len(fine)} pts, {fine.sqrts.nunique()} √s × "
           f"{len(mw)} m_W × {len(gw)} Γ_W")
-    if dn is not None:
-        print(f"densify:   {len(dn)} pts, {dn.sqrts.nunique()} √s")
+    print(f"wings:     {len(wings)} pts, {wings.sqrts.nunique()} √s")
     print(f"wrote {out_pdf}\nwrote {out_png}")
 
 

@@ -55,6 +55,31 @@ def filter_uniform_gw(df: pd.DataFrame) -> pd.DataFrame:
     return df[np.isin(np.round(df.gammaW, 5), GW_UNIFORM)].copy()
 
 
+WHIZARD_WORK = Path(__file__).resolve().parents[4] / "whizard" / "work"
+GRID_FINE_CSV       = WHIZARD_WORK / "grid_fine" / "grid.csv"
+GRID_HIGHSTATS_CSV  = WHIZARD_WORK / "grid_highstats" / "grid.csv"
+GRID_VALIDATE_CSV   = WHIZARD_WORK / "grid_validate" / "grid.csv"
+GRID_VALIDATE_FINE_CSV = WHIZARD_WORK / "grid_validate_fine" / "grid.csv"
+
+
+def load_operational_grid() -> pd.DataFrame:
+    """Return the input grid the operational morph is built on:
+    ``grid_fine`` (0.1-GeV √s in [155, 165] over 9 m_W × 7 Γ_W, ~0.008 % MC)
+    plus the outer 0.5-GeV wings from ``grid_highstats`` (√s ∈ {154, 154.5,
+    165.5, …, 172}) as spline support beyond the fine window.
+
+    The returned frame keeps all 7 Γ_W rows (including the two BFS-reference
+    duplicates) so external closure scripts can compare at those exact
+    values; ``build_morph_from_grid`` calls ``filter_uniform_gw`` internally
+    before fitting, so the BFS-ref rows do not enter the morph fit.
+    """
+    fine = load_grid(GRID_FINE_CSV)
+    hs = load_grid(GRID_HIGHSTATS_CSV)
+    fine_sqrts = set(np.round(fine.sqrts.unique(), 4))
+    wings = hs[~np.round(hs.sqrts, 4).isin(fine_sqrts)].copy()
+    return pd.concat([fine, wings], ignore_index=True)
+
+
 def denoise_grid(df: pd.DataFrame, *, chi2_per_dof: float = 1.0) -> pd.DataFrame:
     """Denoise the grid along √s before the morph fits it — in three
     passes, so that *no* morph input is an interpolating spline through
@@ -220,6 +245,15 @@ def build_morph_from_grid(grid_csv: Path,
     if extra_csv is not None and extra_csv.exists():
         df_extra = filter_uniform_gw(load_grid(extra_csv))
         df = pd.concat([df, df_extra], ignore_index=True)
+    return build_morph_from_df(df, denoise=denoise)
+
+
+def build_morph_from_df(df: pd.DataFrame, *,
+                        denoise: bool = True) -> tuple[np.ndarray, dict, list]:
+    """Same as :func:`build_morph_from_grid` but takes an in-memory frame
+    (already restricted to uniform Γ_W). Lets callers assemble custom input
+    grids — combined campaigns, thinned LOO subsets — without round-tripping
+    through CSVs."""
     if denoise:
         df = denoise_grid(df)
     sqrts_grid = np.array(sorted(df.sqrts.unique()))
@@ -231,3 +265,15 @@ def build_morph_from_grid(grid_csv: Path,
             kept.append(s)
     sqrts_axis = np.array(kept)
     return sqrts_axis, build_splines(sqrts_axis, morphs), morphs
+
+
+def build_operational_morph(*, denoise: bool = True
+                            ) -> tuple[np.ndarray, dict, list]:
+    """One-shot builder for the operational morph: loads the combined
+    grid_fine + 0.5-GeV wings input, restricts to uniform Γ_W, denoises,
+    fits at every √s, returns (sqrts_axis, splines, morphs).
+
+    Single source of truth for the input grid used by every plot script
+    under this directory."""
+    df = filter_uniform_gw(load_operational_grid())
+    return build_morph_from_df(df, denoise=denoise)

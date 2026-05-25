@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import mplhep as hep
 import numpy as np
 
-from morph import build_morph_from_grid, MW0, GW0
+from morph import build_operational_morph, MW0, GW0
 
 plt.style.use(hep.style.CMS)
 
@@ -23,10 +23,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 PLOTS = ROOT / "plots" / "whizard_grid_highstats"
 PLOTS.mkdir(parents=True, exist_ok=True)
-WHIZARD_TOP = ROOT.parent / "whizard"
-HIGHSTATS_CSV = WHIZARD_TOP / "work" / "grid_highstats" / "grid.csv"
-DENSIFY_CSV   = WHIZARD_TOP / "work" / "grid_highstats_densify" / "grid.csv"
-DENSIFY_SPAN = (157.25, 162.75)
+FINE_SPAN = (155.0, 165.0)  # grid_fine √s window (0.1-GeV step)
 
 
 def _R(coef_or_splines, kind, val, ref, s=None):
@@ -40,18 +37,16 @@ def _R(coef_or_splines, kind, val, ref, s=None):
 
 
 def main():
-    ax, raw_spl, raw_m = build_morph_from_grid(HIGHSTATS_CSV, DENSIFY_CSV,
-                                               denoise=False)
-    _,  den_spl, _     = build_morph_from_grid(HIGHSTATS_CSV, DENSIFY_CSV,
-                                               denoise=True)
+    ax, raw_spl, raw_m = build_operational_morph(denoise=False)
+    _,  den_spl, _     = build_operational_morph(denoise=True)
     s_fine = np.linspace(ax[0], ax[-1], 700)
     print(f"{len(ax)} √s nodes, {ax[0]:.1f}–{ax[-1]:.1f} GeV")
 
     fig, axes = plt.subplots(2, 2, figsize=(16, 11))
 
     def finish(a, ylabel, title):
-        a.axvspan(*DENSIFY_SPAN, color="orange", alpha=0.07,
-                  label="densified region")
+        a.axvspan(*FINE_SPAN, color="orange", alpha=0.07,
+                  label="grid_fine (0.1 GeV)")
         a.set_ylabel(ylabel)
         a.set_title(title, fontsize=12)
         a.grid(alpha=0.25)

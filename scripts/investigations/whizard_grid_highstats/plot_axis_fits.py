@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 import mplhep as hep
 import numpy as np
 
-from morph import load_grid, filter_uniform_gw, MW0, GW0
+from morph import load_operational_grid, filter_uniform_gw, MW0, GW0
 
 plt.style.use(hep.style.CMS)
 
@@ -33,9 +33,6 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 PLOTS = ROOT / "plots" / "whizard_grid_highstats"
 PLOTS.mkdir(parents=True, exist_ok=True)
-WHIZARD_TOP = ROOT.parent / "whizard"
-HIGHSTATS_CSV = WHIZARD_TOP / "work" / "grid_highstats" / "grid.csv"
-DENSIFY_CSV   = WHIZARD_TOP / "work" / "grid_highstats_densify" / "grid.csv"
 
 CMAP = mpl.cm.viridis
 
@@ -107,10 +104,7 @@ def fit_row(axes, slices, x0, xlabel, rlabel, orders):
 
 
 def main():
-    df = load_grid(HIGHSTATS_CSV)
-    if DENSIFY_CSV.exists():
-        import pandas as pd
-        df = pd.concat([df, load_grid(DENSIFY_CSV)], ignore_index=True)
+    df = load_operational_grid()
     df_g = filter_uniform_gw(df)
 
     m_slices = axis_slices(df,   "gammaW", GW0, "mW")

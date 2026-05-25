@@ -30,9 +30,10 @@ import mplhep as hep
 import numpy as np
 import pandas as pd
 
-from morph import (build_morph_from_grid, build_splines, denoise_grid,
-                   fit_morph_at_sqrts, filter_uniform_gw, load_grid,
-                   sigma_morph, GW_UNIFORM, GW0, MW0)
+from morph import (build_operational_morph, build_splines, denoise_grid,
+                   fit_morph_at_sqrts, filter_uniform_gw,
+                   load_operational_grid, sigma_morph,
+                   GW_UNIFORM, GW0, MW0)
 
 plt.style.use(hep.style.CMS)
 
@@ -44,9 +45,6 @@ from framework.process.ww.xsec_calculator.eft_xsec import M_W_BFS_REF
 
 PLOTS = ROOT / "plots" / "whizard_grid_highstats"
 PLOTS.mkdir(parents=True, exist_ok=True)
-WHIZARD_TOP = ROOT.parent / "whizard"
-HIGHSTATS_CSV = WHIZARD_TOP / "work" / "grid_highstats" / "grid.csv"
-DENSIFY_CSV   = WHIZARD_TOP / "work" / "grid_highstats_densify" / "grid.csv"
 
 GAMMA_W_LO_REF = gamma_W_LO(M_W_BFS_REF)
 
@@ -218,14 +216,14 @@ def plot_4d_loo(df):
 
 
 def main():
-    sqrts_axis, splines, _ = build_morph_from_grid(HIGHSTATS_CSV, DENSIFY_CSV)
+    sqrts_axis, splines, _ = build_operational_morph()
     print(f"Γ_W^(0)_REF = gamma_W_LO({M_W_BFS_REF}) = {GAMMA_W_LO_REF:.5f} GeV")
     print(f"morph fitted at {len(sqrts_axis)} √s values "
-          f"({'highstats + densify' if DENSIFY_CSV.exists() else 'highstats only'})")
+          f"(grid_fine + outer 0.5-GeV wings)")
 
-    # highstats df (denoised, as the operational morph uses it) for
-    # plot_smooth and plot_4d_loo — independent of the densify campaign
-    df_fit = denoise_grid(filter_uniform_gw(load_grid(HIGHSTATS_CSV)))
+    # Operational input grid (denoised, as the morph uses it) for plot_smooth
+    # and plot_4d_loo.
+    df_fit = denoise_grid(filter_uniform_gw(load_operational_grid()))
     plot_smooth(splines, sqrts_axis, df_fit)
     plot_azzurri(splines, sqrts_axis)
     plot_4d_loo(df_fit)

@@ -31,7 +31,7 @@ import mplhep as hep
 import numpy as np
 import pandas as pd
 
-from morph import filter_uniform_gw, load_grid, MW0, GW0
+from morph import filter_uniform_gw, load_operational_grid, MW0, GW0
 
 plt.style.use(hep.style.CMS)
 
@@ -39,8 +39,6 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]                                      # WW_threshold/
 PLOTS = ROOT / "plots" / "whizard_grid_highstats"
 PLOTS.mkdir(parents=True, exist_ok=True)
-WHIZARD_TOP = ROOT.parent / "whizard"
-HIGHSTATS_CSV = WHIZARD_TOP / "work" / "grid_highstats" / "grid.csv"
 
 SQRTS_SLICES = [156.0, 161.0, 162.5, 167.0]
 
@@ -108,8 +106,8 @@ def plot_loo_axis(df: pd.DataFrame, *, varied: str, fixed_val: float,
 
 
 def main():
-    df = filter_uniform_gw(load_grid(HIGHSTATS_CSV))
-    print(f"highstats: {len(df)} rows, "
+    df = filter_uniform_gw(load_operational_grid())
+    print(f"operational grid: {len(df)} rows, "
           f"{df.mW.nunique()} m_W × {df.gammaW.nunique()} Γ_W × {df.sqrts.nunique()} √s")
 
     plot_loo_axis(df, varied="m_W", fixed_val=GW0, varied_label="m_W",
