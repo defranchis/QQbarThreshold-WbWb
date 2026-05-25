@@ -133,9 +133,12 @@ BFS-2007 numbers essentially bit-for-bit.
 
 ## Downstream — morphing scheme
 
-The highstats / densify / fine campaigns feed the morphing scheme under
-`scripts/investigations/whizard_grid_highstats/`; grid_validate and
-grid_validate_fine are its held-out test sets. The predictor is
+The operational morph under
+`scripts/investigations/whizard_grid_highstats/` is built from
+`grid_fine` plus the 0.5-GeV outer wings of `grid_highstats`
+(supplied as one DataFrame by `morph.load_operational_grid()`).
+`grid_validate` (1-MeV plane) and `grid_validate_fine` (sub-MeV 1D
+scans at ~0.005% MC) are its held-out test sets. The predictor is
 
     σ_pred(√s, m_W, Γ_W) = σ_nom(√s) × R_m(√s, m_W) × R_Γ(√s, Γ_W)
                                     × [1 + β(√s)·(m_W−m_W₀)(Γ_W−Γ_W₀)]
@@ -143,12 +146,16 @@ grid_validate_fine are its held-out test sets. The predictor is
 with per-√s quadratic m_W and Γ_W morphs + one bilinear cross-term
 coefficient β(s) absorbing the joint coupling at the threshold rise.
 The 8 √s-dependent quantities are cubic-spline-interpolated along √s,
-on a grid first denoised in √s (`denoise_grid`) so MC ripple is not
-propagated. Reproduces σ at sub-step (m_W, Γ_W, √s) resolutions to
-≲ MC-bar (≲ 0.1%, ≪ 1 MeV m_W-bias-equivalent). Construction +
-validation are documented in report Appendix B.
+on a grid first denoised in √s (`denoise_grid` — χ²-smoothed σ/σ_nom
+ratios + (m_W,Γ_W)-plane-averaged σ_nom) so MC ripple is not
+propagated. β additionally receives its own χ²-targeted spline pass
+(`UnivariateSpline` weighted by 1/σ_β from the bilinear LSQ) because
+it is a single scalar, not part of the anti-correlated R_m/R_Γ
+coefficient group. Closure on the held-out `grid_validate_fine`
+sub-MeV scans: max 0.020%, median 0.004% — sub-MeV-safe.
+Construction + validation are documented in report Appendix B.
 
 **Not yet wired into the fit** — `framework/.../whizard_grid.py` still
 does trilinear interpolation on `grid/grid.csv`. Plumbing the morph in
-(replacing the trilinear `grid` anchor) is the next step once grid_fine
-lands; see `project_followup_morphing_scheme.md` in the project memory.
+(replacing the trilinear `grid` anchor) is the next step; see
+`project_followup_morphing_scheme.md` in the project memory.
