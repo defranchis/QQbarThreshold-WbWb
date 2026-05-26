@@ -147,49 +147,47 @@ def scenario_E():
 
 
 def scenario_F():
-    """Full NLO chain (HSC + EW-decay + Coul_NLO + δ_QCD) × ISR → BFS Table 4."""
+    """Full NLO chain (HSC + EW-decay + Coul_NLO + δ_QCD) × ISR → BFS Table 4.
+
+    Apples-to-paper toggles:
+      * include_coulomb=False — BFS Table 4 is a fixed-order N^(3/2)LO+NLO
+        expansion: σ^(1)_pot carries the leading-α/v Coulomb piece, and
+        eq.(62) carries the NLO α correction. The Fadin-Khoze-Martin K_C
+        resummation overlaps these → must be off.
+      * apply_whizard_anchor=True — BFS Table 4 caption: col 1 ("Born") is
+        identical to Table 2's last column = Whizard 4f Born. So the
+        apples reference is Whizard, not the EFT N^(3/2)LO sum. The anchor
+        f(δ,Γ_W) brings σ_BFS·f onto Whizard by construction.
+      * apply_delta_QCD = {False for Born(ISR), True for NLO} — BFS §6.1
+        (lines 2622-2635 of wwpaper_v2.tex): δ_QCD is applied to the
+        "entire NLO electroweak cross section" only. The Born(ISR) column
+        is the Whizard reference convoluted with ISR; Whizard already has
+        the QCD-corrected Γ_W in the propagator with LO partial widths at
+        the vertex, so no extra δ_QCD multiplier.
+      * isr_scheme="2leg" — paper uses LL+exp two-leg.
+    """
     print("\n" + "=" * 72)
     print("Scenario F: Full NLO chain vs BFS Table 4 (specific μ⁻ν̄_μ ud̄)")
     print("=" * 72)
     mW, gW = 80.377, 2.09201
-    if True:
-        print("  Without Whizard anchor:")
-        print(f"  {'√s':>6} {'Born[isr]_mine':>15} {'Born[isr]_BFS':>15}"
-              f" {'NLO_mine':>10} {'NLO_BFS':>10}"
-              f" {'mine/BFS NLO':>14}")
-        for sq, (born_paper, born_isr_paper, nlo_paper, _) in BFS_TABLE_4.items():
-            born_isr_mine = sigma_observed_munuqq(
-                float(sq), mW=mW, gammaW=gW, channel="munuud",
-                br_convention="bfs-eft", include_coulomb=False,
-                include_NLO_hard_decay=False, apply_delta_QCD=False,
-                apply_whizard_anchor=False) * 1e3
-            nlo_mine = sigma_observed_munuqq(
-                float(sq), mW=mW, gammaW=gW, channel="munuud",
-                br_convention="bfs-eft", include_coulomb=False,
-                include_NLO_hard_decay=True, apply_delta_QCD=True,
-                alpha_s=0.1199, apply_whizard_anchor=False) * 1e3
-            print(f"  {sq:>6}  {_fmt(born_isr_mine, 12)}    {_fmt(born_isr_paper, 12)}"
-                  f"  {_fmt(nlo_mine, 8)}  {_fmt(nlo_paper, 8)}"
-                  f"  {nlo_mine/nlo_paper:>9.4f}")
-        print()
-        print("  With Whizard anchor f(δ, Γ_W):")
-        print(f"  {'√s':>6} {'Born[isr]_mine':>15} {'Born[isr]_BFS':>15}"
-              f" {'NLO_mine':>10} {'NLO_BFS':>10}"
-              f" {'mine/BFS NLO':>14}")
-        for sq, (born_paper, born_isr_paper, nlo_paper, _) in BFS_TABLE_4.items():
-            born_isr_mine = sigma_observed_munuqq(
-                float(sq), mW=mW, gammaW=gW, channel="munuud",
-                br_convention="bfs-eft", include_coulomb=False,
-                include_NLO_hard_decay=False, apply_delta_QCD=False,
-                apply_whizard_anchor=True) * 1e3
-            nlo_mine = sigma_observed_munuqq(
-                float(sq), mW=mW, gammaW=gW, channel="munuud",
-                br_convention="bfs-eft", include_coulomb=False,
-                include_NLO_hard_decay=True, apply_delta_QCD=True,
-                alpha_s=0.1199, apply_whizard_anchor=True) * 1e3
-            print(f"  {sq:>6}  {_fmt(born_isr_mine, 12)}    {_fmt(born_isr_paper, 12)}"
-                  f"  {_fmt(nlo_mine, 8)}  {_fmt(nlo_paper, 8)}"
-                  f"  {nlo_mine/nlo_paper:>9.4f}")
+    print(f"  {'√s':>6} {'Born[isr]_mine':>15} {'Born[isr]_BFS':>15}"
+          f" {'NLO_mine':>10} {'NLO_BFS':>10}"
+          f" {'mine/BFS NLO':>14}")
+    for sq, (born_paper, born_isr_paper, nlo_paper, _) in BFS_TABLE_4.items():
+        born_isr_mine = sigma_observed_munuqq(
+            float(sq), mW=mW, gammaW=gW, channel="munuud",
+            br_convention="bfs-eft", include_coulomb=False,
+            include_NLO_hard_decay=False, apply_delta_QCD=False,
+            apply_whizard_anchor=True, isr_scheme="2leg") * 1e3
+        nlo_mine = sigma_observed_munuqq(
+            float(sq), mW=mW, gammaW=gW, channel="munuud",
+            br_convention="bfs-eft", include_coulomb=False,
+            include_NLO_hard_decay=True, apply_delta_QCD=True,
+            alpha_s=0.1199, apply_whizard_anchor=True,
+            isr_scheme="2leg") * 1e3
+        print(f"  {sq:>6}  {_fmt(born_isr_mine, 12)}    {_fmt(born_isr_paper, 12)}"
+              f"  {_fmt(nlo_mine, 8)}  {_fmt(nlo_paper, 8)}"
+              f"  {nlo_mine/nlo_paper:>9.4f}")
 
 
 def scenario_G():

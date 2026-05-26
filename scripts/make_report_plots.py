@@ -142,20 +142,29 @@ def plot_bfs_table4():
     mW, gammaW = 80.377, 2.09201
     sqrts = BFSNLO_T4["sqrts_GeV"]
 
-    # Code = sigma_observed_munuqq with the corresponding toggles,
-    # br_convention="bfs-eft" so the BR correction is per-component.
+    # Apples-to-Table-4 settings (see validate_bfs_nlo.py:scenario_F docstring):
+    #   * include_coulomb=False — fixed-order, no K_C resummation (overlaps
+    #     with σ^(1)_pot and eq.62 leading-α);
+    #   * apply_whizard_anchor=True — Table 4 col "Born" = Whizard 4f Born
+    #     (BFS caption: identical to Table 2's last column), reached by
+    #     σ_BFS·f rather than σ_BFS itself;
+    #   * apply_delta_QCD = False (Born) / True (NLO) — BFS §6.1: δ_QCD
+    #     multiplies only the entire NLO electroweak cross section;
+    #   * isr_scheme="2leg" — paper LL+exp two-leg ISR.
     common = dict(
         mW=mW, gammaW=gammaW, channel="munuud",
         br_convention="bfs-eft",
         include_BFS_NNLO=False,                # Table 4 is NLO, no NNLO
-        apply_delta_QCD=False,
-        apply_whizard_anchor=False,
-        isr_scheme="2leg",                     # paper uses the 2-leg form
+        include_coulomb=False,
+        apply_whizard_anchor=True,
+        isr_scheme="2leg",
     )
     born_isr_code = np.asarray(sigma_observed_munuqq(
-        sqrts, include_NLO_hard_decay=False, **common)) * 1e3
+        sqrts, include_NLO_hard_decay=False,
+        apply_delta_QCD=False, **common)) * 1e3
     nlo_code      = np.asarray(sigma_observed_munuqq(
-        sqrts, include_NLO_hard_decay=True,  **common)) * 1e3
+        sqrts, include_NLO_hard_decay=True,
+        apply_delta_QCD=True, alpha_s=0.1199, **common)) * 1e3
 
     fig, ax_t, ax_b = _setup_axes(
         r"BFS NLO Table 4: Born$\otimes$ISR and NLO for $\mu^-\bar\nu_\mu u\bar d$",

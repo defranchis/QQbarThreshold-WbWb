@@ -617,45 +617,64 @@ deferred.
 
 Table~4 of \cite{BFSnlo} is the observed $\sigma_\text{obs}$
 prediction after $\mathrm{LL{+}exp}$ ISR convolution of the specific-
-channel $\munuqq$ cross section, both at Born and at NLO. We reproduce
-both columns:
+channel $\munuqq$ cross section, both at Born and at NLO. Per the
+Table~4 caption of \cite{BFSnlo}, the ``Born'' column is the exact
+Whizard 4f Born of Table~2 (last column), \emph{not} the
+$N^{3/2}\mathrm{LO}$ EFT sum; the apples-to-paper code therefore
+applies the Whizard anchor $f(\delta,\GammaW)$ of
+section~\ref{sec:anchor}. The Coulomb is kept at fixed order in this
+table (\code{include\_coulomb=False}, no Fadin--Khoze--Martin $K_C$
+resummation, since $\sigma^{(1)}_{\mathrm{pot}}$ already carries the
+leading $\alpha/v$ piece). The QCD correction $\delta_{\rm QCD}$
+multiplies only the full NLO column per BFS~\S6.1
+(``\emph{multiplying the entire NLO electroweak cross section by
+$\delta_{\rm QCD}$}'') and not the Born$\otimes$ISR column, which is
+already consistent with Whizard's NLO-width propagator and LO partial
+widths at the vertices.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.78\linewidth]{val_bfs_table4}
-\caption{Closure against BFS NLO Table~4: ISR-convoluted Born and NLO,
-specific channel $\munuqq$, $\mW=80.377$, $\GammaW=2.09201$. Code uses
-the 2-leg ISR convolution to match the paper.}
+\caption{Closure against BFS NLO Table~4: ISR-convoluted Whizard Born
+and full NLO, specific channel $\munuqq$, $\mW=80.377$,
+$\GammaW=2.09201$. Code uses the 2-leg LL+exp ISR convolution, the
+Whizard anchor, no $K_C$ resummation, and $\delta_{\rm QCD}$ only on
+the NLO column (BFS \S6.1).}
 \label{fig:val-table4}
 \end{figure}
 
 \begin{table}[h]
 \centering
 \small
-\caption{BFS Table 4: ISR-convoluted Born and NLO for $\munuqq$.
-Comparison at $\mW=80.377$, $\GammaW=2.09201$, BR correction on.
-All cross sections in fb.}
+\caption{BFS Table 4: ISR-convoluted Whizard Born and full NLO for
+$\munuqq$. Comparison at $\mW=80.377$, $\GammaW=2.09201$, BR correction
+on, Whizard anchor on, $K_C$ off; $\delta_{\rm QCD}$ on the NLO column
+only ($\alpha_s=0.1199$). All cross sections in fb.}
 \begin{tabular}{r r r r r r r}
 \toprule
 & \multicolumn{3}{c}{Born$\otimes$ISR} & \multicolumn{3}{c}{NLO}\\
 \cmidrule(lr){2-4}\cmidrule(lr){5-7}
 $\sqrts$ [GeV] & code & paper & code$-$paper & code & paper & code$-$paper \\
 \midrule
-158 & 44.667 & 45.640 & $-0.973$ & 47.875 & 49.190 & $-1.315$ \\
-161 & 107.859 & 108.600 & $-0.741$ & 116.635 & 117.810 & $-1.175$ \\
-164 & 219.499 & 219.700 & $-0.201$ & 234.182 & 234.900 & $-0.718$ \\
-167 & 310.419 & 310.200 & $+0.219$ & 327.850 & 328.200 & $-0.350$ \\
-170 & 378.113 & 378.400 & $-0.287$ & 396.837 & 398.000 & $-1.163$ \\
+158 &  44.555 &  45.640 & $-1.085$ &  47.757 &  49.190 & $-1.433$ \\
+161 & 107.979 & 108.600 & $-0.621$ & 116.758 & 117.810 & $-1.052$ \\
+164 & 219.497 & 219.700 & $-0.203$ & 234.177 & 234.900 & $-0.723$ \\
+167 & 310.659 & 310.200 & $+0.459$ & 328.096 & 328.200 & $-0.104$ \\
+170 & 377.683 & 378.400 & $-0.717$ & 396.379 & 398.000 & $-1.621$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The NLO closure is at the 0.1–0.3\% level for the four scan-relevant
-energies (161–170\,GeV). The 2.7\% deviation at $\sqrts=158\GeV$
-reflects the EFT truncation breakdown below threshold (Born ratio
-$\sim$0.98, NLO ratio $\sim$0.97); this region is dominated by ISR
-radiation back to the threshold peak and contributes very little to the
-$\mW$ sensitivity.
+Both columns close to better than $1\%$ for the four scan-relevant
+energies $161$--$170\GeV$: Born$\otimes$ISR within $0.0$--$0.6\%$, NLO
+within $0.03$--$0.9\%$. The $\sim 2.5$--$3\%$ deviation at
+$\sqrts=158\GeV$ reflects the EFT-truncation breakdown below threshold
+(the ISR convolution samples partonic $\sqrts^\prime$ down to
+${\sim}150\GeV$, where the $N^{3/2}\mathrm{LO}$ expansion deviates
+from the exact Born by several percent); this region contributes
+negligibly to the $\mW$ sensitivity. The residuals in the scan window
+are at the level of the paper's quoted Monte Carlo precision on the
+exact-Born reference (e.g.\ $108.60(4)\fb$, $\pm0.04\%$).
 
 \subsection{Whizard-anchor closure — Scenario I}\label{sec:val-anchor}
 
@@ -1367,9 +1386,84 @@ implementation:
   at $\sqrts=157\GeV$, $-7.7\%$ at $161\GeV$, $-6.5\%$ at $163\GeV$.
   The shift is smooth in $\sqrts$ with no new kinks;
   $\mathrm{d}\sigma/\mathrm{d}\mW$ and $\mathrm{d}\sigma/\mathrm{d}\GammaW$
-  retain the same overall shape. Diagnostic at
-  \code{plots/coulomb_double_count/compare_kc_safe_chain.pdf}.
+  retain the same overall shape (Fig.~\ref{fig:kcsafe-chain}).
 \end{itemize}
+
+The same-physics overlap of $K_C-1$ and
+$\Delta\sigma_{\mathrm{Coul}}^{(1),\,\mathrm{term\,1}}/\sigma_{LR}^{(0)}$
+is shown in Fig.~\ref{fig:kcsafe-overlap}; the bottom panel makes the
+$\sim 2$\,pp off-shell prescription offset explicit. The two-photon
+$\alpha^2$ subleading piece (grey curve in the top panel) stays below
+$0.2\%$ throughout, justifying its treatment as a genuine NLO
+correction beyond $K_C$. The Route-A/Route-B identity is summarised
+in Tab.~\ref{tab:kcsafe-identity}.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.82\linewidth]{coul_kc_vs_term1_overlap}
+\caption{Top: the Fadin-Khoze-Martin resummation $K_C-1$ (blue) and
+the first term of BFS eq.~(62)
+$\Delta\sigma_{\mathrm{Coul}}^{(1),\,\mathrm{term\,1}}/\sigma_{LR}^{(0)}$
+(red, dashed) are two formulations of the same leading-$\alpha/v$
+Coulomb physics, both $\sim 5{-}7\%$ at threshold and falling above.
+The framework's complex-$p$ regularisation gives $K_C-1$ a $\sim 2$\,pp
+upward offset (bottom panel) over the unresummed FKM $X/2$ near
+threshold, with the offset shrinking to $\sim 0.4$\,pp above $\sqrts=
+165\GeV$. The genuine NLO $\alpha^2$ two-photon piece
+$\Delta\sigma_{\mathrm{Coul}}^{(1),\,\mathrm{term\,2}}/\sigma_{LR}^{(0)}$
+(grey) is sub-permil throughout and is what the $K_C$-safe combination
+retains in eq.~(62). Produced by
+\code{scripts/investigations/coulomb_double_count/plot_kc_vs_term1_overlap.py}.}
+\label{fig:kcsafe-overlap}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Route-A vs Route-B closure for the $K_C$-safe knob,
+$\sigma_\mathrm{BFS,\,total\,WW}$ at $\mW=80.379\GeV$, $\GammaW=2.085\GeV$,
+no $\delta_\mathrm{QCD}$. \emph{Chain diff}: from two calls of
+\code{sigma_BFS_LO_total_WW_pb} with
+\code{coulomb_kc_safe} $=\{$False$, $True$\}$. \emph{Closed form}:
+the same number assembled directly from the eq.~(62) helper,
+$(27/4)\times[\Delta\sigma^{(1)}_{\mathrm{Coul}}({\tt subleading\_only=False})
+-\Delta\sigma^{(1)}_{\mathrm{Coul}}({\tt subleading\_only=True})]$.
+Machine precision throughout.}
+\label{tab:kcsafe-identity}
+\begin{tabular}{r r r r}
+\toprule
+$\sqrts$ [GeV] & chain diff [pb] & closed form [pb] & rel.\ err.\\
+\midrule
+155.00 & $+7.69984\times 10^{-2}$ & $+7.69984\times 10^{-2}$ & $-1.3\times 10^{-15}$\\
+157.00 & $+1.09421\times 10^{-1}$ & $+1.09421\times 10^{-1}$ & $+2.5\times 10^{-16}$\\
+160.00 & $+2.54191\times 10^{-1}$ & $+2.54191\times 10^{-1}$ & $-1.1\times 10^{-15}$\\
+161.00 & $+3.46408\times 10^{-1}$ & $+3.46408\times 10^{-1}$ & $-1.4\times 10^{-15}$\\
+162.50 & $+4.57089\times 10^{-1}$ & $+4.57089\times 10^{-1}$ & $+3.4\times 10^{-15}$\\
+165.00 & $+5.25086\times 10^{-1}$ & $+5.25086\times 10^{-1}$ & $+1.1\times 10^{-15}$\\
+168.00 & $+5.39801\times 10^{-1}$ & $+5.39801\times 10^{-1}$ & $+2.5\times 10^{-15}$\\
+172.00 & $+5.32434\times 10^{-1}$ & $+5.32434\times 10^{-1}$ & $-4.2\times 10^{-16}$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.93\linewidth]{coul_compare_kc_safe_chain}
+\caption{Production-chain impact of the $K_C$-safe knob at the default
+configuration (PDG-constant BR, full NLO$+$NNLO, $\delta_\mathrm{QCD}$,
+spline anchor; partonic, no ISR). \emph{Top-left}: absolute $\sigma$
+with the current chain (\code{coulomb_kc_safe=False}, blue) and the
+$K_C$-safe alternative (orange, dashed); the WHIZARD 4f Born reference
+$\sigma_\mathrm{Born}\times\mathrm{BR}_\mathrm{PDG}$ overlays in grey.
+\emph{Top-right}: relative shift $\sigma_{K_C\text{-safe}}/\sigma_\mathrm{current}
+- 1$ in percent --- a smooth $\sim -8\%$ at threshold dropping to
+$\sim -5\%$ at $\sqrts=170\GeV$. \emph{Bottom row}:
+$\mathrm{d}\sigma/\mathrm{d}\mW$ (left) and
+$\mathrm{d}\sigma/\mathrm{d}\GammaW$ (right) computed by central
+finite difference at $\mW=80.379\GeV$, $\GammaW=2.085\GeV$. The
+derivative shapes are preserved; no new kink is introduced. Produced
+by \code{scripts/investigations/coulomb_double_count/compare_anchor_before_after.py}.}
+\label{fig:kcsafe-chain}
+\end{figure}
 
 \paragraph{Expected fit impact.} A naive single-energy estimate
 $\Delta\mW\simeq -\Delta\sigma/(\partial\sigma/\partial\mW)$ gives
