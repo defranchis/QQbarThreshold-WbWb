@@ -214,7 +214,8 @@ def sigma_WW_partonic(s,
                   apply_delta_QCD: bool = True,
                   alpha_s: float = ALPHA_S_MW_DEFAULT,
                   apply_whizard_anchor: bool = True,
-                  whizard_anchor_source: str = "grid"):
+                  whizard_anchor_source: str = "grid",
+                  coulomb_kc_safe: bool = False):
     """
     Off-shell-convolved σ(e+e- → W+W- → 4f), full off-shell, in pb.
 
@@ -260,6 +261,7 @@ def sigma_WW_partonic(s,
             alpha_s=alpha_s,
             apply_whizard_anchor=apply_whizard_anchor,
             whizard_anchor_source=whizard_anchor_source,
+            coulomb_kc_safe=coulomb_kc_safe,
         )
         # Smooth-floor weight is 1 above 150 GeV, ramps to 0 across [149, 150]
         # to keep σ̂(s) C¹ for the ISR convolution kernel.
@@ -494,9 +496,10 @@ class BFSCorrections:
 
 # Number of specific channels contributing to each named channel. The
 # per-channel σ is built directly from BFS specific-channel formulae
-# (which carry the proper per-component BR correction: squared for
-# σ^(0), σ^(1)_pot, σ^(3/2),a; linear for σ^(1/2), per eq. 83), then
-# scaled by this multiplicity.
+# (which carry the proper per-component BR correction: squared for the
+# potential-region pieces σ^(0), σ^(1)_pot; linear for the hard-region
+# pieces σ^(1/2), σ^(3/2),a, per §6.1 of arXiv:0707.0773), then scaled
+# by this multiplicity.
 #   "inclusive" μν qq̄: 4 = 2 W charges × 2 quark generations (ud̄, cs̄)
 #   "munuud" μ⁻ν̄_μ ud̄: 1 = the BFS-specific channel itself
 _CHANNEL_MULTIPLICITY = {
@@ -521,7 +524,8 @@ def sigma_partonic_munuqq(s,
                           apply_delta_QCD: bool = True,
                           alpha_s: float = ALPHA_S_MW_DEFAULT,
                           apply_whizard_anchor: bool = True,
-                          whizard_anchor_source: str = "grid"):
+                          whizard_anchor_source: str = "grid",
+                          coulomb_kc_safe: bool = False):
     """
     Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
     Returns σ in pb at partonic CM energy² = s (before ISR convolution).
@@ -543,10 +547,12 @@ def sigma_partonic_munuqq(s,
         corrections folded into PDG.
 
       * ``"bfs-eft"`` — BFS section 6.1 / eq. 83 per-component:
-            BR = (channel_mult/27) × (Γ_W^(0)(m_W)/Γ_W)²  for σ^(0), σ^(1)_pot,
-                                                          σ^(3/2),a (two cut props)
-            BR = (channel_mult/27) × (Γ_W^(0)(m_W)/Γ_W)   for σ^(1/2)
-                                                          (one cut prop)
+            BR = (channel_mult/27) × (Γ_W^(0)(m_W)/Γ_W)²  for σ^(0), σ^(1)_pot
+                                                          (potential region,
+                                                          two cut propagators)
+            BR = (channel_mult/27) × (Γ_W^(0)(m_W)/Γ_W)   for σ^(1/2), σ^(3/2),a
+                                                          (hard region, one
+                                                          W in NWA)
         Theory-fixed-partials: partial widths Γ_x^(0)(m_W) are SM-LO predictions
         of m_W only; total Γ_W is the fit parameter; BR shrinks as the partials
         are divided by a (potentially) larger total. d ln BR/dΓ_W = −2/Γ_W
@@ -589,6 +595,7 @@ def sigma_partonic_munuqq(s,
                 alpha_s=alpha_s,
                 apply_whizard_anchor=apply_whizard_anchor,
                 whizard_anchor_source=whizard_anchor_source,
+                coulomb_kc_safe=coulomb_kc_safe,
             )
             sigma_bfs = sigma_specific * _CHANNEL_MULTIPLICITY[channel]
         else:   # pdg-constant: σ_WW_total × BR_PDG (no per-component BR corr)
@@ -603,6 +610,7 @@ def sigma_partonic_munuqq(s,
                 alpha_s=alpha_s,
                 apply_whizard_anchor=apply_whizard_anchor,
                 whizard_anchor_source=whizard_anchor_source,
+                coulomb_kc_safe=coulomb_kc_safe,
             )
             sigma_bfs = sigma_WW_total * BR_pdg
         # Smooth-floor weight kills the hard step at 150 GeV that was

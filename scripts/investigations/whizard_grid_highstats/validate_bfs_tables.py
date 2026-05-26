@@ -4,7 +4,8 @@ The morph is evaluated at the two BFS arXiv:0707.0773 reference points
 and compared against the paper's WHIZARD 4f Born column:
 
   Table 1  m_W = 80.377, Γ_W = 2.04483  (LO width)
-  Table 2  m_W = 80.379, Γ_W = 2.09201  (NLO+QCD width)
+  Table 2  m_W = 80.377, Γ_W = 2.09201  (NLO+QCD width — BFS §6.1 keeps the
+                                          Table 1 pole m_W and only swaps Γ_W)
 
 This is the morph analogue of validate_bfs_nlo.py:scenario_I_anchor (the
 "old anchor" closure). Two things are tested at once:
@@ -50,8 +51,8 @@ BFS_TABLES = {
                   164: 318.30, 167: 428.60, 170: 505.10},
     },
     "Table 2": {
-        "mW": 80.379, "gammaW": 2.09201,
-        "label": r"BFS Table 2 ($m_W=80.379$, $\Gamma_W=2.09201$)",
+        "mW": 80.377, "gammaW": 2.09201,
+        "label": r"BFS Table 2 ($m_W=80.377$, $\Gamma_W=2.09201$)",
         "sigma": {155: 33.58, 158: 61.67, 161: 154.19,
                   164: 303.00, 167: 408.80, 170: 481.70},
     },

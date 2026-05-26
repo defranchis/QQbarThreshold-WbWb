@@ -244,14 +244,15 @@ def _sigma_half_h57_RL(s, mW: float):
 # ----- "spline" source: BFS Tables 1+2 ratios --------------------------------
 # Data taken directly from BFS arXiv:0707.0773:
 #   Table 1 (LO width): m_W = 80.377, Γ_W = Γ_W^(0)(80.377) = 2.04483 GeV
-#   Table 2 (NLO+QCD width): m_W = 80.379, Γ_W = 2.09201 GeV
+#   Table 2 (NLO+QCD width): m_W = 80.377, Γ_W = 2.09201 GeV
 # Both at: M_Z = 91.188, m_t = 174.2, M_H = 115, G_μ = 1.16637e-5.
 #
-# δ = √s − 2 m_W is essentially the same at each √s for Tables 1 and 2 (the
-# 2 MeV m_W difference is negligible compared to the 3 GeV δ spacing). For
-# the spline we use the Table 1 δ values as the abscissa. The BFS Tables
-# use the per-component BR correction (eq. 83), so the spline's "native"
-# denominator is the BR-corrected σ_EFT.
+# Table 2's caption ("as in Table 1, but now the NLO decay width Γ_W is used")
+# keeps the Table 1 pole m_W = 80.377; only Γ_W changes. Section 6.1 of the
+# paper makes this explicit: "replacing Γ_W^(0) by Γ_W wherever it appears".
+# So both tables share the same √s − 2 m_W abscissa. The BFS Tables use the
+# per-component BR correction (eq. 83), so the spline's "native" denominator
+# is the BR-corrected σ_EFT.
 
 _BFS_TABLE_1_SQRTS = [155.0, 158.0, 161.0, 164.0, 167.0, 170.0]
 _BFS_TABLE_1_MW    = 80.377   # BFS Table 1 reference m_W [GeV]
@@ -260,7 +261,7 @@ _BFS_TABLE_1_EFT   = [31.30, 62.50, 160.89, 318.80, 429.70, 505.40]   # fb, EFT 
 _BFS_TABLE_1_WHIZ  = [34.43, 63.39, 160.62, 318.30, 428.60, 505.10]   # fb, Whizard 4f Born
 
 _BFS_TABLE_2_SQRTS = [155.0, 158.0, 161.0, 164.0, 167.0, 170.0]
-_BFS_TABLE_2_MW    = 80.379
+_BFS_TABLE_2_MW    = 80.377  # BFS Table 2 keeps Table 1's pole mass and only changes Γ_W (paper §6.1, eq. mass_width fixes the pole mass).
 _BFS_TABLE_2_GW    = 2.09201
 _BFS_TABLE_2_EFT   = [30.54,  60.83, 154.44, 303.70, 409.30, 481.70]
 _BFS_TABLE_2_WHIZ  = [33.58,  61.67, 154.19, 303.00, 408.80, 481.70]
@@ -520,14 +521,15 @@ def sigma_LR_RL_half_specific_pb(s, mW: float = M_W_DEFAULT,
     """N^{1/2}LO non-resonant pieces, eq. (37) with h1-h3 only (h4-h7 are
     <0.5% per the paper text after eq. (40)).
 
-    Unlike σ^(0), σ^(1)_pot, σ^(3/2),a (whose BR correction is squared
-    because both W's are in cut effective-theory propagators), the
-    four-electron production-decay operator that gives σ^(1/2) has
-    ONE W in narrow-width approximation and the OTHER in the
-    production-decay operator at LO. Paper eq. (83) and surrounding
-    text says we get a single prefactor Γ_partial^(0)/Γ_W rather than
-    a squared one. Hence ``apply_BR_correction`` here uses the linear
-    Γ_W^(0)/Γ_W factor (= √_BR_correction(...)).
+    Unlike the potential-region pieces σ^(0), σ^(1)_pot (whose BR
+    correction is squared because both W's are in cut effective-theory
+    propagators), the four-electron production-decay operator that
+    gives σ^(1/2) has ONE W in narrow-width approximation and the
+    OTHER in the production-decay operator at LO. Paper §6.1 and
+    surrounding text says we get a single prefactor Γ_partial^(0)/Γ_W
+    rather than a squared one. The same hard-region argument applies
+    to σ^(3/2),a (next order in E of the same h1-h3 cut diagrams):
+    see ``sigma_LR_RL_three_half_a_specific_pb`` — also linear.
 
     Returns ``(σ_LR^{1/2}, σ_RL^{1/2})`` in pb, for the specific channel.
     """
@@ -614,6 +616,16 @@ def sigma_LR_RL_three_half_a_specific_pb(s, mW: float = M_W_DEFAULT,
                                          apply_BR_correction: bool = True):
     """Energy-dependent N^{3/2}LO,a, eq. (39).
 
+    σ^{3/2},a is the next-to-leading order in E of the *hard*-region
+    contribution that starts at σ^{1/2} (same h1-h3 cut diagrams, just
+    the next term in the threshold expansion in E). The flavour-specific
+    BR-correction prescription from BFS §6.1 — derived for the hard
+    region — therefore gives a *linear* Γ_W^(0)/Γ_W factor, not the
+    squared one used for the potential-region pieces (σ^{0}, σ^{1}_pot).
+    Closure against BFS Table 2 confirms this: the residual is exactly
+    −2.3 % of σ^{3/2},a everywhere with the squared factor, and matches
+    the (Γ_W^(0)/Γ_W − 1) shift, vanishing with the linear factor.
+
     Returns ``(σ_LR^{3/2,a}, σ_RL^{3/2,a})`` in pb, for the specific channel.
     """
     s_arr = np.asarray(s, dtype=float)
@@ -628,9 +640,9 @@ def sigma_LR_RL_three_half_a_specific_pb(s, mW: float = M_W_DEFAULT,
     sigma_LR_32a = sigma_LR_32a * GEV_M2_TO_PB
     sigma_RL_32a = sigma_RL_32a * GEV_M2_TO_PB
     if apply_BR_correction:
-        c = _BR_correction(mW, gammaW)
-        sigma_LR_32a = sigma_LR_32a * c
-        sigma_RL_32a = sigma_RL_32a * c
+        c_lin = gamma_W_LO(mW) / gammaW   # linear (hard-region piece)
+        sigma_LR_32a = sigma_LR_32a * c_lin
+        sigma_RL_32a = sigma_RL_32a * c_lin
     return sigma_LR_32a, sigma_RL_32a
 
 
@@ -659,9 +671,19 @@ def _accumulate_born_orders(s, mW: float, gammaW: float, order: str,
     return sigma_LR, sigma_RL
 
 
-def _add_nlo_loops_to_LR(sigma_LR, s, mW, gammaW, *, apply_BR_correction):
+def _add_nlo_loops_to_LR(sigma_LR, s, mW, gammaW, *, apply_BR_correction,
+                         coulomb_kc_safe: bool = False):
     """BFS NLO loops (eq. finalcross): HSC + EW decay + Coulomb_NLO. All
     additive to σ_LR; σ_RL has no NLO contribution since LO σ_RL = 0.
+
+    ``coulomb_kc_safe=True`` passes ``subleading_only=True`` to
+    ``delta_sigma_Coulomb_NLO_specific_pb`` — i.e. retains only the NLO
+    two-photon (O(α²)) piece of eq. 62 and drops the N^(1/2)LO one-photon
+    piece (~5% at threshold) that overlaps the leading α/v of the
+    Fadin-Khoze-Martin K_C resummation. Use this when K_C is on
+    (``include_coulomb=True`` in the chain) to avoid the leading-Coulomb
+    double-count. Default ``False`` preserves the historical chain
+    (validated against BFS Table 4 with K_C OFF).
     """
     sigma_LR = sigma_LR + delta_sigma_NLO_hard_softcoll_specific_pb(
         s, mW, gammaW, apply_BR_correction=apply_BR_correction)
@@ -669,7 +691,7 @@ def _add_nlo_loops_to_LR(sigma_LR, s, mW, gammaW, *, apply_BR_correction):
         s, mW, gammaW, apply_BR_correction=apply_BR_correction)
     sigma_LR = sigma_LR + delta_sigma_Coulomb_NLO_specific_pb(
         s, mW, gammaW, apply_BR_correction=apply_BR_correction,
-        subleading_only=False)
+        subleading_only=coulomb_kc_safe)
     return sigma_LR
 
 
@@ -705,7 +727,8 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
                              apply_delta_QCD: bool = False,
                              alpha_s: float = ALPHA_S_MW_DEFAULT,
                              apply_whizard_anchor: bool = False,
-                             whizard_anchor_source: str = "grid"):
+                             whizard_anchor_source: str = "grid",
+                             coulomb_kc_safe: bool = False):
     """Total σ_WW = σ(e+e- → W+W-) at BFS LO_EFT, unpolarised initial state,
     summed over ALL 4-fermion final states.
 
@@ -758,7 +781,8 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
 
     if include_NLO_hard_decay:
         sigma_LR = _add_nlo_loops_to_LR(
-            sigma_LR, s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+            sigma_LR, s, mW, gammaW, apply_BR_correction=apply_BR_correction,
+            coulomb_kc_safe=coulomb_kc_safe)
     if include_BFS_NNLO:
         sigma_LR = _add_nnlo_to_LR(
             sigma_LR, s, mW, gammaW, apply_BR_correction=apply_BR_correction)
@@ -1149,12 +1173,17 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
                                  apply_delta_QCD: bool = False,
                                  alpha_s: float = ALPHA_S_MW_DEFAULT,
                                  apply_whizard_anchor: bool = False,
-                                 whizard_anchor_source: str = "grid"):
+                                 whizard_anchor_source: str = "grid",
+                                 coulomb_kc_safe: bool = False):
     """σ(e+e- → μ⁻ν̄_μ ud̄) at BFS LO_EFT, unpolarised initial state, with
     the BR correction (BFS section 6.1, eq. 83) applied PER COMPONENT:
 
-      * σ^(0), σ^(1)_pot, σ^(3/2),a:  (Γ_W^(0)/Γ_W)²   (two cut propagators)
-      * σ^(1/2):                       Γ_W^(0)/Γ_W      (one cut propagator)
+      * σ^(0), σ^(1)_pot:              (Γ_W^(0)/Γ_W)²   (potential region,
+                                                          two cut propagators)
+      * σ^(1/2), σ^(3/2),a:            Γ_W^(0)/Γ_W      (hard region, one
+                                                          W in NWA; σ^(3/2),a
+                                                          is the next E-order
+                                                          of σ^(1/2))
 
     Returned value is the specific-channel (one quark generation, one W
     charge) unpolarised cross section in pb. Inclusive μν qq̄ (both
@@ -1189,7 +1218,8 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
 
     if include_NLO_hard_decay:
         sigma_LR = _add_nlo_loops_to_LR(
-            sigma_LR, s, mW, gammaW, apply_BR_correction=True)
+            sigma_LR, s, mW, gammaW, apply_BR_correction=True,
+            coulomb_kc_safe=coulomb_kc_safe)
     if include_BFS_NNLO:
         sigma_LR = _add_nnlo_to_LR(
             sigma_LR, s, mW, gammaW, apply_BR_correction=True)
@@ -1264,10 +1294,12 @@ if __name__ == "__main__":
         whizard_fb=TABLE_1["exact_Born_fb"],
         sqrts_GeV=TABLE_1["sqrts_GeV"],
     )
-    # Table 2: paper inputs m_W=80.379, Γ_W^NLO = 2.09201 GeV (NLO + QCD)
-    # → BR correction = (Γ_W^(0)(80.379) / 2.09201)² ≈ 0.955
+    # Table 2: same pole m_W=80.377 as Table 1, only Γ_W changes to the
+    # NLO+QCD width 2.09201 GeV (paper §6.1, eq. mass_width fixes the pole
+    # mass; the Table 2 caption swaps only Γ_W).
+    # → BR correction = (Γ_W^(0)(80.377) / 2.09201)² ≈ 0.955
     _self_test_specific_channel(
-        mW=80.379, gammaW=2.09201, apply_BR_correction=True,
+        mW=80.377, gammaW=2.09201, apply_BR_correction=True,
         label="Table 2 inputs (NLO+QCD width, with BR correction):",
         paper_col_fb=TABLE_2["eft_N32LO_fb"],
         whizard_fb=TABLE_2["exact_Born_fb"],

@@ -104,8 +104,11 @@ def plot_bfs_born_tables():
     # public entry point gives the right Table-1 number for these inputs.
     mine_T1 = sigma_BFS_specific_munuud_pb(
         s, mW=80.377, gammaW=2.04483, order="N3/2LO") * 1e3
+    # Table 2 keeps Table 1's pole m_W (80.377); only Γ_W changes. BFS §6.1
+    # is explicit: "replacing Γ_W^(0) by Γ_W wherever it appears". The
+    # string "80.379" does not appear in the BFS paper.
     mine_T2 = sigma_BFS_specific_munuud_pb(
-        s, mW=80.379, gammaW=2.09201, order="N3/2LO") * 1e3
+        s, mW=80.377, gammaW=2.09201, order="N3/2LO") * 1e3
 
     fig, ax_t, ax_b = _setup_axes(
         r"BFS NLO Tables 1 \& 2: $N^{3/2}\mathrm{LO}_\mathrm{EFT}$ Born for "

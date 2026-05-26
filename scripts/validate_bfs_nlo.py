@@ -43,7 +43,8 @@ BFS_TABLE_1 = {     # √s [GeV] → σ paper N^(3/2)LO [fb]
     155: 31.30, 158: 62.50, 161: 160.89, 164: 318.80,
     167: 429.70, 170: 505.40,
 }
-# Paper Table 2 (NLO+QCD width, with BR correction): m_W = 80.379, Γ_W = 2.09201
+# Paper Table 2 (NLO+QCD width, with BR correction): m_W = 80.377, Γ_W = 2.09201
+# (Table 2 keeps Table 1's pole m_W; only Γ_W changes — BFS §6.1.)
 BFS_TABLE_2 = {
     155: 30.54, 158: 60.83, 161: 154.44, 164: 303.70,
     167: 409.30, 170: 481.70,
@@ -87,7 +88,7 @@ def scenario_B():
     print("Scenario B: BFS Table 2 (NLO+QCD width 2.09201, with BR correction)")
     print("=" * 72)
     print(f"  {'√s':>6} {'mine [fb]':>10} {'BFS [fb]':>10} {'ratio':>8}")
-    mW, gW = 80.379, 2.09201
+    mW, gW = 80.377, 2.09201
     for sq, paper in BFS_TABLE_2.items():
         mine_specific = sigma_BFS_specific_munuud_pb(np.array([sq**2]), mW, gW,
                                                      order="N3/2LO")[0] * 1e3
@@ -234,8 +235,8 @@ def scenario_I_anchor():
         mine_unpol_specific = mine_anchor / 27.0 * 1e3
         print(f"  √s={sq}: mine_anchored = {mine_unpol_specific:.3f} fb, BFS_Whizard = {target:.3f}, ratio = {mine_unpol_specific/target:.5f}")
     print()
-    print("Table 2 reference (m_W=80.379, Γ_W=2.09201, BR corr):")
-    mW2, gW2 = 80.379, 2.09201
+    print("Table 2 reference (m_W=80.377, Γ_W=2.09201, BR corr):")
+    mW2, gW2 = 80.377, 2.09201
     table2_whiz = {155: 33.58, 158: 61.67, 161: 154.19, 164: 303.00, 167: 408.80, 170: 481.70}
     for sq, target in table2_whiz.items():
         mine_anchor = sigma_BFS_specific_munuud_pb(
