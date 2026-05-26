@@ -48,7 +48,12 @@ Validation: 2-leg matches BFS Table 4 σ_obs Born×ISR to <0.5% at 158-170 GeV.
 from __future__ import annotations
 
 import numpy as np
-from scipy.special import gamma as gamma_fn
+from scipy.special import gamma as gamma_fn, spence as _spence
+
+# scipy's spence(z) = ∫_1^z dt log(t)/(1-t). The standard physics dilog
+# Li₂(x) = ∑ x^k/k² (with Li₂(1)=π²/6) equals spence(1-x).
+def _Li2(x):
+    return _spence(1.0 - x)
 
 from framework.process.ww.xsec_calculator.eft_xsec import (
     M_E,
@@ -132,30 +137,25 @@ def H_SV(beta: float) -> float:
 
 
 def H_NS(z, beta: float, one_minus_z=None):
-    """Non-singular subleading piece of the radiator.
-
-    Following LEP2 YR eq. (GeeLLexp) with the α → 2α substitution (BETA
-    scheme) for the equivalent single-convolution form, BFS-consistent
-    LL+exp:
+    """Non-singular subleading piece of the single-convolution radiator
+    (LEP2 YR α → 2α form of Beenakker eq. 67, BETA scheme):
 
         H_NS(z; β) = -(β/2)(1+z)
-                     - (β²/8) [ (1+3z²)/(1-z) ln z
-                                + 4(1+z) ln(1-z)
-                                + 5 + z ]
+                     -(β²/8)  [ (1+3z²)/(1-z) ln z + 4(1+z) ln(1-z) + 5+z ]
+                     -(β³/48) [ (1+z)[6 Li₂(z) + 12 ln²(1-z) - 3π²]
+                                + (3/2)(1+8z+3z²) ln(z)/(1-z) + 6(z+5) ln(1-z)
+                                + 12(1+z²) ln(z) ln(1-z)
+                                - ½(1+7z²) ln²(z) + ¼(39 - 24z - 15z²) ]
 
-    The coefficient 4 on (1+z)ln(1-z) is what comes from the per-leg
-    φ(α, x) BETA-scheme T2 coefficient (-(β²/32)·4·(1+x) ln(1-x))
-    with α → 2α, i.e. β_per-leg = (2α/π)(L-1) → 2β_per-leg in the
-    effective single-convolution → coefficient on (1+z)ln(1-z) is
-    -((2β)²/32)·4 = -β²/2 = -(β²/8)·4. Validated by reproducing BFS
-    Table 4 σ_obs after ISR convolution.
+    Single-conv coefficients are -(4^k k!)⁻¹ (2β)^k from the per-leg eq. 67
+    via β → 2β: β²/8 = (2β)²/32, β³/48 = (2β)³/384. β³ contributes <0.04%
+    to σ at LEP2/FCC-ee energies (Beenakker Table 12) — included for
+    byte-for-byte LL+exp closure.
 
-    H_NS itself diverges logarithmically at z=1 from the -4(1+z) ln(1-z)
-    piece; the convolution remains finite because the integrand kernel
-    u^{1/β−1} × H_NS suppresses the log as u → 0. Numerically we just
-    avoid log(0) by accepting an explicit ``one_minus_z`` argument when
-    available (e.g. from the u-substitution), or by clipping (1−z) to
-    a floor when only ``z`` is provided.
+    H_NS diverges logarithmically at z=1 from the ln(1-z) / ln²(1-z) pieces;
+    the convolution remains finite because the u^{1/β−1} kernel suppresses
+    these as u → 0. Avoid log(0) by accepting an explicit ``one_minus_z`` from
+    the u-substitution, or by clipping (1−z) to a floor when only z is given.
 
     Vectorised in ``z``.
     """
@@ -166,7 +166,19 @@ def H_NS(z, beta: float, one_minus_z=None):
         + 4.0 * (1.0 + z) * log1mz
         + 5.0 + z
     )
-    out = np.where(z > 0.0, NS1 + NS2, 0.0)
+    # See ``_Gee_per_leg_NS`` for the bracket structure (β → 2β gives β³/48).
+    Li2_z = _Li2(z)
+    NS3 = -(beta ** 3 / 48.0) * (
+        (1.0 + z) * (6.0 * Li2_z + 12.0 * log1mz ** 2 - 3.0 * np.pi ** 2)
+        + (
+            1.5 * (1.0 + 8.0 * z + 3.0 * z * z) * logz
+            + 6.0 * (z + 5.0) * one_minus_z * log1mz
+            + 12.0 * (1.0 + z * z) * logz * log1mz
+            - 0.5 * (1.0 + 7.0 * z * z) * logz ** 2
+            + 0.25 * (39.0 - 24.0 * z - 15.0 * z * z)
+        ) / one_minus_z
+    )
+    out = np.where(z > 0.0, NS1 + NS2 + NS3, 0.0)
     if np.ndim(z) == 0:
         return float(out)
     return out
@@ -269,29 +281,52 @@ def sigma_ISR_convolution(sqrt_s,
 # ---------------------------------------------------------------------------
 
 def _Gee_per_leg_NS(x, beta: float, one_minus_x=None):
-    """Non-singular (linear and β² polynomial) piece of the per-leg
-    BETA-scheme radiator, evaluated at x:
+    """Non-singular (O(β) linear, O(β²), O(β³) polynomial) pieces of the
+    per-leg BETA-scheme radiator, evaluated at x. Beenakker hep-ph/9602351
+    eq. (67), BETA choice (β_exp = β_S = β_H = β):
 
-        Γ_ee^NS(x; β) = -(β/4)(1+x)
-                       - (β²/32) [ (1+3x²)/(1-x) ln(x)
-                                   + 4(1+x) ln(1-x) + 5 + x ]
+        Γ_ee^NS(x; β) =
+            -(β/4)(1+x)
+            -(β²/32) [ (1+3x²)/(1-x) ln(x) + 4(1+x) ln(1-x) + 5 + x ]
+            -(β³/384) [ (1+x)[6 Li₂(x) + 12 ln²(1-x) - 3π²]
+                       + (3/2)(1+8x+3x²) ln(x)/(1-x) + 6(x+5) ln(1-x)
+                       + 12(1+x²) ln(x) ln(1-x)
+                       - ½(1+7x²) ln²(x) + ¼(39 - 24x - 15x²) ]
 
-    The (1+x) ln(1-x) coefficient is -β²/8 (= -(β²/32)·4) per-leg,
-    matching the LEP2 YR BETA-scheme normalisation.
+    Coefficients per Beenakker eq. (67) are −1/(4^k k!) on β^k. The β³ piece
+    is "completely negligible" at LEP2/FCC-ee energies per Beenakker Table 12
+    (~0.02% on σ); included here for byte-for-byte LL+exp closure with BFS.
 
     Vectorised in x. Pass ``one_minus_x`` explicitly when 1-x is small
     (avoids 1.0 - 1.0 = 0 cancellation from u-substitution).
     """
     logx, log1mx, one_minus_x, x = _safe_log_pair(x, one_minus_x)
     NS_1 = -(beta / 4.0) * (1.0 + x)
-    # LEP2 YR Beenakker hep-ph/9602351 eq. (67): per-leg β² coefficient is
-    # −1/(4²·2!) β² = −β²/32 on the bracket [...]; in BETA scheme β_H = β.
     NS_2 = -(beta ** 2 / 32.0) * (
         (1.0 + 3.0 * x * x) / one_minus_x * logx
         + 4.0 * (1.0 + x) * log1mx
         + 5.0 + x
     )
-    out = np.where(x > 0.0, NS_1 + NS_2, 0.0)
+    # O(β³) hard term. From the LaTeX source of Beenakker eq. (67), the
+    # outer β³ bracket has structure
+    #     (1+x) · [6 Li₂(x) + 12 ln²(1-x) - 3π²]
+    #     + (1/(1-x)) · [ inner bracket of 5 terms ]
+    # — *all five* of the polynomial/log terms after the 1/(1-x) belong
+    # inside that factor. The 6(x+5)(1-x) ln(1-x) piece carries an explicit
+    # (1-x) that cancels analytically (we simplify). The 39-24x-15x² piece
+    # factors as 3(5x+13)(1-x), so (39-24x-15x²)/(1-x) = 3(5x+13).
+    Li2_x = _Li2(x)
+    NS_3 = -(beta ** 3 / 384.0) * (
+        (1.0 + x) * (6.0 * Li2_x + 12.0 * log1mx ** 2 - 3.0 * np.pi ** 2)
+        + (
+            1.5 * (1.0 + 8.0 * x + 3.0 * x * x) * logx
+            + 6.0 * (x + 5.0) * one_minus_x * log1mx
+            + 12.0 * (1.0 + x * x) * logx * log1mx
+            - 0.5 * (1.0 + 7.0 * x * x) * logx ** 2
+            + 0.25 * (39.0 - 24.0 * x - 15.0 * x * x)
+        ) / one_minus_x
+    )
+    out = np.where(x > 0.0, NS_1 + NS_2 + NS_3, 0.0)
     if np.ndim(x) == 0:
         return float(out)
     return out
@@ -396,6 +431,7 @@ def sigma_observed_munuqq(sqrt_s,
                           include_BFS_NNLO: bool = True,
                           apply_delta_QCD: bool = True,
                           alpha_s: float = ALPHA_S_MW_DEFAULT,
+                          alpha_s_ref: float = ALPHA_S_MW_DEFAULT,
                           alpha_em_isr: float | None = None,
                           apply_whizard_anchor: bool = True,
                           whizard_anchor_source: str = "grid",
@@ -432,6 +468,7 @@ def sigma_observed_munuqq(sqrt_s,
         include_BFS_NNLO=include_BFS_NNLO,
         apply_delta_QCD=apply_delta_QCD,
         alpha_s=alpha_s,
+        alpha_s_ref=alpha_s_ref,
         apply_whizard_anchor=apply_whizard_anchor,
         whizard_anchor_source=whizard_anchor_source,
         coulomb_kc_safe=coulomb_kc_safe,

@@ -98,7 +98,12 @@ def chain_summary_latex(kwargs: dict) -> str:
     if kwargs.get("include_BFS_NNLO", False):
         parts.append("NNLO")
     if kwargs.get("apply_delta_QCD", False):
-        parts.append(r"$\delta_{\rm QCD}$")
+        # For pdg-constant the QCD correction lives in the BR (α_s-aware
+        # BR_PDG × δ_QCD(α_s)/δ_QCD(α_s^ref)); for bfs-eft it multiplies σ.
+        if kwargs.get("br_convention") == "pdg-constant":
+            parts.append(r"$\delta_{\rm QCD}^{\rm (BR)}$")
+        else:
+            parts.append(r"$\delta_{\rm QCD}$")
     if kwargs.get("apply_whizard_anchor", False):
         parts.append("anchor")
     if kwargs.get("include_coulomb", False):
@@ -247,6 +252,7 @@ class WWGenerator:
             "include_NLO_hard_decay": self.include_NLO_hard_decay,
             "include_BFS_NNLO":       self.include_BFS_NNLO,
             "apply_delta_QCD":        self.apply_delta_QCD,
+            "br_convention":          self.br_convention,
             "apply_whizard_anchor":   self.apply_whizard_anchor,
             "whizard_anchor_source":  self.whizard_anchor_source,
             "include_coulomb":        self.include_coulomb,
@@ -282,6 +288,15 @@ class WWGenerator:
             "M_H":             f"{self.M_H:.3f}",
             "anchor_source":   self.whizard_anchor_source,
             "coulomb_kc_safe": str(bool(self.coulomb_kc_safe)),
+            # Where δ_QCD enters the chain. "in_br" = α_s-aware BR_PDG
+            # × δ_QCD(α_s)/δ_QCD(α_s_ref) (pdg-constant); "on_sigma" =
+            # multiplicative on σ per BFS §6.1 (bfs-eft). Old templates
+            # lack this field → freshness check fires on first read.
+            "delta_qcd_routing":
+                ("in_br" if (self.apply_delta_QCD and
+                             self.br_convention == "pdg-constant")
+                 else "on_sigma" if self.apply_delta_QCD
+                 else "off"),
         }
         if self.card is not None:
             # PDG branching-ratio primitives (PDG-constant chain uses BR_INCLUSIVE_MUNUQQ;
@@ -366,6 +381,7 @@ class WWGenerator:
             include_BFS_NNLO=self.include_BFS_NNLO,
             apply_delta_QCD=self.apply_delta_QCD,
             alpha_s=alpha_s_eff,
+            alpha_s_ref=self.alpha_s,
             br_convention=self.br_convention,
             apply_whizard_anchor=self.apply_whizard_anchor,
             whizard_anchor_source=self.whizard_anchor_source,

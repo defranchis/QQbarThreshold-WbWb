@@ -59,14 +59,19 @@ THEORY_INPUTS = {
 # BFS NLO loop corrections — toggle the new physics on/off
 # ---------------------------------------------------------------------------
 # Default: full BFS NLO loops enabled. ``br_convention = "pdg-constant"``
-# uses the PDG-measured BR (≈ 0.143) as a fixed scale factor on σ_WW;
-# ``apply_delta_QCD = True`` then multiplies σ by δ_QCD(α_s) = 1 + α_s/π +
-# 1.409 (α_s/π)² so that α_s is a *physically active* fit parameter — its
-# value shifts σ via the multiplicative QCD enhancement of the hadronic
-# content. The slight ~4 % double-count with the QCD content already folded
-# into the PDG BR is acceptable: it's a constant rescaling of the cross
-# section that the fit absorbs via the luminosity nuisance, while the
-# α_s differential (∂σ/∂α_s) is correctly captured.
+# uses the PDG-measured BR (≈ 0.143) as the decay weight on σ_WW. With
+# ``apply_delta_QCD = True`` the QCD correction enters the BR (where it
+# physically belongs — δ_QCD multiplies Γ_had inside BR(W→qq̄)) via the
+# α_s-aware factor
+#       BR(α_s) = BR_PDG × δ_QCD(α_s) / δ_QCD(α_s_ref)
+# with ``α_s_ref = THEORY_INPUTS["alpha_s_MW"]`` the card-declared nominal.
+# At α_s = α_s_ref the ratio is 1 and BR_PDG is recovered exactly (no
+# double-count at the reference, contra the older σ × δ_QCD × BR_PDG
+# wiring which over-counted by δ_QCD(α_s_PDG) ≈ 1.040 = +4 %). The α_s
+# differential ∂σ/∂α_s is preserved (BFS reference dδ_QCD/dα_s = +0.351).
+#
+# For ``br_convention = "bfs-eft"`` δ_QCD multiplies σ per BFS §6.1
+# (theory-LO partials don't contain it), as before.
 NLO_CONFIG = {
     # ---- Physics knobs -----------------------------------------------------
     # Channel: inclusive μν qq̄ (both W charges × ud̄+cs̄) or μ⁻ν̄_μ ud̄ specific.

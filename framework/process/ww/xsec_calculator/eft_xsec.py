@@ -523,6 +523,7 @@ def sigma_partonic_munuqq(s,
                           include_BFS_NNLO: bool = True,
                           apply_delta_QCD: bool = True,
                           alpha_s: float = ALPHA_S_MW_DEFAULT,
+                          alpha_s_ref: float = ALPHA_S_MW_DEFAULT,
                           apply_whizard_anchor: bool = True,
                           whizard_anchor_source: str = "grid",
                           coulomb_kc_safe: bool = False):
@@ -534,7 +535,8 @@ def sigma_partonic_munuqq(s,
         "inclusive" (default) — μν qq̄, both W charges × (ud̄, cs̄)
         "munuud"              — μ⁻ν̄_μ ud̄ specific
 
-    ``br_convention`` selects how the BR factor depends on (m_W, Γ_W):
+    ``br_convention`` selects how the BR factor depends on (m_W, Γ_W) and
+    where δ_QCD enters when ``apply_delta_QCD=True``:
 
       * ``"pdg-constant"`` (default) — fixed PDG-measured BR product:
             BR_inclusive = 2·BR(W→μν)·BR(W→had) = 0.1433  (≈ ``BR_INCLUSIVE_MUNUQQ``)
@@ -545,6 +547,15 @@ def sigma_partonic_munuqq(s,
         (BR taken from data; Γ_W is the propagator parameter only).
         Differs from the LO theory BR 4/27 ≈ 0.148 by the 3.5 % radiative
         corrections folded into PDG.
+
+        With ``apply_delta_QCD=True`` the QCD correction is applied to the BR
+        (where it physically belongs: δ_QCD multiplies Γ_had inside
+        BR(W→qq̄)) via the α_s-aware factor
+            BR(α_s) = BR_PDG × δ_QCD(α_s) / δ_QCD(α_s_ref)
+        with ``α_s_ref`` the card-declared nominal. At α_s = α_s_ref the
+        ratio is 1 → BR_PDG is recovered exactly (no double-count). The
+        α_s differential ∂σ/∂α_s is preserved. δ_QCD is NOT multiplied onto
+        σ_WW in this convention.
 
       * ``"bfs-eft"`` — BFS section 6.1 / eq. 83 per-component:
             BR = (channel_mult/27) × (Γ_W^(0)(m_W)/Γ_W)²  for σ^(0), σ^(1)_pot
@@ -580,9 +591,18 @@ def sigma_partonic_munuqq(s,
 
     sigma = np.zeros_like(s_arr)
 
+    # Route δ_QCD by convention: for pdg-constant the QCD correction belongs
+    # in the BR (Γ_had ∝ δ_QCD); for bfs-eft it multiplies σ per BFS §6.1.
     if br_convention == "pdg-constant":
         BR_pdg = {"inclusive": BR_INCLUSIVE_MUNUQQ,
                   "munuud":    BR_MUNUUD}[channel]
+        if apply_delta_QCD:
+            from framework.process.ww.xsec_calculator.bfs_eft import delta_QCD_factor
+            BR_pdg = BR_pdg * (delta_QCD_factor(alpha_s)
+                               / delta_QCD_factor(alpha_s_ref))
+        apply_delta_QCD_on_sigma = False
+    else:
+        apply_delta_QCD_on_sigma = apply_delta_QCD
 
     if np.any(use_bfs):
         if br_convention == "bfs-eft":
@@ -591,14 +611,14 @@ def sigma_partonic_munuqq(s,
                 s_arr, mW, gammaW, order="N3/2LO",
                 include_NLO_hard_decay=include_NLO_hard_decay,
                 include_BFS_NNLO=include_BFS_NNLO,
-                apply_delta_QCD=apply_delta_QCD,
+                apply_delta_QCD=apply_delta_QCD_on_sigma,
                 alpha_s=alpha_s,
                 apply_whizard_anchor=apply_whizard_anchor,
                 whizard_anchor_source=whizard_anchor_source,
                 coulomb_kc_safe=coulomb_kc_safe,
             )
             sigma_bfs = sigma_specific * _CHANNEL_MULTIPLICITY[channel]
-        else:   # pdg-constant: σ_WW_total × BR_PDG (no per-component BR corr)
+        else:   # pdg-constant: σ_WW × BR_PDG (BR carries δ_QCD)
             from framework.process.ww.xsec_calculator.bfs_eft import sigma_BFS_LO_total_WW_pb
             sigma_WW_total = sigma_BFS_LO_total_WW_pb(
                 s_arr, mW, gammaW,
@@ -606,7 +626,7 @@ def sigma_partonic_munuqq(s,
                 apply_BR_correction=False,
                 include_NLO_hard_decay=include_NLO_hard_decay,
                 include_BFS_NNLO=include_BFS_NNLO,
-                apply_delta_QCD=apply_delta_QCD,
+                apply_delta_QCD=apply_delta_QCD_on_sigma,
                 alpha_s=alpha_s,
                 apply_whizard_anchor=apply_whizard_anchor,
                 whizard_anchor_source=whizard_anchor_source,
@@ -624,7 +644,16 @@ def sigma_partonic_munuqq(s,
             BR_x = (_CHANNEL_MULTIPLICITY[channel] / 27.0) * (gamma_W_LO(mW) / gammaW) ** 2
         else:
             BR_x = BR_pdg
-        sigma_cal = sigma_WW_partonic(s_arr, mW, gammaW) * BR_x
+        sigma_cal = sigma_WW_partonic(
+            s_arr, mW, gammaW,
+            include_NLO_hard_decay=include_NLO_hard_decay,
+            include_BFS_NNLO=include_BFS_NNLO,
+            apply_delta_QCD=apply_delta_QCD_on_sigma,
+            alpha_s=alpha_s,
+            apply_whizard_anchor=apply_whizard_anchor,
+            whizard_anchor_source=whizard_anchor_source,
+            coulomb_kc_safe=coulomb_kc_safe,
+        ) * BR_x
         sigma = np.where(use_cal, sigma_cal, sigma)
 
     if include_coulomb:

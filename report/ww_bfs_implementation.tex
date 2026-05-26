@@ -573,29 +573,76 @@ $\propto E$ to $-0.06\,\%$ at $170\GeV$. The linear factor closes both
 the $\sim 0.9\,\%$ sub-threshold tail and the $\propto E$
 above-threshold slope simultaneously.
 
-\subsection{NLO loop magnitudes — Scenarios C, D, E}
+\subsection{NLO loop magnitudes — Scenarios C, D, E, H, K}
 \label{sec:val-loops}
 
-\paragraph{Script.} \code{python scripts/validate_bfs_nlo.py}, Scenarios C, D, E.
+\paragraph{Script.} \code{python scripts/validate_bfs_nlo.py}, Scenarios C, D, E, H, K.
 
-\paragraph{Scenario C — NLO Coulomb eq.~(62).} At $\sqrts=2\mW=160.754$\,GeV:
-$\Delta\sigma_\mathrm{Coul}^{(1)}/\sigma_\mathrm{LR}^{(0)}=+5.39\%$, in line
-with the BFS-text estimate of $\sim\!+5\%$. The two-photon subleading
-piece is $+0.18\%$ (BFS: $\sim\!+0.2\%$).
+Each NLO loop piece is checked individually against the magnitude
+quoted in \cite{BFSnlo}: the Coulomb correction
+$\Delta\sigma_\mathrm{Coul}^{(1)}$ of eq.~(62) ${\sim}{+}5\%$ of
+$\sigma_\mathrm{LR}^{(0)}$ at threshold (one-photon, ``leading'')
+plus ${\sim}{+}0.2\%$ subleading (two-photon), and the
+hard${+}$soft${+}$collinear bracket of eq.~(56) ${\sim}1{-}2\%$ across
+the scan window. Table~\ref{tab:val-nlo-pieces} tabulates the
+implementation at the six BFS scan energies (Scenario~K), in fb and
+as a fraction of the LO bound-state cross section
+$\sigma_\mathrm{LR}^{(0)}$.
 
-\paragraph{Scenario D — HSC bracket.} The energy-dependent HSC term is
-$-2.1\%$ to $-1.6\%$ of $\sigma_\mathrm{LR}^{(0)}$ across the
-$\sqrts\in[158,170]\GeV$ grid, consistent with the BFS qualitative
-statement of $\sim$1–2\% NLO suppression after pole cancellation.
+\begin{table}[h]
+\centering
+\small
+\caption{Partonic NLO loop contributions at BFS Table~4 inputs
+($\mW=80.377$, $\GammaW=2.09201$, channel $\munuqq$, BR correction on,
+no ISR, no $\delta_\mathrm{QCD}$). Absolute $\Delta\sigma$ in fb;
+percentages relative to $\sigma_\mathrm{LR}^{(0)}$ in parentheses.
+$\Sigma$-NLO is the sum HSC${+}$decay${+}$Coul$^{(1)}$. The
+subleading two-photon Coulomb piece is the second term of eq.~(62)
+and is included in Coul$^{(1)}$.}
+\label{tab:val-nlo-pieces}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{r r r r r r r}
+\toprule
+$\sqrts$ & $\sigma_\mathrm{LR}^{(0)}$
+ & $\Delta\sigma_\mathrm{HSC}$
+ & $\Delta\sigma_\mathrm{decay}$
+ & $\Delta\sigma_\mathrm{Coul}^{(1)}$
+ & $\Delta\sigma_\mathrm{Coul,sub}^{(1)}$
+ & $\Sigma$-NLO \\
+$[\mathrm{GeV}]$ & $[\mathrm{fb}]$ & $[\mathrm{fb}]$ & $[\mathrm{fb}]$
+ & $[\mathrm{fb}]$ & $[\mathrm{fb}]$ & $[\mathrm{fb}]$ \\
+\midrule
+158 &  528.3 & $-8.61\ (-1.63\%)$ & $-3.76\ (-0.71\%)$ & $+20.19\ (+3.82\%)$ & $+0.58\ (+0.11\%)$ & $+7.82\ (+1.48\%)$ \\
+161 &  929.8 & $-19.30\ (-2.08\%)$ & $-6.62\ (-0.71\%)$ & $+50.75\ (+5.46\%)$ & $+1.67\ (+0.18\%)$ & $+24.83\ (+2.67\%)$ \\
+164 & 1557.6 & $-33.37\ (-2.14\%)$ & $-11.09\ (-0.71\%)$ & $+73.52\ (+4.72\%)$ & $+1.53\ (+0.10\%)$ & $+29.06\ (+1.87\%)$ \\
+167 & 2018.4 & $-40.93\ (-2.03\%)$ & $-14.37\ (-0.71\%)$ & $+77.33\ (+3.83\%)$ & $+1.16\ (+0.06\%)$ & $+22.02\ (+1.09\%)$ \\
+170 & 2352.8 & $-45.10\ (-1.92\%)$ & $-16.75\ (-0.71\%)$ & $+77.07\ (+3.27\%)$ & $+0.94\ (+0.04\%)$ & $+15.22\ (+0.65\%)$ \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\paragraph{Scenario E — $\delta_\text{QCD}(\alpha_s)$ values.}
+\paragraph{Per-piece BFS cross-check.} At $\sqrts=2\mW=160.754\GeV$
+the leading one-photon Coulomb piece evaluates to ${+}5.39\%$ of
+$\sigma_\mathrm{LR}^{(0)}$ in the code (Scenario~C, BFS text
+${\sim}{+}5\%$); the subleading two-photon piece evaluates to
+${+}0.18\%$ (BFS ${\sim}{+}0.2\%$). The HSC bracket runs from
+${-}1.63\%$ to ${-}2.14\%$ across $\sqrts\in[158,170]\GeV$
+(Scenario~D, BFS qualitative ${\sim}1{-}2\%$). The decay correction
+$\Delta\sigma_\mathrm{decay}/\sigma_\mathrm{LR}^{(0)}$ prints a
+constant ${-}0.71\%$: it is the energy-independent flavour-specific
+combination $\Gamma^{(1,ew)}_{\mu\bar\nu}/\Gamma_{\mu\bar\nu}^{(0)}+
+\Gamma_{u\bar d}^{(1,ew)}/\Gamma_{u\bar d}^{(0)}$ of
+eq.~(eq:delta-decay), and its constancy across $\sqrts$ is itself a
+check on the implementation.
+
+\paragraph{Scenario E — $\delta_\mathrm{QCD}(\alpha_s)$ values.}
 \begin{tabular}{l l}
-$\alpha_s = 0.1100$ (low)   & $\delta_\text{QCD} = 1.03674$ \\
-$\alpha_s = 0.1199$ (BFS ref) & $\delta_\text{QCD} = 1.04022$ \\
-$\alpha_s = 0.1300$ (high)  & $\delta_\text{QCD} = 1.04379$ \\
+$\alpha_s = 0.1100$ (low)   & $\delta_\mathrm{QCD} = 1.03674$ \\
+$\alpha_s = 0.1199$ (BFS ref) & $\delta_\mathrm{QCD} = 1.04022$ \\
+$\alpha_s = 0.1300$ (high)  & $\delta_\mathrm{QCD} = 1.04379$ \\
 \end{tabular}
 
-\noindent The differential is $\partial\delta_\text{QCD}/\partial\alpha_s
+\noindent The differential is $\partial\delta_\mathrm{QCD}/\partial\alpha_s
 \approx +0.351$ at the reference: a 1\% shift in $\alpha_s$ moves
 $\sigma$ by $\sim$0.1\%, comfortably below the $\sim$0.05\%/MeV target
 on $\mathrm{d}\sigma/\mathrm{d}\mW$.
@@ -609,6 +656,18 @@ $\mathrm{d}\sigma/\mathrm{d}\mW$ precision target. Treating
 $c_{p,\mathrm{LR}}^{(1,\mathrm{fin})}=-10.076$ as a constant is fully
 justified for the analysis; the full PV-$C_0$ implementation is
 deferred.
+
+\paragraph{Limit of this validation.} Each NLO loop piece is validated
+against BFS's individually quoted estimate, but the partonic
+\emph{sum} (column $\Sigma$-NLO of Table~\ref{tab:val-nlo-pieces}) is
+not cross-checked against an external reference: \cite{BFSnlo}
+publishes only ISR-convoluted sums (Table~4 of \cite{BFSnlo},
+reproduced in section~\ref{sec:val-table4}; the Denner-comparison
+Tables~5/6 use different inputs and a different ISR prescription).
+The partonic-sum closure would require either a Denner-prescription
+reproduction in the code or a cross-check against an independent
+NLO 4-fermion generator (Recola${+}$MoCaNLO, MCFM~4f); both are
+followup items.
 
 \subsection{Born + ISR + NLO vs.\ BFS NLO Table 4}
 \label{sec:val-table4}
