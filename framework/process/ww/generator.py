@@ -72,6 +72,7 @@ def partonic_kwargs_from_card(card) -> dict:
         alpha_s=float(theory.get("alpha_s_MW", ALPHA_S_MW_DEFAULT)),
         apply_whizard_anchor=bool(nlo.get("apply_whizard_anchor", True)),
         whizard_anchor_source=str(nlo.get("whizard_anchor_source", "grid")),
+        coulomb_kc_safe=bool(nlo.get("coulomb_kc_safe", False)),
     )
 
 
@@ -90,7 +91,10 @@ def chain_summary_latex(kwargs: dict) -> str:
     """
     parts = [r"BFS N$^{3/2}$LO"]
     if kwargs.get("include_NLO_hard_decay", False):
-        parts.append("NLO")
+        nlo_label = "NLO"
+        if kwargs.get("coulomb_kc_safe", False):
+            nlo_label = r"NLO ($K_{\rm C}$-safe Coul.)"
+        parts.append(nlo_label)
     if kwargs.get("include_BFS_NNLO", False):
         parts.append("NNLO")
     if kwargs.get("apply_delta_QCD", False):
@@ -173,6 +177,14 @@ class WWGenerator:
                  # fictitious m_W-dep in the ISR kernel). Pass an explicit float
                  # to override (e.g. for a scheme-variation systematic).
                  alpha_em_isr: float | None = None,
+                 # Coulomb K_C-safe combination — when True, the BFS NLO
+                 # Coulomb (eq. 62 of arXiv:0707.0773) is added with
+                 # ``subleading_only=True`` (NLO two-photon ~0.2% piece only),
+                 # avoiding the leading α/v double-count with the K_C
+                 # resummation. Defaults to False (current production chain,
+                 # validated against BFS Table 4 with K_C OFF — see
+                 # ``project_followup_deep_audit_2026-05-20``).
+                 coulomb_kc_safe: bool = False,
                  # Theory inputs that ENTER c_p,LR^(1,fin) (BFS reference values
                  # — currently treated as constants in the hardcoded c_fin =
                  # -10.076; recorded here so a future update can propagate
@@ -198,6 +210,7 @@ class WWGenerator:
         self.whizard_anchor_source = whizard_anchor_source
         self.isr_scheme = isr_scheme
         self.alpha_em_isr = alpha_em_isr
+        self.coulomb_kc_safe = coulomb_kc_safe
         self.m_t = m_t
         self.M_H = M_H
         self.card = card
@@ -237,6 +250,7 @@ class WWGenerator:
             "apply_whizard_anchor":   self.apply_whizard_anchor,
             "whizard_anchor_source":  self.whizard_anchor_source,
             "include_coulomb":        self.include_coulomb,
+            "coulomb_kc_safe":        self.coulomb_kc_safe,
             "isr_scheme":             self.isr_scheme,
         }
 
@@ -255,18 +269,19 @@ class WWGenerator:
         integrity check that catches "I edited the card but forgot to
         regenerate templates" mistakes."""
         fp = {
-            "chain":          self.chain_label(),
-            "channel":        self.channel,
-            "br_convention":  self.br_convention,
-            "alpha_s":        f"{self.alpha_s:.5f}",
-            "alpha_em_isr":   ("auto" if self.alpha_em_isr is None
+            "chain":           self.chain_label(),
+            "channel":         self.channel,
+            "br_convention":   self.br_convention,
+            "alpha_s":         f"{self.alpha_s:.5f}",
+            "alpha_em_isr":    ("auto" if self.alpha_em_isr is None
                                 else f"{self.alpha_em_isr:.6f}"),
-            "isr_scheme":     self.isr_scheme,
-            "n_quad":         str(self.n_quad),
-            "z_min":          f"{self.z_min:.4f}",
-            "m_t":            f"{self.m_t:.3f}",
-            "M_H":            f"{self.M_H:.3f}",
-            "anchor_source":  self.whizard_anchor_source,
+            "isr_scheme":      self.isr_scheme,
+            "n_quad":          str(self.n_quad),
+            "z_min":           f"{self.z_min:.4f}",
+            "m_t":             f"{self.m_t:.3f}",
+            "M_H":             f"{self.M_H:.3f}",
+            "anchor_source":   self.whizard_anchor_source,
+            "coulomb_kc_safe": str(bool(self.coulomb_kc_safe)),
         }
         if self.card is not None:
             # PDG branching-ratio primitives (PDG-constant chain uses BR_INCLUSIVE_MUNUQQ;
@@ -288,6 +303,7 @@ class WWGenerator:
             f"WWGenerator order={self.order} channel={self.channel}  "
             f"BR={self.br_convention}  "
             f"NLO_loops={self.include_NLO_hard_decay} "
+            f"(K_C-safe Coul={self.coulomb_kc_safe})  "
             f"NNLO={self.include_BFS_NNLO}  "
             f"δ_QCD={self.apply_delta_QCD} (α_s={self.alpha_s})  "
             f"anchor={self.apply_whizard_anchor}[{self.whizard_anchor_source}]  "
@@ -355,6 +371,7 @@ class WWGenerator:
             whizard_anchor_source=self.whizard_anchor_source,
             isr_scheme=self.isr_scheme,
             alpha_em_isr=self.alpha_em_isr,
+            coulomb_kc_safe=self.coulomb_kc_safe,
         )
 
         os.makedirs(outdir, exist_ok=True)

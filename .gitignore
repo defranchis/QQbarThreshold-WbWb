@@ -5,6 +5,8 @@ zz_old/*
 # AFS-specific, not portable to other collaborators).
 .claude/settings.json
 output_xsec/ww
+output_xsec/ww_*
+output_xsec/ww.bak_*
 output_xsec/wbwb
 fit_output
 archive

@@ -73,10 +73,43 @@ NLO_CONFIG = {
     "channel":                "inclusive",     # 'inclusive' | 'munuud'
     # Branching-ratio convention.
     "br_convention":          "pdg-constant",  # 'pdg-constant' | 'bfs-eft'
-    # Fadin-Khoze-Martin Coulomb K-factor resummation (leading α/v + α² piece).
-    "include_coulomb":        True,
+    # Fadin-Khoze-Martin Coulomb K-factor (Phys. Lett. B 311 (1993) 311 +
+    # hep-ph/9507422). LEP-era closed-form Coulomb resummation factor. NOT
+    # used by BFS, who treat the Coulomb correction via an α-expansion of
+    # the all-order Coulomb Green function (arXiv:0707.0773 eq. 61-62 and
+    # arXiv:0807.0102 eq. 9) and explicitly justify NOT resumming the
+    # two-photon piece (BFS lines 1722-1725: "a few permille").
+    #
+    # Default flipped 2026-05-26 from True → False after a literature audit
+    # (see project_followup_kc_dropped_2026-05-26 in memory). Reasons:
+    #   (1) K_C overlaps with BFS eq.(62) term 1 at the ~5% level on σ at
+    #       threshold (the leading-α/v Coulomb piece is the same physics
+    #       in two formulations); multiplying both double-counts.
+    #   (2) The Beneke / Hoang school never uses a multiplicative K_C × σ
+    #       structure — they use the Coulomb Green function with additive
+    #       insertions. Our framework's K_C is a 1993-vintage engineering
+    #       shortcut that was bolted on before the BFS chain was assembled.
+    #   (3) Scenario F of validate_bfs_nlo.py (BFS Table 4 closure) and the
+    #       plot_bfs_table4 figure both call this with include_coulomb=False
+    #       — the production chain now matches that apples-to-paper choice.
+    #
+    # Trade-off: the BFS-validated K_C-off chain loses the ~0.2% two-photon
+    # piece that K_C would have added. BFS themselves accept this — see
+    # their argument above. Grade B (a full G_C-based refactor) would
+    # restore the resummation rigorously; planning lives in memory
+    # ([[project-grade-b-gc-refactor-plan]]).
+    "include_coulomb":        False,
     # BFS NLO loop chain (HSC + Coulomb_NLO + EW decay correction).
     "include_NLO_hard_decay": True,
+    # K_C-safe Coulomb: when True (and include_coulomb=True), the BFS NLO
+    # Coulomb (eq. 62 of arXiv:0707.0773) is added with the
+    # ``subleading_only=True`` flag (NLO two-photon ~0.2% piece only),
+    # dropping the N^(1/2)LO one-photon piece (~5% at threshold) that
+    # otherwise double-counts the leading α/v of K_C. Documented in
+    # report Appendix C. Vestigial under the K_C-off default — flip
+    # include_coulomb=True together with this flag to recover the
+    # K_C-safe hybrid combination for diagnostic comparison.
+    "coulomb_kc_safe":        False,
     # BFS dominant NNLO (arXiv:0807.0102 eq. 49) — C×[S+H] + NLO-C +
     # C×decay + C×res + C3. All five pieces are closed-form analytic;
     # validated to 4 digits vs Table 1 of the paper. Combined NNLO is

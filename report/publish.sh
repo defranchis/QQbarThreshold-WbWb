@@ -49,6 +49,29 @@ else
     echo "[publish] WARN: $MORPH_SRC not found — morphing figs may be stale"
 fi
 
+# Coulomb-double-count appendix figures: produced by the scripts under
+# scripts/investigations/coulomb_double_count/, output dropped in
+# plots/coulomb_double_count/ (gitignored). Mirror into figs/ with the
+# `coul_` prefix.
+COUL_SRC="../plots/coulomb_double_count"
+if [[ -d "$COUL_SRC" ]]; then
+    mkdir -p figs
+    declare -A COUL_FIGS=(
+        [kc_vs_term1_overlap]=coul_kc_vs_term1_overlap
+        [compare_kc_safe_chain]=coul_compare_kc_safe_chain
+    )
+    for src in "${!COUL_FIGS[@]}"; do
+        dst=${COUL_FIGS[$src]}
+        if [[ -f "$COUL_SRC/$src.pdf" ]]; then
+            cp -p "$COUL_SRC/$src.pdf" "figs/$dst.pdf"
+        else
+            echo "[publish] WARN: $COUL_SRC/$src.pdf missing"
+        fi
+    done
+else
+    echo "[publish] WARN: $COUL_SRC not found — Coulomb figs may be stale"
+fi
+
 # Build twice so references resolve.
 echo "[publish] building $TEX.pdf"
 pdflatex -interaction=nonstopmode -halt-on-error "$TEX.tex" >/dev/null
