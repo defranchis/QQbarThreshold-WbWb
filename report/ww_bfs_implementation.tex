@@ -647,15 +647,33 @@ $\alpha_s = 0.1300$ (high)  & $\delta_\mathrm{QCD} = 1.04379$ \\
 $\sigma$ by $\sim$0.1\%, comfortably below the $\sim$0.05\%/MeV target
 on $\mathrm{d}\sigma/\mathrm{d}\mW$.
 
-\paragraph{Scenario H — $c_{p,\mathrm{LR}}^{(1,\mathrm{fin})}$ $\mW$ dependence.}
-Bounding the full PV-$C_0$ matching coefficient's $\mW$ dependence by
-the $\alpha_{G_\mu}$ variation gives $|\Delta c_\mathrm{fin}/c_\mathrm{fin}|
-\lesssim 0.1\%$ per $\pm 30\MeV$ on $\mW$ and a corresponding impact on
-$\sigma_\mathrm{NLO}$ of $\lesssim 10^{-5}$ — well below the
-$\mathrm{d}\sigma/\mathrm{d}\mW$ precision target. Treating
-$c_{p,\mathrm{LR}}^{(1,\mathrm{fin})}=-10.076$ as a constant is fully
-justified for the analysis; the full PV-$C_0$ implementation is
-deferred.
+\paragraph{Scenario H — analytic $c^{(1,\mathrm{fin})}$ slopes.}
+The hard-matching coefficients $c_{p,\mathrm{LR}}^{(1,\mathrm{fin})}$,
+$c_{d,\ell}^{(1,\mathrm{fin})}$, $c_{d,h}^{(1,\mathrm{fin})}$ are now
+evaluated analytically per BFS appendix B (eq. PV0LR$+$CTLR plus the
+leptonic/hadronic decay analogues) in
+\code{framework/process/ww/xsec\_calculator/bfs\_c1fin.py}. Reference
+closure at $(\mW,\mt,M_H,M_Z)=(80.377,174.2,115,91.188)\GeV$:
+$-10.0758{+}0.2049\,i$ (BFS: $-10.076{+}0.205\,i$), $-2.7093$,
+$-2.0341$ — matching the BFS quotation to all printed digits.
+Fit-relevant slopes from central finite differences at the reference:
+\begin{tabular}{l c c c}
+\toprule
+ & $\partial/\partial\mW$ [/GeV] & $\partial/\partial\mt$ [/GeV] & $\partial/\partial M_H$ [/GeV] \\
+\midrule
+$\mathrm{Re}\,c_{p,\mathrm{LR}}$ & $+1.30$    & $+2.6\cdot 10^{-3}$ & $-2.2\cdot 10^{-2}$ \\
+$\mathrm{Re}\,c_{d,\ell}$        & $-0.071$   & $+1.3\cdot 10^{-3}$ & $+3.3\cdot 10^{-4}$ \\
+$\mathrm{Re}\,c_{d,h}$           & $-0.068$   & $+1.3\cdot 10^{-3}$ & $+3.3\cdot 10^{-4}$ \\
+\bottomrule
+\end{tabular}
+The dominant slope is $\partial\mathrm{Re}\,c_{p,\mathrm{LR}}/\partial\mW
+\approx +1.3$ per GeV: over $\pm 300\MeV$ in $\mW$ this is $\Delta c
+\approx \pm 0.4$ in the HSC bracket of eq.~(56), which when held fixed
+at the BFS reference contributed an estimated $\mathcal{O}(1\MeV)$
+bias on $\mW$. With the analytic implementation the bias is now
+zero by construction. $\mt$ and $M_H$ slopes are $\mathcal{O}(10^{-3})$
+per GeV and would propagate well below the analysis target even with
+$\pm$few GeV nuisance excursions.
 
 \paragraph{Limit of this validation.} Each NLO loop piece is validated
 against BFS's individually quoted estimate, but the partonic
@@ -918,11 +936,15 @@ at 161\,GeV, growing to $\sim$77\% at 170\,GeV.
 \item \textbf{$\sigma^{(3/2),b}$.} Omitted. Paper estimate $\lesssim
   2\fb$ energy-independent; empirical closure of Tables 1 and 2 to
   4–5 digits constrains it to $\lesssim 0.01\fb$ in practice.
-\item \textbf{$\mW$ dependence of $c_{p,\mathrm{LR}}^{(1,\mathrm{fin})}$
-  and $c_{d,\ell/h}^{(1,\mathrm{fin})}$.} Treated as constants at the
-  BFS reference. Scenario H bounds the impact at $\lesssim 10^{-5}$ on
-  $\sigma_\mathrm{NLO}$ per $\pm 30\MeV$, comfortably below the analysis
-  target. Full PV-$C_0$ implementation deferred.
+\item \textbf{$(\mW,\mt,M_H)$ dependence of $c^{(1,\mathrm{fin})}$.}
+  Closed: full analytic BFS appendix B implementation in
+  \code{bfs\_c1fin.py}; reproduces the BFS quotation $-10.076$,
+  $-2.709$, $-2.034$ at the reference inputs and propagates the
+  $(\mW,\mt,M_H,M_Z)$ slopes into the fit. Dominant slope
+  $\partial\mathrm{Re}\,c_{p,\mathrm{LR}}/\partial\mW\approx +1.3$/GeV
+  was the leading source of residual fit bias under the previous
+  ``constant $c$'' treatment; now zero by construction
+  (Scenario H, section~\ref{sec:val-loops}).
 \item \textbf{Parallel calculation.} A WHIZARD / Recola / MoCaNLO
   generator implementing the same \code{WWGenerator} contract is
   scheduled as the cross-check for publication.

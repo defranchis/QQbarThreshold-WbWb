@@ -800,14 +800,37 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
 # NLO hard+soft+collinear (eq. finalcross of arXiv:0707.0773)
 # ---------------------------------------------------------------------------
 
-# Real part of the hard matching coefficient c_p,LR^(1,fin) from BFS line 1797:
-#   c_p,LR^(1,fin) = -10.076 + 0.205 i
-# Computed at BFS reference parameters (m_W = 80.377, M_Z = 91.188, m_t = 174.2,
-# M_H = 115 GeV). The dependence on m_W in our fit range (80.0-80.7 GeV) is
-# sub-percent on Re(c); we treat it as a constant here. The imaginary part
-# does not contribute to the flavour-specific cross section (BFS section 4.2,
-# discussion around eq. ImAC) — only Re enters.
-_C_P_LR_1_FIN_RE = -10.076
+# Hard matching coefficient c_p,LR^(1,fin) — BFS arXiv:0707.0773 appendix
+# B (eq. PV0LR + CTLR). The full analytic implementation lives in
+# bfs_c1fin.c_p_LR_1_fin(m_W, m_t, M_H, M_Z) and reproduces -10.076 + 0.205 i
+# at the BFS reference inputs (m_W=80.377, M_Z=91.188, m_t=174.2, M_H=115).
+# Only the real part enters the flavour-specific cross section (BFS sec. 4.2).
+# Dominant m-slope at the BFS reference: ∂Re(c)/∂m_W ≈ +1.30 / GeV;
+# ∂Re(c)/∂m_t ≈ +0.003 / GeV; ∂Re(c)/∂M_H ≈ -0.022 / GeV.
+from .bfs_c1fin import (
+    c_p_LR_1_fin as _c_p_LR_1_fin_full,
+    c_d_l_1_fin as _c_d_l_1_fin_full,
+    c_d_h_1_fin as _c_d_h_1_fin_full,
+)
+from .eft_xsec import M_T_DEFAULT, M_H_DEFAULT
+
+
+def _c_p_LR_1_fin_re(mW: float, mt: float = M_T_DEFAULT,
+                     MH: float = M_H_DEFAULT, MZ: float = M_Z) -> float:
+    """Re(c_p,LR^(1,fin)) — BFS hard production matching coefficient."""
+    return _c_p_LR_1_fin_full(mW, mt, MH, MZ).real
+
+
+def _c_d_l_1_fin_re(mW: float, mt: float = M_T_DEFAULT,
+                    MH: float = M_H_DEFAULT, MZ: float = M_Z) -> float:
+    """Re(c_d,l^(1,fin)) — BFS leptonic decay matching coefficient."""
+    return _c_d_l_1_fin_full(mW, mt, MH, MZ).real
+
+
+def _c_d_h_1_fin_re(mW: float, mt: float = M_T_DEFAULT,
+                    MH: float = M_H_DEFAULT, MZ: float = M_Z) -> float:
+    """Re(c_d,h^(1,fin)) — BFS hadronic decay matching coefficient."""
+    return _c_d_h_1_fin_full(mW, mt, MH, MZ).real
 
 
 def delta_sigma_NLO_hard_softcoll_specific_pb(s, mW: float = M_W_DEFAULT,
@@ -845,7 +868,7 @@ def delta_sigma_NLO_hard_softcoll_specific_pb(s, mW: float = M_W_DEFAULT,
     sqrt_z = np.sqrt(z)                              # principal branch
     ln_4z = np.log(4.0 * z)                          # complex log, principal branch
     bracket = (2.0 * ln_4z
-               + _C_P_LR_1_FIN_RE
+               + _c_p_LR_1_fin_re(mW)
                + np.pi ** 2 / 4.0
                + 0.5)
     integrand = (-sqrt_z * bracket).imag
@@ -890,10 +913,8 @@ def delta_QCD_factor(alpha_s: float = ALPHA_S_MW_DEFAULT) -> float:
 #                  - 7π²/12 - (π²/6)·Q_f·Q̄_f ]
 #
 # c_d,l/h^(1,fin) are the finite parts of the leptonic and hadronic decay
-# matching coefficients computed in BFS appendix at the reference inputs
-# m_W = 80.377, M_Z = 91.188, m_t = 174.2 GeV, M_H = 115 GeV (paper line 1920):
-_C_D_L_1_FIN_RE = -2.709          # leptonic
-_C_D_H_1_FIN_RE = -2.034          # hadronic
+# matching coefficients — now computed analytically from bfs_c1fin (reproduces
+# BFS quoted -2.709, -2.034 at the reference inputs to 4 decimals).
 # Charge factors (BFS line 1916): leptonic has Q_f = -1, Q̄_f = 0 → product 0.
 # Hadronic: Q_f = 2/3, Q̄_f = -1/3 → product -2/9.
 _Q_PROD_L = 0.0
@@ -914,12 +935,12 @@ def delta_decay_EW_relative(mW: float = M_W_DEFAULT) -> float:
     """δ_decay^(1,ew) = Γ_l^(1,ew)/Γ_l^(0) + Γ_h^(1,ew)/Γ_h^(0)  (BFS eq. delta-decay).
 
     Computed from BFS eq. (Gamma1ewFS) with α = α_Gμ(m_W). The c_d,l/h^(1,fin)
-    are kept at their BFS reference values (sub-percent m_W variation neglected).
+    are evaluated analytically per BFS appendix as functions of (m_W, m_t, M_H, M_Z).
     At m_W = 80.377 GeV: returns ≈ −0.0071 (−0.71 %).
     """
     alpha = alpha_Gmu(mW)
-    delta_l = _delta_W_ew_partial(_C_D_L_1_FIN_RE, _Q_PROD_L, alpha)
-    delta_h = _delta_W_ew_partial(_C_D_H_1_FIN_RE, _Q_PROD_H, alpha)
+    delta_l = _delta_W_ew_partial(_c_d_l_1_fin_re(mW), _Q_PROD_L, alpha)
+    delta_h = _delta_W_ew_partial(_c_d_h_1_fin_re(mW), _Q_PROD_H, alpha)
     return delta_l + delta_h
 
 
@@ -1076,7 +1097,7 @@ _SUM_CF_QF2_NO_TOP = 20.0 / 3.0
 # eq. (39). Paper text after eq. (39): "for the same input parameters
 # as used for the hard-matching coefficient below (coeff1loop) the
 # numerical value is δ_{α(M_Z)→G_μ} = 4.103 α". Same BFS reference
-# parameters as ``_C_P_LR_1_FIN_RE`` above; m_W dependence is sub-percent.
+# parameters as the c^(1,fin) above; m_W dependence is sub-percent.
 _DELTA_ALPHA_MZ_TO_GMU_COEFF = 4.103
 
 
@@ -1138,9 +1159,10 @@ def delta_sigma_NNLO_C_soft_hard_specific_pb(
             + 2 × Im[ ln²(−ℰ_W/M_W) ]
         }
 
-    The hard matching coefficient ``Re c_p,LR^(1,fin) = -10.076`` is the
-    SAME constant used in the NLO HSC term (``_C_P_LR_1_FIN_RE``); the
-    BFS NNLO paper inherits it unchanged from arXiv:0707.0773. After the
+    The hard matching coefficient ``Re c_p,LR^(1,fin)`` is the SAME quantity
+    used in the NLO HSC term (now evaluated analytically per BFS appendix;
+    sub-MeV m_W slope of +1.3/GeV); the BFS NNLO paper inherits it
+    unchanged from arXiv:0707.0773. After the
     ISR subtraction described in paper section 3.4–3.5 (the `hat`
     superscript), all logs of m_e are absorbed into the structure
     functions and the partonic result is finite without an electron-mass
@@ -1157,7 +1179,7 @@ def delta_sigma_NNLO_C_soft_hard_specific_pb(
 
     alpha_ew_sq = (alpha / sW2) ** 2
     pref = -alpha_ew_sq * alpha ** 2 / (27.0 * s_arr)
-    coef = 9.0 + np.pi ** 2 / 2.0 + 2.0 * _C_P_LR_1_FIN_RE
+    coef = 9.0 + np.pi ** 2 / 2.0 + 2.0 * _c_p_LR_1_fin_re(mW)
     bracket = coef * lz.imag + 2.0 * (lz ** 2).imag
     delta = pref * bracket * GEV_M2_TO_PB
     if apply_BR_correction:

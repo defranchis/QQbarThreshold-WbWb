@@ -271,34 +271,100 @@ def scenario_J_derivatives():
 
 
 def scenario_H():
-    """c_p,LR^(1,fin) m_W-dependence: empirical check via finite difference.
+    """c_p,LR^(1,fin) m_W / m_t / M_H slopes from the analytic BFS appendix.
 
-    The c_fin = -10.076 + 0.205i quoted in BFS line 1797 is at fixed
-    inputs m_W = 80.377, m_t = 174.2, M_H = 115 GeV. The full Passarino-
-    Veltman C0 formula (BFS appendix eq. PV0LR + CTLR) makes c_fin depend
-    on (m_W, M_Z, m_t, M_H). For our fit range (m_W varies by ~30 MeV)
-    the c_fin shift is sub-percent, and the impact on σ_NLO is below
-    MeV-precision sensitivity. Here we just check that the framework's
-    σ_NLO is stable under m_W variations consistent with this estimate."""
-    from framework.process.ww.xsec_calculator.eft_xsec import alpha_Gmu
+    The framework now evaluates c_p,LR^(1,fin), c_d,l^(1,fin), c_d,h^(1,fin)
+    analytically (bfs_c1fin.py, BFS appendix eq. PV0LR + CTLR + LVD0/LVDCT +
+    HDV0/DHCT). Reference closure: -10.0758 + 0.2049 i (BFS quotes -10.076);
+    decay reproduces -2.7093, -2.0341. This scenario reports the slopes that
+    matter for the fit propagation of m_W, m_t, M_H uncertainties.
+    """
+    from framework.process.ww.xsec_calculator.bfs_eft import (
+        _c_p_LR_1_fin_re, _c_d_l_1_fin_re, _c_d_h_1_fin_re,
+    )
     print("\n" + "=" * 72)
-    print("Scenario H: c_p,LR^(1,fin) m_W-dependence — quantitative check")
+    print("Scenario H: analytic c^(1,fin) slopes (m_W, m_t, M_H)")
     print("=" * 72)
-    # The c_fin enters σ_HSC via Re(c_fin) × σ_LR^(0) × (α/π).
-    # α_Gμ(m_W) varies linearly with m_W² and sin²θ_W: empirically,
-    h = 0.030   # 30 MeV
-    for mW0 in [80.377, 80.379, 80.385]:
-        a_lo = alpha_Gmu(mW0 - h)
-        a_hi = alpha_Gmu(mW0 + h)
-        d_alpha_rel = (a_hi - a_lo) / (2 * alpha_Gmu(mW0))
-        print(f"  m_W = {mW0:.3f}: α_Gμ varies by Δα/α = {d_alpha_rel*100:.4f} % per ±30 MeV m_W")
+    m_W0, m_t0, M_H0 = 80.377, 174.2, 115.0
+    print(f"  reference: m_W={m_W0}, m_t={m_t0}, M_H={M_H0}")
+    print(f"  Re(c_p,LR) = {_c_p_LR_1_fin_re(m_W0, m_t0, M_H0):.4f}   (BFS -10.076)")
+    print(f"  Re(c_d,l)  = {_c_d_l_1_fin_re(m_W0, m_t0, M_H0):.4f}   (BFS  -2.709)")
+    print(f"  Re(c_d,h)  = {_c_d_h_1_fin_re(m_W0, m_t0, M_H0):.4f}   (BFS  -2.034)")
     print()
-    print("  c_p,LR^(1,fin) full PV-C0 m_W-dependence is bounded by:")
-    print("    |Δc_fin / c_fin| ≲ |Δα/α| × O(1) = O(0.1 %) per 30 MeV m_W")
-    print("  Impact on σ_NLO: |Δσ_NLO / σ_NLO| ≲ (α/π) × |Δc_fin| × O(1) ≲ 0.001 %")
-    print("  → BELOW MeV-precision target (≪ 0.05 % / MeV bias on dσ/dm_W).")
-    print("  Treated as constant c_fin = -10.076 (BFS line 1797) is fully")
-    print("  justified for the analysis. Full PV-C0 implementation deferred.")
+    print("  Numerical slopes (central finite diff):")
+    for label, fn in [("c_p,LR", _c_p_LR_1_fin_re),
+                      ("c_d,l ", _c_d_l_1_fin_re),
+                      ("c_d,h ", _c_d_h_1_fin_re)]:
+        d_mw = (fn(m_W0 + 0.1, m_t0, M_H0) - fn(m_W0 - 0.1, m_t0, M_H0)) / 0.2
+        d_mt = (fn(m_W0, m_t0 + 0.5, M_H0) - fn(m_W0, m_t0 - 0.5, M_H0)) / 1.0
+        d_mh = (fn(m_W0, m_t0, M_H0 + 1.0) - fn(m_W0, m_t0, M_H0 - 1.0)) / 2.0
+        print(f"    ∂Re({label})/∂m_W = {d_mw:+.4f} /GeV   "
+              f"∂/∂m_t = {d_mt:+.4e} /GeV   ∂/∂M_H = {d_mh:+.4e} /GeV")
+    print()
+    print("  c_p,LR m_W slope of +1.30 per GeV translates to ~0.4 in Δc")
+    print("  over ±0.3 GeV m_W — comparable to ~1 MeV in fit bias if held")
+    print("  constant. m_t / M_H slopes are O(10⁻³)/GeV: negligible.")
+
+
+def scenario_K_per_piece_table():
+    """Per-piece partonic NLO contributions at BFS Table 4 inputs.
+
+    Tabulates the three NLO-loop pieces (HSC, EW-decay, Coul_NLO eq.62) at
+    the six BFS scan energies and gives each as both an absolute σ in fb
+    and a fraction of σ_LR^(0). This is the table-form summary of
+    Scenarios C and D — single reference for "the partonic NLO sum at
+    each scan energy", reproducible from this script.
+
+    All partonic, BR correction on, no ISR, no δ_QCD, no anchor.
+    m_W=80.377, Γ_W=2.09201 (BFS Table 4 inputs).
+    """
+    import numpy as np
+    from framework.process.ww.xsec_calculator.bfs_eft import (
+        sigma_LR0_specific_pb,
+        sigma_BFS_specific_munuud_pb,
+        delta_sigma_NLO_hard_softcoll_specific_pb,
+        delta_sigma_NLO_decay_specific_pb,
+        delta_sigma_Coulomb_NLO_specific_pb,
+    )
+    print("\n" + "=" * 72)
+    print("Scenario K: per-piece partonic NLO contributions (BFS Table 4 inputs)")
+    print("=" * 72)
+    mW, gW = 80.377, 2.09201
+    sqrts = np.array([158., 161., 164., 167., 170.])
+    s = sqrts ** 2
+    sLR0  = sigma_LR0_specific_pb(s, mW, gW, apply_BR_correction=True)
+    sBorn = sigma_BFS_specific_munuud_pb(s, mW, gW, order="N3/2LO",
+                                          include_NLO_hard_decay=False,
+                                          include_BFS_NNLO=False,
+                                          apply_delta_QCD=False,
+                                          apply_whizard_anchor=False)
+    hsc  = delta_sigma_NLO_hard_softcoll_specific_pb(s, mW, gW, apply_BR_correction=True)
+    dec  = delta_sigma_NLO_decay_specific_pb(s, mW, gW, apply_BR_correction=True)
+    coul = delta_sigma_Coulomb_NLO_specific_pb(s, mW, gW, apply_BR_correction=True,
+                                                subleading_only=False)
+    sum_loops = hsc + dec + coul
+
+    print(f"  m_W={mW} GeV, Γ_W={gW} GeV, channel μ⁻ν̄_μ ud̄, BR correction on.")
+    print()
+    print("  Absolute σ [fb] (partonic, no ISR, no δ_QCD):")
+    print(f"  {'√s':>6} {'σ_LR^(0)':>10} {'σ_Born':>10} {'ΔHSC':>10} {'Δdecay':>10} {'ΔCoul^(1)':>10} {'Σ NLO':>10}")
+    for i, sq in enumerate(sqrts):
+        print(f"  {sq:>6.0f} {sLR0[i]*1e3:>10.3f} {sBorn[i]*1e3:>10.3f}"
+              f" {hsc[i]*1e3:>+10.3f} {dec[i]*1e3:>+10.3f}"
+              f" {coul[i]*1e3:>+10.3f} {sum_loops[i]*1e3:>+10.3f}")
+    print()
+    print("  Each NLO piece as % of σ_LR^(0):")
+    print(f"  {'√s':>6} {'HSC%':>10} {'decay%':>10} {'Coul^(1)%':>10} {'Σ NLO%':>10}")
+    for i, sq in enumerate(sqrts):
+        print(f"  {sq:>6.0f} {hsc[i]/sLR0[i]*100:>+10.3f} {dec[i]/sLR0[i]*100:>+10.3f}"
+              f" {coul[i]/sLR0[i]*100:>+10.3f} {sum_loops[i]/sLR0[i]*100:>+10.3f}")
+    print()
+    print("  Sub-leading Coulomb piece (two-photon, eq.62 second term):")
+    coul_sub = delta_sigma_Coulomb_NLO_specific_pb(s, mW, gW, apply_BR_correction=True,
+                                                    subleading_only=True)
+    print(f"  {'√s':>6} {'ΔCoul^(1,sub) [fb]':>22} {'sub/σ_LR^(0) %':>18}")
+    for i, sq in enumerate(sqrts):
+        print(f"  {sq:>6.0f} {coul_sub[i]*1e3:>22.4f} {coul_sub[i]/sLR0[i]*100:>+17.3f}%")
 
 
 def main():
@@ -312,6 +378,7 @@ def main():
     scenario_H()
     scenario_I_anchor()
     scenario_J_derivatives()
+    scenario_K_per_piece_table()
 
 
 if __name__ == "__main__":
