@@ -452,6 +452,74 @@ to better than 0.1\% on the scan window after the integration
 substitution $u=(1-z)^\beta$ that smooths the soft endpoint and a
 $n_\text{quad}=200$ Gauss-Legendre rule.
 
+\paragraph{The BFS prescription and where it differs from ours.}
+A careful read of \cite{BFSnlo} lines 2645--2666 (the paragraph just
+before BFS Table~3) reveals that the BFS authors did \emph{not} perform
+eq.~(71) — the explicit LL$+$exp 2-leg convolution — for their
+Born$\otimes$ISR column. Instead:
+\begin{itemize}
+\item \textbf{Born(ISR) column} (BFS Table~3 col.~2 / Table~4 col.~2):
+  raw WHIZARD output with WHIZARD's own ISR structure function (Skrzypek
+  1990, multiplicative form — see below). No partonic
+  $\sqrt{x_1x_2 s}$ cut.
+\item \textbf{NLO addition} (BFS Table~3 col.~3 / Table~4 col.~3):
+  WHIZARD Born(ISR) \emph{plus} an explicit LL$+$exp 2-leg convolution
+  of the analytic $\Delta\hat\sigma_{\rm NLO}$, with a partonic
+  $\sqrt{x_1 x_2 s} > 155\,\text{GeV}$ cut. BFS state that the
+  cut-value dependence is negligible (variations of $\pm 5\,\text{GeV}$
+  shift the integral by $\lesssim 0.1\,\%$, BFS lines 2664--2666).
+\item Inside the analytic $\Delta\hat\sigma_{\rm NLO}$, BFS replace
+  $\hat\sigma_{LR}^{(0)}$ by the full Born $\hat\sigma_{\rm Born}$ in
+  the decay correction $\Delta\hat\sigma_{\rm decay}^{(1,\rm ew)}$
+  (eq.~49 of \cite{BFSnlo}; line 2660 of that paper's source). This is
+  a non-trivial recipe choice — it injects the BFS-EFT$\to$full-4f
+  matching into the decay piece — and its size is comparable to the
+  rest of the recipe-level residual (see
+  section~\ref{sec:val-table4-budget}).
+\end{itemize}
+Our framework follows a \emph{different but consistent} recipe: a
+single LL$+$exp 2-leg convolution applied to (anchored Born sum) $+$
+(analytic NLO), with the Whizard anchor at the \emph{partonic} level
+(section~\ref{sec:anchor}). The two recipes converge below 0.5\,\% on
+the scan window (BFS Table~4); the decomposition of the residual is
+the subject of section~\ref{sec:val-table4-budget}.
+
+\paragraph{WHIZARD's ISR is not exactly Beenakker BETA LL$+$exp.}
+WHIZARD~3.1.5 builds the electron PDF \emph{multiplicatively}
+(\code{src/qed\_pdf/electron\_pdfs\_sub.f90} routine
+\code{qed\_pdf\_evolve\_qed\_pdf}, lines 89--127):
+\begin{equation}
+\Gamma_{ee}^{\rm WHIZARD}(x;\epsilon) =
+   \underbrace{\bigl[\,1 + g_1\,\epsilon + g_2\,\epsilon^2 + g_3\,\epsilon^3\,\bigr]}_{\text{multiplicative SV part}}
+   \cdot \prod_{k\ge 1}\!
+   \underbrace{\bigl[\,1 - \tfrac{1}{8\,(1-x)}\,B_k(x)\,\epsilon^k\,\bigr]}_{\text{multiplicative NS-hard correction}}
+   \cdot \Gamma^{(0)}(x;\epsilon),
+\label{eq:whizard-isr}
+\end{equation}
+with $\epsilon = (\alpha/\pi)\,(L_e-1)$, $L_e = \ln(s/m_e^2)$
+($\epsilon=\beta/2$ in the Beenakker convention of
+eq.~(\textsc{GeeLLexp})), $g_1 = 3/4$,
+$g_2 = (27-8\pi^2)/96$, $g_3 = (27-24\pi^2+128\,\zeta_3)/384$, and
+$B_k(x)$ the polynomial brackets in the standard
+LEP2~YR~\cite{LEP2YRww} eq.~(67) BETA scheme. Beenakker eq.~(67) is
+\emph{additive}:
+\begin{equation}
+\Gamma_{ee}^{\rm BETA}(x;\beta) =
+\tfrac{e^{\beta(3/8-\gamma_E/2)}}{\Gamma(1+\beta/2)}\,\tfrac{\beta}{2}\,(1-x)^{\beta/2-1}
+\;-\;\tfrac{\beta}{4}(1{+}x)
+\;-\;\tfrac{\beta^2}{32}\,B_2(x)
+\;-\;\tfrac{\beta^3}{384}\,B_3(x).
+\label{eq:beenakker-beta}
+\end{equation}
+The two coincide at $\mathcal{O}(\epsilon^1)$ but diverge at
+$\mathcal{O}(\epsilon^2)$: WHIZARD effectively resums a subset of
+NLL-type hard$\times$soft cross-terms that LL$+$exp does not. On the
+$\sigma_{\rm obs}$ side this is a $\sim 0.3$--$1.3\,\%$ recipe-level
+difference at $\sqrts\in[161,170]\GeV$, growing toward $\sim 2\,\%$ at
+$158\GeV$ where ISR explores below-threshold partonic energies most
+aggressively. Quantitative budget in
+section~\ref{sec:val-table4-budget}.
+
 \paragraph{$\alpha$ choice in the ISR exponent.}
 We follow BFS line 2514: $\alpha=\alpha_{G_\mu}$ everywhere, evaluated
 at the BFS reference $\mW=80.377\GeV$ \emph{not} at the fit $\mW$. The
@@ -653,13 +721,13 @@ $c_{d,\ell}^{(1,\mathrm{fin})}$, $c_{d,h}^{(1,\mathrm{fin})}$ are now
 evaluated analytically per BFS appendix B (eq. PV0LR$+$CTLR plus the
 leptonic/hadronic decay analogues) in
 \code{framework/process/ww/xsec\_calculator/bfs\_c1fin.py}. Reference
-closure at $(\mW,\mt,M_H,M_Z)=(80.377,174.2,115,91.188)\GeV$:
+closure at $(\mW,m_t,M_H,M_Z)=(80.377,174.2,115,91.188)\GeV$:
 $-10.0758{+}0.2049\,i$ (BFS: $-10.076{+}0.205\,i$), $-2.7093$,
 $-2.0341$ — matching the BFS quotation to all printed digits.
 Fit-relevant slopes from central finite differences at the reference:
 \begin{tabular}{l c c c}
 \toprule
- & $\partial/\partial\mW$ [/GeV] & $\partial/\partial\mt$ [/GeV] & $\partial/\partial M_H$ [/GeV] \\
+ & $\partial/\partial\mW$ [/GeV] & $\partial/\partial m_t$ [/GeV] & $\partial/\partial M_H$ [/GeV] \\
 \midrule
 $\mathrm{Re}\,c_{p,\mathrm{LR}}$ & $+1.30$    & $+2.6\cdot 10^{-3}$ & $-2.2\cdot 10^{-2}$ \\
 $\mathrm{Re}\,c_{d,\ell}$        & $-0.071$   & $+1.3\cdot 10^{-3}$ & $+3.3\cdot 10^{-4}$ \\
@@ -671,7 +739,7 @@ The dominant slope is $\partial\mathrm{Re}\,c_{p,\mathrm{LR}}/\partial\mW
 \approx \pm 0.4$ in the HSC bracket of eq.~(56), which when held fixed
 at the BFS reference contributed an estimated $\mathcal{O}(1\MeV)$
 bias on $\mW$. With the analytic implementation the bias is now
-zero by construction. $\mt$ and $M_H$ slopes are $\mathcal{O}(10^{-3})$
+zero by construction. $m_t$ and $M_H$ slopes are $\mathcal{O}(10^{-3})$
 per GeV and would propagate well below the analysis target even with
 $\pm$few GeV nuisance excursions.
 
@@ -726,7 +794,7 @@ the NLO column (BFS \S6.1).}
 \caption{BFS Table 4: ISR-convoluted Whizard Born and full NLO for
 $\munuqq$. Comparison at $\mW=80.377$, $\GammaW=2.09201$, BR correction
 on, Whizard anchor on, $K_C$ off; $\delta_{\rm QCD}$ on the NLO column
-only ($\alpha_s=0.1199$). All cross sections in fb.}
+only ($\alpha_s=0.1199$). All cross sections in fb.}\label{tab:val-table4}
 \begin{tabular}{r r r r r r r}
 \toprule
 & \multicolumn{3}{c}{Born$\otimes$ISR} & \multicolumn{3}{c}{NLO}\\
@@ -745,13 +813,144 @@ $\sqrts$ [GeV] & code & paper & code$-$paper & code & paper & code$-$paper \\
 Both columns close to better than $1\%$ for the four scan-relevant
 energies $161$--$170\GeV$: Born$\otimes$ISR within $0.0$--$0.6\%$, NLO
 within $0.03$--$0.9\%$. The $\sim 2.5$--$3\%$ deviation at
-$\sqrts=158\GeV$ reflects the EFT-truncation breakdown below threshold
-(the ISR convolution samples partonic $\sqrts^\prime$ down to
-${\sim}150\GeV$, where the $N^{3/2}\mathrm{LO}$ expansion deviates
-from the exact Born by several percent); this region contributes
-negligibly to the $\mW$ sensitivity. The residuals in the scan window
-are at the level of the paper's quoted Monte Carlo precision on the
-exact-Born reference (e.g.\ $108.60(4)\fb$, $\pm0.04\%$).
+$\sqrts=158\GeV$ deserves a careful decomposition — initially we
+attributed it to "EFT-truncation breakdown below threshold", but a
+diagnostic campaign (section~\ref{sec:val-table4-budget}) shows the
+dominant contribution is the LL$+$exp-vs-WHIZARD-ISR \emph{recipe}
+difference on the Born$\otimes$ISR piece, not EFT failure. The residuals
+at $161$--$170\GeV$ are at the level of the paper's quoted Monte Carlo
+precision on the exact-Born reference (e.g.\ $108.60(4)\fb$, $\pm0.04\%$).
+
+\subsection{Closure budget: full ISR residual decomposition}\label{sec:val-table4-budget}
+
+The non-zero residuals in Table~\ref{tab:val-table4} above
+(section~\ref{sec:val-table4}) admit a complete decomposition into four
+recipe-level effects. We document each via dedicated diagnostic runs
+(scripts in \code{scripts/investigations/whizard\_isr\_verification/}
+and \code{scripts/investigations/c1fin\_analytic/}).
+
+\paragraph{(i) WHIZARD process-definition agreement at the no-ISR Born level.}
+Running WHIZARD~3.1.5 on
+$e^+e^-\to\mu^-\bar\nu_\mu u\bar d$ at the BFS Table~4 inputs
+($\mW=80.377\GeV$, $\GammaW=2.09201\GeV$, $G_\mu=1.16637\times 10^{-5}$,
+$m_t=174.2\GeV$, $M_H=115\GeV$, $M_Z=91.188\GeV$) with the beam
+structure switched off reproduces the BFS \emph{Born} column to MC
+statistics ($\pm 0.01$--$0.15\,\%$ across $\sqrts\in[158,170]\GeV$):
+\begin{center}\small
+\begin{tabular}{r r r r}
+\toprule
+$\sqrts$ & WHIZARD~3.1.5 [fb] & BFS Born [fb] & ratio \\
+\midrule
+158 & 61.761(23) & 61.67 & 1.0015 \\
+161 & 154.089(54) & 154.19 & 0.9993 \\
+164 & 303.003(104) & 303.00 & 1.0000 \\
+167 & 408.798(140) & 408.80 & 1.0000 \\
+170 & 481.851(166) & 481.70 & 1.0003 \\
+\bottomrule
+\end{tabular}
+\end{center}
+So the WHIZARD matrix element, masses, $\alpha$ scheme, and BR convention
+match BFS's WHIZARD instance at the no-ISR level. The
+Born$\otimes$ISR discrepancy lives entirely in the ISR convolution
+step.
+
+\paragraph{(ii) WHIZARD-3.1.5 vs WHIZARD-1.x version drift.}
+Running our WHIZARD with ISR on and \emph{no} partonic cut
+(per BFS's prescription that the 155-GeV cut applies to the
+analytic NLO LL$+$exp piece only, not to the Born$\otimes$ISR reference)
+gives, at $\alpha = \alpha(0) = 7.297\!\times\!10^{-3}$:
+\begin{center}\small
+\begin{tabular}{r r r r}
+\toprule
+$\sqrts$ & WHIZARD~3.1.5 no-cut [fb] & BFS Born(ISR) [fb] & ratio \\
+\midrule
+158 & 46.07(2) & 45.64 & 1.0094 \\
+161 & 109.95(4) & 108.60 & 1.0124 \\
+164 & 222.26(8) & 219.70 & 1.0117 \\
+167 & 313.37(12) & 310.20 & 1.0102 \\
+170 & 381.48(14) & 378.40 & 1.0082 \\
+\bottomrule
+\end{tabular}
+\end{center}
+A clean, slowly-varying $+0.8$--$1.2\,\%$ offset across the scan. BFS
+used WHIZARD~1.x (circa 2007); their numbers are systematically lower
+than ours. This is the WHIZARD-version drift baseline — present in any
+calculation that uses WHIZARD's internal ISR. Switching $\alpha\to\alpha_{G_\mu}$
+in the WHIZARD ISR exponent gives an additional $\sim 0.6\,\%$ shift, but
+in the opposite direction — neither $\alpha$ choice with our WHIZARD
+matches BFS exactly.
+
+\paragraph{(iii) LL$+$exp BETA vs WHIZARD multiplicative ISR.}
+With process definition and $\alpha$ pinned, the WHIZARD$-$LL$+$exp
+recipe difference (eq.~\ref{eq:whizard-isr} vs eq.~\ref{eq:beenakker-beta}) on
+the same partonic Born is $\sim 1$--$2\,\%$ at $\sqrts=158\GeV$ and
+shrinks to $\sim 0.3$--$0.5\,\%$ at $\sqrts=170\GeV$. The 158-GeV
+sensitivity is enhanced because ISR explores partonic
+$\sqrt{s^\prime}$ below threshold, where the multiplicative-vs-additive
+prescription difference is enhanced by the steep shape of the Born
+near $2\mW$.
+
+\paragraph{(iv) BFS's $\hat\sigma_{LR}^{(0)}\to\hat\sigma_{\rm Born}$
+substitution in the NLO decay correction.}
+BFS line 2660--2661 (the paragraph just above eq.~(eq:finalcross) of
+\cite{BFSnlo}): \emph{"replacing the leading-order cross section
+$\hat\sigma^{(0)}$ by the full Born cross section
+$\hat\sigma_{\rm Born}$ in the decay correction"}. Our framework uses
+$\hat\sigma_{LR}^{(0)}$ throughout the BFS NLO building blocks
+(eq.~49 / \code{delta\_sigma\_NLO\_decay\_specific\_pb}); the BFS
+prescription would replace it by the full Born — a ${\sim}50\,\%$
+larger normalisation at $\sqrts=158\GeV$ and ${\sim}66\,\%$ at $170$.
+At the partonic level (LR-helicity-specific, BR-corrected) the
+adjustment is $+2.0$--$+3.0\fb$; after LL$+$exp damping it drops to
+$+0.46$--$+0.69\fb$ at the $\sqrts$ scan points — exactly the right
+magnitude to close the option-5 hybrid residual at $\sqrts\in[161,170]$
+(see below).
+
+\paragraph{Option-5 hybrid closure test.}
+We probe the budget by constructing the explicit BFS recipe at the
+five scan energies: $\sigma_{\rm test} = \delta_{\rm QCD}\,(\,\sigma_{\rm Born(ISR),\,BFS} + \mathrm{LL}{+}\exp\{\Delta\hat\sigma_{\rm NLO}\}_{\rm ours}\,)$, taking BFS's quoted Born(ISR)
+at face value and adding our analytic NLO times our LL$+$exp on top.
+Layering in the decay substitution (iv) gives:
+\begin{center}\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{r r r r}
+\toprule
+$\sqrts$ & standard chain & option-5 hybrid & + decay substitution \\
+{}[GeV]  & code/BFS$-$1 & code/BFS$-$1 & code/BFS$-$1 \\
+\midrule
+158 & $-2.93\,\%$ & $-0.62\,\%$ & $+0.35\,\%$ \\
+161 & $-0.90\,\%$ & $-0.35\,\%$ & $+0.13\,\%$ \\
+164 & $-0.32\,\%$ & $-0.22\,\%$ & $+0.04\,\%$ \\
+167 & $-0.05\,\%$ & $-0.18\,\%$ & $+0.02\,\%$ \\
+170 & $-0.42\,\%$ & $-0.16\,\%$ & $+0.02\,\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+The option-5 hybrid closes the 158-GeV residual by $5\times$
+(${-}2.9\,\%\to{-}0.6\,\%$), isolating the LL$+$exp-vs-WHIZARD-ISR
+kernel difference on the Born$\otimes$ISR piece. Adding the BFS decay
+substitution closes the $[164,170]\GeV$ residual to
+$\mathcal{O}(\text{MC stat})$. The $+0.35\,\%$ at $\sqrts=158\GeV$ is
+consistent with the missing $\sqrt{x_1 x_2 s}>155\GeV$ cut on the NLO
+LL$+$exp convolution combined with the residual kernel-difference
+amplification near threshold; BFS quote this cut-dependence at
+${\sim}0.05\,\%$ at $\sqrts=161\GeV$, larger near $158\GeV$ where the
+cut is right at the kinematic edge.
+
+\paragraph{Summary of the closure budget.}
+The standard-chain residual of $0.0$--$2.9\,\%$ in Table~\ref{tab:val-table4}
+decomposes as: (i) consistent process definition (no contribution);
+(ii) $+0.8$--$1.2\,\%$ WHIZARD-3.1.5-vs-1.x baseline, present in any
+WHIZARD-based reference; (iii) $0.3$--$2.0\,\%$ LL$+$exp BETA vs
+WHIZARD multiplicative recipe (worst at $158\GeV$); (iv) $+0.5$--$0.7\,\%$
+$\hat\sigma^{(0)}\to\hat\sigma_{\rm Born}$ substitution in the decay
+correction; and a small remainder from BFS's NLO cut at
+$\sqrt{x_1 x_2 s}>155\GeV$. The dominant residual contribution at
+the scan-window $\sqrts\in[161,170]\GeV$ — the kinematic region with
+the strongest $\mW$ sensitivity — is item~(iv), the decay
+substitution, which is implementable in our framework as a
+\code{br\_convention}-like card option. See
+section~\ref{sec:limits}.
 
 \subsection{Whizard-anchor closure — Scenario I}\label{sec:val-anchor}
 
@@ -913,13 +1112,37 @@ at 161\,GeV, growing to $\sim$77\% at 170\,GeV.
 % ---------------------------------------------------------------
 
 \begin{enumerate}
-\item \textbf{NLL ISR.} The single-convolution and 2-leg LL$+$exp forms
-  match to better than 0.1\% on the scan window, and reproduce BFS
-  Table~4 at the 0.1–0.3\% level (section~\ref{sec:val-table4}). The
-  residual ISR systematic on $\mW$ — $\delta\mW\!\approx\!31\MeV$ in
-  BFS — is the leading remaining theory uncertainty. The NLL upgrade
-  (analytic Skrzypek-Jadach or eMELA-based) is the next development;
-  see the project followups in the team memory log.
+\item \textbf{BFS recipe details on the NLO addition.} A detailed
+  closure-budget campaign (section~\ref{sec:val-table4-budget}) shows
+  that the residual to BFS Table~4 at $\sqrts\in[161,170]\GeV$ is
+  dominated, not by NLL ISR effects, but by two
+  BFS-recipe details we do not yet implement:
+  \begin{itemize}
+  \item The $\hat\sigma_{LR}^{(0)}\to\hat\sigma_{\rm Born}$
+    substitution in the decay correction (BFS line 2660--2661 of the
+    paper source): adds $\sim 0.5\,\%$ to $\sigma_{\rm obs}$ at
+    $\sqrts=161\GeV$, $\sim 0.2\,\%$ at $\sqrts=170\GeV$. Implementable
+    as a card knob in
+    \code{delta\_sigma\_NLO\_decay\_specific\_pb}; trivial code change,
+    closes the scan-window residual to MC-stat.
+  \item The $\sqrt{x_1 x_2 s}>155\GeV$ cut on the LL$+$exp
+    convolution of $\Delta\hat\sigma_{\rm NLO}$ (BFS line
+    2664--2666): $\lesssim 0.1\,\%$ at $\sqrts=161\GeV$, slightly larger
+    at $\sqrts=158\GeV$. Trivial to add.
+  \end{itemize}
+  After these two fixes the closure budget is dominated by (a) the
+  WHIZARD-3.1.5-vs-1.x version drift ($+0.8$--$1.2\,\%$ on the BFS
+  Born(ISR) reference, present whenever BFS's WHIZARD output is used)
+  and (b) the LL$+$exp BETA vs WHIZARD multiplicative ISR recipe
+  difference ($\sim 0.3$--$2\,\%$, worst at $\sqrts=158\GeV$).
+\item \textbf{NLL ISR.} The remaining residual after fixing the recipe
+  details above is the BFS-quoted $\delta\mW\!\approx\!31\MeV$ ISR
+  systematic. The NLL upgrade (analytic Skrzypek-Jadach or
+  eMELA-based, cf.~\cite{eMELA2019}) is the principled path to
+  shrinking this. It also has the practical advantage of being
+  WHIZARD-version-independent: the LL$+$exp$+$NLL recipe is fully
+  in-process. See the project followup in the team memory log
+  for scope.
 \item \textbf{Wire the morphing scheme into the fit.} The current
   trilinear interpolator on the 1295-point grid is sufficient at the
   scan-window 4-digit level (section~\ref{sec:val-anchor}). The
@@ -936,11 +1159,11 @@ at 161\,GeV, growing to $\sim$77\% at 170\,GeV.
 \item \textbf{$\sigma^{(3/2),b}$.} Omitted. Paper estimate $\lesssim
   2\fb$ energy-independent; empirical closure of Tables 1 and 2 to
   4–5 digits constrains it to $\lesssim 0.01\fb$ in practice.
-\item \textbf{$(\mW,\mt,M_H)$ dependence of $c^{(1,\mathrm{fin})}$.}
+\item \textbf{$(\mW,m_t,M_H)$ dependence of $c^{(1,\mathrm{fin})}$.}
   Closed: full analytic BFS appendix B implementation in
   \code{bfs\_c1fin.py}; reproduces the BFS quotation $-10.076$,
   $-2.709$, $-2.034$ at the reference inputs and propagates the
-  $(\mW,\mt,M_H,M_Z)$ slopes into the fit. Dominant slope
+  $(\mW,m_t,M_H,M_Z)$ slopes into the fit. Dominant slope
   $\partial\mathrm{Re}\,c_{p,\mathrm{LR}}/\partial\mW\approx +1.3$/GeV
   was the leading source of residual fit bias under the previous
   ``constant $c$'' treatment; now zero by construction
@@ -1699,6 +1922,13 @@ Acta Phys.\ Polon.\ B \textbf{23} (1992) 135--172.
 M.~Cacciari, A.~Deandrea, G.~Montagna and O.~Nicrosini,
 \emph{QED structure functions: a systematic approach},
 Europhys.\ Lett.\ \textbf{17} (1992) 123.
+
+\bibitem{eMELA2019}
+V.~Bertone, M.~Cacciari, S.~Frixione, G.~Stagnitto,
+\emph{The partonic structure of the electron at NLL accuracy in QED},
+JHEP \textbf{03} (2020) 135, \arxiv{1911.12040};
+gstagnit/eMELA implementation:
+\href{https://github.com/gstagnit/ePDF}{github.com/gstagnit/ePDF}.
 
 \end{thebibliography}
 

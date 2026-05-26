@@ -83,3 +83,39 @@ LL+exp, not scheme choice.
 | `test_mixed.py` | BETA vs MIXED scheme comparison |
 | `test_nquad.py` | numerical convergence with n_quad |
 | `test_zmin.py` | z_min cutoff variation |
+
+## `whizard_isr_verification/` — WHIZARD ISR vs LL+exp, BFS Born(ISR) reproduction
+
+Triggered by the BFS Table 4 closure-budget campaign (see report §5.5
+and [project_followup_isr_residual.md]). Runs WHIZARD~3.1.5 at the BFS
+Table 4 inputs in four configurations to decompose the
+LL+exp-vs-WHIZARD-ISR residual into version drift, kernel difference, and
+α-choice contributions. Verdict: our WHIZARD Born (no ISR) matches BFS
+to MC stat (0.01-0.15 %); our WHIZARD with ISR-on no-cut is +0.8-1.2 %
+above BFS — clean WHIZARD-3.1.5-vs-WHIZARD-1.x version drift.
+The LL+exp BETA vs WHIZARD-multiplicative kernel adds 0.3-2 % more
+(worst at 158 GeV).
+
+| script | what it does |
+|---|---|
+| `job_born.sin` | WHIZARD process, no beam structure → reproduces BFS Born column |
+| `job_isr.sin.tmpl` | WHIZARD process + `beams=e1,E1=>isr`, with `sqrts_hat>155 GeV` cut |
+| `job_isr_nocut.sin.tmpl` | same but no partonic cut — BFS's actual Born(ISR) recipe |
+| `run_born.sh`, `run_one.sh`, `run_one_nocut.sh` | drivers (sed-substitute α, source WHIZARD env, run on /tmp) |
+| `work_born/`, `work_alpha0/`, `work_alphaGmu/`, `work_alpha0_nocut/` | results per configuration |
+
+## `c1fin_analytic/` — analytic BFS appendix-B c^(1,fin) + closure-budget tests
+
+Triggered by the c^(1,fin) analytic implementation
+([project_c1fin_analytic_2026-05-26.md], commit 7d87038) and the
+closure-budget probe. Verdict: the standard-chain residual at
+[161, 170] GeV is dominated by BFS's σ̂_LR^(0)→σ̂_Born substitution in
+the decay correction (line 2660 of arXiv:0707.0773); the option-5
+hybrid + decay swap closes BFS NLO to MC stat (+0.02-0.13 %).
+
+| script | what it does |
+|---|---|
+| `c1fin.py` | standalone analytic c_p,LR^(1,fin), c_d,l^(1,fin), c_d,h^(1,fin) — reference closure |
+| `debug_cp_bare.py`, `debug_cp_ct.py` | per-term debug of bare + counterterm assembly (used to find a factor-of-2 typo in the 1-mass triangle derivation) |
+| `option5_postisr_anchor_test.py` | hybrid: BFS-quoted Born(ISR) + our analytic NLO × LL+exp |
+| `option5_with_decay_swap.py` | option-5 + BFS's σ̂_LR^(0)→σ̂_Born decay substitution → closure to +0.02-0.35 % vs BFS Table 4 NLO column |
