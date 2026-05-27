@@ -16,7 +16,9 @@ the same chi2/scans/systematic-table pipeline.
 WW_threshold/
 ├── cards/                Steering cards (plain Python modules)
 │   ├── wbwb_default.py     - every magic number for the WbWb fit
-│   └── ww_default.py       - WW threshold scan
+│   ├── ww_default.py       - WW threshold scan (fit/scan parameters)
+│   ├── ww_nlo_config.py    - WW physics knobs (NLO_CONFIG)
+│   └── README.md           - physics rationale for NLO_CONFIG knobs
 ├── framework/             All importable framework code (common + process)
 │   ├── common/               Process-agnostic fit machinery
 │   │   ├── parameters.py       - parameter bookkeeping (nominal / pseudo /
@@ -524,7 +526,7 @@ Fit output (`fit_output/ww/plots/`, written by `doFit_ww.py`):
 - `fit_metadata.json`: timestamp, scenario, full chain string read
   from the template the fit consumed.
 
-THEORY_INPUTS (card-driven EW inputs to the BFS chain, threaded end-to-end
+PARAM_INPUTS (card-driven EW inputs to the BFS chain, threaded end-to-end
 as of 2026-05-27):
 `alpha_s_MW` (α_s(M_W) MS-bar; production 0.1199, BFS reference 0.1199),
 `m_t` (pole mass; production 174.2 GeV, BFS Table 4 174.2 GeV),
@@ -537,7 +539,7 @@ the BFS-reference set via the framework constants `M_T_BFS_REF`,
 slope ∂Re/∂M_H is −0.022/GeV → the 115 → 125.25 PDG switch shifts
 Re c_p,LR by ~0.23 (a few-permille effect on σ_NLO).
 
-Card knobs unique to WW (in addition to NLO_CONFIG / THEORY_INPUTS):
+Card knobs unique to WW (in addition to NLO_CONFIG / PARAM_INPUTS):
 `PARAM_MATH_LABELS` + `PARAM_UNITS` (plain-LaTeX math symbols + units;
 `PARAM_LABELS` is derived on-demand via `plots.param_axis_label`),
 `POI_DISPLAY` (POI math/unit/scale for axis labels — drives
