@@ -198,7 +198,10 @@ class FitCore:
         self._rng = None if legacy_pseudo_rng else np.random.default_rng(42)
 
         # Mass scheme & input/plot directories ------------------------------
-        self.mass_scheme = mass_scheme if mass_scheme is not None else card.MASS_SCHEME
+        # Cards without a real alternate mass scheme (e.g. WW — OS is the
+        # only m_W convention) may omit MASS_SCHEME entirely; default "OS".
+        self.mass_scheme = (mass_scheme if mass_scheme is not None
+                            else getattr(card, "MASS_SCHEME", "OS"))
         is_1s = self.mass_scheme == "1S"
         if input_dir is None:
             if is_1s:
@@ -208,11 +211,18 @@ class FitCore:
         self.input_dir = input_dir
         self.plot_dir = card.PLOT_DIR_1S if is_1s else card.PLOT_DIR
 
+        # Renormalisation scales — fall back to a scale-less default for
+        # processes (e.g. WW) where the chain has no μ-renormalisation
+        # scale to vary. ``mass``/``width`` only enter template filenames
+        # as scaffolding; ``vars`` empty means no scale-variation templates.
+        scales = getattr(card, "RENORM_SCALES",
+                         {"mass": 80.0, "width": 80.0, "vars": []})
+
         # Parameters --------------------------------------------------------
         card_params = card.PARAMETERS_1S if is_1s else card.PARAMETERS
         self.parameters = Parameters(
             card_params,
-            scale_vars=card.RENORM_SCALES["vars"] if read_scale_vars else [],
+            scale_vars=scales["vars"] if read_scale_vars else [],
         )
         self.d_params = self.parameters.as_dict()
         self.param_names = list(self.parameters.names)
@@ -221,8 +231,6 @@ class FitCore:
         # SM_width to feed a shifted-true-value pseudodata).
         self.pseudodata_tag = self._select_pseudodata_tag()
 
-        # Renormalisation scales -------------------------------------------
-        scales = card.RENORM_SCALES
         if read_scale_vars:
             self.mass_scale = scales["alt"]["mass"]
             self.width_scale = scales["alt"]["width"]

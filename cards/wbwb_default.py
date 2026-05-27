@@ -215,22 +215,21 @@ PLOT_DIR_1S = "fit_output/wbwb/plots_1S"
 SYST_TABLE_PATH = "fit_output/wbwb/systematics_table.tex"
 
 # ---------------------------------------------------------------------------
-# Plot decoration
+# Plot decoration: process branding + nuisance labels
 # ---------------------------------------------------------------------------
-PROCESS_LABEL = r"WbWb at $N^{3}LO$+ISR"
-GENERATOR_LABEL = r"QQbar_Threshold $N^{3}LO$+ISR"
-GENERATOR_REF = r"[JHEP 02 (2018) 125]"
-BES_LABEL = r"+ FCC-ee BES"
+# Process identifier — dispatches into framework.process.wbwb.plot_labels
+# for process / generator / BES strings. No LaTeX branding lives in the card.
+PROCESS_ID = "wbwb"
 
-# Plain LaTeX math symbols (no $, no units) — the atomic piece used to
-# compose every other label (axis titles, ratio captions, legend entries).
+# LaTeX symbols for *nuisance* parameters not in POI_DISPLAY (alphas /
+# sw2 are constrained nuisances in WbWb). ``param_axis_label`` falls back
+# to PARAM_MATH_LABELS when POI_DISPLAY has no entry for the parameter.
 PARAM_MATH_LABELS = {
-    "mass":   r"m_t",
-    "width":  r"\Gamma_t",
-    "yukawa": r"y_t",
     "alphas": r"\alpha_s",
     "sw2":    r"\sin^2\theta_W",
 }
+# Native units on parameter-axis plots — POIs and nuisances together.
+# Distinct from POI_DISPLAY's syst-table display unit.
 PARAM_UNITS = {
     "mass":   "GeV",
     "width":  "GeV",

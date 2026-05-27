@@ -53,6 +53,18 @@ from framework.process.ww.template_metadata import compose_header
 # Card → chain-kwargs helpers (single source of truth)
 # ---------------------------------------------------------------------------
 
+def _derive_order(card) -> int:
+    """Informational order tag (NNLO=2 / NLO=1 / LO=0) auto-derived from
+    NLO_CONFIG flags. Used for the ``WW_<order>_...`` filename suffix and
+    the ``describe()`` line — never to gate any physics."""
+    nlo = getattr(card, "NLO_CONFIG", {})
+    if nlo.get("include_BFS_NNLO", False):
+        return 2
+    if nlo.get("include_NLO_hard_decay", False):
+        return 1
+    return 0
+
+
 def partonic_kwargs_from_card(card) -> dict:
     """Card NLO_CONFIG + THEORY_INPUTS → kwargs for ``sigma_partonic_munuqq``.
 
@@ -205,6 +217,11 @@ class WWGenerator:
         point (compute_xsec_ww, doFit_ww, scripts/fit_2107_*, etc.) that
         uses this factory.
 
+        ``order`` is auto-derived from the chain knobs (NNLO if BFS NNLO is
+        on; NLO if hard+decay loops are on; LO otherwise) — it is purely
+        informational, used for the ``WW_<order>_...`` filename tag and
+        the ``describe()`` line.
+
         If ``bfs`` is None and the card sets the diagnostic flag
         NLO_CONFIG["diagnostic_bfs_coulomb_nlo"], a
         ``BFSCorrections(enabled_coulomb_NLO=True)`` is constructed
@@ -212,11 +229,10 @@ class WWGenerator:
         should pass an explicit ``bfs`` to take precedence.
         """
         nlo_cfg = getattr(card, "NLO_CONFIG", {})
-        theory = getattr(card, "THEORY_INPUTS", {})
         if bfs is None and bool(nlo_cfg.get("diagnostic_bfs_coulomb_nlo", False)):
             bfs = BFSCorrections(enabled_coulomb_NLO=True)
         return cls(
-            order=card.ORDER,
+            order=int(getattr(card, "ORDER", _derive_order(card))),
             bfs=bfs,
             card=card,
             **observed_kwargs_from_card(card),

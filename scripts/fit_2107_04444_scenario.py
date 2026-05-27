@@ -46,7 +46,8 @@ TOTAL_LUMI_INVPB = 12.0e6   # = 12 ab⁻¹
 
 def main():
     generator = WWGenerator.from_card(card)
-    fit = WWFit(card, generator, asimov=True, mass_scheme=card.MASS_SCHEME, debug=False)
+    fit = WWFit(card, generator, asimov=True,
+                mass_scheme=getattr(card, "MASS_SCHEME", "OS"), debug=False)
 
     L2 = TOTAL_LUMI_INVPB * LUMI_FRACTION_E2
     L1 = TOTAL_LUMI_INVPB - L2

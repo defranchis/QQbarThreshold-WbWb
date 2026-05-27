@@ -33,25 +33,47 @@ def projection_title(total_lumi, unit="fb", fmt="{:.0f}"):
     return rf"$\mathit{{Projection}}$ ({fmt.format(amount)} {unit}$^{{-1}}$)"
 
 
+def _labels_module(card):
+    """Resolve the per-process plot_labels module via ``card.PROCESS_ID``."""
+    pid = getattr(card, "PROCESS_ID", None)
+    if pid == "ww":
+        from framework.process.ww import plot_labels as labels
+    elif pid == "wbwb":
+        from framework.process.wbwb import plot_labels as labels
+    else:
+        raise ValueError(
+            f"card.PROCESS_ID={pid!r} is not registered with a plot_labels module")
+    return labels
+
+
+def _bes_label(card) -> str:
+    """``"+ FCC-ee BES"`` when the card configures a non-zero beam-energy
+    spread, empty otherwise. Auto-derived from ``BEAM_ENERGY_RES`` so the
+    label can't drift out of sync with the actual smearing kernel."""
+    return "+ FCC-ee BES" if float(getattr(card, "BEAM_ENERGY_RES", 0.0)) > 0.0 else ""
+
+
 def process_annotation(card, *, ax=None, x=0.92, y=0.17, ha="right", offset=0.0,
                        include_reference=False, chain_label=None):
     """Stamp the standard process / generator / BES annotation.
 
-    ``chain_label`` overrides the static ``card.GENERATOR_LABEL`` — pass
+    ``chain_label`` overrides the per-process static generator label — pass
     the value read from the actual template preamble (via
     ``FitCore.template_metadata()``) so the plot describes the templates
     being fit, not the live card.
     """
     ax = ax or plt.gca()
-    lines = [card.PROCESS_LABEL]
+    labels = _labels_module(card)
+    lines = [labels.process_label(card)]
     if include_reference:
-        gen_label = chain_label if chain_label else card.GENERATOR_LABEL
+        gen_label = chain_label if chain_label else labels.generator_label(card)
         if gen_label:
             lines.append(gen_label)
-        if card.GENERATOR_REF:
-            lines.append(card.GENERATOR_REF)
-    if card.BES_LABEL:
-        lines.append(card.BES_LABEL)
+        if labels.GENERATOR_REF:
+            lines.append(labels.GENERATOR_REF)
+    bes = _bes_label(card)
+    if bes:
+        lines.append(bes)
     for i, line in enumerate(lines):
         ax.text(x, y - i * 0.04 + offset, line, fontsize=23 if i == 0 else 21,
                 transform=ax.transAxes, ha=ha)
@@ -91,18 +113,15 @@ def save_figure(plot_dir, name, *, also_pdf=True, clf=True):
 # Top-level diagnostics
 # ---------------------------------------------------------------------------
 def _fit_scenario_caption(fit, *, ax=None, x=0.92, y=0.17):
-    """Two-line process + generator + BES annotation, drawn at the same
-    lower-right position and fontsizes as the legacy ``process_annotation``.
-    Line 1 merges the card's ``PROCESS_LABEL_SHORT`` with
-    ``GENERATOR_LABEL_SHORT``; line 2 is ``BES_LABEL``. Card-driven so
-    every panel of :func:`plot_fit_scenario` carries an identical caption."""
+    """Two-line process + generator-short + BES annotation. Line 1 merges
+    the per-process short process label with the short generator badge;
+    line 2 is the auto-derived BES tag (empty if the card has no BES)."""
     ax = ax or plt.gca()
-    process_short = getattr(fit.card, "PROCESS_LABEL_SHORT",
-                            fit.card.PROCESS_LABEL.split(" at ")[0])
-    gen_short = getattr(fit.card, "GENERATOR_LABEL_SHORT", "")
-    lines = [f"{process_short} {gen_short}".strip()]
-    if fit.card.BES_LABEL:
-        lines.append(fit.card.BES_LABEL)
+    labels = _labels_module(fit.card)
+    lines = [f"{labels.process_label_short(fit.card)} {labels.generator_label_short(fit.card)}".strip()]
+    bes = _bes_label(fit.card)
+    if bes:
+        lines.append(bes)
     for i, line in enumerate(lines):
         ax.text(x, y - i * 0.04, line, transform=ax.transAxes,
                 ha="right", fontsize=23 if i == 0 else 21)
@@ -204,9 +223,16 @@ def plot_parameter_variations(fit):
 # template the fit's morphing extrapolates to.
 def param_axis_label(card, name: str) -> str:
     """Compose a full axis label ``"$<math>$ [<unit>]"`` for parameter
-    ``name`` from the card's ``PARAM_MATH_LABELS`` and ``PARAM_UNITS``
-    dicts. Falls back to the bare name if no math symbol is registered."""
-    math = getattr(card, "PARAM_MATH_LABELS", {}).get(name, name)
+    ``name``. Math symbol comes from ``card.POI_DISPLAY[name]["symbol"]``
+    (POIs) or ``card.PARAM_MATH_LABELS`` (nuisances), falling back to the
+    bare name. Unit is the parameter's *native* unit on the plot axis —
+    ``card.PARAM_UNITS`` — distinct from ``POI_DISPLAY["unit"]`` which is
+    the syst-table display unit (e.g. MeV vs the GeV the axis carries)."""
+    poi_spec = getattr(card, "POI_DISPLAY", {}).get(name)
+    if poi_spec is not None:
+        math = poi_spec.get("symbol", name)
+    else:
+        math = getattr(card, "PARAM_MATH_LABELS", {}).get(name, name)
     unit = getattr(card, "PARAM_UNITS", {}).get(name, "")
     return rf"${math}$" + (f" [{unit}]" if unit else "")
 
@@ -219,11 +245,10 @@ def _format_delta(delta_disp: float, unit: str) -> str:
 
 def _poi_display_spec(card, name: str) -> tuple[str, float, str]:
     """``(math_symbol, display_scale, unit)`` for ``name`` from
-    ``card.POI_DISPLAY``, falling back to ``PARAM_MATH_LABELS`` (symbol)
-    and ``(1.0, "")`` (scale, unit)."""
+    ``card.POI_DISPLAY``. Falls back to the bare name with no scale/unit
+    if the parameter has no display spec (shouldn't happen for POIs)."""
     spec = getattr(card, "POI_DISPLAY", {}).get(name, {})
-    symbol = spec.get(
-        "symbol", getattr(card, "PARAM_MATH_LABELS", {}).get(name, name))
+    symbol = spec.get("symbol", name)
     return symbol, float(spec.get("scale", 1.0)), spec.get("unit", "")
 
 

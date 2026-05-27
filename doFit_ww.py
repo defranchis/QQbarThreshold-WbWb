@@ -114,7 +114,7 @@ def main():
         input_dir=args.inputDir,
         asimov=not args.pseudo,
         read_scale_vars=args.scaleVars,
-        mass_scheme=card.MASS_SCHEME,
+        mass_scheme=getattr(card, "MASS_SCHEME", "OS"),
         debug=args.debug,
     )
     _check_template_freshness(fit, generator)

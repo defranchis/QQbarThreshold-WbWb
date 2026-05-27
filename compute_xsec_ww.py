@@ -68,9 +68,14 @@ def main():
            if args.diagnostic_bfs_coulomb_nlo is not None else None)
     generator = WWGenerator.from_card(card, bfs=bfs)
     print(f"[{generator.describe()}]")
-    mass_scale = card.RENORM_SCALES["mass"]
-    width_scale = card.RENORM_SCALES["width"]
-    mass_scheme = card.MASS_SCHEME
+    # ``mass_scale`` / ``width_scale`` / ``mass_scheme`` are scaffolding
+    # used only to label template files (the WW chain has no μ-renormalisation
+    # scale and no alternate mass scheme). Defaults match the legacy
+    # WW_NNLO_...scaleM80.0_scaleW80.0 filename convention.
+    scales = getattr(card, "RENORM_SCALES", {"mass": 80.0, "width": 80.0, "vars": []})
+    mass_scale = scales["mass"]
+    width_scale = scales["width"]
+    mass_scheme = getattr(card, "MASS_SCHEME", "OS")
 
     t0 = time.time()
 
