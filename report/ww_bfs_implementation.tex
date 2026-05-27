@@ -146,7 +146,7 @@ $+$ Whizard anchor $+$ single-convolution LL+exp ISR (cf.~section
 
 \paragraph{Theory inputs (production vs.\ paper closure).} The EW
 parameters $\alpha_s(\mW)$, $m_t$, $M_H$, and $M_Z$ are card-driven
-through \code{cards/ww\_default.py:THEORY\_INPUTS} and threaded
+through \code{cards/ww\_default.py:PARAM\_INPUTS} and threaded
 end-to-end into every Born, NLO, NNLO, and anchor piece (since
 2026-05-27). Production defaults are PDG-current
 ($\alpha_s(\mW)=0.1199$, $m_t=174.2\GeV$, $M_H=125.25\GeV$,
@@ -161,6 +161,40 @@ $\partial\mathrm{Re}\,c_{p,\mathrm{LR}}/\partial M_H\approx
 -0.022/\GeV$ (Scenario~H of section~\ref{sec:val-loops}), so the
 $115\to 125.25\GeV$ shift moves $\mathrm{Re}\,c_{p,\mathrm{LR}}$ by
 $\sim 0.23$, a few-permille effect on $\sigma_\text{NLO}$.
+
+\paragraph{The $\alpha_{\rm em}$ inputs and EW scheme.}\label{par:alpha-em}
+Since 2026-05-27 \code{PARAM\_INPUTS} also exposes two
+$\alpha_{\rm em}$ overrides, both defaulting to \code{None}:
+\begin{itemize}
+\item \code{alpha\_em} — the $\alpha$ used in the $\sigma$ chain
+   (Born + NLO + NNLO loops).\quad\code{None} $\to$ derived
+   $\alpha_{G_\mu}(\mW, M_Z) = \sqrt{2}\,G_F\,\mW^2\,\sin^2\theta_W^{\rm OS}/\pi$
+   at the fit-point $\mW$.
+\item \code{alpha\_em\_isr} — the $\alpha$ used to build the LL+exp
+   ISR exponent $\beta_e = (2\alpha/\pi)(L_e-1)$.\quad\code{None} $\to$
+   $\alpha_{G_\mu}(M_W^{\rm BFS\,ref})\approx 1/132.1$, frozen across the
+   fit (BFS prescription, line 2514 of \cite{BFSnlo}).
+\end{itemize}
+Implemented via an \code{override=} kwarg on \code{alpha\_Gmu(...)} and
+threaded as \code{alpha\_em} through every $\sigma$ helper that
+contains an explicit $\alpha$ factor; the convolution-internal
+\code{alpha\_em} kwarg in \code{sigma\_ISR\_*\_convolution} was renamed
+\code{alpha\_em\_isr} to free up \code{alpha\_em} as the
+$\sigma$-chain key forwarded through \code{**sigma\_kwargs}. With both
+\code{None} the calculation is byte-identical to the previous chain.
+Setting an explicit float lets the upcoming \code{PARAM\_UNC.alpha\_em}
+and \code{PARAM\_UNC.alpha\_em\_isr} nuisances propagate
+independently --- the ISR scheme variation decorrelates from the
+$\sigma$-chain $\alpha$ uncertainty.
+
+The whole chain is in the $G_\mu$ + OS scheme: $\alpha_{G_\mu}$ is
+defined to absorb the leading $\Delta r$ correction, and
+$\sin^2\theta_W = 1-(\mW/M_Z)^2$ ties the weak mixing angle to the
+pole mass. A switch to an $\alpha(M_Z)$ + $\sin^2\theta_W^{\overline{\rm MS}}$
+four-input scheme (independent EW inputs aligned with FCC-ee
+Tera-Z measurements~\cite{RiembauTeraZ}) has been investigated and
+parked; revisit conditions and the literature map for a future
+implementation are recorded internally.
 
 \subsection{Born expansion}\label{sec:born}
 
@@ -2023,6 +2057,11 @@ V.~Bertone, M.~Cacciari, S.~Frixione, G.~Stagnitto,
 JHEP \textbf{03} (2020) 135, \arxiv{1911.12040};
 gstagnit/eMELA implementation:
 \href{https://github.com/gstagnit/ePDF}{github.com/gstagnit/ePDF}.
+
+\bibitem{RiembauTeraZ}
+M.~Riembau,
+\emph{On the extraction of $\alpha_{\rm em}(m_Z^2)$ at Tera-Z},
+\arxiv{2501.05508}, CERN-TH-2025-005 (2025).
 
 \end{thebibliography}
 
