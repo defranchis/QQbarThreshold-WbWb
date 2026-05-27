@@ -224,7 +224,7 @@ def sigma_ISR_convolution(sqrt_s,
                           gammaW: float = GAMMA_W_DEFAULT,
                           z_min: float = 0.10,
                           n_quad: int = 200,
-                          alpha_em: float | None = None,
+                          alpha_em_isr: float | None = None,
                           **sigma_kwargs):
     """
     σ_obs(√s) = ∫_{z_min}^1 H(z; s) σ̂(z·s) dz.
@@ -232,9 +232,10 @@ def sigma_ISR_convolution(sqrt_s,
     Endpoint substitution u = (1-z)^β → z = 1 − u^{1/β}, dz = −(1/β) u^{1/β−1} du.
     Integrand on [0, u_max] = [0, (1−z_min)^β] is smooth.
 
-    ``alpha_em`` selects the α used to build the LL exponent β_e. Default is
-    α_Gμ at m_W (BFS prescription, line 2514 of arXiv:0707.0773); pass
-    ``ALPHA_EM_0`` for the historical α(0) Thomson convention.
+    ``alpha_em_isr`` selects the α used to build the LL exponent β_e. Default
+    is α_Gμ(M_W_BFS_REF) (BFS prescription, line 2514 of arXiv:0707.0773);
+    pass ``ALPHA_EM_0`` for the historical α(0) Thomson convention.  Distinct
+    from any ``alpha_em`` forwarded via ``**sigma_kwargs`` to the partonic σ.
 
     Returns σ_obs in pb. ``sigma_partonic_fn`` must accept array-like ``s``.
     Vectorised in ``sqrt_s``: scalar or array.
@@ -244,7 +245,7 @@ def sigma_ISR_convolution(sqrt_s,
 
     for idx, sq in enumerate(sqrt_s_arr):
         s = sq * sq
-        beta = beta_ISR(s, alpha_em=alpha_em)
+        beta = beta_ISR(s, alpha_em=alpha_em_isr)
         H_sv = H_SV(beta)
 
         u, w, z_vals, one_minus_z, jac_NS = _endpoint_substitution(
@@ -331,7 +332,7 @@ def sigma_ISR_2leg_convolution(sqrt_s,
                                gammaW: float = GAMMA_W_DEFAULT,
                                x_min: float = 0.55,
                                n_quad: int = 32,
-                               alpha_em: float | None = None,
+                               alpha_em_isr: float | None = None,
                                **sigma_kwargs):
     """Two-leg double-convolution ISR (BFS eq. 71):
 
@@ -363,7 +364,7 @@ def sigma_ISR_2leg_convolution(sqrt_s,
 
     for idx, sq in enumerate(sqrt_s_arr):
         s = sq * sq
-        beta = beta_ISR(s, alpha_em=alpha_em)
+        beta = beta_ISR(s, alpha_em=alpha_em_isr)
         H_sv = _H_SV_per_leg(beta)
 
         u, w, x_vals, one_minus_x, jac_NS = _endpoint_substitution(
@@ -413,6 +414,11 @@ def sigma_observed_munuqq(sqrt_s,
                           apply_delta_QCD: bool = True,
                           alpha_s: float = ALPHA_S_MW_DEFAULT,
                           alpha_s_ref: float = ALPHA_S_MW_DEFAULT,
+                          # α_em used inside the σ chain (Born + NLO + NNLO).
+                          # None → derived α_Gμ(m_W, M_Z); float overrides.
+                          alpha_em: float | None = None,
+                          # α_em used to build the ISR β_e exponent (BFS eq. 71).
+                          # None → α_Gμ(M_W_BFS_REF) per BFS prescription.
                           alpha_em_isr: float | None = None,
                           apply_whizard_anchor: bool = True,
                           whizard_anchor_source: str = "grid",
@@ -444,7 +450,10 @@ def sigma_observed_munuqq(sqrt_s,
     """
     common_kwargs = dict(
         mW=mW, gammaW=gammaW,
-        alpha_em=alpha_em_isr,
+        # σ-chain α_em forwarded to sigma_partonic_munuqq via **sigma_kwargs.
+        alpha_em=alpha_em,
+        # ISR-β α_em consumed by the convolution itself (beta_ISR call).
+        alpha_em_isr=alpha_em_isr,
         channel=channel,
         include_coulomb=include_coulomb,
         bfs=bfs,

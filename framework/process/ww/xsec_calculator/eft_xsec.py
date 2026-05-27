@@ -88,7 +88,16 @@ def sin2_thetaW_OS(mW: float = M_W_DEFAULT, MZ: float = M_Z) -> float:
     return 1.0 - (mW / MZ) ** 2
 
 
-def alpha_Gmu(mW: float = M_W_DEFAULT, MZ: float = M_Z) -> float:
+def alpha_Gmu(mW: float = M_W_DEFAULT, MZ: float = M_Z,
+              override: float | None = None) -> float:
+    """α_em in the G_μ scheme: √2 G_F m_W² sin²θ_W / π.
+
+    ``override`` short-circuits the derivation — pass a float to inject a
+    user-supplied α_em (used by the PARAM_UNC.alpha_em nuisance via the
+    PARAM_INPUTS.alpha_em card knob).  ``None`` (default) → derived value.
+    """
+    if override is not None:
+        return float(override)
     sW2 = sin2_thetaW_OS(mW, MZ)
     return np.sqrt(2.0) * G_F * mW * mW * sW2 / np.pi
 
@@ -217,7 +226,8 @@ def sigma_WW_partonic(s,
                   decay_uses_full_born: bool = True,
                   m_t: float = M_T_DEFAULT,
                   M_H: float = M_H_DEFAULT,
-                  MZ: float = M_Z):
+                  MZ: float = M_Z,
+                  alpha_em: float | None = None):
     """
     Off-shell-convolved σ(e+e- → W+W- → 4f), full off-shell, in pb.
 
@@ -244,7 +254,7 @@ def sigma_WW_partonic(s,
     Vectorised: accepts scalar or array ``s`` (m_W, Γ_W must be scalar).
     """
     s_arr = np.asarray(s, dtype=float)
-    alpha = alpha_Gmu(mW, MZ)
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
     sW2 = sin2_thetaW_OS(mW, MZ)
 
     use_zero = s_arr < _S_BFS_FLOOR
@@ -266,6 +276,7 @@ def sigma_WW_partonic(s,
             coulomb_kc_safe=coulomb_kc_safe,
             decay_uses_full_born=decay_uses_full_born,
             mt=m_t, MH=M_H, MZ=MZ,
+            alpha_em=alpha_em,
         )
         # Smooth-floor weight is 1 above 150 GeV, ramps to 0 across [149, 150]
         # to keep σ̂(s) C¹ for the ISR convolution kernel.
@@ -414,7 +425,8 @@ def sigma_partonic_munuqq(s,
                           decay_uses_full_born: bool = True,
                           m_t: float = M_T_DEFAULT,
                           M_H: float = M_H_DEFAULT,
-                          MZ: float = M_Z):
+                          MZ: float = M_Z,
+                          alpha_em: float | None = None):
     """
     Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
     Returns σ in pb at partonic CM energy² = s (before ISR convolution).
@@ -505,6 +517,7 @@ def sigma_partonic_munuqq(s,
                 coulomb_kc_safe=coulomb_kc_safe,
                 decay_uses_full_born=decay_uses_full_born,
                 mt=m_t, MH=M_H, MZ=MZ,
+                alpha_em=alpha_em,
             )
             sigma_bfs = sigma_specific * _CHANNEL_MULTIPLICITY[channel]
         else:   # pdg-constant: σ_WW × BR_PDG (BR carries δ_QCD)
@@ -522,6 +535,7 @@ def sigma_partonic_munuqq(s,
                 coulomb_kc_safe=coulomb_kc_safe,
                 decay_uses_full_born=decay_uses_full_born,
                 mt=m_t, MH=M_H, MZ=MZ,
+                alpha_em=alpha_em,
             )
             sigma_bfs = sigma_WW_total * BR_pdg
         # Smooth-floor weight kills the hard step at 150 GeV that was
@@ -532,7 +546,7 @@ def sigma_partonic_munuqq(s,
     if np.any(use_cal):
         if br_convention == "bfs-eft":
             from framework.process.ww.xsec_calculator.bfs_eft import gamma_W_LO
-            BR_x = (_CHANNEL_MULTIPLICITY[channel] / 27.0) * (gamma_W_LO(mW) / gammaW) ** 2
+            BR_x = (_CHANNEL_MULTIPLICITY[channel] / 27.0) * (gamma_W_LO(mW, alpha_em=alpha_em) / gammaW) ** 2
         else:
             BR_x = BR_pdg
         sigma_cal = sigma_WW_partonic(
@@ -546,6 +560,7 @@ def sigma_partonic_munuqq(s,
             coulomb_kc_safe=coulomb_kc_safe,
             decay_uses_full_born=decay_uses_full_born,
             m_t=m_t, M_H=M_H, MZ=MZ,
+            alpha_em=alpha_em,
         ) * BR_x
         sigma = np.where(use_cal, sigma_cal, sigma)
 

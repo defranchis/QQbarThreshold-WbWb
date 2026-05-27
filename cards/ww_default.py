@@ -16,24 +16,25 @@ PARAMETERS = {
 # ---------------------------------------------------------------------------
 # External parameter inputs and uncertainties
 # ---------------------------------------------------------------------------
-# Production defaults are PDG 2024 values.  BFS reference set used for
-# Tables 1–4 closure: m_t=174.2, M_H=115, M_Z=91.188 (constants M_*_BFS_REF
-# in process/ww/xsec_calculator/eft_xsec.py).
+# Production defaults are PDG 2024. α_em=None → derived α_Gμ (σ chain);
+# α_em_isr=None → α_Gμ(M_W_BFS_REF) per BFS prescription. See cards/README.md.
 PARAM_INPUTS = {
-    "alpha_s_MW": 0.1199,   # α_s(M_W) MS-bar; PDG α_s(M_Z)=0.118 → M_W ≈ 0.1199
-    "m_t":        174.2,    # GeV, OS pole mass (PDG ≈ BFS reference)
-    "M_H":        125.25,   # GeV PDG 2024 (BFS Tables used 115, pre-discovery)
-    "M_Z":        91.1876,  # GeV PDG (BFS Tables used 91.188)
+    "alpha_s_MW":   0.1199,   # α_s(M_W) MS-bar
+    "m_t":          174.2,    # GeV, OS pole
+    "M_H":          125.25,   # GeV
+    "M_Z":          91.1876,  # GeV
+    "alpha_em":     None,     # σ chain override; None → α_Gμ(m_W, M_Z)
+    "alpha_em_isr": None,     # ISR β_e override; None → α_Gμ(M_W_BFS_REF)
 }
 
-# PDG 2024 uncertainties on external inputs (PLACEHOLDERS for propagation).
+# Parametric uncertainties — PLACEHOLDERS, no fit wiring yet. See README.
 PARAM_UNC = {
-    "m_t":       0.30,    # GeV
-    "M_H":       0.11,    # GeV
-    "M_Z":       0.0021,  # GeV
-    "alpha_s":   0.0009,  # on α_s(M_Z)
-    "BR_W_MUNU": 0.0006,
-    "BR_W_HAD":  0.0011,
+    "m_t":          0.30,    # GeV
+    "M_H":          0.11,    # GeV
+    "M_Z":          0.0021,  # GeV
+    "alpha_s":      0.0009,  # on α_s(M_Z)
+    "alpha_em":     1.0e-7,  # σ-chain α
+    "alpha_em_isr": 1.0e-7,  # ISR β_e α
 }
 
 # ---------------------------------------------------------------------------

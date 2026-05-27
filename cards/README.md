@@ -8,13 +8,52 @@ arXiv:0707.0773 (NLO) and arXiv:0807.0102 (NNLO).
 
 ## PARAM_INPUTS / PARAM_UNC
 
-`m_t`, `M_H`, `M_Z` enter the NLO hard-matching coefficient `c_p,LR^(1,fin)` and the
-BFS EW couplings ξ(s), χ(s), sin²θ_W.  The production defaults are PDG 2024 values.
+### PARAM_INPUTS — production theory inputs
+
+`alpha_s_MW`, `m_t`, `M_H`, `M_Z` enter the NLO hard-matching coefficient
+`c_p,LR^(1,fin)` and the BFS EW couplings ξ(s), χ(s), sin²θ_W.  Production
+defaults are PDG 2024 values.
 
 The BFS reference set used to produce Tables 1–4 is different:
 `m_t=174.2, M_H=115 (pre-Higgs-discovery), M_Z=91.188`.  These are kept as
 `M_*_BFS_REF` constants in `process/ww/xsec_calculator/eft_xsec.py`; all closure
 validation scripts pass them explicitly.
+
+`alpha_em` and `alpha_em_isr` are α_em overrides.  `None` (default) means:
+
+- **σ chain (`alpha_em`)** → derived `α_Gμ(m_W, M_Z) = √2 G_F m_W² sin²θ_W / π`
+  (tree-level G_μ scheme; `G_F = 1.1663787e-5` in `eft_xsec.py`).  Applies
+  to Born + NLO + NNLO via `alpha_Gmu(mW, MZ, override=alpha_em)`.
+- **ISR (`alpha_em_isr`)** → `α_Gμ(M_W_BFS_REF) ≈ 1/132.1`, fixed across the
+  fit (BFS prescription, arXiv:0707.0773 line 2514 — avoids fictitious m_W
+  dependence in the LL β_e kernel).
+
+Set to a float to inject a user-supplied value (used for the
+`PARAM_UNC.{alpha_em, alpha_em_isr}` nuisances).
+
+### PARAM_UNC — parametric uncertainties (PLACEHOLDERS)
+
+PDG 2024 uncertainties on external inputs that the fit currently holds
+fixed.  They are **not yet wired** into the fit — no SYSTEMATICS entry
+reads them.  Provisional values (all absolute):
+
+| Key            | Value      | Source / unit                               |
+|----------------|------------|---------------------------------------------|
+| `m_t`          | 0.30       | GeV, PDG                                    |
+| `M_H`          | 0.11       | GeV, PDG                                    |
+| `M_Z`          | 0.0021     | GeV, PDG                                    |
+| `alpha_s`      | 0.0009     | on α_s(M_Z), PDG                            |
+| `alpha_em`     | 1.0e-7     | absolute on α_em(M_W) in σ chain            |
+| `alpha_em_isr` | 1.0e-7     | absolute on α_em in ISR kernel              |
+
+α_em is split into two independent nuisances so the ISR-side scheme
+uncertainty decorrelates from the rest of the σ chain.  PDG
+δα^-1(M_Z) ≈ 0.009 → δα ≈ 5×10⁻⁷; the 1×10⁻⁷ placeholder is conservative
+and should be refined when the fit-side propagation lands.
+
+BR_W_* uncertainties are deliberately not in PARAM_UNC: in `pdg-constant`
+BR mode the BR is a measured constant, so its uncertainty is an
+analysis-level systematic rather than a theory-input nuisance.
 
 ---
 

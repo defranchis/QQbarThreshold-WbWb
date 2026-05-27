@@ -89,6 +89,7 @@ def partonic_kwargs_from_card(card) -> dict:
         m_t=float(theory.get("m_t", M_T_DEFAULT)),
         M_H=float(theory.get("M_H", M_H_DEFAULT)),
         MZ=float(theory.get("M_Z", M_Z)),
+        alpha_em=theory.get("alpha_em", None),
     )
 
 
@@ -138,10 +139,11 @@ def observed_kwargs_from_card(card) -> dict:
     (n_quad, z_min) are not card-exposed; sensible defaults live in isr.py.
     """
     nlo = getattr(card, "NLO_CONFIG", {})
+    theory = getattr(card, "PARAM_INPUTS", {})
     return {
         **partonic_kwargs_from_card(card),
         "isr_scheme":   str(nlo.get("isr_scheme", "single_conv")),
-        "alpha_em_isr": nlo.get("alpha_em_isr", None),
+        "alpha_em_isr": theory.get("alpha_em_isr", None),
     }
 
 
@@ -186,6 +188,8 @@ class WWGenerator:
                  # EW couplings (sin²θ_W = 1 − (m_W/M_Z)² via OS scheme).
                  m_t: float = M_T_DEFAULT, M_H: float = M_H_DEFAULT,
                  MZ: float = M_Z,
+                 # σ-chain α_em override (None → α_Gμ derived from m_W, M_Z).
+                 alpha_em: float | None = None,
                  # Steering card reference — ``template_fingerprint`` reads
                  # PDG BRs + PARAMETERS variation magnitudes from it.
                  card=None):
@@ -207,6 +211,7 @@ class WWGenerator:
         self.m_t = m_t
         self.M_H = M_H
         self.MZ = MZ
+        self.alpha_em = alpha_em
         self.card = card
 
     @classmethod
@@ -271,8 +276,10 @@ class WWGenerator:
             "channel":         self.channel,
             "br_convention":   self.br_convention,
             "alpha_s":         f"{self.alpha_s:.5f}",
+            "alpha_em":        ("auto" if self.alpha_em is None
+                                else f"{self.alpha_em:.6e}"),
             "alpha_em_isr":    ("auto" if self.alpha_em_isr is None
-                                else f"{self.alpha_em_isr:.6f}"),
+                                else f"{self.alpha_em_isr:.6e}"),
             "isr_scheme":      self.isr_scheme,
             "m_t":             f"{self.m_t:.3f}",
             "M_H":             f"{self.M_H:.3f}",
@@ -304,8 +311,10 @@ class WWGenerator:
 
     def describe(self) -> str:
         """One-line summary of the chain configuration (for log lines)."""
-        alpha_em_str = (f"{self.alpha_em_isr:.6f}" if self.alpha_em_isr is not None
-                        else "α_Gμ(M_W_BFS_REF) [BFS default]")
+        a_isr = (f"{self.alpha_em_isr:.6e}" if self.alpha_em_isr is not None
+                 else "α_Gμ(M_W_BFS_REF) [BFS default]")
+        a_chain = (f"{self.alpha_em:.6e}" if self.alpha_em is not None
+                   else "α_Gμ(m_W) [derived]")
         return (
             f"WWGenerator order={self.order} channel={self.channel}  "
             f"BR={self.br_convention}  "
@@ -315,7 +324,8 @@ class WWGenerator:
             f"NNLO={self.include_BFS_NNLO}  "
             f"δ_QCD={self.apply_delta_QCD} (α_s={self.alpha_s})  "
             f"anchor={self.apply_whizard_anchor}[{self.whizard_anchor_source}]  "
-            f"ISR={self.isr_scheme} (α_em={alpha_em_str})  "
+            f"ISR={self.isr_scheme} (α_em_isr={a_isr})  "
+            f"α_em_chain={a_chain}  "
             f"m_t={self.m_t} M_H={self.M_H} M_Z={self.MZ}"
         )
 
@@ -377,6 +387,7 @@ class WWGenerator:
             apply_whizard_anchor=self.apply_whizard_anchor,
             whizard_anchor_source=self.whizard_anchor_source,
             isr_scheme=self.isr_scheme,
+            alpha_em=self.alpha_em,
             alpha_em_isr=self.alpha_em_isr,
             coulomb_kc_safe=self.coulomb_kc_safe,
             decay_uses_full_born=self.decay_uses_full_born,
