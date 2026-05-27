@@ -111,20 +111,21 @@ def plot_bfs_born_tables():
         s, mW=80.377, gammaW=2.09201, order="N3/2LO") * 1e3
 
     fig, ax_t, ax_b = _setup_axes(
-        r"BFS NLO Tables 1 \& 2: $N^{3/2}\mathrm{LO}_\mathrm{EFT}$ Born for "
-        r"$e^+e^-\to\mu^-\bar\nu_\mu u\bar d$",
-        ylabel_top=r"$\sigma$ [fb]",
+        r"BFS NLO Tables 1 \& 2: partonic "
+        r"$N^{3/2}\mathrm{LO}_\mathrm{EFT}$ Born for "
+        r"$e^+e^-\to\mu^-\bar\nu_\mu u\bar d$ (no ISR)",
+        ylabel_top=r"$\hat\sigma$ [fb] (partonic)",
         ylabel_bot=r"code $-$ paper [fb]",
         height=6.0,
     )
     ax_t.plot(sqrts, mine_T1, "-", color="C0",
-              label=r"Table 1 (LO width, no BR corr): code")
+              label=r"Table 1 partonic (LO width, no BR corr): code")
     ax_t.plot(sqrts, BFS_TABLE_1["eft_N32LO_fb"], "s",
-              mfc="none", color="C0", label=r"Table 1: paper")
+              mfc="none", color="C0", label=r"Table 1 partonic: paper")
     ax_t.plot(sqrts, mine_T2, "-", color="C1",
-              label=r"Table 2 (NLO+QCD width, BR on): code")
+              label=r"Table 2 partonic (NLO+QCD width, BR on): code")
     ax_t.plot(sqrts, BFS_TABLE_2["eft_N32LO_fb"], "s",
-              mfc="none", color="C1", label=r"Table 2: paper")
+              mfc="none", color="C1", label=r"Table 2 partonic: paper")
     ax_t.legend(fontsize=9, loc="upper left")
 
     ax_b.plot(sqrts, mine_T1 - BFS_TABLE_1["eft_N32LO_fb"], "o-", color="C0",
@@ -261,15 +262,17 @@ def plot_whizard_anchor():
     paper_whizard = BFS_TABLE_1["exact_Born_fb"]
 
     fig, ax_t, ax_b = _setup_axes(
-        "Whizard-anchor closure (BFS NLO Table 1 inputs)",
-        ylabel_top=r"$\sigma_\mathrm{BFS}\cdot f$ and $\sigma_\mathrm{Whizard}$ [fb]",
+        "Whizard-anchor closure (BFS NLO Table 1 inputs, partonic, no ISR)",
+        ylabel_top=r"$\hat\sigma_\mathrm{BFS}\!\cdot\! f$ and "
+                   r"$\hat\sigma_\mathrm{Whizard}$ [fb] (partonic)",
         ylabel_bot=r"code $-$ paper [fb]",
         height=5.5,
     )
     ax_t.plot(sqrts, code_anchored, "-", color="C2",
-              label=r"$\sigma_\mathrm{BFS}\cdot f$ (code)")
+              label=r"$\hat\sigma_\mathrm{BFS}\!\cdot\! f$ partonic (code)")
     ax_t.plot(sqrts, paper_whizard, "s",
-              mfc="none", color="C2", label="BFS Whizard reference")
+              mfc="none", color="C2",
+              label=r"BFS Whizard reference $\hat\sigma$ partonic")
     ax_t.legend(fontsize=9, loc="upper left")
 
     ax_b.plot(sqrts, code_anchored - paper_whizard, "o-", color="C2")
@@ -311,8 +314,9 @@ def plot_bfs_nnlo_pieces():
                "Cxres_fb": "C3", "C3_fb": "C4"}
 
     fig, ax_t, ax_b = _setup_axes(
-        "BFS NNLO Table 1: closed-form pieces (helicity-averaged)",
-        ylabel_top=r"$\Delta\sigma$ [fb]",
+        "BFS NNLO Table 1: closed-form partonic pieces "
+        "(helicity-averaged, no ISR)",
+        ylabel_top=r"$\Delta\hat\sigma$ [fb] (partonic)",
         ylabel_bot=r"code $-$ paper [fb]",
         height=6.5,
     )
@@ -322,9 +326,10 @@ def plot_bfs_nnlo_pieces():
         ax_b.plot(sqrts, code_vals - BFSNNLO_T1[k], "o-",
                   color=colours[k], lw=0.8, ms=3)
     # Sum on top of the pieces
-    ax_t.plot(sqrts, sum_code, "k-", lw=1.6, label=r"sum $\hat\sigma^{(3/2)}$ (code)")
+    ax_t.plot(sqrts, sum_code, "k-", lw=1.6,
+              label=r"sum $\hat\sigma^{(3/2)}$ partonic (code)")
     ax_t.plot(sqrts, BFSNNLO_T1["sumN32_fb"], "ko", mfc="none",
-              ms=6, label=r"sum $\hat\sigma^{(3/2)}$ (paper)")
+              ms=6, label=r"sum $\hat\sigma^{(3/2)}$ partonic (paper)")
     ax_b.plot(sqrts, sum_code - BFSNNLO_T1["sumN32_fb"], "ko-",
               ms=4, label="sum")
 
@@ -356,17 +361,17 @@ def plot_bfs_nnlo_isr():
     paper_isr      = BFSNNLO_T2["N32_ISR"]
 
     fig, ax_t, ax_b = _setup_axes(
-        "BFS NNLO Table 2: partonic vs ISR-improved $\\hat\\sigma^{(3/2)}$",
+        r"BFS NNLO Table 2: partonic vs $\otimes$ISR $\hat\sigma^{(3/2)}$",
         ylabel_top=r"$\hat\sigma^{(3/2)}$ [fb] (helicity-averaged)",
         ylabel_bot=r"code $-$ paper [fb]",
         height=5.5,
     )
     ax_t.plot(sqrts, paper_partonic, "k--", lw=0.9,
-              label=r"$\hat\sigma^{(3/2)}$ partonic (paper)")
+              label=r"$\hat\sigma^{(3/2)}$ partonic, no ISR (paper)")
     ax_t.plot(sqrts, code_isr,  "-", color="C3",
-              label=r"$\sigma_\mathrm{ISR}^{(3/2)}$ (code)")
+              label=r"$\hat\sigma^{(3/2)}\!\otimes\!$ISR (code)")
     ax_t.plot(sqrts, paper_isr, "s", mfc="none", color="C3",
-              label=r"$\sigma_\mathrm{ISR}^{(3/2)}$ (paper)")
+              label=r"$\hat\sigma^{(3/2)}\!\otimes\!$ISR (paper)")
     ax_t.legend(fontsize=9, loc="upper left")
 
     ax_b.plot(sqrts, code_isr - paper_isr, "o-", color="C3")
