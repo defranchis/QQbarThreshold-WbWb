@@ -234,9 +234,10 @@ def _print_table(card, syst, totals, centrals):
         f"{_display(totals[poi], card.POI_DISPLAY[poi], centrals[poi]):<12.1f}"
         for poi in pois)
     print(f"{'total exp':<12} {total_cells}")
-    theory = card.THEORY_UNC
-    theory_cells = " ".join(f"{theory.get(poi, 0):<12.0f}" for poi in pois)
-    print(f"{'theory':<12} {theory_cells}")
+    theory = getattr(card, "THEORY_UNC", None)
+    if theory is not None:
+        theory_cells = " ".join(f"{theory.get(poi, 0):<12.0f}" for poi in pois)
+        print(f"{'theory':<12} {theory_cells}")
 
 
 def _write_latex(card, syst, totals, centrals, path):
@@ -269,9 +270,10 @@ def _write_latex(card, syst, totals, centrals, path):
         f"{_display(totals[poi], card.POI_DISPLAY[poi], centrals[poi]):.1f}"
         for poi in pois)
     lines.append(f"total & {total_row} \\\\")
-    theory = card.THEORY_UNC
-    theory_row = " & ".join(f"{theory.get(poi, 0):.0f}" for poi in pois)
-    lines.append(f"theory & {theory_row} \\\\")
+    theory = getattr(card, "THEORY_UNC", None)
+    if theory is not None:
+        theory_row = " & ".join(f"{theory.get(poi, 0):.0f}" for poi in pois)
+        lines.append(f"theory & {theory_row} \\\\")
     lines.append(r"\hline")
     lines.append(r"\end{tabular}")
     if len(pois) > 2:

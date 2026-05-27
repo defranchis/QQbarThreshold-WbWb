@@ -122,15 +122,14 @@ def chain_summary_latex(kwargs: dict) -> str:
 
 def observed_kwargs_from_card(card) -> dict:
     """Card NLO_CONFIG + THEORY_INPUTS → kwargs for ``sigma_observed_munuqq``
-    (partonic kwargs + ISR-only kwargs).
+    (partonic kwargs + ISR-only physics knobs). Numerical quadrature controls
+    (n_quad, z_min) are not card-exposed; sensible defaults live in isr.py.
     """
     nlo = getattr(card, "NLO_CONFIG", {})
     return {
         **partonic_kwargs_from_card(card),
         "isr_scheme":   str(nlo.get("isr_scheme", "single_conv")),
         "alpha_em_isr": nlo.get("alpha_em_isr", None),
-        "n_quad":       int(nlo.get("n_quad", 200)),
-        "z_min":        float(nlo.get("z_min", 0.10)),
     }
 
 
@@ -156,7 +155,6 @@ class WWGenerator:
 
     def __init__(self, *, order: int = 2, channel: str = "inclusive",
                  include_coulomb: bool = True, bfs: BFSCorrections | None = None,
-                 n_quad: int = 200, z_min: float = 0.10,
                  # Defaults below are the project's "best calculation"; see
                  # cards/ww_default.py + sigma_observed_munuqq in isr.py for
                  # the per-knob rationale.
@@ -183,8 +181,6 @@ class WWGenerator:
         self.channel = channel
         self.include_coulomb = include_coulomb
         self.bfs = bfs if bfs is not None else BFSCorrections()
-        self.n_quad = n_quad
-        self.z_min = z_min
         self.include_NLO_hard_decay = include_NLO_hard_decay
         self.include_BFS_NNLO = include_BFS_NNLO
         self.apply_delta_QCD = apply_delta_QCD
@@ -262,8 +258,6 @@ class WWGenerator:
             "alpha_em_isr":    ("auto" if self.alpha_em_isr is None
                                 else f"{self.alpha_em_isr:.6f}"),
             "isr_scheme":      self.isr_scheme,
-            "n_quad":          str(self.n_quad),
-            "z_min":           f"{self.z_min:.4f}",
             "m_t":             f"{self.m_t:.3f}",
             "M_H":             f"{self.M_H:.3f}",
             "M_Z":             f"{self.MZ:.4f}",
@@ -358,8 +352,6 @@ class WWGenerator:
             channel=self.channel,
             include_coulomb=self.include_coulomb,
             bfs=self.bfs,
-            n_quad=self.n_quad,
-            z_min=self.z_min,
             include_NLO_hard_decay=self.include_NLO_hard_decay,
             include_BFS_NNLO=self.include_BFS_NNLO,
             apply_delta_QCD=self.apply_delta_QCD,

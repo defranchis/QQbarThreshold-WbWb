@@ -185,12 +185,9 @@ def plot_parameter_variations(fit):
         plt.plot(xsec_nom["ecm"], inv_ratio, linestyle="--", color=f"C{i+1}")
     plt.xlabel(r"$\sqrt{s}$ [GeV]")
     plt.ylabel("Cross section variation")
-    # Opt-in scan-window clipping (only set on cards that want it — WW does,
-    # WbWb keeps its legacy full-template view).
-    if getattr(fit.card, "RESTRICT_PARAM_VARIATIONS_PLOT_TO_SCAN", False):
-        xlim = _scan_xlim(fit)
-        if xlim is not None:
-            plt.xlim(*xlim)
+    xlim = _scan_xlim(fit)
+    if xlim is not None:
+        plt.xlim(*xlim)
     plt.legend(fontsize=20)
     save_figure(fit.plot_dir, "param_variations", also_pdf=False)
 
@@ -311,13 +308,22 @@ def plot_fit_input_ratios(fit):
     save_figure(fit.plot_dir, "fit_input_ratios")
 
 
+# Display-scale "wide band" per-POI shifts for the Azzurri overlay
+# (Azzurri 2107.04444 Fig. 1 scale). ±1 GeV on mass and width to match
+# the literature reference; α_s gets a comparable display-scale offset.
+# Each value is in the POI's *native* unit (GeV / GeV / dimensionless).
+_AZZURRI_POI_DELTA = {"mass": 1.0, "width": 1.0, "alphas": 0.005}
+
+
 def plot_fit_input_azzurri_overlay(fit):
-    """Single square panel: every POI's variation band overlaid on the
-    nominal σ, each linearly inflated by ``card.AZZURRI_OVERLAY_INFLATE``
-    so the band is visible (×100 turns a ±10 MeV mass/width template into
-    a ±1 GeV-equivalent band — Azzurri 2107.04444 Fig. 1 scale). The
-    deviation σ_var − σ_nom is read straight from the fit's templates
-    and scaled — purely visual, no extra physics."""
+    """Single square panel: each POI's σ band evaluated at the nominal ±
+    a wide display-scale shift (`_AZZURRI_POI_DELTA`; ±1 GeV for mass to
+    match Azzurri 2107.04444 Fig. 1), directly through the σ chain via
+    `WWGenerator.from_card` — full non-linear response (Born + NLO loops +
+    NNLO + ISR + anchor), not a linear extrapolation of the variation
+    templates."""
+    from framework.process.ww.generator import WWGenerator
+
     xsec_nom = fit.template()
     ecm = np.asarray(xsec_nom["ecm"])
     sig_nom = np.asarray(xsec_nom["xsec"])
@@ -331,33 +337,67 @@ def plot_fit_input_azzurri_overlay(fit):
                ("#fdae6b", "#a63603"),
                ("#9ecae1", "#08519c")]
 
-    inflate = int(getattr(fit.card, "AZZURRI_OVERLAY_INFLATE", 100))
-    # Optional σ_template → σ_WW unit conversion so the y-axis matches the
-    # σ_WW scale of the diagnostic Azzurri overlay. For WW the templates
-    # are σ_observed = σ_WW × BR_inclusive(μν qq̄); divide by that BR to
-    # recover σ_WW (≈ 0–15 pb). Cards that don't expose W-leptonic /
-    # W-hadronic BR primitives (e.g. WbWb) plot the raw template σ.
+    # σ_template → σ_WW unit conversion so the y-axis matches the
+    # diagnostic σ_WW scale. Templates carry σ_observed = σ_WW × BR;
+    # divide by BR to recover σ_WW.
     br_munu = getattr(fit.card, "BR_W_MUNU", None)
     br_had = getattr(fit.card, "BR_W_HAD", None)
     divisor = 2.0 * br_munu * br_had if (br_munu and br_had) else 1.0
+
+    # Build a card-faithful generator once; reuse for every (POI ± Δ) call.
+    gen = WWGenerator.from_card(fit.card)
+    from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq
+
+    def sigma_at(values):
+        """σ_observed at the given POI values (mass, width, alphas overrides)."""
+        mW = float(values.get("mass", fit.card.PARAMETERS["mass"]["nominal"]))
+        gW = float(values.get("width", fit.card.PARAMETERS["width"]["nominal"]))
+        a_s = gen.alpha_s + float(values.get("alphas", 0.0))
+        return sigma_observed_munuqq(
+            ecm,
+            mW=mW, gammaW=gW,
+            channel=gen.channel,
+            include_coulomb=gen.include_coulomb,
+            bfs=gen.bfs,
+            include_NLO_hard_decay=gen.include_NLO_hard_decay,
+            include_BFS_NNLO=gen.include_BFS_NNLO,
+            apply_delta_QCD=gen.apply_delta_QCD,
+            alpha_s=a_s, alpha_s_ref=gen.alpha_s,
+            br_convention=gen.br_convention,
+            apply_whizard_anchor=gen.apply_whizard_anchor,
+            whizard_anchor_source=gen.whizard_anchor_source,
+            isr_scheme=gen.isr_scheme,
+            alpha_em_isr=gen.alpha_em_isr,
+            coulomb_kc_safe=gen.coulomb_kc_safe,
+            decay_uses_full_born=gen.decay_uses_full_born,
+            m_t=gen.m_t, M_H=gen.M_H, MZ=gen.MZ,
+        )
+
     fig, ax = plt.subplots(figsize=(7.5, 7.5))
-    for (name, math_label, delta_disp, unit), (color_band, color_edge) in zip(pois, palette):
-        sig_var = np.asarray(fit.template(f"{name}_var")["xsec"])
-        sig_p = (sig_nom + inflate * (sig_var - sig_nom)) / divisor
-        sig_m = (sig_nom - inflate * (sig_var - sig_nom)) / divisor
-        delta_str = _format_delta(delta_disp, unit)
+    for (name, math_label, _delta_disp_template, unit), (color_band, color_edge) in zip(pois, palette):
+        delta = float(_AZZURRI_POI_DELTA.get(name, 0.0))
+        if delta == 0.0:
+            continue
+        nom_val = float(fit.card.PARAMETERS[name]["nominal"])
+        sig_p = sigma_at({name: nom_val + delta}) / divisor
+        sig_m = sigma_at({name: nom_val - delta}) / divisor
+        # Wide-band shifts: label in GeV for mass/width (more readable than
+        # "1000 MeV"); raw value for α_s.
+        if name in ("mass", "width"):
+            delta_str = rf"{delta:g}\,\mathrm{{GeV}}"
+        else:
+            delta_str = f"{delta:g}"
         ax.fill_between(ecm, sig_m, sig_p, color=color_band, alpha=0.30,
-                        label=rf"${math_label} \pm {delta_str}$ $\times {inflate}$")
+                        label=rf"${math_label} \pm {delta_str}$")
         ax.plot(ecm, sig_p, color=color_edge, linewidth=1.0, linestyle="--")
         ax.plot(ecm, sig_m, color=color_edge, linewidth=1.0, linestyle=":")
 
     ax.plot(ecm, sig_nom / divisor, color="black", linewidth=1.8, label="nominal (template)")
     ax.set_xlabel(r"$\sqrt{s}$ [GeV]")
     ax.set_ylabel(r"$\sigma_{WW}$ [pb]" if divisor != 1.0 else r"$\sigma$ [pb]")
-    # Match the diagnostic Azzurri overlay's view: full lineshape range,
-    # so the rising shoulder + above-threshold plateau are both visible.
-    ax.set_xlim(*getattr(fit.card, "AZZURRI_OVERLAY_XLIM", (155, 170)))
-    ax.set_ylim(*getattr(fit.card, "AZZURRI_OVERLAY_YLIM", (0.0, 13.0)))
+    # Full lineshape view: rising shoulder + above-threshold plateau.
+    ax.set_xlim(155, 170)
+    ax.set_ylim(0.0, 13.0)
     ax.legend(loc="upper left", fontsize=16, framealpha=0.9)
     ax.grid(alpha=0.25)
     plt.tight_layout()

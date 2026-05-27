@@ -177,11 +177,9 @@ NLO_CONFIG = {
     # the fit to avoid fictitious m_W dependence in the ISR kernel). Override
     # with a float for a scheme-variation systematic.
     "alpha_em_isr":           None,
-    # ISR quadrature settings. n_quad=200 single-conv (1D) / 32 per leg (2leg);
-    # z_min lower-bound on z = x₁x₂ (= 0.10 captures full ISR phase space, the
-    # below-threshold contribution to σ̂(zs) is negligible).
-    "n_quad":                 200,
-    "z_min":                  0.10,
+    # ISR quadrature controls (n_quad, z_min) live with the defaults in
+    # process/ww/xsec_calculator/isr.py — they are numerical-stability knobs,
+    # not physics-card knobs.
 }
 
 # ---------------------------------------------------------------------------
@@ -265,12 +263,19 @@ POI_DISPLAY = {
 }
 
 # ---------------------------------------------------------------------------
-# Theory-uncertainty quotes for the systematic-table row "theory"
-# (in the same display units as ``POI_DISPLAY``).
+# Parametric uncertainties on EXTERNAL (non-POI) inputs to the σ chain
+# — to be propagated through the BFS calculation as systematic shifts on
+# the prediction. PLACEHOLDERS: values are PDG 2024 world averages on
+# the OS-scheme inputs; downstream wiring (propagation into the syst
+# table) is a follow-up item.
 # ---------------------------------------------------------------------------
-THEORY_UNC = {
-    "mass":  3.0,    # MeV — PLACEHOLDER
-    "width": 3.0,    # MeV — PLACEHOLDER
+PARAM_UNC = {
+    "m_t":       0.30,    # GeV — PDG 2024 (≈ 0.3 GeV combined)
+    "M_H":       0.11,    # GeV — PDG 2024 (≈ 110 MeV)
+    "M_Z":       0.0021,  # GeV — PDG (2.1 MeV)
+    "alpha_s":   0.0009,  # PDG world average on α_s(M_Z)
+    "BR_W_MUNU": 0.0006,  # PDG
+    "BR_W_HAD":  0.0011,  # PDG
 }
 
 # ---------------------------------------------------------------------------
@@ -312,21 +317,6 @@ PARAM_UNITS = {
     "width":  "GeV",
     "alphas": "",
 }
-
-# ---------------------------------------------------------------------------
-# Plot-output tunables
-# ---------------------------------------------------------------------------
-# Linear-inflation factor for the Azzurri-style overlay generated from fit
-# inputs. Multiplies the (σ_var − σ_nom) deviation read from the templates
-# so the band is visible on the σ_WW scale. With PARAMETERS["mass"]["variation"]
-# = 0.010 (= ±10 MeV), 100 produces a ±1 GeV-equivalent band — Azzurri
-# 2107.04444 Fig. 1 scale.
-AZZURRI_OVERLAY_INFLATE = 100
-
-# Clip ``plot_parameter_variations`` to the fit scan range (driven by
-# ``_scan_xlim`` in framework/common/plots.py). WW opts in; WbWb does
-# not, preserving its legacy full-template view.
-RESTRICT_PARAM_VARIATIONS_PLOT_TO_SCAN = True
 
 # ---------------------------------------------------------------------------
 # PDG branching ratios — single source of truth for the chain. All derived
