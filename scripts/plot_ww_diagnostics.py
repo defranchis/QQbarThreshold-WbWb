@@ -110,7 +110,7 @@ def _bfs_total_WW_order(s, mW, gammaW, order: str):
         sLR = sLR + s12_LR
         sRL = sRL + s12_RL
     if order in ("NLO", "N3/2LO"):
-        s_NLO_LR, s_NLO_RL = sigma_LR_RL_NLO_potential_specific_pb(s, mW, gammaW, gammaW_NLO=0.0)
+        s_NLO_LR, s_NLO_RL = sigma_LR_RL_NLO_potential_specific_pb(s, mW, gammaW)
         sLR = sLR + s_NLO_LR
         sRL = sRL + s_NLO_RL
     if order == "N3/2LO":

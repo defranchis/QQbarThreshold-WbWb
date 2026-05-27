@@ -154,65 +154,30 @@ class WWGenerator:
     def __init__(self, *, order: int = 2, channel: str = "inclusive",
                  include_coulomb: bool = True, bfs: BFSCorrections | None = None,
                  n_quad: int = 200, z_min: float = 0.10,
-                 # ----------------------------------------------------------
-                 # Defaults below are the project's "best calculation".
-                 # Validation: scripts/validate_bfs_nlo.py.
-                 # ----------------------------------------------------------
-                 # BFS NLO loop chain (HSC + Coulomb_NLO + EW-decay correction):
+                 # Defaults below are the project's "best calculation"; see
+                 # cards/ww_default.py + sigma_observed_munuqq in isr.py for
+                 # the per-knob rationale.
                  include_NLO_hard_decay: bool = True,
-                 # BFS dominant NNLO (arXiv:0807.0102 eq. 49):
-                 #   C×[S+H] + NLO-C + C×decay + C×res + C3.
                  include_BFS_NNLO: bool = True,
-                 # Multiplicative δ_QCD(α_s) = 1 + α_s/π + 1.409(α_s/π)² —
-                 # makes α_s a physically active fit parameter:
                  apply_delta_QCD: bool = True,
-                 # BR convention: PDG-measured BR (constant over fit). The
-                 # alternative "bfs-eft" uses theory partials over fit Γ_W.
                  br_convention: str = "pdg-constant",
-                 # α_s(M_W) in MS-bar (enters δ_QCD):
                  alpha_s: float = ALPHA_S_MW_DEFAULT,
-                 # Whizard 4f Born anchor — BFS sec. 6.2 prescription
-                 # to replace BFS-EFT N^(3/2)LO Born by exact Whizard 4f Born:
                  apply_whizard_anchor: bool = True,
-                 # Anchor source: "grid" (1295-pt WHIZARD scan, default) or
-                 # "spline" (BFS Tables 1+2, smooth but only two Γ_W refs).
                  whizard_anchor_source: str = "grid",
-                 # ISR scheme: "single_conv" (LEP2 YR α→2α 1D form, default)
-                 # or "2leg" (BFS eq. 71 full per-leg double conv). Both forms
-                 # agree to <0.1 % at LL+exp; single-conv is faster (1D quad).
                  isr_scheme: str = "single_conv",
-                 # ISR α: None → α_Gμ(M_W_BFS_REF) per BFS prescription (avoids
-                 # fictitious m_W-dep in the ISR kernel). Pass an explicit float
-                 # to override (e.g. for a scheme-variation systematic).
                  alpha_em_isr: float | None = None,
-                 # Coulomb K_C-safe combination — when True, the BFS NLO
-                 # Coulomb (eq. 62 of arXiv:0707.0773) is added with
-                 # ``subleading_only=True`` (NLO two-photon ~0.2% piece only),
-                 # avoiding the leading α/v double-count with the K_C
-                 # resummation. Defaults to False (current production chain,
-                 # validated against BFS Table 4 with K_C OFF — see
-                 # ``project_followup_deep_audit_2026-05-20``).
                  coulomb_kc_safe: bool = False,
-                 # BFS arXiv:0707.0773 §6.2 line 2255 prescription: in the
-                 # NLO decay correction (eq. 84), replace σ^(0) by the full
-                 # Born cross section. Default True = matches BFS Table 4
-                 # recipe. False reverts to δ_decay × σ^(0) (mis-closes BFS
-                 # Table 4 by 0.0–0.9 % in [161,170] GeV).
                  decay_uses_full_born: bool = True,
-                 # Theory inputs that ENTER c_p,LR^(1,fin) (BFS reference values
-                 # — currently treated as constants in the hardcoded c_fin =
-                 # -10.076; recorded here so a future update can propagate
-                 # m_t/M_H variations into the matching coefficient).
+                 # Theory inputs entering the BFS matching coefficients
+                 # (c_p,LR / c_d,l / c_d,h analytic in m_t, M_H).
                  m_t: float = M_T_DEFAULT, M_H: float = M_H_DEFAULT,
-                 # Steering card reference — kept so ``template_fingerprint``
-                 # can include card-level primitives (PDG BRs, PARAMETERS
-                 # variation magnitudes) in the integrity check. ``None``
-                 # is allowed for direct (test) construction.
+                 # Steering card reference — ``template_fingerprint`` reads
+                 # PDG BRs + PARAMETERS variation magnitudes from it.
                  card=None):
         self.order = order              # informational; recorded in filename
         self.channel = channel
         self.include_coulomb = include_coulomb
-        self.bfs = bfs if bfs is not None else BFSCorrections(enabled=False)
+        self.bfs = bfs if bfs is not None else BFSCorrections()
         self.n_quad = n_quad
         self.z_min = z_min
         self.include_NLO_hard_decay = include_NLO_hard_decay
@@ -402,6 +367,7 @@ class WWGenerator:
             alpha_em_isr=self.alpha_em_isr,
             coulomb_kc_safe=self.coulomb_kc_safe,
             decay_uses_full_born=self.decay_uses_full_born,
+            m_t=self.m_t, M_H=self.M_H,
         )
 
         os.makedirs(outdir, exist_ok=True)

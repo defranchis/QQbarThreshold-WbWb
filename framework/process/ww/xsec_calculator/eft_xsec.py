@@ -145,26 +145,14 @@ _REF_SIGMA_BORN = np.array([
 _SQRTS_BFS_UPPER = 170.0
 _S_BFS_UPPER = _SQRTS_BFS_UPPER ** 2
 
-# Floor: BFS evaluation extends to 149 GeV (still positive there); a smooth
-# weight ramps 0 → 1 across the 1-GeV window [149, 150]. Below 149 GeV,
-# σ = 0. The smoothstep choice 3t² − 2t³ is C¹ — enough to eliminate the
-# discontinuity-driven kink in the ISR-convolved variation-template ratios
-# (was visible as a "kink near 159 GeV" before this softening).
 _SQRTS_BFS_FLOOR = 149.0
 _S_BFS_FLOOR = _SQRTS_BFS_FLOOR ** 2
 _SQRTS_BFS_RAMP_TOP = 150.0
 
 
 def _bfs_floor_weight(s_arr):
-    """Quintic smoothstep ramp 0 → 1 across [149, 150] GeV applied to BFS σ̂.
-    Returns a vector of weights ∈ [0, 1] for the input ``s_arr`` (GeV²).
-    Below 149 GeV the weight is 0 (hard zero); above 150 GeV it is 1 (BFS
-    unchanged); in between the weight is the C² quintic smoothstep
-    6t⁵ − 15t⁴ + 10t³ (zero 1st AND 2nd derivative at both ends), so the
-    ISR integrand is C² continuous across the boundary — the C¹ cubic
-    smoothstep still leaked a small d² residual into the variation-ratio
-    plots near 157 GeV.
-    """
+    """C² quintic smoothstep 6t⁵ − 15t⁴ + 10t³ on [149, 150] GeV — keeps
+    the ISR integrand C² continuous across the BFS lower floor."""
     sqrt_s = np.sqrt(np.asarray(s_arr, dtype=float))
     t = np.clip((sqrt_s - _SQRTS_BFS_FLOOR)
                 / (_SQRTS_BFS_RAMP_TOP - _SQRTS_BFS_FLOOR), 0.0, 1.0)
@@ -214,7 +202,9 @@ def sigma_WW_partonic(s,
                   apply_whizard_anchor: bool = True,
                   whizard_anchor_source: str = "grid",
                   coulomb_kc_safe: bool = False,
-                  decay_uses_full_born: bool = True):
+                  decay_uses_full_born: bool = True,
+                  m_t: float = M_T_DEFAULT,
+                  M_H: float = M_H_DEFAULT):
     """
     Off-shell-convolved σ(e+e- → W+W- → 4f), full off-shell, in pb.
 
@@ -262,6 +252,7 @@ def sigma_WW_partonic(s,
             whizard_anchor_source=whizard_anchor_source,
             coulomb_kc_safe=coulomb_kc_safe,
             decay_uses_full_born=decay_uses_full_born,
+            mt=m_t, MH=M_H,
         )
         # Smooth-floor weight is 1 above 150 GeV, ramps to 0 across [149, 150]
         # to keep σ̂(s) C¹ for the ISR convolution kernel.
@@ -289,42 +280,22 @@ def sigma_WW_partonic(s,
 
 def coulomb_K_factor(s,
                      mW: float = M_W_DEFAULT,
-                     gammaW: float = GAMMA_W_DEFAULT,
-                     order: int = 1,
-                     prescription: str = "on-shell"):
+                     gammaW: float = GAMMA_W_DEFAULT):
     """
-    Coulomb-photon-exchange K-factor with finite Γ_W:
+    Coulomb-photon-exchange K-factor with finite Γ_W (FKM 1993 arctan form):
 
         K_C = 1 + (α√s)/(4p) × [π - 2·arctan((|κ|² - p²)/(2 p Re κ))]
-              + (α² s ln 2)/(4|κ|²)              # O(α²) (Bardin-Riemann)
 
-    p = (√s/2) × Re[β_M],   κ = √(-m_W (E + i Γ_W)),   E = √s - 2 m_W.
+    with p = (√s/2)·Re[β_M_complex] (complex-p regularisation analytic in
+    m_W, Γ_W everywhere — no derivative cusp at 2 m_W) and
+    κ = √(-m_W·(E + i Γ_W)), E = √s − 2 m_W.
 
-    Refs:
-        Fadin, Khoze, Martin, Phys.Lett.B311 (1993) 311 (arctan form)
-        Fadin, Khoze, Martin, Stirling, hep-ph/9507422 eq. (9-11), Z.Phys.C75 (1997) 53
+    Refs: Fadin, Khoze, Martin, Phys.Lett.B311 (1993) 311; Fadin, Khoze,
+    Martin, Stirling, hep-ph/9507422 (Z.Phys.C75 (1997) 53). α = α(0).
 
-    NOTE on conventions (2026-05-18). The default ``prescription="on-shell"``
-    uses the BFS-EFT complex-p regularisation: p = (√s/2)·Re[β_M_complex]
-    where β_M² = 1 − 4(m_W² − i·m_W·Γ_W)/s. This is the natural finite-Γ_W
-    smoothing of the FKM 1995 eq. (3) on-shell kinematic momentum — analytic
-    in (m_W, Γ_W) everywhere, so dσ/dm_W and dσ/dΓ_W have no derivative
-    cusp at 2m_W. Above threshold by many widths it recovers FKM exactly.
-    At threshold it gives K_C − 1 ≈ +7.3 % vs FKM's strict-Γ_W → 0 limit
-    +6.6 %; the 0.7 pp difference is the W-width effect on the Coulomb.
-
-    Set ``prescription="real-p-strict"`` to recover FKM's exact zero-width
-    formula (p = sqrt(max(s/4 − m_W², 0))), at the cost of a derivative
-    cusp in m_W at threshold — useful only for direct literature comparison.
-
-    BFS arXiv:0707.0773 eq. (62) is yet another formulation (EFT Coulomb
-    expansion in α, with on-shell limit), giving +5.2 % at threshold
-    (first-order log) + 0.18 % (NLO two-photon). Applying both K_C and
-    BFS eq. (62) overlaps at leading order. See ``BFSCorrections.delta_NLO``
-    flag ``enabled_coulomb_NLO_subleading`` to pick up only the NLO
-    two-photon piece K_C-safely.
-
-    α = α(0) (Thomson limit) for the soft Coulomb photon. Vectorised in s.
+    Vestigial under the production default ``include_coulomb=False``
+    ([[project-followup-kc-dropped-2026-05-26]]); kept for diagnostic
+    comparisons against pre-BFS-EFT calculations.
     """
     s_arr = np.asarray(s, dtype=float)
     sqrt_s = np.sqrt(s_arr)
@@ -332,44 +303,11 @@ def coulomb_K_factor(s,
 
     kappa = np.sqrt(np.asarray(-mW * (E + 1j * gammaW), dtype=complex))
     kappa = np.where(kappa.real < 0, -kappa, kappa)
-
-    if prescription == "on-shell":
-        # On-shell kinematic momentum with finite-Γ_W complex-p regularisation:
-        #     p = (√s/2) · Re[β_M_complex],   β_M² = 1 − 4(m_W² − i·m_W·Γ_W)/s
-        # — i.e. take the real part of the natural complex velocity in the
-        # BFS unstable-particle EFT (m_W² → m_W² − i·m_W·Γ_W in the propagator).
-        # Above threshold by many widths this recovers the FKM 1995 eq. (3)
-        # on-shell momentum to O(Γ_W²/(s/4 − m_W²)). At threshold p tends to
-        # √(m_W·Γ_W/2) ≈ 9 GeV instead of 0, which sets the natural Coulomb
-        # scale of an unstable W. Critically, p is ANALYTIC in m_W and Γ_W
-        # everywhere (no kink at 2m_W), so dσ/dm_W and dσ/dΓ_W are smooth.
-        # K_C − 1 at threshold: ~+7.3 % vs FKM's strict-on-shell L'Hôpital
-        # limit +6.6 % (Γ_W → 0); the 0.7 pp difference is the width effect.
-        bM = beta_complex(s_arr, mW, gammaW)
-        p = 0.5 * sqrt_s * bM.real
-    elif prescription == "real-p-strict":
-        # Strict-on-shell with p = sqrt(max(s/4 − m_W², 0)) — exactly the
-        # FKM 1995 eq. (3) real momentum, identically zero below threshold.
-        # Reproduces the FKM threshold value via a separate L'Hôpital limit
-        # at p → 0, but introduces a derivative cusp in m_W at 2m_W (the
-        # max() kink). Retained only for direct comparison with literature
-        # that uses zero-width Coulomb at threshold.
-        p2 = s_arr / 4.0 - mW ** 2
-        p = np.sqrt(np.maximum(p2, 0.0))
-    else:
-        raise ValueError(
-            f"prescription must be 'on-shell' (default, complex-p regularised) "
-            f"or 'real-p-strict' (FKM zero-width, with derivative cusp); "
-            f"got {prescription!r}"
-        )
+    bM = beta_complex(s_arr, mW, gammaW)
+    p = 0.5 * sqrt_s * bM.real
 
     abs_kappa2 = np.abs(kappa) ** 2
     re_kappa = kappa.real
-
-    # For real-p-strict: p ≡ 0 at/below threshold → use the FKM L'Hôpital
-    # limit K_1 → 1 + α√s · Re(κ)/|κ|². For on-shell (complex-regularised):
-    # p ≥ √(m_W·Γ_W/2) > 0 everywhere → arctan formula is stable.
-    K1_limit = 1.0 + ALPHA_EM_0 * sqrt_s * re_kappa / abs_kappa2
 
     denom = 2.0 * p * re_kappa
     safe = np.abs(denom) > 1e-12
@@ -379,32 +317,7 @@ def coulomb_K_factor(s,
         0.5 * np.pi * np.sign(abs_kappa2 - p * p),
     )
 
-    p_safe = np.where(p > 1e-6, p, 1.0)
-    K1_main = 1.0 + (ALPHA_EM_0 * sqrt_s / (4.0 * p_safe)) * (np.pi - 2.0 * arctan_val)
-    K1 = np.where(p > 1e-6, K1_main, K1_limit)
-
-    if order < 2:
-        out = K1
-    else:
-        # Second-order |f|² expansion to O(α²) from FKM eq. (10):
-        #   f(p,E) ≈ 1 + α√s/(2κ) + α²s ln 2/(4κ²)         (valid p ≪ |κ|)
-        # |f|² to O(α²):
-        #   |f|² ≈ 1 + α√s · Re(1/κ) + α²s · [1/(4|κ|²) + (ln 2 / 2)·Re(1/κ²)]
-        #                              └── |f₁|² ──┘  └── 2 Re(f₂) ──┘
-        # Previous form α²s ln 2/(4|κ|²) was wrong — it paired ln 2 (which
-        # belongs to f₂ ∝ 1/κ²) with |κ|² from |f₁|², and missed the |f₁|²
-        # piece entirely. At threshold Re(1/κ²) = 0, so only |f₁|² contributes.
-        # Validated 2026-05-18: gives 0.22% at threshold (was 0.15%; FKM eq. 21
-        # X²/6 = 0.18% — proper |f|² O(α²) differs from the near-threshold
-        # X expansion at the percent level, by construction).
-        kappa_complex = np.asarray(kappa, dtype=complex)
-        inv_kappa2 = 1.0 / (kappa_complex ** 2)
-        delta_alpha2 = ALPHA_EM_0 ** 2 * s_arr * (
-            1.0 / (4.0 * abs_kappa2)
-            + (np.log(2.0) / 2.0) * inv_kappa2.real
-        )
-        out = K1 + delta_alpha2
-
+    out = 1.0 + (ALPHA_EM_0 * sqrt_s / (4.0 * p)) * (np.pi - 2.0 * arctan_val)
     if np.ndim(s) == 0:
         return float(out)
     return out
@@ -416,78 +329,36 @@ def coulomb_K_factor(s,
 
 @dataclass
 class BFSCorrections:
-    """
-    NLO + dominant-NNLO matching corrections from
-        Beneke, Falgari, Schwinn arXiv:0707.0773  (NLO)
-        Actis, Beneke, Falgari, Schwinn arXiv:0807.0102  (dominant NNLO)
+    """Diagnostic-only BFS NLO Coulomb adder (arXiv:0707.0773 eq. 62).
 
-    Per-piece flags:
-      * ``enabled_coulomb_NLO``: include FULL eq. (62) of arXiv:0707.0773
-        (one-photon log term ~5 % + two-photon ~0.2 %). IR-finite.
-        **OVERLAPS with the off-shell-resummed K_C** at leading order
-        (~5 % double-counting at threshold). Use this if K_C is OFF
-        (``WWGenerator(include_coulomb=False)``).
-      * ``enabled_coulomb_NLO_subleading``: include ONLY the NLO two-
-        photon term (second term of eq. 62), ~0.2 % at threshold. Safe
-        to combine with K_C (no leading-order overlap). Mutually
-        exclusive with ``enabled_coulomb_NLO``.
-      * ``enabled_hard_NLO``  : NOT YET IMPLEMENTED. Eq. (56) — needs
-        c_p,LR^(1,fin) from ref. [13].
-      * ``enabled_soft_NLO``  : NOT YET IMPLEMENTED. Eq. (64)/(65) —
-        IR poles need MS-bar ePDF for cancellation.
-      * ``enabled_decay_NLO`` : already absorbed via fixed PDG BRs.
-      * ``enabled_NNLO``      : eq. (3.1) of arXiv:0807.0102 — NOT YET.
+    ``enabled_coulomb_NLO=True`` adds the full eq. (62) (one-photon log
+    ~5 % + two-photon ~0.2 %) as a relative correction on top of σ_LO.
+    Overlaps with K_C at leading order — use only with K_C OFF.
 
-    ``enabled`` (legacy bool) is a shortcut for
-    ``enabled_coulomb_NLO_subleading=True`` — the K_C-safe combination
-    that's the safe default for "add NLO Coulomb on top of K_C".
+    Production chains do NOT use this path; the BFS NLO Coulomb is added
+    additively inside `_add_nlo_loops_to_LR` of bfs_eft.py. This dataclass
+    survives for the `compute_xsec_ww.py --diagnostic-bfs-coulomb-nlo`
+    CLI flag, which reproduces BFS paper plots of eq. (62) in isolation.
     """
-    enabled: bool = False
     enabled_coulomb_NLO: bool = False
-    enabled_coulomb_NLO_subleading: bool = False
-
-    def __post_init__(self):
-        # Legacy ``enabled=True`` shortcut: K_C-safe NLO additions only
-        # (subleading Coulomb; hard/soft/NNLO when those get implemented).
-        if self.enabled:
-            self.enabled_coulomb_NLO_subleading = True
-        if self.enabled_coulomb_NLO and self.enabled_coulomb_NLO_subleading:
-            raise ValueError(
-                "enabled_coulomb_NLO and enabled_coulomb_NLO_subleading are "
-                "mutually exclusive: the former INCLUDES the latter."
-            )
 
     def delta_NLO(self, s, mW: float, gammaW: float):
-        """Return the relative NLO correction δ s.t. σ_partonic
-        = σ_LO × (1 + δ_NLO + …). Vectorised in ``s``.
-
-        Currently sums only the implemented pieces.
-        """
-        out = 0.0
-        if self.enabled_coulomb_NLO or self.enabled_coulomb_NLO_subleading:
-            from framework.process.ww.xsec_calculator.bfs_eft import (
-                delta_sigma_Coulomb_NLO_specific_pb,
-                sigma_LR0_specific_pb,
-            )
-            d_sigma_C = delta_sigma_Coulomb_NLO_specific_pb(
-                s, mW, gammaW,
-                apply_BR_correction=True,
-                subleading_only=self.enabled_coulomb_NLO_subleading,
-            )
-            sigma_LR0 = sigma_LR0_specific_pb(s, mW, gammaW,
-                                              apply_BR_correction=True)
-            with np.errstate(divide="ignore", invalid="ignore"):
-                rel = np.where(sigma_LR0 > 0, d_sigma_C / sigma_LR0, 0.0)
-            out = out + rel
-        return out
+        """Relative NLO Coulomb correction δ s.t. σ = σ_LO × (1 + δ + …).
+        Vectorised in ``s``. Returns 0 if the flag is off."""
+        if not self.enabled_coulomb_NLO:
+            return 0.0
+        from framework.process.ww.xsec_calculator.bfs_eft import (
+            delta_sigma_Coulomb_NLO_specific_pb,
+            sigma_LR0_specific_pb,
+        )
+        d_sigma_C = delta_sigma_Coulomb_NLO_specific_pb(
+            s, mW, gammaW, apply_BR_correction=True, subleading_only=False)
+        sigma_LR0 = sigma_LR0_specific_pb(s, mW, gammaW, apply_BR_correction=True)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.where(sigma_LR0 > 0, d_sigma_C / sigma_LR0, 0.0)
 
     def delta_NNLO(self, s, mW: float, gammaW: float):
-        if not self.enabled:
-            return 0.0
-        raise NotImplementedError(
-            "Fill in arXiv:0807.0102 eq. (3.1): NNLO Coulomb², "
-            "single-Coulomb × soft interference, NLL-resummed hard function."
-        )
+        return 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -527,7 +398,9 @@ def sigma_partonic_munuqq(s,
                           apply_whizard_anchor: bool = True,
                           whizard_anchor_source: str = "grid",
                           coulomb_kc_safe: bool = False,
-                          decay_uses_full_born: bool = True):
+                          decay_uses_full_born: bool = True,
+                          m_t: float = M_T_DEFAULT,
+                          M_H: float = M_H_DEFAULT):
     """
     Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
     Returns σ in pb at partonic CM energy² = s (before ISR convolution).
@@ -574,7 +447,7 @@ def sigma_partonic_munuqq(s,
     Vectorised: accepts scalar or array ``s``.
     """
     if bfs is None:
-        bfs = BFSCorrections(enabled=False)
+        bfs = BFSCorrections()
     if channel not in _CHANNEL_MULTIPLICITY:
         raise ValueError(f"channel={channel!r} not in {list(_CHANNEL_MULTIPLICITY)}")
     if br_convention not in ("bfs-eft", "pdg-constant"):
@@ -617,6 +490,7 @@ def sigma_partonic_munuqq(s,
                 whizard_anchor_source=whizard_anchor_source,
                 coulomb_kc_safe=coulomb_kc_safe,
                 decay_uses_full_born=decay_uses_full_born,
+                mt=m_t, MH=M_H,
             )
             sigma_bfs = sigma_specific * _CHANNEL_MULTIPLICITY[channel]
         else:   # pdg-constant: σ_WW × BR_PDG (BR carries δ_QCD)
@@ -633,6 +507,7 @@ def sigma_partonic_munuqq(s,
                 whizard_anchor_source=whizard_anchor_source,
                 coulomb_kc_safe=coulomb_kc_safe,
                 decay_uses_full_born=decay_uses_full_born,
+                mt=m_t, MH=M_H,
             )
             sigma_bfs = sigma_WW_total * BR_pdg
         # Smooth-floor weight kills the hard step at 150 GeV that was
@@ -656,6 +531,7 @@ def sigma_partonic_munuqq(s,
             whizard_anchor_source=whizard_anchor_source,
             coulomb_kc_safe=coulomb_kc_safe,
             decay_uses_full_born=decay_uses_full_born,
+            m_t=m_t, M_H=M_H,
         ) * BR_x
         sigma = np.where(use_cal, sigma_cal, sigma)
 

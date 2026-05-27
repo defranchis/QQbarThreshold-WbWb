@@ -24,7 +24,7 @@ def sigma_WW(s, mW_in, gW_in, *, include_half=True, include_NLO_pot=True,
         a, b = sigma_LR_RL_half_specific_pb(s, mW_in, gW_in, apply_BR_correction=False)
         sLR = sLR + a; sRL = sRL + b
     if include_NLO_pot:
-        a, b = sigma_LR_RL_NLO_potential_specific_pb(s, mW_in, gW_in, 0.0,
+        a, b = sigma_LR_RL_NLO_potential_specific_pb(s, mW_in, gW_in,
                                                       apply_BR_correction=False)
         sLR = sLR + a; sRL = sRL + b
     if include_32a:

@@ -56,6 +56,7 @@ from framework.process.ww.xsec_calculator.eft_xsec import (
     M_E,
     ALPHA_S_MW_DEFAULT,
     M_W_DEFAULT, GAMMA_W_DEFAULT, M_W_BFS_REF,
+    M_T_DEFAULT, M_H_DEFAULT,
     BFSCorrections,
     alpha_Gmu,
     sigma_partonic_munuqq,
@@ -111,24 +112,12 @@ def beta_ISR(s: float, alpha_em: float | None = None) -> float:
 
 
 def H_SV(beta: float) -> float:
-    """Soft+virtual exponentiated radiator factor.
-
-    BFS-consistent form (LEP2 YR eq. (GeeLLexp) BETA scheme with the
-    α → 2α single-convolution substitution):
+    """Soft+virtual exponentiated radiator factor (BFS / LEP2 YR LL+exp
+    BETA scheme, α → 2α single-convolution form):
 
         H_SV = exp[β(3/4 − γ_E)] / Γ(1 + β)
 
-    Validation (post-2026-05-18): matches BFS Table 4 σ_obs to better
-    than 1 % when convoluted with the corrected H_NS coefficients.
-
-    History: prior versions included an additional β²(9/32 − π²/12)
-    term in the exponent, representing the "proper Kuraev-Fadin
-    exponentiated" form at NLL accuracy. While that form is more
-    accurate at NLL, BFS / LEP2 YR don't use it — keeping it
-    produces a ~0.74 % σ_obs deficit vs BFS at β ≈ 0.117. Removed
-    to match BFS LL+exp. The full Kuraev-Fadin exponentiation will
-    re-enter when the NLL ISR upgrade lands (see
-    [[project-followup-nll-isr-plan]]).
+    Matches BFS Table 4 σ_obs to better than 1 % when convoluted with H_NS.
     """
     return np.exp(beta * (0.75 - EULER_GAMMA)) / gamma_fn(1.0 + beta)
 
@@ -304,14 +293,9 @@ def _Gee_per_leg_NS(x, beta: float, one_minus_x=None):
         + 4.0 * (1.0 + x) * log1mx
         + 5.0 + x
     )
-    # O(β³) hard term. From the LaTeX source of Beenakker eq. (67), the
-    # outer β³ bracket has structure
-    #     (1+x) · [6 Li₂(x) + 12 ln²(1-x) - 3π²]
-    #     + (1/(1-x)) · [ inner bracket of 5 terms ]
-    # — *all five* of the polynomial/log terms after the 1/(1-x) belong
-    # inside that factor. The 6(x+5)(1-x) ln(1-x) piece carries an explicit
-    # (1-x) that cancels analytically (we simplify). The 39-24x-15x² piece
-    # factors as 3(5x+13)(1-x), so (39-24x-15x²)/(1-x) = 3(5x+13).
+    # β³ piece per Beenakker eq. (67). Both (1-x)-canceling factors —
+    # the 6(x+5)(1-x) ln(1-x) and the (39-24x-15x²)=3(5x+13)(1-x) — are
+    # simplified analytically below to avoid the 1/(1-x) blow-up.
     Li2_x = _Li2(x)
     NS_3 = -(beta ** 3 / 384.0) * (
         (1.0 + x) * (6.0 * Li2_x + 12.0 * log1mx ** 2 - 3.0 * np.pi ** 2)
@@ -434,7 +418,9 @@ def sigma_observed_munuqq(sqrt_s,
                           whizard_anchor_source: str = "grid",
                           isr_scheme: str = "single_conv",
                           coulomb_kc_safe: bool = False,
-                          decay_uses_full_born: bool = True):
+                          decay_uses_full_born: bool = True,
+                          m_t: float = M_T_DEFAULT,
+                          M_H: float = M_H_DEFAULT):
     """
     Observed σ(e+e- → μν qq̄) after ISR convolution, in pb. Vectorised in
     ``sqrt_s``. ``br_convention`` and ``include_NLO_hard_decay`` are
@@ -471,6 +457,7 @@ def sigma_observed_munuqq(sqrt_s,
         whizard_anchor_source=whizard_anchor_source,
         coulomb_kc_safe=coulomb_kc_safe,
         decay_uses_full_born=decay_uses_full_born,
+        m_t=m_t, M_H=M_H,
     )
     if isr_scheme == "single_conv":
         return sigma_ISR_convolution(

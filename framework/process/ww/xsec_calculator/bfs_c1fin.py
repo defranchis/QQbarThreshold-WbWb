@@ -185,14 +185,7 @@ def C0_mMW2_MW2_0_0_m_MW(M_W2: float, m_2: float) -> complex:
     expression has a 0/0 limit; this implementation takes the explicit limit.
     """
     if m_2 == 0.0:
-        # Limit derived analytically: all Li_2 arguments tend to ±1, giving:
-        #   Li_2(−1) − Li_2(1) + 2[Li_2(1) − Li_2(−1)] + π²/4
-        # = π²/4 + 2·(π²/4) + π²/4 = π²/2  (Wait: Li_2(1) − Li_2(−1) = π²/6 + π²/12 = π²/4)
-        # And the term Li_2(−x)−Li_2(x) at x → 1 gives −2·Li_2(1) − ... actually let me recompute:
-        # At m_2 → 0, M_mW² → 0. The first line of the original formula:
-        #   Li_2(−M_W²/(M_W²+2 m²)) − Li_2(M_W²/(M_W²+2 m²)) → Li_2(−1) − Li_2(1) = −π²/4
-        # Both middle/last lines: arg → M_W²/M_W² = 1, so Li_2(1) − Li_2(−1) = π²/4 each.
-        # Sum of all + π²/4 = −π²/4 + π²/4 + π²/4 + π²/4 = π²/2.
+        # m²→0 limit: Li_2 reflection → result is −π²/(4 M_W²).
         return -np.pi ** 2 / (4.0 * M_W2) + 0.0j
     M_mW2 = np.sqrt(complex(m_2 * m_2 - 4.0 * m_2 * M_W2, 0.0))
     inv = -1.0 / (2.0 * M_W2)
