@@ -31,29 +31,40 @@ validation scripts pass them explicitly.
 Set to a float to inject a user-supplied value (used for the
 `PARAM_UNC.{alpha_em, alpha_em_isr}` nuisances).
 
-### PARAM_UNC — parametric uncertainties (PLACEHOLDERS)
+### PARAM_UNC — parametric uncertainties (FCC-ee projections)
 
-PDG 2024 uncertainties on external inputs that the fit currently holds
-fixed.  They are **not yet wired** into the fit — no SYSTEMATICS entry
-reads them.  Provisional values (all absolute):
+Values are the FCC-ee Feasibility Study Report Vol. 1 projections
+(arXiv:2505.00272, Table 2 of §1.4) — stat ⊕ syst, where available.
+**Not yet wired** into the fit; no SYSTEMATICS entry reads them.
+Provisional values (all absolute):
 
-| Key            | Value      | Source / unit                               |
-|----------------|------------|---------------------------------------------|
-| `m_t`          | 0.30       | GeV, PDG                                    |
-| `M_H`          | 0.11       | GeV, PDG                                    |
-| `M_Z`          | 0.0021     | GeV, PDG                                    |
-| `alpha_s`      | 0.0009     | on α_s(M_Z), PDG                            |
-| `alpha_em`     | 1.0e-7     | absolute on α_em(M_W) in σ chain            |
-| `alpha_em_isr` | 1.0e-7     | absolute on α_em in ISR kernel              |
+| Key            | Value     | FCC-ee projection (FSR Vol. 1)              | Source            |
+|----------------|-----------|----------------------------------------------|-------------------|
+| `m_t`          | 7 MeV     | stat 4.2 ⊕ syst 4.9 MeV (FSR ≈ 6.5; rounded) | tt̄ threshold scan |
+| `M_H`          | 5 MeV     | ZH recoil ≈ 4 MeV (FSR §4.3; rounded)        | Higgs run         |
+| `M_Z`          | 0.1 MeV   | stat 4 keV ⊕ syst 100 keV                    | Z line-shape scan |
+| `alpha_s`      | 1.0e-4    | (stat 0.1 ⊕ syst 1.0) × 10⁻⁴                | combined Z fit    |
+| `alpha_em`     | 2.4e-7    | δα abs from δα⁻¹ ≈ 4×10⁻³ at M_Z²            | A_FB^μμ off-peak  |
+| `alpha_em_isr` | 1.0e-7    | scheme/scale variation (not direct FCC-ee obs) | held conservative |
 
-α_em is split into two independent nuisances so the ISR-side scheme
-uncertainty decorrelates from the rest of the σ chain.  PDG
-δα^-1(M_Z) ≈ 0.009 → δα ≈ 5×10⁻⁷; the 1×10⁻⁷ placeholder is conservative
-and should be refined when the fit-side propagation lands.
+Notes:
 
-BR_W_* uncertainties are deliberately not in PARAM_UNC: in `pdg-constant`
-BR mode the BR is a measured constant, so its uncertainty is an
-analysis-level systematic rather than a theory-input nuisance.
+- α_em is split into two independent nuisances so the ISR-side scheme
+  uncertainty decorrelates from the rest of the σ chain. The σ-chain
+  value tracks the FSR Table 2 conservative projection from A_FB^μμ
+  off-peak. The more aggressive Riembau-method projection (forward
+  dilepton ratios e⁻/μ⁻ + e⁻/e⁺, arXiv:2501.05508) is ~0.6×10⁻⁵
+  relative → δα ≈ 5×10⁻⁸ absolute, ~5× tighter than the FSR value
+  used here.
+- `alpha_em_isr` reflects an *ISR-scheme* variation (α(0) ↔ α_Gμ(M_W) ↔
+  α(M_Z) — see "PARAM_INPUTS"). FCC-ee does not directly measure this,
+  so the value is a held-conservative scheme uncertainty rather than a
+  parametric one.
+- BR_W_* uncertainties are deliberately not in PARAM_UNC: in
+  `pdg-constant` BR mode the BR is a measured constant, so its
+  uncertainty is an analysis-level systematic rather than a
+  theory-input nuisance. The W BR is also measured at FCC-ee but
+  enters σ via the BR normalisation, not via the BFS partonic chain.
 
 ---
 

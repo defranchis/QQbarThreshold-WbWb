@@ -27,14 +27,15 @@ PARAM_INPUTS = {
     "alpha_em_isr": None,     # ISR β_e override; None → α_Gμ(M_W_BFS_REF)
 }
 
-# Parametric uncertainties — PLACEHOLDERS, no fit wiring yet. See README.
+# FCC-ee parametric uncertainties (FSR Vol. 1 arXiv:2505.00272 Table 2).
+# Wired via fit-side propagation: TODO (see followup memory).
 PARAM_UNC = {
-    "m_t":          0.30,    # GeV
-    "M_H":          0.11,    # GeV
-    "M_Z":          0.0021,  # GeV
-    "alpha_s":      0.0009,  # on α_s(M_Z)
-    "alpha_em":     1.0e-7,  # σ-chain α
-    "alpha_em_isr": 1.0e-7,  # ISR β_e α
+    "m_t":          0.007,   # GeV (FSR Table 2: 4.2 ⊕ 4.9 ≈ 6.5; round to 7)
+    "M_H":          0.005,   # GeV (FSR §4.3 ZH recoil ≈ 4; round to 5)
+    "M_Z":          1.0e-4,  # GeV (Z line-shape stat 4 ⊕ syst 100 keV)
+    "alpha_s":      1.0e-4,  # FSR (Z combined: stat 0.1 ⊕ syst 1.0)×10⁻⁴
+    "alpha_em":     2.4e-7,  # δα abs; FSR A_FB^μμ off-peak (~3×10⁻⁵ rel)
+    "alpha_em_isr": 1.0e-7,  # ISR scheme/scale variation (not direct FCC-ee obs)
 }
 
 # ---------------------------------------------------------------------------
