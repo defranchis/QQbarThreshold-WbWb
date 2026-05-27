@@ -31,7 +31,16 @@ from framework.process.ww.xsec_calculator.bfs_eft import (
     sigma_BFS_specific_munuud_pb,
     sigma_LR0_specific_pb,
 )
-from framework.process.ww.xsec_calculator.eft_xsec import alpha_Gmu
+from framework.process.ww.xsec_calculator.eft_xsec import (
+    alpha_Gmu, M_T_BFS_REF, M_H_BFS_REF, M_Z_BFS_REF,
+)
+
+# BFS arXiv:0707.0773 reference EW inputs (m_t = 174.2, M_H = 115 pre-discovery,
+# M_Z = 91.188). Pinned explicitly here so paper closure is preserved as the
+# framework's production defaults move to PDG (m_W to 80.379, M_H to 125.25,
+# M_Z to 91.1876).
+_BFS_THEORY_KW = dict(mt=M_T_BFS_REF, MH=M_H_BFS_REF, MZ=M_Z_BFS_REF)
+_BFS_THEORY_KW_PARTONIC = dict(m_t=M_T_BFS_REF, M_H=M_H_BFS_REF, MZ=M_Z_BFS_REF)
 from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq
 
 # Framework default ISR α is now α_Gμ at m_W = 80.377 (BFS prescription,
@@ -74,7 +83,8 @@ def scenario_A():
     for sq, paper in BFS_TABLE_1.items():
         mine = sigma_BFS_LO_total_WW_pb(np.array([sq**2]), mW, gW,
                                          order="N3/2LO",
-                                         apply_BR_correction=False)[0]
+                                         apply_BR_correction=False,
+                                         **_BFS_THEORY_KW)[0]
         mine_specific = mine * (4.0/27.0) * 1e3   # → fb specific unpol (BR ÷ 27, × 4 for inclusive then div 4 = ÷27)
         # Actually mine total σ_WW × (1/27) gives specific unpol with LO BR.
         # But mine already has 27/4 stripped, then ÷ 27 gives total/27 = (LR+RL)/4 = specific unpol.
@@ -91,7 +101,8 @@ def scenario_B():
     mW, gW = 80.377, 2.09201
     for sq, paper in BFS_TABLE_2.items():
         mine_specific = sigma_BFS_specific_munuud_pb(np.array([sq**2]), mW, gW,
-                                                     order="N3/2LO")[0] * 1e3
+                                                     order="N3/2LO",
+                                                     **_BFS_THEORY_KW)[0] * 1e3
         print(f"  {sq:>6} {_fmt(mine_specific)} {_fmt(paper)}    {mine_specific/paper:.4f}")
 
 
@@ -104,10 +115,11 @@ def scenario_C():
     # at threshold E=0:
     s_th = (2*mW)**2
     sLR0 = sigma_LR0_specific_pb(np.array([s_th]), mW, gW,
-                                  apply_BR_correction=True)[0]
+                                  apply_BR_correction=True, MZ=M_Z_BFS_REF)[0]
     coul = delta_sigma_Coulomb_NLO_specific_pb(np.array([s_th]), mW, gW,
                                                 apply_BR_correction=True,
-                                                subleading_only=False)[0]
+                                                subleading_only=False,
+                                                MZ=M_Z_BFS_REF)[0]
     print(f"  At √s = 2 m_W = {2*mW:.3f} GeV:")
     print(f"    σ_LR^(0)            = {sLR0:.5f} pb (specific LR helicity)")
     print(f"    Δσ_Coul^(1) (eq.62) = {coul:.5f} pb")
@@ -115,7 +127,8 @@ def scenario_C():
     print(f"  Two-photon piece only (subleading):")
     coul_sub = delta_sigma_Coulomb_NLO_specific_pb(np.array([s_th]), mW, gW,
                                                     apply_BR_correction=True,
-                                                    subleading_only=True)[0]
+                                                    subleading_only=True,
+                                                    MZ=M_Z_BFS_REF)[0]
     print(f"    Δσ_Coul^(1,sub) / σ_LR^(0) = {(coul_sub/sLR0)*100:+.3f} %  (BFS: ~+0.2 %)")
 
 
@@ -129,9 +142,11 @@ def scenario_D():
     for sq in [158, 161, 164, 167, 170]:
         s = sq**2
         sLR0 = sigma_LR0_specific_pb(np.array([s]), mW, gW,
-                                      apply_BR_correction=True)[0]
+                                      apply_BR_correction=True,
+                                      MZ=M_Z_BFS_REF)[0]
         hsc = delta_sigma_NLO_hard_softcoll_specific_pb(
-            np.array([s]), mW, gW, apply_BR_correction=True)[0]
+            np.array([s]), mW, gW, apply_BR_correction=True,
+            **_BFS_THEORY_KW)[0]
         print(f"  √s = {sq:3d}: σ_LR^(0) = {sLR0:.5f}, Δσ_HSC = {hsc:+.5f},"
               f" rel = {(hsc/sLR0)*100:+.3f} %")
 
@@ -178,13 +193,15 @@ def scenario_F():
             float(sq), mW=mW, gammaW=gW, channel="munuud",
             br_convention="bfs-eft", include_coulomb=False,
             include_NLO_hard_decay=False, apply_delta_QCD=False,
-            apply_whizard_anchor=True, isr_scheme="2leg") * 1e3
+            apply_whizard_anchor=True, isr_scheme="2leg",
+            **_BFS_THEORY_KW_PARTONIC) * 1e3
         nlo_mine = sigma_observed_munuqq(
             float(sq), mW=mW, gammaW=gW, channel="munuud",
             br_convention="bfs-eft", include_coulomb=False,
             include_NLO_hard_decay=True, apply_delta_QCD=True,
             alpha_s=0.1199, apply_whizard_anchor=True,
-            isr_scheme="2leg") * 1e3
+            isr_scheme="2leg",
+            **_BFS_THEORY_KW_PARTONIC) * 1e3
         print(f"  {sq:>6}  {_fmt(born_isr_mine, 12)}    {_fmt(born_isr_paper, 12)}"
               f"  {_fmt(nlo_mine, 8)}  {_fmt(nlo_paper, 8)}"
               f"  {nlo_mine/nlo_paper:>9.4f}")
@@ -229,7 +246,8 @@ def scenario_I_anchor():
     for sq, target in table1_whiz.items():
         mine_anchor = sigma_BFS_LO_total_WW_pb(
             np.array([sq**2]), mW1, gW1, order="N3/2LO",
-            apply_BR_correction=False, apply_whizard_anchor=True)[0]
+            apply_BR_correction=False, apply_whizard_anchor=True,
+            **_BFS_THEORY_KW)[0]
         mine_unpol_specific = mine_anchor / 27.0 * 1e3
         print(f"  √s={sq}: mine_anchored = {mine_unpol_specific:.3f} fb, BFS_Whizard = {target:.3f}, ratio = {mine_unpol_specific/target:.5f}")
     print()
@@ -239,7 +257,7 @@ def scenario_I_anchor():
     for sq, target in table2_whiz.items():
         mine_anchor = sigma_BFS_specific_munuud_pb(
             np.array([sq**2]), mW2, gW2, order="N3/2LO",
-            apply_whizard_anchor=True)[0] * 1e3
+            apply_whizard_anchor=True, **_BFS_THEORY_KW)[0] * 1e3
         print(f"  √s={sq}: mine_anchored = {mine_anchor:.3f} fb, BFS_Whizard = {target:.3f}, ratio = {mine_anchor/target:.5f}")
 
 
@@ -262,7 +280,8 @@ def scenario_J_derivatives():
                 sq, mW=mW, gammaW=gW, channel="inclusive",
                 br_convention="pdg-constant",
                 include_NLO_hard_decay=True, apply_delta_QCD=True,
-                apply_whizard_anchor=anchor) / BR_INCLUSIVE_MUNUQQ * 1e3
+                apply_whizard_anchor=anchor,
+                **_BFS_THEORY_KW_PARTONIC) / BR_INCLUSIVE_MUNUQQ * 1e3
         dm_no = (s_obs(mW0 + h, gW0, False) - s_obs(mW0 - h, gW0, False)) / (2*h)
         dm_a  = (s_obs(mW0 + h, gW0, True)  - s_obs(mW0 - h, gW0, True))  / (2*h)
         dg_no = (s_obs(mW0, gW0 + h, False) - s_obs(mW0, gW0 - h, False)) / (2*h)
@@ -285,19 +304,19 @@ def scenario_H():
     print("\n" + "=" * 72)
     print("Scenario H: analytic c^(1,fin) slopes (m_W, m_t, M_H)")
     print("=" * 72)
-    m_W0, m_t0, M_H0 = 80.377, 174.2, 115.0
-    print(f"  reference: m_W={m_W0}, m_t={m_t0}, M_H={M_H0}")
-    print(f"  Re(c_p,LR) = {_c_p_LR_1_fin_re(m_W0, m_t0, M_H0):.4f}   (BFS -10.076)")
-    print(f"  Re(c_d,l)  = {_c_d_l_1_fin_re(m_W0, m_t0, M_H0):.4f}   (BFS  -2.709)")
-    print(f"  Re(c_d,h)  = {_c_d_h_1_fin_re(m_W0, m_t0, M_H0):.4f}   (BFS  -2.034)")
+    m_W0, m_t0, M_H0, M_Z0 = 80.377, M_T_BFS_REF, M_H_BFS_REF, M_Z_BFS_REF
+    print(f"  reference: m_W={m_W0}, m_t={m_t0}, M_H={M_H0}, M_Z={M_Z0}")
+    print(f"  Re(c_p,LR) = {_c_p_LR_1_fin_re(m_W0, m_t0, M_H0, M_Z0):.4f}   (BFS -10.076)")
+    print(f"  Re(c_d,l)  = {_c_d_l_1_fin_re(m_W0, m_t0, M_H0, M_Z0):.4f}   (BFS  -2.709)")
+    print(f"  Re(c_d,h)  = {_c_d_h_1_fin_re(m_W0, m_t0, M_H0, M_Z0):.4f}   (BFS  -2.034)")
     print()
     print("  Numerical slopes (central finite diff):")
     for label, fn in [("c_p,LR", _c_p_LR_1_fin_re),
                       ("c_d,l ", _c_d_l_1_fin_re),
                       ("c_d,h ", _c_d_h_1_fin_re)]:
-        d_mw = (fn(m_W0 + 0.1, m_t0, M_H0) - fn(m_W0 - 0.1, m_t0, M_H0)) / 0.2
-        d_mt = (fn(m_W0, m_t0 + 0.5, M_H0) - fn(m_W0, m_t0 - 0.5, M_H0)) / 1.0
-        d_mh = (fn(m_W0, m_t0, M_H0 + 1.0) - fn(m_W0, m_t0, M_H0 - 1.0)) / 2.0
+        d_mw = (fn(m_W0 + 0.1, m_t0, M_H0, M_Z0) - fn(m_W0 - 0.1, m_t0, M_H0, M_Z0)) / 0.2
+        d_mt = (fn(m_W0, m_t0 + 0.5, M_H0, M_Z0) - fn(m_W0, m_t0 - 0.5, M_H0, M_Z0)) / 1.0
+        d_mh = (fn(m_W0, m_t0, M_H0 + 1.0, M_Z0) - fn(m_W0, m_t0, M_H0 - 1.0, M_Z0)) / 2.0
         print(f"    ∂Re({label})/∂m_W = {d_mw:+.4f} /GeV   "
               f"∂/∂m_t = {d_mt:+.4e} /GeV   ∂/∂M_H = {d_mh:+.4e} /GeV")
     print()
@@ -332,16 +351,21 @@ def scenario_K_per_piece_table():
     mW, gW = 80.377, 2.09201
     sqrts = np.array([158., 161., 164., 167., 170.])
     s = sqrts ** 2
-    sLR0  = sigma_LR0_specific_pb(s, mW, gW, apply_BR_correction=True)
+    sLR0  = sigma_LR0_specific_pb(s, mW, gW, apply_BR_correction=True,
+                                    MZ=M_Z_BFS_REF)
     sBorn = sigma_BFS_specific_munuud_pb(s, mW, gW, order="N3/2LO",
                                           include_NLO_hard_decay=False,
                                           include_BFS_NNLO=False,
                                           apply_delta_QCD=False,
-                                          apply_whizard_anchor=False)
-    hsc  = delta_sigma_NLO_hard_softcoll_specific_pb(s, mW, gW, apply_BR_correction=True)
-    dec  = delta_sigma_NLO_decay_specific_pb(s, mW, gW, apply_BR_correction=True)
+                                          apply_whizard_anchor=False,
+                                          **_BFS_THEORY_KW)
+    hsc  = delta_sigma_NLO_hard_softcoll_specific_pb(s, mW, gW, apply_BR_correction=True,
+                                                      **_BFS_THEORY_KW)
+    dec  = delta_sigma_NLO_decay_specific_pb(s, mW, gW, apply_BR_correction=True,
+                                              **_BFS_THEORY_KW)
     coul = delta_sigma_Coulomb_NLO_specific_pb(s, mW, gW, apply_BR_correction=True,
-                                                subleading_only=False)
+                                                subleading_only=False,
+                                                MZ=M_Z_BFS_REF)
     sum_loops = hsc + dec + coul
 
     print(f"  m_W={mW} GeV, Γ_W={gW} GeV, channel μ⁻ν̄_μ ud̄, BR correction on.")
@@ -361,7 +385,8 @@ def scenario_K_per_piece_table():
     print()
     print("  Sub-leading Coulomb piece (two-photon, eq.62 second term):")
     coul_sub = delta_sigma_Coulomb_NLO_specific_pb(s, mW, gW, apply_BR_correction=True,
-                                                    subleading_only=True)
+                                                    subleading_only=True,
+                                                    MZ=M_Z_BFS_REF)
     print(f"  {'√s':>6} {'ΔCoul^(1,sub) [fb]':>22} {'sub/σ_LR^(0) %':>18}")
     for i, sq in enumerate(sqrts):
         print(f"  {sq:>6.0f} {coul_sub[i]*1e3:>22.4f} {coul_sub[i]/sLR0[i]*100:>+17.3f}%")

@@ -524,6 +524,19 @@ Fit output (`fit_output/ww/plots/`, written by `doFit_ww.py`):
 - `fit_metadata.json`: timestamp, scenario, full chain string read
   from the template the fit consumed.
 
+THEORY_INPUTS (card-driven EW inputs to the BFS chain, threaded end-to-end
+as of 2026-05-27):
+`alpha_s_MW` (α_s(M_W) MS-bar; production 0.1199, BFS reference 0.1199),
+`m_t` (pole mass; production 174.2 GeV, BFS Table 4 174.2 GeV),
+`M_H` (production 125.25 GeV PDG, BFS Table 4 115 GeV pre-discovery),
+`M_Z` (production 91.1876 GeV PDG, BFS Tables 91.188 GeV). The closure
+scripts (`scripts/validate_bfs_nlo.py`,
+`scripts/investigations/bfs_nnlo/check_closed_form_pieces.py`) pin to
+the BFS-reference set via the framework constants `M_T_BFS_REF`,
+`M_H_BFS_REF`, `M_Z_BFS_REF` exposed by `eft_xsec.py`. The c^(1,fin)
+slope ∂Re/∂M_H is −0.022/GeV → the 115 → 125.25 PDG switch shifts
+Re c_p,LR by ~0.23 (a few-permille effect on σ_NLO).
+
 Card knobs unique to WW (in addition to NLO_CONFIG / THEORY_INPUTS):
 `PARAM_MATH_LABELS` + `PARAM_UNITS` (plain-LaTeX math symbols + units;
 `PARAM_LABELS` is derived on-demand via `plots.param_axis_label`),

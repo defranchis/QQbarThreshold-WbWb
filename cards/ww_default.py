@@ -45,14 +45,16 @@ THEORY_INPUTS = {
     # (consistent with α_s(M_Z) = 0.118 evolved to M_W). PDG world average
     # α_s(M_Z) = 0.1180 ± 0.0009 → α_s(M_W) ≈ 0.1199.
     "alpha_s_MW": 0.1199,
-    # m_t, M_H enter the BFS NLO hard-matching coefficient c_p,LR^(1,fin).
-    # The chain currently uses c_fin = -10.076 (Re) evaluated at the BFS
-    # reference m_t = 174.2 / M_H = 115 GeV. The m_t/M_H propagation into
-    # a varying c_fin is sub-0.001 % on σ_NLO (Scenario H of
-    # validate_bfs_nlo.py) and is deferred — these values are recorded
-    # here so a future full-PV-C0 implementation can pick them up.
-    "m_t":      174.2,   # GeV (pole), BFS Table 4 input
-    "M_H":      115.0,   # GeV, BFS Table 4 input (pre-Higgs-discovery value)
+    # m_t, M_H, M_Z enter the BFS NLO hard-matching coefficient c_p,LR^(1,fin)
+    # and the BFS EW couplings ξ(s), χ(s), s_W² (M_Z everywhere via the OS
+    # relation sin²θ_W = 1 − (m_W/M_Z)²). Defaults below are the production
+    # values (PDG); the BFS reference set (m_t=174.2, M_H=115, M_Z=91.188)
+    # used for arXiv:0707.0773 Tables 1–4 closure is kept as M_*_BFS_REF
+    # constants in process/ww/xsec_calculator/eft_xsec.py — validation
+    # scripts pass those explicitly.
+    "m_t":      174.2,    # GeV (pole), PDG ≈ BFS reference
+    "M_H":      125.25,   # GeV (PDG 2024); BFS Table 4 used 115 (pre-discovery)
+    "M_Z":      91.1876,  # GeV (PDG); BFS Tables 1+2 used 91.188
 }
 
 # ---------------------------------------------------------------------------

@@ -42,7 +42,7 @@ import os
 import numpy as np
 
 from framework.process.ww.xsec_calculator.eft_xsec import (
-    ALPHA_S_MW_DEFAULT, M_T_DEFAULT, M_H_DEFAULT,
+    ALPHA_S_MW_DEFAULT, M_T_DEFAULT, M_H_DEFAULT, M_Z,
     BFSCorrections,
 )
 from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq
@@ -74,6 +74,9 @@ def partonic_kwargs_from_card(card) -> dict:
         whizard_anchor_source=str(nlo.get("whizard_anchor_source", "grid")),
         coulomb_kc_safe=bool(nlo.get("coulomb_kc_safe", False)),
         decay_uses_full_born=bool(nlo.get("decay_uses_full_born", True)),
+        m_t=float(theory.get("m_t", M_T_DEFAULT)),
+        M_H=float(theory.get("M_H", M_H_DEFAULT)),
+        MZ=float(theory.get("M_Z", M_Z)),
     )
 
 
@@ -169,8 +172,10 @@ class WWGenerator:
                  coulomb_kc_safe: bool = False,
                  decay_uses_full_born: bool = True,
                  # Theory inputs entering the BFS matching coefficients
-                 # (c_p,LR / c_d,l / c_d,h analytic in m_t, M_H).
+                 # (c_p,LR / c_d,l / c_d,h analytic in m_t, M_H, M_Z) and the
+                 # EW couplings (sin²θ_W = 1 − (m_W/M_Z)² via OS scheme).
                  m_t: float = M_T_DEFAULT, M_H: float = M_H_DEFAULT,
+                 MZ: float = M_Z,
                  # Steering card reference — ``template_fingerprint`` reads
                  # PDG BRs + PARAMETERS variation magnitudes from it.
                  card=None):
@@ -193,6 +198,7 @@ class WWGenerator:
         self.decay_uses_full_born = decay_uses_full_born
         self.m_t = m_t
         self.M_H = M_H
+        self.MZ = MZ
         self.card = card
 
     @classmethod
@@ -216,8 +222,6 @@ class WWGenerator:
         return cls(
             order=card.ORDER,
             bfs=bfs,
-            m_t=float(theory.get("m_t", M_T_DEFAULT)),
-            M_H=float(theory.get("M_H", M_H_DEFAULT)),
             card=card,
             **observed_kwargs_from_card(card),
         )
@@ -262,6 +266,7 @@ class WWGenerator:
             "z_min":           f"{self.z_min:.4f}",
             "m_t":             f"{self.m_t:.3f}",
             "M_H":             f"{self.M_H:.3f}",
+            "M_Z":             f"{self.MZ:.4f}",
             "anchor_source":   self.whizard_anchor_source,
             "coulomb_kc_safe": str(bool(self.coulomb_kc_safe)),
             "decay_uses_full_born": str(bool(self.decay_uses_full_born)),
@@ -301,7 +306,7 @@ class WWGenerator:
             f"δ_QCD={self.apply_delta_QCD} (α_s={self.alpha_s})  "
             f"anchor={self.apply_whizard_anchor}[{self.whizard_anchor_source}]  "
             f"ISR={self.isr_scheme} (α_em={alpha_em_str})  "
-            f"m_t={self.m_t} M_H={self.M_H}"
+            f"m_t={self.m_t} M_H={self.M_H} M_Z={self.MZ}"
         )
 
     # ------------------------------------------------------------------
@@ -367,7 +372,7 @@ class WWGenerator:
             alpha_em_isr=self.alpha_em_isr,
             coulomb_kc_safe=self.coulomb_kc_safe,
             decay_uses_full_born=self.decay_uses_full_born,
-            m_t=self.m_t, M_H=self.M_H,
+            m_t=self.m_t, M_H=self.M_H, MZ=self.MZ,
         )
 
         os.makedirs(outdir, exist_ok=True)

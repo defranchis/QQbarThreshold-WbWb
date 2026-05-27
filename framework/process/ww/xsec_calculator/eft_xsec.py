@@ -51,15 +51,27 @@ PB_TO_FB        = 1000.0   # picobarn → femtobarn
 
 # ---------------------------------------------------------------------------
 # WW-chain defaults (single source of truth; imported by bfs_eft, isr,
-# generator, compute_xsec_ww, cards). The "BFS reference" values are the
-# inputs at which BFS arXiv:0707.0773 evaluated c_p,LR^(1,fin) = -10.076.
-# Treating m_t / M_H as constants at those reference values is justified
-# at the < 0.001 % level on σ_NLO (Scenario H of validate_bfs_nlo.py).
+# generator, compute_xsec_ww, cards). PRODUCTION defaults are PDG values
+# (now plumbed end-to-end via the THEORY_INPUTS card knob; previously the
+# card's m_t/M_H were silently ignored by the σ chain — see the
+# 2026-05-27 calc /simplify pass and the 2026-05-27 parameter audit).
+#
+# The M_*_BFS_REF constants are the inputs at which arXiv:0707.0773 + 0807.0102
+# evaluated the BFS Tables 1-4 and c^(1,fin) reference numbers; validation
+# scripts (scripts/validate_bfs_nlo.py, scripts/investigations/bfs_nnlo/,
+# scripts/investigations/c1fin_analytic/) pass these explicitly to reproduce
+# paper closure. They differ from the PDG production defaults (M_H pre-discovery
+# 115 vs 125.25; M_Z 91.188 vs 91.1876).
 # ---------------------------------------------------------------------------
-ALPHA_S_MW_DEFAULT = 0.1199    # α_s(M_W) in MS-bar, BFS reference
-M_W_BFS_REF        = 80.377    # m_W at which BFS Tables / c_fin are tabulated
-M_T_DEFAULT        = 174.2     # m_t (pole), BFS Table 4 input
-M_H_DEFAULT        = 115.0     # M_H, BFS Table 4 input
+ALPHA_S_MW_DEFAULT = 0.1199     # α_s(M_W) in MS-bar, BFS reference
+M_W_BFS_REF        = 80.377     # m_W at which BFS Tables / c_fin are tabulated
+M_T_DEFAULT        = 174.2      # m_t (pole), PDG ≈ BFS Table 4 input
+M_H_DEFAULT        = 125.25     # PDG (production); 115 = BFS Table 4 (pre-discovery)
+M_H_BFS_REF        = 115.0      # M_H used by BFS arXiv:0707.0773 Tables/c_fin
+M_T_BFS_REF        = 174.2      # m_t used by BFS arXiv:0707.0773 Tables/c_fin
+M_Z_BFS_REF        = 91.188     # M_Z used by BFS arXiv:0707.0773 Tables/c_fin
+                                # (3 sig figs in paper; 91.1876 PDG used as
+                                # production default for M_Z)
 
 # PDG branching ratios — primitives live in the steering card (single source
 # of truth); the combinations below are derived once at module load.
@@ -72,12 +84,12 @@ BR_INCLUSIVE_MUNUQQ = 2.0 * BR_W_MUNU * BR_W_HAD
 BR_MUNUUD          = BR_W_MUNU * BR_W_UD
 
 
-def sin2_thetaW_OS(mW: float = M_W_DEFAULT) -> float:
-    return 1.0 - (mW / M_Z) ** 2
+def sin2_thetaW_OS(mW: float = M_W_DEFAULT, MZ: float = M_Z) -> float:
+    return 1.0 - (mW / MZ) ** 2
 
 
-def alpha_Gmu(mW: float = M_W_DEFAULT) -> float:
-    sW2 = sin2_thetaW_OS(mW)
+def alpha_Gmu(mW: float = M_W_DEFAULT, MZ: float = M_Z) -> float:
+    sW2 = sin2_thetaW_OS(mW, MZ)
     return np.sqrt(2.0) * G_F * mW * mW * sW2 / np.pi
 
 
@@ -204,7 +216,8 @@ def sigma_WW_partonic(s,
                   coulomb_kc_safe: bool = False,
                   decay_uses_full_born: bool = True,
                   m_t: float = M_T_DEFAULT,
-                  M_H: float = M_H_DEFAULT):
+                  M_H: float = M_H_DEFAULT,
+                  MZ: float = M_Z):
     """
     Off-shell-convolved σ(e+e- → W+W- → 4f), full off-shell, in pb.
 
@@ -231,8 +244,8 @@ def sigma_WW_partonic(s,
     Vectorised: accepts scalar or array ``s`` (m_W, Γ_W must be scalar).
     """
     s_arr = np.asarray(s, dtype=float)
-    alpha = alpha_Gmu(mW)
-    sW2 = sin2_thetaW_OS(mW)
+    alpha = alpha_Gmu(mW, MZ)
+    sW2 = sin2_thetaW_OS(mW, MZ)
 
     use_zero = s_arr < _S_BFS_FLOOR
     use_bfs = (s_arr >= _S_BFS_FLOOR) & (s_arr < _S_BFS_UPPER)
@@ -252,7 +265,7 @@ def sigma_WW_partonic(s,
             whizard_anchor_source=whizard_anchor_source,
             coulomb_kc_safe=coulomb_kc_safe,
             decay_uses_full_born=decay_uses_full_born,
-            mt=m_t, MH=M_H,
+            mt=m_t, MH=M_H, MZ=MZ,
         )
         # Smooth-floor weight is 1 above 150 GeV, ramps to 0 across [149, 150]
         # to keep σ̂(s) C¹ for the ISR convolution kernel.
@@ -400,7 +413,8 @@ def sigma_partonic_munuqq(s,
                           coulomb_kc_safe: bool = False,
                           decay_uses_full_born: bool = True,
                           m_t: float = M_T_DEFAULT,
-                          M_H: float = M_H_DEFAULT):
+                          M_H: float = M_H_DEFAULT,
+                          MZ: float = M_Z):
     """
     Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
     Returns σ in pb at partonic CM energy² = s (before ISR convolution).
@@ -490,7 +504,7 @@ def sigma_partonic_munuqq(s,
                 whizard_anchor_source=whizard_anchor_source,
                 coulomb_kc_safe=coulomb_kc_safe,
                 decay_uses_full_born=decay_uses_full_born,
-                mt=m_t, MH=M_H,
+                mt=m_t, MH=M_H, MZ=MZ,
             )
             sigma_bfs = sigma_specific * _CHANNEL_MULTIPLICITY[channel]
         else:   # pdg-constant: σ_WW × BR_PDG (BR carries δ_QCD)
@@ -507,7 +521,7 @@ def sigma_partonic_munuqq(s,
                 whizard_anchor_source=whizard_anchor_source,
                 coulomb_kc_safe=coulomb_kc_safe,
                 decay_uses_full_born=decay_uses_full_born,
-                mt=m_t, MH=M_H,
+                mt=m_t, MH=M_H, MZ=MZ,
             )
             sigma_bfs = sigma_WW_total * BR_pdg
         # Smooth-floor weight kills the hard step at 150 GeV that was
@@ -531,7 +545,7 @@ def sigma_partonic_munuqq(s,
             whizard_anchor_source=whizard_anchor_source,
             coulomb_kc_safe=coulomb_kc_safe,
             decay_uses_full_born=decay_uses_full_born,
-            m_t=m_t, M_H=M_H,
+            m_t=m_t, M_H=M_H, MZ=MZ,
         ) * BR_x
         sigma = np.where(use_cal, sigma_cal, sigma)
 

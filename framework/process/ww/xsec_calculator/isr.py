@@ -56,7 +56,7 @@ from framework.process.ww.xsec_calculator.eft_xsec import (
     M_E,
     ALPHA_S_MW_DEFAULT,
     M_W_DEFAULT, GAMMA_W_DEFAULT, M_W_BFS_REF,
-    M_T_DEFAULT, M_H_DEFAULT,
+    M_T_DEFAULT, M_H_DEFAULT, M_Z,
     BFSCorrections,
     alpha_Gmu,
     sigma_partonic_munuqq,
@@ -420,7 +420,8 @@ def sigma_observed_munuqq(sqrt_s,
                           coulomb_kc_safe: bool = False,
                           decay_uses_full_born: bool = True,
                           m_t: float = M_T_DEFAULT,
-                          M_H: float = M_H_DEFAULT):
+                          M_H: float = M_H_DEFAULT,
+                          MZ: float = M_Z):
     """
     Observed σ(e+e- → μν qq̄) after ISR convolution, in pb. Vectorised in
     ``sqrt_s``. ``br_convention`` and ``include_NLO_hard_decay`` are
@@ -457,7 +458,7 @@ def sigma_observed_munuqq(sqrt_s,
         whizard_anchor_source=whizard_anchor_source,
         coulomb_kc_safe=coulomb_kc_safe,
         decay_uses_full_born=decay_uses_full_born,
-        m_t=m_t, M_H=M_H,
+        m_t=m_t, M_H=M_H, MZ=MZ,
     )
     if isr_scheme == "single_conv":
         return sigma_ISR_convolution(

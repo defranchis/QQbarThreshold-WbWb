@@ -532,17 +532,3 @@ def c_d_h_1_fin(m_W: float, m_t: float, M_H: float, M_Z: float) -> complex:
         + _c_d_h_ct_extra_finite(M_W2, M_Z2)
         + _residual_decay_pole_mismatch(M_W2, M_Z2)
     )
-
-
-
-    # m_t slope
-    delta_t = 0.5
-    cp_pt = c_p_LR_1_fin(m_W_ref, m_t_ref + delta_t, M_H_ref, M_Z_ref).real
-    cp_mt = c_p_LR_1_fin(m_W_ref, m_t_ref - delta_t, M_H_ref, M_Z_ref).real
-    print(f"\n∂Re(c_p,LR)/∂m_t ≈ {(cp_pt - cp_mt) / (2 * delta_t):+.4e}  (per GeV)")
-
-    # M_H slope
-    delta_H = 1.0
-    cp_pH = c_p_LR_1_fin(m_W_ref, m_t_ref, M_H_ref + delta_H, M_Z_ref).real
-    cp_mH = c_p_LR_1_fin(m_W_ref, m_t_ref, M_H_ref - delta_H, M_Z_ref).real
-    print(f"∂Re(c_p,LR)/∂M_H ≈ {(cp_pH - cp_mH) / (2 * delta_H):+.4e}  (per GeV)")

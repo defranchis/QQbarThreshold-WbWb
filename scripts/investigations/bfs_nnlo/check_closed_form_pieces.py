@@ -64,28 +64,36 @@ if __name__ == "__main__":
     print("  apply_BR_correction=False (paper convention: raw 1/27)")
     print("=" * 64)
 
+    # BFS arXiv:0807.0102 Table 1 evaluates these at m_t=174.2, M_H=115, M_Z=91.188
+    # (pre-Higgs-discovery EW inputs). Pin those explicitly so paper closure is
+    # preserved as the framework's production defaults move to PDG.
+    from framework.process.ww.xsec_calculator.eft_xsec import (
+        M_T_BFS_REF, M_H_BFS_REF, M_Z_BFS_REF,
+    )
+    bfs_kw = dict(mt=M_T_BFS_REF, MH=M_H_BFS_REF, MZ=M_Z_BFS_REF)
+
     cxSH_fb = delta_sigma_NNLO_C_soft_hard_specific_pb(
-        s, mW, gammaW, apply_BR_correction=False) * 1e3 / 4.0
+        s, mW, gammaW, apply_BR_correction=False, **bfs_kw) * 1e3 / 4.0
     _print_compare("Δσ̂^(C×[S+H])  (eq. 34)  [fb, helicity-averaged]:",
                    cxSH_fb, TABLE_1["CxSH_fb"], sqrts)
 
     nlo_c_fb = delta_sigma_NNLO_NLO_Coulomb_potential_specific_pb(
-        s, mW, gammaW, apply_BR_correction=False) * 1e3 / 4.0
+        s, mW, gammaW, apply_BR_correction=False, MZ=M_Z_BFS_REF) * 1e3 / 4.0
     _print_compare("Δσ^(NLO-C)  (eq. 39)  [fb, helicity-averaged]:",
                    nlo_c_fb, TABLE_1["NLO_C_fb"], sqrts)
 
     cxdecay_fb = delta_sigma_NNLO_C_decay_specific_pb(
-        s, mW, gammaW, apply_BR_correction=False) * 1e3 / 4.0
+        s, mW, gammaW, apply_BR_correction=False, **bfs_kw) * 1e3 / 4.0
     _print_compare("Δσ^(C×decay)  (eq. 40)  [fb, helicity-averaged]:",
                    cxdecay_fb, TABLE_1["Cxdecay_fb"], sqrts)
 
     cxres_fb = delta_sigma_NNLO_C_residue_specific_pb(
-        s, mW, gammaW, apply_BR_correction=False) * 1e3 / 4.0
+        s, mW, gammaW, apply_BR_correction=False, MZ=M_Z_BFS_REF) * 1e3 / 4.0
     _print_compare("Δσ^(C×res)  (eq. 48)  [fb, helicity-averaged]:",
                    cxres_fb, TABLE_1["Cxres_fb"], sqrts)
 
     c3_fb = delta_sigma_NNLO_triple_Coulomb_specific_pb(
-        s, mW, gammaW, apply_BR_correction=False) * 1e3 / 4.0
+        s, mW, gammaW, apply_BR_correction=False, MZ=M_Z_BFS_REF) * 1e3 / 4.0
     _print_compare("Δσ^(C3)  (eq. 11)  [fb, helicity-averaged]:",
                    c3_fb, TABLE_1["C3_fb"], sqrts)
 

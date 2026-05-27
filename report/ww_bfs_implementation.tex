@@ -144,6 +144,24 @@ calculation'': full BFS Born $+$ NLO loops $+$ NNLO $+$ $\delta_\text{QCD}$
 $+$ Whizard anchor $+$ single-convolution LL+exp ISR (cf.~section
 \ref{sec:isr}).
 
+\paragraph{Theory inputs (production vs.\ paper closure).} The EW
+parameters $\alpha_s(\mW)$, $m_t$, $M_H$, and $M_Z$ are card-driven
+through \code{cards/ww\_default.py:THEORY\_INPUTS} and threaded
+end-to-end into every Born, NLO, NNLO, and anchor piece (since
+2026-05-27). Production defaults are PDG-current
+($\alpha_s(\mW)=0.1199$, $m_t=174.2\GeV$, $M_H=125.25\GeV$,
+$M_Z=91.1876\GeV$). The closure scripts of
+section~\ref{sec:val} pin to the BFS-paper reference set
+($m_t=174.2\GeV$, $M_H=115\GeV$ pre-discovery, $M_Z=91.188\GeV$ to
+3~sig.\ figs.) via the framework constants \code{M\_T\_BFS\_REF},
+\code{M\_H\_BFS\_REF}, \code{M\_Z\_BFS\_REF} exposed by
+\code{eft\_xsec.py}, so paper closure is preserved as production
+defaults track PDG. The dominant slope is
+$\partial\mathrm{Re}\,c_{p,\mathrm{LR}}/\partial M_H\approx
+-0.022/\GeV$ (Scenario~H of section~\ref{sec:val-loops}), so the
+$115\to 125.25\GeV$ shift moves $\mathrm{Re}\,c_{p,\mathrm{LR}}$ by
+$\sim 0.23$, a few-permille effect on $\sigma_\text{NLO}$.
+
 \subsection{Born expansion}\label{sec:born}
 
 The Born sum implemented in \code{bfs_eft.py} for the specific channel
