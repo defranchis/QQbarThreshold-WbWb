@@ -65,7 +65,7 @@ PB_TO_FB        = 1000.0   # picobarn → femtobarn
 # ---------------------------------------------------------------------------
 ALPHA_S_MW_DEFAULT = 0.1199     # α_s(M_W) in MS-bar, BFS reference
 M_W_BFS_REF        = 80.377     # m_W at which BFS Tables / c_fin are tabulated
-M_T_DEFAULT        = 174.2      # m_t (pole), PDG ≈ BFS Table 4 input
+M_T_DEFAULT        = 172.5      # m_t (pole), FCC-ee FSR Table 2 (was 174.2 = BFS ref)
 M_H_DEFAULT        = 125.25     # PDG (production); 115 = BFS Table 4 (pre-discovery)
 M_H_BFS_REF        = 115.0      # M_H used by BFS arXiv:0707.0773 Tables/c_fin
 M_T_BFS_REF        = 174.2      # m_t used by BFS arXiv:0707.0773 Tables/c_fin

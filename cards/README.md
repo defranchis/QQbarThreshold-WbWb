@@ -12,12 +12,16 @@ arXiv:0707.0773 (NLO) and arXiv:0807.0102 (NNLO).
 
 `alpha_s_MW`, `m_t`, `M_H`, `M_Z` enter the NLO hard-matching coefficient
 `c_p,LR^(1,fin)` and the BFS EW couplings ξ(s), χ(s), sin²θ_W.  Production
-defaults are PDG 2024 values.
+defaults: PDG 2024 / FCC-ee FSR Vol. 1 Table 2 (arXiv:2505.00272).
+`m_t=172.5` GeV is the FSR central value, distinct from the BFS reference
+(see below).
 
 The BFS reference set used to produce Tables 1–4 is different:
 `m_t=174.2, M_H=115 (pre-Higgs-discovery), M_Z=91.188`.  These are kept as
 `M_*_BFS_REF` constants in `process/ww/xsec_calculator/eft_xsec.py`; all closure
-validation scripts pass them explicitly.
+validation scripts pass them explicitly.  Note the production
+default `m_t=172.5` is now ≠ `M_T_BFS_REF=174.2`, so BFS Tables 1–4
+closure must use `M_T_BFS_REF` (already pinned in validation scripts).
 
 `alpha_em` and `alpha_em_isr` are α_em overrides.  `None` (default) means:
 
