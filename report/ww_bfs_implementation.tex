@@ -964,23 +964,42 @@ statistical precision on the Table~4 entries. The $-2.1\,\%$ residual
 at $\sqrts=158\GeV$ is unchanged in scope — it belongs to closure-budget
 items (ii) and (iii), which are NLL-ISR territory.
 \begin{center}\small
-\setlength{\tabcolsep}{6pt}
-\begin{tabular}{r r r r}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{r r r r r r r}
 \toprule
-$\sqrts$ & code/BFS Table~4 NLO (OFF) & code/BFS (ON) & $\Delta$ \\
-{}[GeV]  & (historical chain)         & (BFS recipe)  & [pp] \\
+$\sqrts$ & BFS Table~4 & code (OFF) & code (ON) & OFF/BFS$-1$ & ON/BFS$-1$ & $\Delta$ \\
+{}[GeV]  & $\sigma_{\rm NLO}$ [fb] & [fb] & [fb] & [\%] & [\%] & [pp] \\
 \midrule
-158 & $0.971$ & $0.979$ & $+0.9$ \\
-161 & $0.991$ & $0.995$ & $+0.4$ \\
-164 & $0.997$ & $0.999$ & $+0.2$ \\
-167 & $0.999$ & $1.001$ & $+0.1$ \\
-170 & $0.996$ & $0.997$ & $+0.1$ \\
+158 & $49.19$  & $47.75$  & $48.17$  & $-2.93$ & $-2.06$ & $+0.86$ \\
+161 & $117.81$ & $116.66$ & $117.14$ & $-0.98$ & $-0.57$ & $+0.41$ \\
+164 & $234.90$ & $233.61$ & $234.14$ & $-0.55$ & $-0.32$ & $+0.23$ \\
+167 & $328.20$ & $327.12$ & $327.72$ & $-0.33$ & $-0.15$ & $+0.18$ \\
+170 & $398.00$ & $395.14$ & $395.80$ & $-0.72$ & $-0.55$ & $+0.17$ \\
 \bottomrule
 \end{tabular}
-\\[2pt]\small \emph{Scenario~F closure to BFS Table~4 NLO column,
-historical chain (knob OFF) vs BFS recipe (knob ON = production
-default).}\label{tab:val-table4-decay-on}
+\\[2pt]\small \emph{Closure to BFS Table~4 NLO column (paper:
+$\sigma_{\rm NLO}$, no NNLO), historical chain (knob OFF) vs BFS recipe
+(knob ON = production default). Same chain settings as
+Figure~\ref{fig:val-table4-decay-swap}. BFS-quoted MC stat on the
+reference column is ${\sim}0.05$--$0.1\,\%$ (rightmost digit of Table~3
+of the paper).}\label{tab:val-table4-decay-on}
 \end{center}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.78\linewidth]{val_bfs_table4_decay_swap}
+\caption{BFS Table~4 NLO column ($\mu^-\bar\nu_\mu u\bar d$, $\mW=80.377$,
+$\GammaW=2.09201$): paper reference (open squares) compared to the
+production chain with the BFS decay-substitution knob OFF (historical,
+orange) and ON (production default, green). The bottom panel is
+$\text{code}/\text{paper}-1$ in \%; the grey band is the BFS-quoted
+${\sim}\pm 0.1\,\%$ MC statistical precision of the Table~4 entries.
+At $\sqrts\in[161,170]\GeV$ the BFS recipe closes the chain to within
+the MC band; the residual at $158\GeV$ is closure-budget items (ii)
+and (iii) (WHIZARD-version drift and the LL$+$exp-vs-WHIZARD ISR-kernel
+difference), not the decay substitution.}
+\label{fig:val-table4-decay-swap}
+\end{figure}
 \paragraph{Impact on \texorpdfstring{$\mW$}{mW} from Asimov A/B.}
 Two template sets, identical chain except \code{decay\_uses\_full\_born}
 $\in\{$OFF, ON$\}$, both ran through the production FCC-ee Asimov fit

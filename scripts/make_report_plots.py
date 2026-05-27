@@ -177,17 +177,72 @@ def plot_bfs_table4():
     ax_t.plot(sqrts, BFSNLO_T4["born_isr"], "s",
               mfc="none", color="C0", label=r"Born$\otimes$ISR: paper")
     ax_t.plot(sqrts, nlo_code, "-", color="C3",
-              label="NLO: code")
+              label=r"NLO$\otimes$ISR: code")
     ax_t.plot(sqrts, BFSNLO_T4["nlo"], "s",
-              mfc="none", color="C3", label="NLO: paper")
+              mfc="none", color="C3", label=r"NLO$\otimes$ISR: paper")
     ax_t.legend(fontsize=9, loc="upper left")
 
     ax_b.plot(sqrts, born_isr_code - BFSNLO_T4["born_isr"], "o-", color="C0",
               label=r"Born$\otimes$ISR")
     ax_b.plot(sqrts, nlo_code - BFSNLO_T4["nlo"], "o-", color="C3",
-              label="NLO")
+              label=r"NLO$\otimes$ISR")
     ax_b.legend(fontsize=8, loc="lower right")
     _save(fig, "val_bfs_table4")
+
+
+# ============================================================================
+# Plot 2b — BFS NLO Table 4 decay-substitution A/B
+# ============================================================================
+def plot_bfs_table4_decay_swap():
+    """NLO σ for μ⁻ν̄_μ ud̄ at BFS Table 4 reference points, both chain
+    settings of the BFS σ̂_LR^(0)→σ_Born substitution (BFS line 2255),
+    overlaid on the paper. Shows the closure improvement at every √s
+    and the residual at 158 GeV that is NOT this knob (NLL ISR territory)."""
+    mW, gammaW = 80.377, 2.09201
+    sqrts = BFSNLO_T4["sqrts_GeV"]
+    common = dict(
+        mW=mW, gammaW=gammaW, channel="munuud",
+        br_convention="bfs-eft",
+        include_BFS_NNLO=False,
+        include_coulomb=False,
+        apply_whizard_anchor=True,
+        isr_scheme="2leg",
+        include_NLO_hard_decay=True,
+        apply_delta_QCD=True, alpha_s=0.1199,
+    )
+    nlo_off = np.asarray(sigma_observed_munuqq(
+        sqrts, decay_uses_full_born=False, **common)) * 1e3
+    nlo_on  = np.asarray(sigma_observed_munuqq(
+        sqrts, decay_uses_full_born=True,  **common)) * 1e3
+
+    fig, ax_t, ax_b = _setup_axes(
+        r"BFS Table~4 NLO$\otimes$ISR closure: decay substitution A/B "
+        r"($\mu^-\bar\nu_\mu u\bar d$)",
+        ylabel_top=r"$\sigma_{\rm NLO}\otimes$ISR [fb]",
+        ylabel_bot=r"code/paper $-$ 1 [\%]",
+        height=6.0,
+    )
+    ax_t.plot(sqrts, BFSNLO_T4["nlo"], "s",
+              mfc="none", color="0.2", ms=8, mew=1.4,
+              label=r"BFS Table 4 NLO$\otimes$ISR (paper)")
+    ax_t.plot(sqrts, nlo_off, "o--", color="C1",
+              label=r"code NLO$\otimes$ISR, "
+                    r"$\delta_{\rm dec}\!\times\!\hat\sigma^{(0)}$ (historical)")
+    ax_t.plot(sqrts, nlo_on, "o-", color="C2",
+              label=r"code NLO$\otimes$ISR, "
+                    r"$\delta_{\rm dec}\!\times\!\hat\sigma_{\rm Born}$ "
+                    r"(BFS recipe, default)")
+    ax_t.legend(fontsize=9, loc="upper left")
+
+    ax_b.plot(sqrts, 100 * (nlo_off / BFSNLO_T4["nlo"] - 1), "o--", color="C1",
+              label="knob OFF")
+    ax_b.plot(sqrts, 100 * (nlo_on  / BFSNLO_T4["nlo"] - 1), "o-",  color="C2",
+              label="knob ON")
+    ax_b.axhspan(-0.1, 0.1, color="0.85", zorder=0,
+                 label=r"BFS MC stat $\pm 0.1\,\%$")
+    ax_b.legend(fontsize=8, loc="lower right")
+    ax_b.set_ylim(-3.5, 1.5)
+    _save(fig, "val_bfs_table4_decay_swap")
 
 
 # ============================================================================
@@ -322,6 +377,7 @@ def main():
     print(f"Writing validation plots to {OUT_DIR}")
     plot_bfs_born_tables()
     plot_bfs_table4()
+    plot_bfs_table4_decay_swap()
     plot_whizard_anchor()
     plot_bfs_nnlo_pieces()
     plot_bfs_nnlo_isr()
