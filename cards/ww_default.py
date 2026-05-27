@@ -139,17 +139,17 @@ NLO_CONFIG = {
     # Whizard 4f Born anchor (BFS sec. 6.2 prescription). Closes the
     # residual ~2 % absolute Born deficit.
     "apply_whizard_anchor":   True,
-    # Anchor source. Two implementations are kept side-by-side in
-    # ``bfs_eft.whizard_anchor_factor`` so they can be compared:
-    #   "grid"   — 1295-point WHIZARD 3.1.5 scan (5 m_W × 7 Γ_W × 37 √s)
-    #              produced by WW_threshold/whizard/, trilinear interp.
-    #              Full (m_W, Γ_W) coverage; carries ~0.05-0.2 % per-point
-    #              MC stat noise that propagates into variation templates.
+    # Anchor source.  Three implementations in ``bfs_eft.whizard_anchor_factor``:
+    #   "morph"  — grid_fine morphing predictor (6363 pts, 0.1-GeV √s step,
+    #              9 m_W × 7 Γ_W, ~0.008 % MC): quadratic R_m × R_Γ × bilinear
+    #              cross-term, cubic-spline-in-√s, denoised. Validated sub-MeV
+    #              (max 0.020 % on held-out grid_validate_fine). PRODUCTION DEFAULT.
+    #   "grid"   — 1295-point WHIZARD 3.1.5 scan (5 m_W × 7 Γ_W × 37 √s),
+    #              trilinear interp. Full coverage; ~0.05-0.2 % per-point MC noise.
     #   "spline" — BFS arXiv:0707.0773 Tables 1+2: cubic spline in
     #              δ = √s − 2m_W, linear interp in Γ_W between
-    #              {2.04483, 2.09201}. Smooth, no MC noise; limited to two
-    #              Γ_W anchor points (extrapolates linearly outside).
-    "whizard_anchor_source":  "spline",
+    #              {2.04483, 2.09201}. Smooth; only two Γ_W anchor points.
+    "whizard_anchor_source":  "morph",
     # DIAGNOSTIC ONLY — adds the BFS NLO Coulomb subleading piece (eq. 62 of
     # arXiv:0707.0773) via the standalone BFSCorrections.delta_NLO path.
     # When include_NLO_hard_decay=True (the production default), the FULL

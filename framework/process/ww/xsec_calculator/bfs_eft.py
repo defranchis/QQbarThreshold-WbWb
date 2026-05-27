@@ -380,22 +380,55 @@ def whizard_anchor_factor_grid(s, mW: float = M_W_DEFAULT,
     return np.asarray(f, dtype=float)
 
 
-WHIZARD_ANCHOR_SOURCES = ("spline", "grid")
+def whizard_anchor_factor_morph(s, mW: float = M_W_DEFAULT,
+                                gammaW: float = GAMMA_W_DEFAULT,
+                                *, apply_BR_correction: bool = True):
+    """f(s, m_W, Γ_W) bringing the BFS-EFT N^(3/2)LO Born to the Whizard
+    4f Born.  σ_Whiz from the morphing predictor built on the high-stats
+    grid_fine (6363 pts, 0.1-GeV √s, 9 m_W × 7 Γ_W).
+
+    Same BR-awareness contract as :func:`whizard_anchor_factor_grid`:
+    BR² stripped iff ``apply_BR_correction=False``.  The morph result is
+    cached after the first call (~3 s build time).
+    """
+    from framework.process.ww.xsec_calculator.grid_morph import whizard_sigma_morph
+
+    sigma_LR, sigma_RL = _accumulate_born_orders(
+        s, mW, gammaW, "N3/2LO", apply_BR_correction=apply_BR_correction)
+    sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * PB_TO_FB
+    sigma_whiz_fb = whizard_sigma_morph(s, mW, gammaW) * _br_strip_factor(
+        gammaW, apply_BR_correction=apply_BR_correction)
+    f = sigma_whiz_fb / sigma_EFT_fb
+
+    if np.ndim(s) == 0:
+        return float(f)
+    return np.asarray(f, dtype=float)
+
+
+WHIZARD_ANCHOR_SOURCES = ("spline", "grid", "morph")
 
 
 def whizard_anchor_factor(s, mW: float = M_W_DEFAULT,
                           gammaW: float = GAMMA_W_DEFAULT,
                           *, apply_BR_correction: bool = True,
                           source: str = "grid"):
-    """Dispatch to the spline (BFS Tables) or grid (WHIZARD scan) anchor.
-    Both are BR-aware: pass the same ``apply_BR_correction`` you used for
-    the σ_LR/σ_RL that the factor is multiplied with.
+    """Dispatch to the spline (BFS Tables), trilinear-grid, or morph anchor.
+    All three are BR-aware: pass the same ``apply_BR_correction`` you used
+    for the σ_LR/σ_RL that the factor is multiplied with.
+
+    Sources:
+      ``"spline"`` — BFS Tables 1+2 cubic spline (2 Γ_W refs, no MC noise).
+      ``"grid"``   — 1295-pt WHIZARD scan, trilinear interpolation.
+      ``"morph"``  — grid_fine (6363 pts) morphing predictor; sub-MeV-safe.
     """
     if source == "spline":
         return whizard_anchor_factor_spline(
             s, mW, gammaW, apply_BR_correction=apply_BR_correction)
     if source == "grid":
         return whizard_anchor_factor_grid(
+            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+    if source == "morph":
+        return whizard_anchor_factor_morph(
             s, mW, gammaW, apply_BR_correction=apply_BR_correction)
     raise ValueError(f"whizard_anchor source must be one of "
                      f"{WHIZARD_ANCHOR_SOURCES}; got {source!r}")
