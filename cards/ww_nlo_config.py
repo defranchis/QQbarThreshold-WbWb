@@ -40,6 +40,11 @@ NLO_CONFIG = {
     # 'single_conv' — LEP2 YR α→2α 1D form (default, ~10× faster than 2leg).
     # '2leg'        — per-leg double-convolution per BFS eq. 71.
     "isr_scheme":             "single_conv",
+    # NLL ISR correction (BCFS arXiv:1911.12040 eq. NLLsol3, fixed-α, N_F=0).
+    # Adds the bracket {1+(α/π)[C_const+C_log·log(1-x)-log²(1-x)]} to the SV
+    # piece of the 2-leg radiator.  Forces isr_scheme="2leg" automatically.
+    # OFF by default (LL+exp is the production chain; NLL is the upgrade target).
+    "isr_nll":                False,
     # α_em values (σ chain + ISR) live in PARAM_INPUTS — both default to
     # derived (α_Gμ on σ side; α_Gμ(M_W_BFS_REF) on ISR side per BFS
     # prescription).

@@ -19,10 +19,10 @@ PARAMETERS = {
 # Production defaults are PDG 2024. α_em=None → derived α_Gμ (σ chain);
 # α_em_isr=None → α_Gμ(M_W_BFS_REF) per BFS prescription. See cards/README.md.
 PARAM_INPUTS = {
-    "alpha_s_MW":   0.1199,   # α_s(M_W) MS-bar
     "m_t":          172.5,    # GeV, OS pole — FCC-ee FSR Table 2 (was 174.2 = BFS ref)
     "M_H":          125.25,   # GeV
     "M_Z":          91.1876,  # GeV
+    "alpha_s_MW":   0.1199,   # α_s(M_W) MS-bar
     "alpha_em":     None,     # σ chain override; None → α_Gμ(m_W, M_Z)
     "alpha_em_isr": None,     # ISR β_e override; None → α_Gμ(M_W_BFS_REF)
 }

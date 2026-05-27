@@ -129,7 +129,8 @@ def chain_summary_latex(kwargs: dict) -> str:
         parts.append(r"$K_{\rm C}$")
     if "isr_scheme" in kwargs:
         scheme = str(kwargs["isr_scheme"]).replace("_", "-")
-        parts.append(rf"LL+exp ISR ({scheme})")
+        nll_tag = "+NLL" if kwargs.get("isr_nll", False) else ""
+        parts.append(rf"LL+exp{nll_tag} ISR ({scheme})")
     return " + ".join(parts)
 
 
@@ -143,6 +144,7 @@ def observed_kwargs_from_card(card) -> dict:
     return {
         **partonic_kwargs_from_card(card),
         "isr_scheme":   str(nlo.get("isr_scheme", "single_conv")),
+        "isr_nll":      bool(nlo.get("isr_nll", False)),
         "alpha_em_isr": theory.get("alpha_em_isr", None),
     }
 
@@ -180,6 +182,7 @@ class WWGenerator:
                  apply_whizard_anchor: bool = True,
                  whizard_anchor_source: str = "grid",
                  isr_scheme: str = "single_conv",
+                 isr_nll: bool = False,
                  alpha_em_isr: float | None = None,
                  coulomb_kc_safe: bool = False,
                  decay_uses_full_born: bool = True,
@@ -205,6 +208,7 @@ class WWGenerator:
         self.apply_whizard_anchor = apply_whizard_anchor
         self.whizard_anchor_source = whizard_anchor_source
         self.isr_scheme = isr_scheme
+        self.isr_nll = isr_nll
         self.alpha_em_isr = alpha_em_isr
         self.coulomb_kc_safe = coulomb_kc_safe
         self.decay_uses_full_born = decay_uses_full_born
@@ -255,6 +259,7 @@ class WWGenerator:
             "coulomb_kc_safe":        self.coulomb_kc_safe,
             "decay_uses_full_born":   self.decay_uses_full_born,
             "isr_scheme":             self.isr_scheme,
+            "isr_nll":                self.isr_nll,
         }
 
     def chain_label(self) -> str:
@@ -281,6 +286,7 @@ class WWGenerator:
             "alpha_em_isr":    ("auto" if self.alpha_em_isr is None
                                 else f"{self.alpha_em_isr:.6e}"),
             "isr_scheme":      self.isr_scheme,
+            "isr_nll":         str(bool(self.isr_nll)),
             "m_t":             f"{self.m_t:.3f}",
             "M_H":             f"{self.M_H:.3f}",
             "M_Z":             f"{self.MZ:.4f}",
@@ -324,7 +330,7 @@ class WWGenerator:
             f"NNLO={self.include_BFS_NNLO}  "
             f"δ_QCD={self.apply_delta_QCD} (α_s={self.alpha_s})  "
             f"anchor={self.apply_whizard_anchor}[{self.whizard_anchor_source}]  "
-            f"ISR={self.isr_scheme} (α_em_isr={a_isr})  "
+            f"ISR={self.isr_scheme} NLL={self.isr_nll} (α_em_isr={a_isr})  "
             f"α_em_chain={a_chain}  "
             f"m_t={self.m_t} M_H={self.M_H} M_Z={self.MZ}"
         )
@@ -387,6 +393,7 @@ class WWGenerator:
             apply_whizard_anchor=self.apply_whizard_anchor,
             whizard_anchor_source=self.whizard_anchor_source,
             isr_scheme=self.isr_scheme,
+            isr_nll=self.isr_nll,
             alpha_em=self.alpha_em,
             alpha_em_isr=self.alpha_em_isr,
             coulomb_kc_safe=self.coulomb_kc_safe,
