@@ -50,7 +50,6 @@ from __future__ import annotations
 import numpy as np
 
 from framework.process.ww.xsec_calculator.eft_xsec import (
-    ALPHA_EM_0,                         # not used for these LO formulae; kept for parity
     ALPHA_S_MW_DEFAULT,
     GEV_M2_TO_PB,
     M_W_DEFAULT, GAMMA_W_DEFAULT, M_Z, M_W_BFS_REF, PB_TO_FB,
@@ -209,9 +208,6 @@ def _sigma_half_h57_RL(s, mW: float):
         contrib = contrib + _C_h7(s, mW, "RL", f) * _K_H7[f]
     return contrib
 
-# ALPHA_S_MW_DEFAULT is imported from process.ww.xsec_calculator.eft_xsec (single source of
-# truth). Used by ``delta_QCD_factor`` (BFS eq. delta_qcd).
-
 
 # ---------------------------------------------------------------------------
 # Whizard-anchor correction — BFS section 6.2 prescription
@@ -277,22 +273,14 @@ def _build_whizard_anchor_splines():
     is handled correctly (the ratio splines would bake in the BFS BR
     convention, miscorrecting the σ^(1/2) piece).
     """
-    try:
-        from scipy.interpolate import CubicSpline
-    except ImportError:
-        CubicSpline = None
-
+    from scipy.interpolate import CubicSpline
     delta_T1 = np.array([s - 2.0 * _BFS_TABLE_1_MW for s in _BFS_TABLE_1_SQRTS])
     delta_T2 = np.array([s - 2.0 * _BFS_TABLE_2_MW for s in _BFS_TABLE_2_SQRTS])
     whiz_T1 = np.array(_BFS_TABLE_1_WHIZ, dtype=float)
     whiz_T2 = np.array(_BFS_TABLE_2_WHIZ, dtype=float)
-
-    if CubicSpline is not None:
-        s1 = CubicSpline(delta_T1, whiz_T1, bc_type="natural", extrapolate=True)
-        s2 = CubicSpline(delta_T2, whiz_T2, bc_type="natural", extrapolate=True)
-        return s1, s2
-    return (lambda d: np.interp(d, delta_T1, whiz_T1),
-            lambda d: np.interp(d, delta_T2, whiz_T2))
+    s1 = CubicSpline(delta_T1, whiz_T1, bc_type="natural", extrapolate=True)
+    s2 = CubicSpline(delta_T2, whiz_T2, bc_type="natural", extrapolate=True)
+    return s1, s2
 
 
 _WHIZ_SPLINE_T1, _WHIZ_SPLINE_T2 = _build_whizard_anchor_splines()
@@ -444,17 +432,6 @@ def _xi_chi(s, mW: float):
     return xi, chi
 
 
-def _im_minus_sqrt(z):
-    """Im[-√z] with the principal branch of √.
-
-    For z in any quadrant of the complex plane, np.sqrt returns the
-    principal square root (Re ≥ 0, or Im > 0 on the cut). Then -√z is
-    its negative; we take the imaginary part. This is the kernel of
-    eq. (17), with z = -(E + iΓ_W)/M_W.
-    """
-    return (-np.sqrt(np.asarray(z, dtype=complex))).imag
-
-
 def sigma_LR0_specific_pb(s, mW: float = M_W_DEFAULT,
                           gammaW: float = GAMMA_W_DEFAULT,
                           apply_BR_correction: bool = True):
@@ -473,7 +450,8 @@ def sigma_LR0_specific_pb(s, mW: float = M_W_DEFAULT,
     E = sqrt_s - 2.0 * mW
     arg = -(E + 1j * gammaW) / mW
     pref = (4.0 * np.pi * alpha ** 2) / (27.0 * sW2 ** 2 * s_arr)
-    val = pref * _im_minus_sqrt(arg) * GEV_M2_TO_PB
+    # Im[-√arg] with principal branch — kernel of eq. (17).
+    val = pref * (-np.sqrt(np.asarray(arg, dtype=complex))).imag * GEV_M2_TO_PB
     if apply_BR_correction:
         val = val * _BR_correction(mW, gammaW)
     return val
@@ -1327,59 +1305,9 @@ TABLE_2 = {
 }
 
 
-def _self_test_specific_channel(mW: float, gammaW: float,
-                                apply_BR_correction: bool, label: str,
-                                paper_col_fb, whizard_fb, sqrts_GeV):
-    """Reproduce the N^{3/2}LO column of a table of arXiv:0707.0773 by
-    summing all the Born-expansion pieces in the specific channel.
-    """
-    print(f"\n{label}  (m_W={mW}, Γ_W={gammaW}, "
-          f"BR_corr={apply_BR_correction})")
-    print(f"{'√s':>6}  {'σ_BFS N32LO':>13}  {'σ paper N32LO':>15}  "
-          f"{'σ Whizard Born':>16}  {'mine/Whizard':>14}")
-    s = sqrts_GeV ** 2
-    sLR0 = sigma_LR0_specific_pb(s, mW, gammaW, apply_BR_correction=apply_BR_correction)
-    sLR12, sRL12 = sigma_LR_RL_half_specific_pb(s, mW, gammaW, apply_BR_correction=apply_BR_correction)
-    sLR_NLO, sRL_NLO = sigma_LR_RL_NLO_potential_specific_pb(
-        s, mW, gammaW, gammaW_NLO=0.0, apply_BR_correction=apply_BR_correction)
-    sLR32a, sRL32a = sigma_LR_RL_three_half_a_specific_pb(s, mW, gammaW, apply_BR_correction=apply_BR_correction)
-    sigma_specific = (sLR0 + sLR12 + sLR_NLO + sLR32a + sRL12 + sRL_NLO + sRL32a) / 4.0
-    sigma_specific_fb = sigma_specific * PB_TO_FB
-    for i in range(len(sqrts_GeV)):
-        print(f"  {sqrts_GeV[i]:5.1f}  {sigma_specific_fb[i]:11.2f} fb  "
-              f"{paper_col_fb[i]:13.2f} fb  {whizard_fb[i]:14.2f} fb  "
-              f"{sigma_specific_fb[i]/whizard_fb[i]:12.3f}")
-
-
 TABLE_1 = {
     "sqrts_GeV": np.array([155.0, 158.0, 161.0, 164.0, 167.0, 170.0]),
     "eft_NLO_fb":    np.array([43.28, 67.78, 160.45, 313.5, 420.4, 492.9]),
     "eft_N32LO_fb":  np.array([31.30, 62.50, 160.89, 318.8, 429.7, 505.4]),
     "exact_Born_fb": np.array([34.43, 63.39, 160.62, 318.3, 428.6, 505.1]),
 }
-
-
-if __name__ == "__main__":
-    print("=" * 80)
-    print("BFS LO_EFT (N^{3/2}LO) — round-trips vs Tables 1 & 2 of arXiv:0707.0773")
-    print("=" * 80)
-    # Table 1: paper inputs m_W=80.377 (pole), Γ_W = Γ_W^(0) = 2.04483 GeV
-    # → BR correction (Γ_W^(0)/Γ_W)² = 1 (trivial)
-    _self_test_specific_channel(
-        mW=80.377, gammaW=2.04483, apply_BR_correction=False,
-        label="Table 1 inputs (LO width, no BR correction):",
-        paper_col_fb=TABLE_1["eft_N32LO_fb"],
-        whizard_fb=TABLE_1["exact_Born_fb"],
-        sqrts_GeV=TABLE_1["sqrts_GeV"],
-    )
-    # Table 2: same pole m_W=80.377 as Table 1, only Γ_W changes to the
-    # NLO+QCD width 2.09201 GeV (paper §6.1, eq. mass_width fixes the pole
-    # mass; the Table 2 caption swaps only Γ_W).
-    # → BR correction = (Γ_W^(0)(80.377) / 2.09201)² ≈ 0.955
-    _self_test_specific_channel(
-        mW=80.377, gammaW=2.09201, apply_BR_correction=True,
-        label="Table 2 inputs (NLO+QCD width, with BR correction):",
-        paper_col_fb=TABLE_2["eft_N32LO_fb"],
-        whizard_fb=TABLE_2["exact_Born_fb"],
-        sqrts_GeV=TABLE_2["sqrts_GeV"],
-    )

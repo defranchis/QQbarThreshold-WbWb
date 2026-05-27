@@ -48,12 +48,9 @@ Validation: 2-leg matches BFS Table 4 σ_obs Born×ISR to <0.5% at 158-170 GeV.
 from __future__ import annotations
 
 import numpy as np
-from scipy.special import gamma as gamma_fn, spence as _spence
+from scipy.special import gamma as gamma_fn
 
-# scipy's spence(z) = ∫_1^z dt log(t)/(1-t). The standard physics dilog
-# Li₂(x) = ∑ x^k/k² (with Li₂(1)=π²/6) equals spence(1-x).
-def _Li2(x):
-    return _spence(1.0 - x)
+from .bfs_c1fin import Li2 as _Li2
 
 from framework.process.ww.xsec_calculator.eft_xsec import (
     M_E,
@@ -500,13 +497,6 @@ def sigma_observed_munuqq(sqrt_s,
         )
     else:
         raise ValueError(f"Unknown isr_scheme: {isr_scheme!r}")
-
-
-# Legacy alias preserving the previous chat's naming.
-def sigma_observed_munuud(sqrt_s, mW: float = M_W_DEFAULT,
-                          gammaW: float = GAMMA_W_DEFAULT, **kwargs):
-    """Legacy alias: σ_obs for the μ⁻ν̄_μ ud̄ channel."""
-    return sigma_observed_munuqq(sqrt_s, mW, gammaW, channel="munuud", **kwargs)
 
 
 # ---------------------------------------------------------------------------

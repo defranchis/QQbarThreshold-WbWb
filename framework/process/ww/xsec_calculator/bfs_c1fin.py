@@ -49,16 +49,6 @@ def Li2(z):
 # Auxiliary masses
 # ---------------------------------------------------------------------------
 
-def _M_ZW2(M_Z2: float, M_W2: float) -> complex:
-    """M_ZW² = sqrt(M_Z⁴ - 4 M_Z² M_W²). Imaginary when M_Z² < 4 M_W²."""
-    return np.sqrt(complex(M_Z2 * M_Z2 - 4.0 * M_Z2 * M_W2, 0.0))
-
-
-def _M_HW2(M_H2: float, M_W2: float) -> complex:
-    """M_HW² = sqrt(M_H⁴ - 4 M_H² M_W²). Same construction with Z → H."""
-    return np.sqrt(complex(M_H2 * M_H2 - 4.0 * M_H2 * M_W2, 0.0))
-
-
 def _M_WpmZ(M_W2: float, M_Z2: float):
     """M_{W±Z} ≡ M_W ± sqrt(M_W² - M_Z²); complex when M_W < M_Z."""
     M_W = np.sqrt(M_W2)
@@ -97,15 +87,6 @@ def L_MW2_m_MW(M_W2: float, m_2: float) -> complex:
     log2 = np.log((m_2 + M_mW2) / (2.0 * m_2))
     return t1 * log1 + t2 * log2
 
-
-def L_MZ2_MW_MW(M_W2: float, M_Z2: float) -> complex:
-    """L(M_Z², M_W², M_W²) — BFS line 3483-3488 (equal internal masses M_W²)."""
-    M_ZW2 = _M_ZW2(M_Z2, M_W2)
-    t1 = (M_Z2 - M_ZW2) / (2.0 * M_Z2)
-    t2 = (M_Z2 + M_ZW2) / (2.0 * M_Z2)
-    log1 = np.log(1.0 + (M_ZW2 - M_Z2) / (2.0 * M_W2))
-    log2 = np.log(1.0 - (M_ZW2 + M_Z2) / (2.0 * M_W2))
-    return t1 * log1 + t2 * log2
 
 
 def L_pp2_m_m(p2: float, m_2: float) -> complex:
@@ -560,37 +541,6 @@ def c_d_h_1_fin(m_W: float, m_t: float, M_H: float, M_Z: float) -> complex:
     )
 
 
-# ---------------------------------------------------------------------------
-# Validation entry point
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    m_W_ref = 80.377
-    m_t_ref = 174.2
-    M_H_ref = 115.0
-    M_Z_ref = 91.188
-
-    cp = c_p_LR_1_fin(m_W_ref, m_t_ref, M_H_ref, M_Z_ref)
-    cdl = c_d_l_1_fin(m_W_ref, m_t_ref, M_H_ref, M_Z_ref)
-    cdh = c_d_h_1_fin(m_W_ref, m_t_ref, M_H_ref, M_Z_ref)
-
-    print(f"c_p,LR^(1,fin) = {cp.real:+.4f} {cp.imag:+.4f} i   (BFS: -10.076 +0.205 i)")
-    print(f"c_d,l^(1,fin)  = {cdl.real:+.4f} {cdl.imag:+.4f} i   (BFS:  -2.709 -0.552 i)")
-    print(f"c_d,h^(1,fin)  = {cdh.real:+.4f} {cdh.imag:+.4f} i   (BFS:  -2.034 -0.597 i)")
-
-    # m_W slope around reference
-    delta = 0.1
-    cp_plus = c_p_LR_1_fin(m_W_ref + delta, m_t_ref, M_H_ref, M_Z_ref).real
-    cp_minus = c_p_LR_1_fin(m_W_ref - delta, m_t_ref, M_H_ref, M_Z_ref).real
-    print(f"\n∂Re(c_p,LR)/∂m_W ≈ {(cp_plus - cp_minus) / (2 * delta):+.4f}  (per GeV)")
-
-    cdl_plus = c_d_l_1_fin(m_W_ref + delta, m_t_ref, M_H_ref, M_Z_ref).real
-    cdl_minus = c_d_l_1_fin(m_W_ref - delta, m_t_ref, M_H_ref, M_Z_ref).real
-    print(f"∂Re(c_d,l)/∂m_W ≈ {(cdl_plus - cdl_minus) / (2 * delta):+.4f}  (per GeV)")
-
-    cdh_plus = c_d_h_1_fin(m_W_ref + delta, m_t_ref, M_H_ref, M_Z_ref).real
-    cdh_minus = c_d_h_1_fin(m_W_ref - delta, m_t_ref, M_H_ref, M_Z_ref).real
-    print(f"∂Re(c_d,h)/∂m_W ≈ {(cdh_plus - cdh_minus) / (2 * delta):+.4f}  (per GeV)")
 
     # m_t slope
     delta_t = 0.5

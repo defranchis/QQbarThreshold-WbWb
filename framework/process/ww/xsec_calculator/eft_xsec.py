@@ -43,11 +43,9 @@ import numpy as np
 M_W_DEFAULT     = 80.3692
 GAMMA_W_DEFAULT = 2.085
 M_Z             = 91.1876
-GAMMA_Z         = 2.4952
 M_E             = 0.5109989461e-3
 G_F             = 1.1663787e-5
 ALPHA_EM_0      = 1.0 / 137.035999084
-ALPHA_EM_MZ     = 1.0 / 128.943
 GEV_M2_TO_PB    = 3.8937937217e8
 PB_TO_FB        = 1000.0   # picobarn → femtobarn
 
@@ -588,7 +586,6 @@ def sigma_partonic_munuqq(s,
     #   150 ≤ √s < 170 → BFS computation
     #   √s ≥ 170 GeV  → RACOONWW calibration spline × BR factor
     s_arr = np.asarray(s, dtype=float)
-    use_zero = s_arr < _S_BFS_FLOOR
     use_bfs = (s_arr >= _S_BFS_FLOOR) & (s_arr < _S_BFS_UPPER)
     use_cal = s_arr >= _S_BFS_UPPER
 
@@ -671,13 +668,6 @@ def sigma_partonic_munuqq(s,
     if np.ndim(s) == 0:
         return float(sigma)
     return sigma
-
-
-# Back-compat alias matching the previous chat's naming convention.
-def sigma_partonic_munuud(s: float, mW: float = M_W_DEFAULT,
-                          gammaW: float = GAMMA_W_DEFAULT, **kwargs) -> float:
-    """Legacy alias: σ for the μ⁻ν̄_μ ud̄ channel (one specific charge)."""
-    return sigma_partonic_munuqq(s, mW, gammaW, channel="munuud", **kwargs)
 
 
 # ---------------------------------------------------------------------------
