@@ -66,14 +66,14 @@ def _derive_order(card) -> int:
 
 
 def partonic_kwargs_from_card(card) -> dict:
-    """Card NLO_CONFIG + THEORY_INPUTS → kwargs for ``sigma_partonic_munuqq``.
+    """Card NLO_CONFIG + PARAM_INPUTS → kwargs for ``sigma_partonic_munuqq``.
 
     All chain knobs that drive the *partonic* (pre-ISR) σ. Used by the plot
     script, WWGenerator.from_card, validation scripts — anywhere a card-aware
     call to ``sigma_partonic_munuqq`` is needed.
     """
     nlo = getattr(card, "NLO_CONFIG", {})
-    theory = getattr(card, "THEORY_INPUTS", {})
+    theory = getattr(card, "PARAM_INPUTS", {})
     return dict(
         channel=str(nlo.get("channel", "inclusive")),
         include_coulomb=bool(nlo.get("include_coulomb", True)),
@@ -133,7 +133,7 @@ def chain_summary_latex(kwargs: dict) -> str:
 
 
 def observed_kwargs_from_card(card) -> dict:
-    """Card NLO_CONFIG + THEORY_INPUTS → kwargs for ``sigma_observed_munuqq``
+    """Card NLO_CONFIG + PARAM_INPUTS → kwargs for ``sigma_observed_munuqq``
     (partonic kwargs + ISR-only physics knobs). Numerical quadrature controls
     (n_quad, z_min) are not card-exposed; sensible defaults live in isr.py.
     """
@@ -211,7 +211,7 @@ class WWGenerator:
 
     @classmethod
     def from_card(cls, card, *, bfs: BFSCorrections | None = None):
-        """Build a generator from a steering card's THEORY_INPUTS + NLO_CONFIG.
+        """Build a generator from a steering card's PARAM_INPUTS + NLO_CONFIG.
 
         Single source of truth: any card edit propagates to every entry
         point (compute_xsec_ww, doFit_ww, scripts/fit_2107_*, etc.) that

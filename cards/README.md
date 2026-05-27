@@ -6,7 +6,7 @@ arXiv:0707.0773 (NLO) and arXiv:0807.0102 (NNLO).
 
 ---
 
-## THEORY_INPUTS
+## PARAM_INPUTS / PARAM_UNC
 
 `m_t`, `M_H`, `M_Z` enter the NLO hard-matching coefficient `c_p,LR^(1,fin)` and the
 BFS EW couplings ξ(s), χ(s), sin²θ_W.  The production defaults are PDG 2024 values.

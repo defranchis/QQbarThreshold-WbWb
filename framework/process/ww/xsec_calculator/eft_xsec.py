@@ -52,7 +52,7 @@ PB_TO_FB        = 1000.0   # picobarn → femtobarn
 # ---------------------------------------------------------------------------
 # WW-chain defaults (single source of truth; imported by bfs_eft, isr,
 # generator, compute_xsec_ww, cards). PRODUCTION defaults are PDG values
-# (now plumbed end-to-end via the THEORY_INPUTS card knob; previously the
+# (now plumbed end-to-end via the PARAM_INPUTS card knob; previously the
 # card's m_t/M_H were silently ignored by the σ chain — see the
 # 2026-05-27 calc /simplify pass and the 2026-05-27 parameter audit).
 #
