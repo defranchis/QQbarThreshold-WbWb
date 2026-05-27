@@ -947,10 +947,65 @@ $\hat\sigma^{(0)}\to\hat\sigma_{\rm Born}$ substitution in the decay
 correction; and a small remainder from BFS's NLO cut at
 $\sqrt{x_1 x_2 s}>155\GeV$. The dominant residual contribution at
 the scan-window $\sqrts\in[161,170]\GeV$ — the kinematic region with
-the strongest $\mW$ sensitivity — is item~(iv), the decay
-substitution, which is implementable in our framework as a
-\code{br\_convention}-like card option. See
-section~\ref{sec:limits}.
+the strongest $\mW$ sensitivity — is item~(iv).
+
+\paragraph{Decay substitution (iv): implemented as production default.}
+The BFS recipe in eq.~(iv) was wired into the chain as the card option
+\code{NLO\_CONFIG["decay\_uses\_full\_born"]} (default \code{True} =
+BFS prescription). The substitution evaluates
+$\Delta\sigma_{\rm decay}=\delta_{\rm decay}\times\sigma_{LR}^{\rm Born}$,
+where $\sigma_{LR}^{\rm Born}$ is the per-helicity N$^{3/2}$LO Born
+sum with the WHIZARD anchor already applied — exactly the
+``$\sigma_{\rm Born}$'' of BFS eq.~(84). The Scenario~F closure
+of section~\ref{sec:val-table4} improves at all five BFS reference
+points (Table~\ref{tab:val-table4-decay-on}); $[161,170]\GeV$ now
+closes at the $\pm 0.5\,\%$ level, within or at BFS's quoted MC
+statistical precision on the Table~4 entries. The $-2.1\,\%$ residual
+at $\sqrts=158\GeV$ is unchanged in scope — it belongs to closure-budget
+items (ii) and (iii), which are NLL-ISR territory.
+\begin{center}\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{r r r r}
+\toprule
+$\sqrts$ & code/BFS Table~4 NLO (OFF) & code/BFS (ON) & $\Delta$ \\
+{}[GeV]  & (historical chain)         & (BFS recipe)  & [pp] \\
+\midrule
+158 & $0.971$ & $0.979$ & $+0.9$ \\
+161 & $0.991$ & $0.995$ & $+0.4$ \\
+164 & $0.997$ & $0.999$ & $+0.2$ \\
+167 & $0.999$ & $1.001$ & $+0.1$ \\
+170 & $0.996$ & $0.997$ & $+0.1$ \\
+\bottomrule
+\end{tabular}
+\\[2pt]\small \emph{Scenario~F closure to BFS Table~4 NLO column,
+historical chain (knob OFF) vs BFS recipe (knob ON = production
+default).}\label{tab:val-table4-decay-on}
+\end{center}
+\paragraph{Impact on \texorpdfstring{$\mW$}{mW} from Asimov A/B.}
+Two template sets, identical chain except \code{decay\_uses\_full\_born}
+$\in\{$OFF, ON$\}$, both ran through the production FCC-ee Asimov fit
+(7 scan energies, total $\mathcal{L}=240\,\text{ab}^{-1}$, full
+nuisance set). Cross-fitting Asimov from one chain with templates from
+the other isolates the central-value shift attributable to the
+substitution:
+\begin{center}\small
+\begin{tabular}{l r}
+\toprule
+fit configuration & $\Delta\mW$ \\
+\midrule
+truth $=$ ON, fit with OFF (the bias the historical chain carried) & $-5.54\MeV$ \\
+truth $=$ OFF, fit with ON (symmetric cross check) & $+5.49\MeV$ \\
+\midrule
+$\mW$ statistical uncertainty (knob ON, single Asimov)            & $1.84\MeV$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+The two cross-fit shifts agree in magnitude to better than $0.1\MeV$
+— consistent with a linear-response systematic. The bias is $\sim 3\sigma_{\rm stat}$
+of the threshold-scan $\mW$ measurement, and is therefore a material
+correction to the central value, not just a normalisation artefact
+absorbable by luminosity nuisances. Production templates regenerated
+with the new default carry this shift.
 
 \subsection{Whizard-anchor closure — Scenario I}\label{sec:val-anchor}
 
@@ -1112,25 +1167,27 @@ at 161\,GeV, growing to $\sim$77\% at 170\,GeV.
 % ---------------------------------------------------------------
 
 \begin{enumerate}
-\item \textbf{BFS recipe details on the NLO addition.} A detailed
-  closure-budget campaign (section~\ref{sec:val-table4-budget}) shows
-  that the residual to BFS Table~4 at $\sqrts\in[161,170]\GeV$ is
-  dominated, not by NLL ISR effects, but by two
-  BFS-recipe details we do not yet implement:
+\item \textbf{BFS recipe details on the NLO addition.}
+  Of the two recipe details flagged by the closure-budget campaign
+  (section~\ref{sec:val-table4-budget}), one is now closed and one
+  remains:
   \begin{itemize}
-  \item The $\hat\sigma_{LR}^{(0)}\to\hat\sigma_{\rm Born}$
-    substitution in the decay correction (BFS line 2660--2661 of the
-    paper source): adds $\sim 0.5\,\%$ to $\sigma_{\rm obs}$ at
-    $\sqrts=161\GeV$, $\sim 0.2\,\%$ at $\sqrts=170\GeV$. Implementable
-    as a card knob in
-    \code{delta\_sigma\_NLO\_decay\_specific\_pb}; trivial code change,
-    closes the scan-window residual to MC-stat.
-  \item The $\sqrt{x_1 x_2 s}>155\GeV$ cut on the LL$+$exp
-    convolution of $\Delta\hat\sigma_{\rm NLO}$ (BFS line
-    2664--2666): $\lesssim 0.1\,\%$ at $\sqrts=161\GeV$, slightly larger
-    at $\sqrts=158\GeV$. Trivial to add.
+  \item \emph{Decay substitution} ---
+    $\hat\sigma_{LR}^{(0)}\to\hat\sigma_{\rm Born}$
+    in the decay correction (BFS line 2660--2661): \textbf{implemented}
+    as \code{NLO\_CONFIG["decay\_uses\_full\_born"]} with production
+    default \code{True}. Closes Scenario~F at
+    $\sqrts\in[161,170]\GeV$ to the $\pm 0.5\,\%$ level
+    (Table~\ref{tab:val-table4-decay-on}) and shifts the Asimov-fit
+    $\mW$ central value by $\pm 5.5\MeV$ relative to the historical
+    chain ($\sim 3\sigma_{\rm stat}$ at the FCC-ee scan).
+  \item \emph{Below-threshold cut.} The $\sqrt{x_1 x_2 s}>155\GeV$
+    cut on the LL$+$exp convolution of
+    $\Delta\hat\sigma_{\rm NLO}$ (BFS line 2664--2666):
+    $\lesssim 0.1\,\%$ at $\sqrts=161\GeV$, slightly larger at
+    $\sqrts=158\GeV$. Not yet implemented; trivial to add.
   \end{itemize}
-  After these two fixes the closure budget is dominated by (a) the
+  After the remaining cut, the closure budget is dominated by (a) the
   WHIZARD-3.1.5-vs-1.x version drift ($+0.8$--$1.2\,\%$ on the BFS
   Born(ISR) reference, present whenever BFS's WHIZARD output is used)
   and (b) the LL$+$exp BETA vs WHIZARD multiplicative ISR recipe

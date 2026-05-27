@@ -486,21 +486,23 @@ Validation (`scripts/validate_bfs_nlo.py`, 10 scenarios A–J):
 - Scenario A: BFS Table 1 (LO width, no BR corr) closes to **4-5 digits**.
 - Scenario B: BFS Table 2 (NLO+QCD width, BR corr) closes to 0.1 %
   in the scan window, 0.8 % at 155 GeV (EFT-validity edge).
-- Scenario F: full NLO chain vs BFS Table 4 σ_obs — 0.0-0.9 % residual
-  in the scan window (`[161, 170]` GeV), ~3 % at 158 GeV.
+- Scenario F: full NLO chain vs BFS Table 4 σ_obs — **±0.5 % residual
+  in the scan window** (`[161, 170]` GeV) with the BFS decay
+  substitution on (production default), 2 % at 158 GeV.
   Full residual decomposition in
   `report/ww_bfs_implementation.tex` §5.5 "Closure budget": (i) WHIZARD-3.1.5
   vs WHIZARD-1.x version drift on Born(ISR) reference: +0.8-1.2 %;
   (ii) LL+exp BETA vs WHIZARD multiplicative ISR recipe: 0.3-2 % (worst
   at 158 GeV); (iii) BFS's σ̂_LR^(0)→σ̂_Born substitution in NLO decay
-  correction (line 2660-2661 of arXiv:0707.0773): +0.5-0.7 % NOT YET
-  applied — dominant remaining residual at 161-170 GeV, implementable
-  as a card knob; (iv) BFS's √(x₁x₂s)>155 GeV cut on the NLO LL+exp
-  convolution: ≲0.1 %. Diagnostic scripts live in
+  correction (line 2660-2661 of arXiv:0707.0773): +0.5-0.7 % —
+  **now applied** as `NLO_CONFIG["decay_uses_full_born"] = True`
+  (default), closes the scan-window residual to MC stat and shifts
+  the Asimov-fit m_W central value by ±5.5 MeV (≈3σ_stat); (iv) BFS's
+  √(x₁x₂s)>155 GeV cut on the NLO LL+exp convolution: ≲0.1 %, not
+  yet applied. Diagnostic scripts live in
   `scripts/investigations/whizard_isr_verification/` and
   `scripts/investigations/c1fin_analytic/`. The 31-MeV NLL ISR
-  systematic BFS itself quotes is the remainder once (iii) and (iv)
-  are applied.
+  systematic BFS itself quotes is the remainder once (iv) is applied.
 - Scenario I: Whizard-anchor closure to 4-5 digits at Table 1
   reference points.
 
@@ -544,15 +546,12 @@ NNLO validation (`scripts/investigations/bfs_nnlo/`):
 
 What's NOT yet in the calculation (priority order for sub-MeV m_W):
 
-1. **BFS NLO recipe details on the decay correction.** Per closure
-   budget in `report/ww_bfs_implementation.tex` §5.5, the dominant
-   residual at 161-170 GeV (~0.5 %) is the BFS prescription of
-   replacing σ̂_LR^(0) → σ̂_Born_full inside Δσ_decay (line 2660-2661
-   of arXiv:0707.0773). A card knob in
-   `delta_sigma_NLO_decay_specific_pb` plus the
-   √(x₁x₂s)>155 GeV cut on the NLO LL+exp convolution closes the
-   scan-window residual to MC stat (~+0.02-0.13 %, verified by
-   `scripts/investigations/c1fin_analytic/option5_with_decay_swap.py`).
+1. **BFS NLO `√(x₁x₂s)>155 GeV` cut on the LL+exp convolution.** The
+   companion BFS recipe detail (line 2664-2666 of arXiv:0707.0773);
+   ≲0.1 % effect in the scan window, slightly larger at 158 GeV.
+   Trivial to add. The dominant recipe-detail residual — BFS's
+   σ̂_LR^(0)→σ̂_Born_full substitution in Δσ_decay — is now
+   implemented (see `decay_uses_full_born` knob in `NLO_CONFIG`).
 2. **NLL ISR** — analytic Skrzypek-Jadach or eMELA
    (Bertone-Cacciari-Frixione-Stagnitto, arXiv:1911.12040). The
    remaining systematic after item 1 is the LL+exp vs WHIZARD-ISR

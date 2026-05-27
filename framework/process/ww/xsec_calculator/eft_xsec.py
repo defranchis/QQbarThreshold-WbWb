@@ -215,7 +215,8 @@ def sigma_WW_partonic(s,
                   alpha_s: float = ALPHA_S_MW_DEFAULT,
                   apply_whizard_anchor: bool = True,
                   whizard_anchor_source: str = "grid",
-                  coulomb_kc_safe: bool = False):
+                  coulomb_kc_safe: bool = False,
+                  decay_uses_full_born: bool = True):
     """
     Off-shell-convolved σ(e+e- → W+W- → 4f), full off-shell, in pb.
 
@@ -262,6 +263,7 @@ def sigma_WW_partonic(s,
             apply_whizard_anchor=apply_whizard_anchor,
             whizard_anchor_source=whizard_anchor_source,
             coulomb_kc_safe=coulomb_kc_safe,
+            decay_uses_full_born=decay_uses_full_born,
         )
         # Smooth-floor weight is 1 above 150 GeV, ramps to 0 across [149, 150]
         # to keep σ̂(s) C¹ for the ISR convolution kernel.
@@ -526,7 +528,8 @@ def sigma_partonic_munuqq(s,
                           alpha_s_ref: float = ALPHA_S_MW_DEFAULT,
                           apply_whizard_anchor: bool = True,
                           whizard_anchor_source: str = "grid",
-                          coulomb_kc_safe: bool = False):
+                          coulomb_kc_safe: bool = False,
+                          decay_uses_full_born: bool = True):
     """
     Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
     Returns σ in pb at partonic CM energy² = s (before ISR convolution).
@@ -616,6 +619,7 @@ def sigma_partonic_munuqq(s,
                 apply_whizard_anchor=apply_whizard_anchor,
                 whizard_anchor_source=whizard_anchor_source,
                 coulomb_kc_safe=coulomb_kc_safe,
+                decay_uses_full_born=decay_uses_full_born,
             )
             sigma_bfs = sigma_specific * _CHANNEL_MULTIPLICITY[channel]
         else:   # pdg-constant: σ_WW × BR_PDG (BR carries δ_QCD)
@@ -631,6 +635,7 @@ def sigma_partonic_munuqq(s,
                 apply_whizard_anchor=apply_whizard_anchor,
                 whizard_anchor_source=whizard_anchor_source,
                 coulomb_kc_safe=coulomb_kc_safe,
+                decay_uses_full_born=decay_uses_full_born,
             )
             sigma_bfs = sigma_WW_total * BR_pdg
         # Smooth-floor weight kills the hard step at 150 GeV that was
@@ -653,6 +658,7 @@ def sigma_partonic_munuqq(s,
             apply_whizard_anchor=apply_whizard_anchor,
             whizard_anchor_source=whizard_anchor_source,
             coulomb_kc_safe=coulomb_kc_safe,
+            decay_uses_full_born=decay_uses_full_born,
         ) * BR_x
         sigma = np.where(use_cal, sigma_cal, sigma)
 

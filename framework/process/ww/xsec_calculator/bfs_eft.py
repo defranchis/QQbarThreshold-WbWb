@@ -672,7 +672,8 @@ def _accumulate_born_orders(s, mW: float, gammaW: float, order: str,
 
 
 def _add_nlo_loops_to_LR(sigma_LR, s, mW, gammaW, *, apply_BR_correction,
-                         coulomb_kc_safe: bool = False):
+                         coulomb_kc_safe: bool = False,
+                         decay_uses_full_born: bool = True):
     """BFS NLO loops (eq. finalcross): HSC + EW decay + Coulomb_NLO. All
     additive to σ_LR; σ_RL has no NLO contribution since LO σ_RL = 0.
 
@@ -684,11 +685,29 @@ def _add_nlo_loops_to_LR(sigma_LR, s, mW, gammaW, *, apply_BR_correction,
     (``include_coulomb=True`` in the chain) to avoid the leading-Coulomb
     double-count. Default ``False`` preserves the historical chain
     (validated against BFS Table 4 with K_C OFF).
+
+    ``decay_uses_full_born=True`` (BFS recipe, arXiv:0707.0773 §6.2
+    line 2255: "replacing the leading-order cross section σ^(0) by the
+    full Born cross section σ_Born in the decay correction") computes
+    Δσ_decay = δ_decay × σ_LR_Born, where σ_LR_Born is the per-helicity
+    LR Born accumulated *into the input* ``sigma_LR`` argument — i.e. the
+    N^(3/2)LO Born sum with the Whizard anchor already applied. This is
+    the prescription used to produce BFS Table 4. Setting ``False``
+    reverts to the historical δ_decay × σ_LR^(0) form (matches σ̂^(1)
+    of BFS eq. 60 in isolation; mis-closes Table 4 by 0.0–0.9 % at
+    scan-window energies).
     """
+    if decay_uses_full_born:
+        # δ_decay × σ_Born_LR: ``sigma_LR`` here is the input Born sum
+        # (LO + 1/2 + NLO_pot + 3/2,a, optionally × anchor), which is
+        # exactly the "σ_Born" of BFS eq. (84) per the §6.2 prescription.
+        delta_decay = delta_decay_EW_relative(mW) * sigma_LR
+    else:
+        delta_decay = delta_sigma_NLO_decay_specific_pb(
+            s, mW, gammaW, apply_BR_correction=apply_BR_correction)
     sigma_LR = sigma_LR + delta_sigma_NLO_hard_softcoll_specific_pb(
         s, mW, gammaW, apply_BR_correction=apply_BR_correction)
-    sigma_LR = sigma_LR + delta_sigma_NLO_decay_specific_pb(
-        s, mW, gammaW, apply_BR_correction=apply_BR_correction)
+    sigma_LR = sigma_LR + delta_decay
     sigma_LR = sigma_LR + delta_sigma_Coulomb_NLO_specific_pb(
         s, mW, gammaW, apply_BR_correction=apply_BR_correction,
         subleading_only=coulomb_kc_safe)
@@ -728,7 +747,8 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
                              alpha_s: float = ALPHA_S_MW_DEFAULT,
                              apply_whizard_anchor: bool = False,
                              whizard_anchor_source: str = "grid",
-                             coulomb_kc_safe: bool = False):
+                             coulomb_kc_safe: bool = False,
+                             decay_uses_full_born: bool = True):
     """Total σ_WW = σ(e+e- → W+W-) at BFS LO_EFT, unpolarised initial state,
     summed over ALL 4-fermion final states.
 
@@ -782,7 +802,8 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
     if include_NLO_hard_decay:
         sigma_LR = _add_nlo_loops_to_LR(
             sigma_LR, s, mW, gammaW, apply_BR_correction=apply_BR_correction,
-            coulomb_kc_safe=coulomb_kc_safe)
+            coulomb_kc_safe=coulomb_kc_safe,
+            decay_uses_full_born=decay_uses_full_born)
     if include_BFS_NNLO:
         sigma_LR = _add_nnlo_to_LR(
             sigma_LR, s, mW, gammaW, apply_BR_correction=apply_BR_correction)
@@ -1196,7 +1217,8 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
                                  alpha_s: float = ALPHA_S_MW_DEFAULT,
                                  apply_whizard_anchor: bool = False,
                                  whizard_anchor_source: str = "grid",
-                                 coulomb_kc_safe: bool = False):
+                                 coulomb_kc_safe: bool = False,
+                                 decay_uses_full_born: bool = True):
     """σ(e+e- → μ⁻ν̄_μ ud̄) at BFS LO_EFT, unpolarised initial state, with
     the BR correction (BFS section 6.1, eq. 83) applied PER COMPONENT:
 
@@ -1241,7 +1263,8 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
     if include_NLO_hard_decay:
         sigma_LR = _add_nlo_loops_to_LR(
             sigma_LR, s, mW, gammaW, apply_BR_correction=True,
-            coulomb_kc_safe=coulomb_kc_safe)
+            coulomb_kc_safe=coulomb_kc_safe,
+            decay_uses_full_born=decay_uses_full_born)
     if include_BFS_NNLO:
         sigma_LR = _add_nnlo_to_LR(
             sigma_LR, s, mW, gammaW, apply_BR_correction=True)

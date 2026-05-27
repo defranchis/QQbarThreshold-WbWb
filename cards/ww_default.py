@@ -106,6 +106,19 @@ NLO_CONFIG = {
     "include_coulomb":        False,
     # BFS NLO loop chain (HSC + Coulomb_NLO + EW decay correction).
     "include_NLO_hard_decay": True,
+    # BFS arXiv:0707.0773 §6.2 line 2255 prescription: in the NLO decay
+    # correction (eq. 84), replace σ^(0) by the full Born σ_Born. This is
+    # the recipe BFS actually used to produce their published Table 4
+    # NLO column. With ``True`` (default), Δσ_decay = δ_decay × σ_LR_Born
+    # where σ_LR_Born is the per-helicity LR Born accumulated up to
+    # N(3/2)LO (LO + 1/2 + NLO Coulomb potential + 3/2,a) with the
+    # Whizard anchor already applied — exactly the "σ_Born" of BFS eq. (84).
+    # Setting ``False`` reverts to the historical Δσ_decay = δ_decay × σ^(0)
+    # (matches σ̂^(1) of BFS eq. 60 in isolation; mis-closes Table 4 by
+    # 0.0-0.9 % at [161,170] GeV, see report §5.5 closure-budget memo).
+    # Production default flipped to True on 2026-05-26 to match the BFS
+    # recipe and close Table 4 to MC stat.
+    "decay_uses_full_born":   True,
     # K_C-safe Coulomb: when True (and include_coulomb=True), the BFS NLO
     # Coulomb (eq. 62 of arXiv:0707.0773) is added with the
     # ``subleading_only=True`` flag (NLO two-photon ~0.2% piece only),

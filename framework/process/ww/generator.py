@@ -73,6 +73,7 @@ def partonic_kwargs_from_card(card) -> dict:
         apply_whizard_anchor=bool(nlo.get("apply_whizard_anchor", True)),
         whizard_anchor_source=str(nlo.get("whizard_anchor_source", "grid")),
         coulomb_kc_safe=bool(nlo.get("coulomb_kc_safe", False)),
+        decay_uses_full_born=bool(nlo.get("decay_uses_full_born", True)),
     )
 
 
@@ -94,6 +95,8 @@ def chain_summary_latex(kwargs: dict) -> str:
         nlo_label = "NLO"
         if kwargs.get("coulomb_kc_safe", False):
             nlo_label = r"NLO ($K_{\rm C}$-safe Coul.)"
+        if not kwargs.get("decay_uses_full_born", True):
+            nlo_label = nlo_label + r" ($\delta_{\rm dec}\!\times\!\sigma^{(0)}$)"
         parts.append(nlo_label)
     if kwargs.get("include_BFS_NNLO", False):
         parts.append("NNLO")
@@ -190,6 +193,12 @@ class WWGenerator:
                  # validated against BFS Table 4 with K_C OFF — see
                  # ``project_followup_deep_audit_2026-05-20``).
                  coulomb_kc_safe: bool = False,
+                 # BFS arXiv:0707.0773 §6.2 line 2255 prescription: in the
+                 # NLO decay correction (eq. 84), replace σ^(0) by the full
+                 # Born cross section. Default True = matches BFS Table 4
+                 # recipe. False reverts to δ_decay × σ^(0) (mis-closes BFS
+                 # Table 4 by 0.0–0.9 % in [161,170] GeV).
+                 decay_uses_full_born: bool = True,
                  # Theory inputs that ENTER c_p,LR^(1,fin) (BFS reference values
                  # — currently treated as constants in the hardcoded c_fin =
                  # -10.076; recorded here so a future update can propagate
@@ -216,6 +225,7 @@ class WWGenerator:
         self.isr_scheme = isr_scheme
         self.alpha_em_isr = alpha_em_isr
         self.coulomb_kc_safe = coulomb_kc_safe
+        self.decay_uses_full_born = decay_uses_full_born
         self.m_t = m_t
         self.M_H = M_H
         self.card = card
@@ -257,6 +267,7 @@ class WWGenerator:
             "whizard_anchor_source":  self.whizard_anchor_source,
             "include_coulomb":        self.include_coulomb,
             "coulomb_kc_safe":        self.coulomb_kc_safe,
+            "decay_uses_full_born":   self.decay_uses_full_born,
             "isr_scheme":             self.isr_scheme,
         }
 
@@ -288,6 +299,7 @@ class WWGenerator:
             "M_H":             f"{self.M_H:.3f}",
             "anchor_source":   self.whizard_anchor_source,
             "coulomb_kc_safe": str(bool(self.coulomb_kc_safe)),
+            "decay_uses_full_born": str(bool(self.decay_uses_full_born)),
             # Where δ_QCD enters the chain. "in_br" = α_s-aware BR_PDG
             # × δ_QCD(α_s)/δ_QCD(α_s_ref) (pdg-constant); "on_sigma" =
             # multiplicative on σ per BFS §6.1 (bfs-eft). Old templates
@@ -318,7 +330,8 @@ class WWGenerator:
             f"WWGenerator order={self.order} channel={self.channel}  "
             f"BR={self.br_convention}  "
             f"NLO_loops={self.include_NLO_hard_decay} "
-            f"(K_C-safe Coul={self.coulomb_kc_safe})  "
+            f"(K_C-safe Coul={self.coulomb_kc_safe}, "
+            f"decay×σ_Born={self.decay_uses_full_born})  "
             f"NNLO={self.include_BFS_NNLO}  "
             f"δ_QCD={self.apply_delta_QCD} (α_s={self.alpha_s})  "
             f"anchor={self.apply_whizard_anchor}[{self.whizard_anchor_source}]  "
@@ -388,6 +401,7 @@ class WWGenerator:
             isr_scheme=self.isr_scheme,
             alpha_em_isr=self.alpha_em_isr,
             coulomb_kc_safe=self.coulomb_kc_safe,
+            decay_uses_full_born=self.decay_uses_full_born,
         )
 
         os.makedirs(outdir, exist_ok=True)

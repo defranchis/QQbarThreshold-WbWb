@@ -436,7 +436,8 @@ def sigma_observed_munuqq(sqrt_s,
                           apply_whizard_anchor: bool = True,
                           whizard_anchor_source: str = "grid",
                           isr_scheme: str = "single_conv",
-                          coulomb_kc_safe: bool = False):
+                          coulomb_kc_safe: bool = False,
+                          decay_uses_full_born: bool = True):
     """
     Observed σ(e+e- → μν qq̄) after ISR convolution, in pb. Vectorised in
     ``sqrt_s``. ``br_convention`` and ``include_NLO_hard_decay`` are
@@ -472,6 +473,7 @@ def sigma_observed_munuqq(sqrt_s,
         apply_whizard_anchor=apply_whizard_anchor,
         whizard_anchor_source=whizard_anchor_source,
         coulomb_kc_safe=coulomb_kc_safe,
+        decay_uses_full_born=decay_uses_full_born,
     )
     if isr_scheme == "single_conv":
         return sigma_ISR_convolution(

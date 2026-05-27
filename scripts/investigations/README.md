@@ -119,3 +119,6 @@ hybrid + decay swap closes BFS NLO to MC stat (+0.02-0.13 %).
 | `debug_cp_bare.py`, `debug_cp_ct.py` | per-term debug of bare + counterterm assembly (used to find a factor-of-2 typo in the 1-mass triangle derivation) |
 | `option5_postisr_anchor_test.py` | hybrid: BFS-quoted Born(ISR) + our analytic NLO × LL+exp |
 | `option5_with_decay_swap.py` | option-5 + BFS's σ̂_LR^(0)→σ̂_Born decay substitution → closure to +0.02-0.35 % vs BFS Table 4 NLO column |
+| `chain_decay_swap_validation.py` | chain-level closure after the substitution lands in production (`decay_uses_full_born=True`); confirms knob ON reproduces option-5+swap |
+| `chain_decay_swap_slopes.py` | σ_obs + dσ/dm_W + dσ/dΓ_W shifts at scan-window √s under knob ON vs OFF |
+| `decay_swap_asimov_AB.py` | Asimov A/B with two template sets (knob OFF + knob ON) — cross-fits give the m_W central-value shift attributable to the substitution (|Δm_W| = 5.5 MeV) |
