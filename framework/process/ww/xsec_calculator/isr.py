@@ -47,8 +47,9 @@ Validation: 2-leg matches BFS Table 4 σ_obs Born×ISR to <0.5% at 158-170 GeV.
 
 from __future__ import annotations
 
+import warnings
 import numpy as np
-from scipy.special import gamma as gamma_fn
+from scipy.special import gamma as gamma_fn, digamma, polygamma
 
 from .bfs_c1fin import Li2 as _Li2
 
@@ -65,6 +66,12 @@ from framework.process.ww.xsec_calculator.eft_xsec import (
 EULER_GAMMA = 0.5772156649015329
 _SAFE_FLOOR = 1e-300   # underflow guard for log args near 0/1
 
+# NLL ISR constants (BCFS arXiv:1911.12040)
+ZETA3 = 1.2020569031595942           # Riemann ζ(3) = Apéry's constant
+# BCFS eq. lambda1 at N_F=0 (no light-fermion loops in the ISR kernel):
+#   λ₁ = 3/8 − π²/2 + 6ζ₃ ≈ +2.6525
+LAMBDA1_NF0 = 3.0/8.0 - np.pi**2/2.0 + 6.0*ZETA3
+
 
 def _safe_log_pair(z, one_minus_z=None):
     """Return (log z, log(1−z)) safely floored at ``_SAFE_FLOOR``.
@@ -79,6 +86,20 @@ def _safe_log_pair(z, one_minus_z=None):
     one_minus_z = np.maximum(np.asarray(one_minus_z, dtype=float), _SAFE_FLOOR)
     z_safe = np.maximum(z_arr, _SAFE_FLOOR)
     return np.log(z_safe), np.log(one_minus_z), one_minus_z, z_arr
+
+def _A_func(kappa: float) -> float:
+    """BCFS arXiv:1911.12040 eq. Ares: A(κ) = −γ_E − ψ₀(κ)."""
+    return -EULER_GAMMA - float(digamma(kappa))
+
+
+def _B_func(kappa: float) -> float:
+    """BCFS arXiv:1911.12040 eq. Bres:
+    B(κ) = γ_E²/2 + π²/12 + γ_E ψ₀(κ) + ψ₀(κ)²/2 − ψ₁(κ)/2."""
+    psi0 = float(digamma(kappa))
+    psi1 = float(polygamma(1, kappa))
+    return (EULER_GAMMA**2 / 2.0 + np.pi**2 / 12.0
+            + EULER_GAMMA * psi0 + psi0**2 / 2.0 - psi1 / 2.0)
+
 
 # BFS prescription (arXiv:0707.0773 line 2514): use α_Gμ in the ISR β. The
 # value is evaluated at the BFS reference m_W = 80.377 since the ISR scale
@@ -314,16 +335,34 @@ def _Gee_per_leg_NS(x, beta: float, one_minus_x=None):
     return out
 
 
-def _H_SV_per_leg(beta: float) -> float:
+def _H_SV_per_leg(beta: float, nll: bool = False,
+                  alpha_em: float | None = None) -> float:
     """Per-leg soft+virtual factor, LEP2 YR Beenakker hep-ph/9602351 eq. (67):
 
-        F(β) = exp(-½ γ_E β + (3/8) β) / Γ(1 + β/2)
-             = exp(½ β (3/4 - γ_E)) / Γ(1 + β/2)
+        F_LL(β) = exp(½ β (3/4 − γ_E)) / Γ(1 + β/2)
 
     Note the factor ½ in the exponent — NOT β·(3/4-γ_E) as in the
     α→2α single-conv form (where the β there is β_combined = 2 β_per_leg).
+
+    With ``nll=True`` applies the BCFS arXiv:1911.12040 NLL correction to the
+    exponent (eq. heta1def at N_F=0):
+
+        F_NLL(β) = F_LL(β) × exp(κ · (α/π) · λ₁/4)
+
+    where κ = β/2 and λ₁(N_F=0) = LAMBDA1_NF0 ≈ +2.6525. At √s = 161 GeV
+    (κ ≈ 0.057, α/π ≈ 0.0024) this is an ~0.009% effect; the dominant NLL
+    correction comes from the bracket term in ``sigma_ISR_2leg_convolution``.
     """
-    return np.exp(0.5 * beta * (0.75 - EULER_GAMMA)) / gamma_fn(1.0 + beta / 2.0)
+    kappa = beta / 2.0
+    ll_factor = np.exp(0.5 * beta * (0.75 - EULER_GAMMA)) / gamma_fn(1.0 + kappa)
+    if not nll:
+        return ll_factor
+    if alpha_em is None:
+        alpha_em = _DEFAULT_ISR_ALPHA
+    # η̂₁ = κ(λ₀ + α·λ₁/(4π)) at N_F=0; LL contains only the κ·λ₀ = κ·3/4 piece.
+    # Extra NLL contribution to exponent: κ × (α/π) × (λ₁/4)
+    nll_exp = kappa * (alpha_em / np.pi) * (LAMBDA1_NF0 / 4.0)
+    return ll_factor * np.exp(nll_exp)
 
 
 def sigma_ISR_2leg_convolution(sqrt_s,
@@ -333,6 +372,7 @@ def sigma_ISR_2leg_convolution(sqrt_s,
                                x_min: float = 0.55,
                                n_quad: int = 32,
                                alpha_em_isr: float | None = None,
+                               nll: bool = False,
                                **sigma_kwargs):
     """Two-leg double-convolution ISR (BFS eq. 71):
 
@@ -358,23 +398,39 @@ def sigma_ISR_2leg_convolution(sqrt_s,
     of z_min = 0.1 used in the single-convolution form).
 
     Vectorised in ``sqrt_s``.
+
+    ``nll=True`` applies the BCFS arXiv:1911.12040 x-space NLL correction.
+    **NOT VALIDATED** — the x-space bracket diverges at WW threshold because
+    the endpoint-substitution nodes reach ln(1−x) ≈ −80 to −140, far outside
+    the range |ln(1−x)| ≲ 20 where the BCFS expansion is valid. The result is
+    unphysical (−5% at 161 GeV). Kept for reference; the correct path is
+    Mellin-space resummation or eMELA. Default is nll=False (LL+exp only).
     """
+    if nll:
+        warnings.warn(
+            "isr_nll=True (x-space BCFS NLL) is NOT VALIDATED. "
+            "The bracket diverges at WW threshold endpoint nodes "
+            "(ln(1−x) ≈ −80 to −140). Result is unphysical. "
+            "Use eMELA for NLL ISR instead.",
+            stacklevel=2,
+        )
     sqrt_s_arr = np.atleast_1d(np.asarray(sqrt_s, dtype=float))
     out = np.zeros_like(sqrt_s_arr)
 
     for idx, sq in enumerate(sqrt_s_arr):
         s = sq * sq
         beta = beta_ISR(s, alpha_em=alpha_em_isr)
-        H_sv = _H_SV_per_leg(beta)
 
         u, w, x_vals, one_minus_x, jac_NS = _endpoint_substitution(
             beta / 2.0, x_min, n_quad)
         NS_vals = _Gee_per_leg_NS(x_vals, beta, one_minus_x=one_minus_x)
 
+        H_sv = _H_SV_per_leg(beta)
         # Per-leg integrand (1D) = singular H_sv (already u-measure) +
         # non-singular jac_NS · NS. The 2-leg double integral factorises:
         #   ∫∫ (S₁+NS₁)(S₂+NS₂) σ̂  =  ∫dw·∫dw  (per_leg_w · per_leg_w · σ̂)
         per_leg = H_sv + jac_NS * NS_vals
+
         X1, X2 = np.meshgrid(x_vals, x_vals, indexing="ij")
         sigma_hat = np.asarray(
             sigma_partonic_fn((X1 * X2 * s).ravel(), mW, gammaW, **sigma_kwargs),
@@ -383,7 +439,44 @@ def sigma_ISR_2leg_convolution(sqrt_s,
 
         # Outer product of per-leg weights+integrand: row-vector × column-vector
         weight_1d = w * per_leg
-        out[idx] = np.einsum("i,j,ij->", weight_1d, weight_1d, sigma_hat)
+        sigma_ll = np.einsum("i,j,ij->", weight_1d, weight_1d, sigma_hat)
+
+        if nll:
+            # BCFS arXiv:1911.12040 NLLsol3, linearised at O(α/π):
+            #   σ_NLL = σ_LL + 2 × Σ_i w_i δ_NLL_i σ_1leg_LL_i
+            # where σ_1leg_LL_i = Σ_j w_j per_leg_j σ̂_ij is the 1-leg LL
+            # partial integral at fixed x_i.
+            #
+            # The x-space NLL bracket {1+(α/π)[C+C_log·ln(1-x)-ln²(1-x)]}
+            # is only valid for |ln(1-x)| ≲ 20.  At endpoint-substitution
+            # nodes ln(1-x) = ln(u)/κ ≈ −80 to −140 — far outside that
+            # range — so the direct (linear or exp) form diverges.  The
+            # linearised 2×Σ δ_NLL σ_1leg form correctly cancels the
+            # large-x divergence and reproduces the O(α/π) NLL result.
+            #
+            # In u-coordinates: ln(1-x) = ln(u)/κ.
+            alpha_a = alpha_em_isr if alpha_em_isr is not None else _DEFAULT_ISR_ALPHA
+            kappa = beta / 2.0
+            a_nll = _A_func(kappa)
+            b_nll = _B_func(kappa)
+            # At L₀=0:  −(A+3/4) − 2B + 7/4
+            c_const = -(a_nll + 0.75) - 2.0*b_nll + 1.75
+            # At L₀=0:  −1 − 2A
+            c_log = -1.0 - 2.0*a_nll
+            log_u = np.log(np.maximum(u, _SAFE_FLOOR))
+            # NLL bracket argument in u-space: ln(1-x) = ln(u)/κ
+            bracket_arg = (alpha_a / np.pi) * (
+                c_const + (c_log / kappa) * log_u - log_u**2 / kappa**2
+            )
+            H_sv_nll = _H_SV_per_leg(beta, nll=True, alpha_em=alpha_em_isr)
+            # δ_NLL = H_sv_nll × bracket_arg  (bracket correction)
+            #       + (H_sv_nll − H_sv)        (prefactor correction)
+            delta_sv = H_sv_nll * bracket_arg + (H_sv_nll - H_sv)
+            # σ_1leg_LL[i] = Σ_j w_j per_leg_j σ̂_ij
+            sigma_1leg = sigma_hat @ weight_1d
+            out[idx] = sigma_ll + 2.0 * np.sum(w * delta_sv * sigma_1leg)
+        else:
+            out[idx] = sigma_ll
 
     if np.ndim(sqrt_s) == 0:
         return float(out[0])
@@ -423,6 +516,7 @@ def sigma_observed_munuqq(sqrt_s,
                           apply_whizard_anchor: bool = True,
                           whizard_anchor_source: str = "grid",
                           isr_scheme: str = "single_conv",
+                          isr_nll: bool = False,
                           coulomb_kc_safe: bool = False,
                           decay_uses_full_born: bool = True,
                           m_t: float = M_T_DEFAULT,
@@ -469,13 +563,18 @@ def sigma_observed_munuqq(sqrt_s,
         decay_uses_full_born=decay_uses_full_born,
         m_t=m_t, M_H=M_H, MZ=MZ,
     )
-    if isr_scheme == "single_conv":
+    # NLL is only implemented in the 2-leg form.  Auto-upgrade isr_scheme.
+    effective_scheme = isr_scheme
+    if isr_nll and isr_scheme == "single_conv":
+        effective_scheme = "2leg"
+
+    if effective_scheme == "single_conv":
         return sigma_ISR_convolution(
             sqrt_s, sigma_partonic_munuqq,
             z_min=z_min, n_quad=n_quad,
             **common_kwargs,
         )
-    elif isr_scheme == "2leg":
+    elif effective_scheme == "2leg":
         # Convert single-conv z_min (lower bound on z = x₁ x₂) to a per-leg
         # x_min by taking √z_min — both legs equal at the cutoff edge.
         x_min = float(np.sqrt(z_min))
@@ -490,6 +589,7 @@ def sigma_observed_munuqq(sqrt_s,
         return sigma_ISR_2leg_convolution(
             sqrt_s, sigma_partonic_munuqq,
             x_min=x_min, n_quad=n_q_2leg,
+            nll=isr_nll,
             **common_kwargs,
         )
     else:
