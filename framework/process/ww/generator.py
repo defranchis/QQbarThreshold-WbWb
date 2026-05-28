@@ -154,7 +154,9 @@ def observed_kwargs_from_card(card) -> dict:
         "isr_emela_pert_order":  str(nlo.get("isr_emela_pert_order", "NLL")),
         "isr_emela_fac_scheme":  str(nlo.get("isr_emela_fac_scheme", "DELTA")),
         "isr_emela_ren_scheme":  str(nlo.get("isr_emela_ren_scheme", "ALGMU")),
-        "isr_scale_factor":      float(nlo.get("isr_scale_factor", 1.0)),
+        # isr_scale_factor intentionally NOT read from card — knob remains in
+        # WWGenerator + isr.py for legacy / investigation use, but the card
+        # default is ξ=1 (see ww_nlo_config.py for rationale).
         "alpha_em_isr":          theory.get("alpha_em_isr", None),
     }
 

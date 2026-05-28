@@ -58,14 +58,16 @@ NLO_CONFIG = {
     "isr_emela_pert_order":   "NLL",
     "isr_emela_fac_scheme":   "DELTA",
     "isr_emela_ren_scheme":   "ALPMZ",
-    # ISR factorisation scale ξ. Central Q = √s; symmetric ξ ∈ {0.5,1,2}
-    # is the standard factor-2 envelope. Enters the LL log of β_ISR and
-    # the eMELA DGLAP scale (Q = ξ·√s). NLL absorbs the leading scale
-    # dependence; residual = N²LL theory unc on ISR.
-    "isr_scale_factor":       1.0,
-    # α_em values (σ chain + ISR) live in PARAM_INPUTS — both default to
-    # derived (α_Gμ on σ side; α_Gμ(M_W_BFS_REF) on ISR side per BFS
-    # prescription).
+    # ISR factorisation-scale variation (isr_scale_factor knob, ξ in beta_ISR
+    # log + eMELA Q) is implemented in isr.py / WWGenerator for legacy use
+    # but not exposed here: in DELTA scheme + collinear-finite c^(1,fin),
+    # σ̂ has no μ_F dependence to cancel D's evolution, so ξ-variation
+    # measures DGLAP-evolution stability of D rather than a genuine NLL
+    # theory uncertainty. The real NLL truncation uncertainty lives in
+    # the α renormalisation-scheme variation (alpha_em_isr nuisance,
+    # ALGMU↔ALPMZ↔α(0) via isr_emela_ren_scheme).
+    # α_em values (σ chain + ISR) live in PARAM_INPUTS — σ-side defaults
+    # to derived α_Gμ; ISR side is α(M_Z) per the ALPMZ rename.
 
     # --- Diagnostics --------------------------------------------------------
     # Standalone BFS NLO Coulomb via delta_NLO path.
