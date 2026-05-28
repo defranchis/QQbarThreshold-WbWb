@@ -45,6 +45,16 @@ NLO_CONFIG = {
     # piece of the 2-leg radiator.  Forces isr_scheme="2leg" automatically.
     # OFF by default (LL+exp is the production chain; NLL is the upgrade target).
     "isr_nll":                False,
+    # eMELA-LL diagnostic: full DGLAP-evolved BETA-scheme LL instead of the
+    # analytic β³-truncated formula.  Quantifies LL truncation (~+0.8% at WW).
+    # Mutually exclusive with isr_nll.  Forces 2leg.
+    "isr_emela_ll":           False,
+    # eMELA scheme knobs.  BFS prescription: pert_order=NLL, fac=DELTA,
+    # ren=ALGMU (α_Gμ).  ren="ALPMZ" + α(M_Z) is the α_em_isr scheme-variation
+    # nuisance (see reference_emela_nll_isr.md).
+    "isr_emela_pert_order":   "NLL",
+    "isr_emela_fac_scheme":   "DELTA",
+    "isr_emela_ren_scheme":   "ALGMU",
     # α_em values (σ chain + ISR) live in PARAM_INPUTS — both default to
     # derived (α_Gμ on σ side; α_Gμ(M_W_BFS_REF) on ISR side per BFS
     # prescription).

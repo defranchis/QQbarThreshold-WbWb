@@ -47,6 +47,11 @@ Validation: 2-leg matches BFS Table 4 σ_obs Born×ISR to <0.5% at 158-170 GeV.
 
 from __future__ import annotations
 
+import concurrent.futures
+import functools
+import math
+import multiprocessing
+
 import numpy as np
 from scipy.special import gamma as gamma_fn
 
@@ -64,6 +69,13 @@ from framework.process.ww.xsec_calculator.eft_xsec import (
 
 EULER_GAMMA = 0.5772156649015329
 _SAFE_FLOOR = 1e-300   # underflow guard for log args near 0/1
+
+# ISR-quadrature defaults.  Picked by the convergence study at
+# scripts/investigations/nll_isr/convergence_study.py (2026-05-28): any
+# z_min ≪ z_kin = (2m_W/√s)² ≈ 0.985 is below the WW kinematic threshold
+# where σ̂ vanishes, and tighter cutoffs waste GL nodes.
+_Z_MIN_DEFAULT      = 0.30                # single-conv lower bound on z = x₁x₂
+_X_MIN_2LEG_DEFAULT = math.sqrt(_Z_MIN_DEFAULT)   # per-leg lower bound
 
 # NLL ISR constants (BCFS arXiv:1911.12040)
 ZETA3 = 1.2020569031595942           # Riemann ζ(3) = Apéry's constant
@@ -228,7 +240,7 @@ def sigma_ISR_convolution(sqrt_s,
                           sigma_partonic_fn,
                           mW: float = M_W_DEFAULT,
                           gammaW: float = GAMMA_W_DEFAULT,
-                          z_min: float = 0.10,
+                          z_min: float = _Z_MIN_DEFAULT,
                           n_quad: int = 200,
                           alpha_em_isr: float | None = None,
                           **sigma_kwargs):
@@ -354,10 +366,19 @@ def sigma_ISR_2leg_convolution(sqrt_s,
                                sigma_partonic_fn,
                                mW: float = M_W_DEFAULT,
                                gammaW: float = GAMMA_W_DEFAULT,
-                               x_min: float = 0.55,
-                               n_quad: int = 32,
+                               x_min: float = _X_MIN_2LEG_DEFAULT,
+                               n_quad: int = 128,
                                alpha_em_isr: float | None = None,
                                nll: bool = False,
+                               emela_ll: bool = False,
+                               # eMELA scheme knobs.  BFS prescription
+                               # (DELTA + ALGMU) is the default; ren_scheme
+                               # = "ALPMZ" is the scheme-variation nuisance
+                               # for α_em_isr (see reference_emela_nll_isr).
+                               emela_pert_order: str = "NLL",
+                               emela_fac_scheme: str = "DELTA",
+                               emela_ren_scheme: str = "ALGMU",
+                               n_jobs: int = 6,
                                **sigma_kwargs):
     """Two-leg double-convolution ISR (BFS eq. 71):
 
@@ -378,9 +399,11 @@ def sigma_ISR_2leg_convolution(sqrt_s,
         S·S, S·NS, NS·S, NS·NS
     each a 2D smooth integrand in (u₁, u₂) on [0, u_max]².
 
-    ``x_min`` is the per-leg lower cutoff (default 0.55 so √(x₁ x₂ s) is
-    cut at ~0.3·√s — well below threshold, matching the LEP2 YR convention
-    of z_min = 0.1 used in the single-convolution form).
+    ``x_min`` is the per-leg lower cutoff.  Default √0.30 ≈ 0.5477 so that
+    x₁ x₂ ≥ 0.30 at the corner of the integration domain — well below the
+    WW kinematic threshold z_kin = (2m_W/√s)² ≈ 0.985 at √s = 161 GeV,
+    so σ̂ vanishes for any z < z_kin anyway.  Tighter cutoffs only worsen
+    quadrature accuracy by spreading GL nodes over the empty region.
 
     Vectorised in ``sqrt_s``.
 
@@ -388,19 +411,65 @@ def sigma_ISR_2leg_convolution(sqrt_s,
     + ALGMU renormalisation) to replace the per-leg LL+exp weight with the
     full NLL electron ePDF.  The per-leg integrand in u-space becomes
     D_NLL(x_i, Q) × |dx/du|_i = CodePdf(11, x_i, omx_i, Q) / x_i × jac_NS_i.
-    Near x→1 (omx underflows below 1e-15): the analytic limit H_SV_NLL is
-    substituted (those nodes contribute negligibly to the sum).
+
+    ``emela_ll=True`` uses the same eMELA library but calls LLPDF(1) (the
+    BETA-scheme LL radiator as solved by eMELA's full DGLAP) instead of
+    CodePdf.  This differs from the analytic default by the full DGLAP sea
+    evolution that our β³-truncated formula omits (~+0.8% at threshold).
+    Useful for diagnosing the LL truncation error independently of the NLL
+    correction.  Mutually exclusive with ``nll=True``; if both are set,
+    ``nll`` takes precedence.
+
+    Near x→1 (omx underflows below 1e-15): the analytic limit H_SV / H_SV_NLL
+    is substituted (those nodes contribute negligibly to the sum).
     eMELA must be importable (libeMELApy.so installed via
     scripts/investigations/nll_isr/build_emela_wrapper.sh).
+
+    ``n_jobs`` parallelises the outer √s loop using
+    ``ProcessPoolExecutor(mp_context='fork')`` ONLY for the eMELA path
+    (``nll`` or ``emela_ll``); the analytic LL+exp path is fast enough that
+    fork+pool overhead dominates.  Each child inherits the parent's eMELA
+    C++ global state via COW, so no re-init is needed.  ``n_jobs=1`` forces
+    serial execution.
     """
-    # Initialise eMELA once before the loop (cached inside emela_wrapper).
-    if nll:
+    if nll and emela_ll:
+        raise ValueError(
+            "sigma_ISR_2leg_convolution: nll=True and emela_ll=True are "
+            "mutually exclusive (CodePdf vs LLPDF select different eMELA "
+            "PDFs); set exactly one."
+        )
+
+    # Initialise eMELA once in the parent before any fork (cached globally).
+    _use_emela = nll or emela_ll
+    if _use_emela:
         from . import emela_wrapper as _emela
         alpha_a = alpha_em_isr if alpha_em_isr is not None else _DEFAULT_ISR_ALPHA
-        _emela.initialize(pert_order="NLL", fac_scheme="DELTA",
-                          ren_scheme="ALGMU", alpha=alpha_a)
+        _emela.initialize(pert_order=emela_pert_order,
+                          fac_scheme=emela_fac_scheme,
+                          ren_scheme=emela_ren_scheme,
+                          alpha=alpha_a)
 
     sqrt_s_arr = np.atleast_1d(np.asarray(sqrt_s, dtype=float))
+
+    # Parallel dispatch only when the per-point cost justifies the fork+pool
+    # overhead — i.e. the eMELA path.  Analytic LL stays serial.
+    if _use_emela and n_jobs > 1 and len(sqrt_s_arr) > 1:
+        _one = functools.partial(
+            sigma_ISR_2leg_convolution,
+            sigma_partonic_fn=sigma_partonic_fn,
+            mW=mW, gammaW=gammaW, x_min=x_min, n_quad=n_quad,
+            alpha_em_isr=alpha_em_isr, nll=nll, emela_ll=emela_ll,
+            emela_pert_order=emela_pert_order,
+            emela_fac_scheme=emela_fac_scheme,
+            emela_ren_scheme=emela_ren_scheme,
+            n_jobs=1,
+            **sigma_kwargs,
+        )
+        ctx = multiprocessing.get_context("fork")
+        with concurrent.futures.ProcessPoolExecutor(
+                max_workers=n_jobs, mp_context=ctx) as ex:
+            return np.array(list(ex.map(_one, sqrt_s_arr)))
+
     out = np.zeros_like(sqrt_s_arr)
 
     for idx, sq in enumerate(sqrt_s_arr):
@@ -411,41 +480,40 @@ def sigma_ISR_2leg_convolution(sqrt_s,
             beta / 2.0, x_min, n_quad)
         NS_vals = _Gee_per_leg_NS(x_vals, beta, one_minus_x=one_minus_x)
 
-        H_sv = _H_SV_per_leg(beta)
-        # Per-leg integrand (1D) = singular H_sv (already u-measure) +
-        # non-singular jac_NS · NS. The 2-leg double integral factorises:
-        #   ∫∫ (S₁+NS₁)(S₂+NS₂) σ̂  =  ∫dw·∫dw  (per_leg_w · per_leg_w · σ̂)
-        per_leg = H_sv + jac_NS * NS_vals
-
         X1, X2 = np.meshgrid(x_vals, x_vals, indexing="ij")
         sigma_hat = np.asarray(
             sigma_partonic_fn((X1 * X2 * s).ravel(), mW, gammaW, **sigma_kwargs),
             dtype=float,
         ).reshape(X1.shape)
 
-        # Outer product of per-leg weights+integrand: row-vector × column-vector
-        weight_1d = w * per_leg
-        sigma_ll = np.einsum("i,j,ij->", weight_1d, weight_1d, sigma_hat)
-
-        if nll:
-            # eMELA NLL per-leg integrand in u-space:
-            #   per_leg_nll[i] = D_NLL(x_i, Q) × |dx/du|_i
-            #                  = CodePdf(11, x_i, omx_i, Q) / x_i × jac_NS_i
-            # Limit x_i → 1 (omx_i → 0): per_leg_nll → H_SV_NLL (analytic).
-            H_sv_nll = _H_SV_per_leg(beta, nll=True, alpha_em=alpha_a)
-            per_leg_nll = np.empty_like(x_vals)
+        if _use_emela:
+            # eMELA per-leg integrand in u-space:
+            #   per_leg[i] = D(x_i, Q) × |dx/du|_i
+            #              = xD(x_i, Q) / x_i × jac_NS_i
+            # nll=True  → CodePdf (NLL DELTA+ALGMU ePDF)
+            # emela_ll  → LLPDF(1) (eMELA full DGLAP LL in BETA scheme)
+            # Limit x_i → 1 (omx_i → 0): substitute analytic H_SV limit.
+            H_sv_em = _H_SV_per_leg(beta, nll=nll, alpha_em=alpha_a)
+            per_leg_em = np.empty_like(x_vals)
             Q = float(sq)
             for i in range(len(x_vals)):
                 omx_i = float(one_minus_x[i])
                 if omx_i < 1e-15:
-                    per_leg_nll[i] = H_sv_nll
+                    per_leg_em[i] = H_sv_em
                 else:
-                    xD = _emela.code_pdf(float(x_vals[i]), omx_i, Q)
-                    per_leg_nll[i] = xD / float(x_vals[i]) * float(jac_NS[i])
-            weight_nll = w * per_leg_nll
-            out[idx] = np.einsum("i,j,ij->", weight_nll, weight_nll, sigma_hat)
+                    x_i = float(x_vals[i])
+                    xD = (_emela.code_pdf(x_i, omx_i, Q) if nll
+                          else _emela.ll_pdf(1, x_i, omx_i, Q))
+                    per_leg_em[i] = xD / x_i * float(jac_NS[i])
+            weight = w * per_leg_em
         else:
-            out[idx] = sigma_ll
+            # Per-leg integrand (1D) = singular H_sv (already u-measure) +
+            # non-singular jac_NS · NS. The 2-leg double integral factorises:
+            #   ∫∫ (S₁+NS₁)(S₂+NS₂) σ̂  =  ∫dw·∫dw  (per_leg_w · per_leg_w · σ̂)
+            per_leg = _H_SV_per_leg(beta) + jac_NS * NS_vals
+            weight = w * per_leg
+
+        out[idx] = np.einsum("i,j,ij->", weight, weight, sigma_hat)
 
     if np.ndim(sqrt_s) == 0:
         return float(out[0])
@@ -460,7 +528,7 @@ def sigma_observed_munuqq(sqrt_s,
                           mW: float = M_W_DEFAULT,
                           gammaW: float = GAMMA_W_DEFAULT,
                           channel: str = "inclusive",
-                          z_min: float = 0.10,
+                          z_min: float = _Z_MIN_DEFAULT,
                           n_quad: int = 200,
                           include_coulomb: bool = True,
                           bfs: BFSCorrections | None = None,
@@ -486,6 +554,17 @@ def sigma_observed_munuqq(sqrt_s,
                           whizard_anchor_source: str = "grid",
                           isr_scheme: str = "single_conv",
                           isr_nll: bool = False,
+                          # eMELA-LL diagnostic: replace analytic β³-truncated
+                          # LL+exp with eMELA's DGLAP-evolved BETA-scheme LL.
+                          # Quantifies the truncation error (~+0.8% at WW).
+                          # Mutually exclusive with isr_nll.
+                          isr_emela_ll: bool = False,
+                          # eMELA scheme knobs (only used when isr_nll or
+                          # isr_emela_ll is True).  Default = BFS prescription.
+                          # ren_scheme="ALPMZ" is the α_em_isr nuisance variation.
+                          isr_emela_pert_order: str = "NLL",
+                          isr_emela_fac_scheme: str = "DELTA",
+                          isr_emela_ren_scheme: str = "ALGMU",
                           coulomb_kc_safe: bool = False,
                           decay_uses_full_born: bool = True,
                           m_t: float = M_T_DEFAULT,
@@ -532,9 +611,9 @@ def sigma_observed_munuqq(sqrt_s,
         decay_uses_full_born=decay_uses_full_born,
         m_t=m_t, M_H=M_H, MZ=MZ,
     )
-    # NLL is only implemented in the 2-leg form.  Auto-upgrade isr_scheme.
+    # NLL / eMELA-LL are only implemented in the 2-leg form.  Auto-upgrade.
     effective_scheme = isr_scheme
-    if isr_nll and isr_scheme == "single_conv":
+    if (isr_nll or isr_emela_ll) and isr_scheme == "single_conv":
         effective_scheme = "2leg"
 
     if effective_scheme == "single_conv":
@@ -559,6 +638,10 @@ def sigma_observed_munuqq(sqrt_s,
             sqrt_s, sigma_partonic_munuqq,
             x_min=x_min, n_quad=n_q_2leg,
             nll=isr_nll,
+            emela_ll=isr_emela_ll,
+            emela_pert_order=isr_emela_pert_order,
+            emela_fac_scheme=isr_emela_fac_scheme,
+            emela_ren_scheme=isr_emela_ren_scheme,
             **common_kwargs,
         )
     else:
