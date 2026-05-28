@@ -23,17 +23,21 @@ validation scripts pass them explicitly.  Note the production
 default `m_t=172.5` is now ≠ `M_T_BFS_REF=174.2`, so BFS Tables 1–4
 closure must use `M_T_BFS_REF` (already pinned in validation scripts).
 
-`alpha_em` and `alpha_em_isr` are α_em overrides.  `None` (default) means:
+`alpha_em` and `alpha_em_isr` are α_em overrides.
 
-- **σ chain (`alpha_em`)** → derived `α_Gμ(m_W, M_Z) = √2 G_F m_W² sin²θ_W / π`
-  (tree-level G_μ scheme; `G_F = 1.1663787e-5` in `eft_xsec.py`).  Applies
-  to Born + NLO + NNLO via `alpha_Gmu(mW, MZ, override=alpha_em)`.
-- **ISR (`alpha_em_isr`)** → `α_Gμ(M_W_BFS_REF) ≈ 1/132.1`, fixed across the
-  fit (BFS prescription, arXiv:0707.0773 line 2514 — avoids fictitious m_W
-  dependence in the LL β_e kernel).
+- **σ chain (`alpha_em`)** — `None` (default) → derived
+  `α_Gμ(m_W, M_Z) = √2 G_F m_W² sin²θ_W / π` (tree-level G_μ scheme;
+  `G_F = 1.1663787e-5` in `eft_xsec.py`).  Applies to Born + NLO + NNLO
+  via `alpha_Gmu(mW, MZ, override=alpha_em)`.
+- **ISR (`alpha_em_isr`)** — production card default is the explicit
+  float `1.0/128.943` (PDG α(M_Z); matches `isr_emela_ren_scheme="ALPMZ"`
+  and the FCC-ee target via A_FB^μμ off-peak ~ Riembau arXiv:2501.05508).
+  `None` → legacy fallback `α_Gμ(M_W_BFS_REF) ≈ 1/132.1`, fixed across
+  the fit (BFS prescription, arXiv:0707.0773 line 2514); kept for paper-
+  closure tests.
 
-Set to a float to inject a user-supplied value (used for the
-`PARAM_UNC.{alpha_em, alpha_em_isr}` nuisances).
+Both feed the `PARAM_UNC.{alpha_em, alpha_em_isr}` nuisances; the ISR
+side is held independent of the σ-chain side (Option B — see Notes).
 
 ### PARAM_UNC — parametric uncertainties (FCC-ee projections)
 
@@ -49,21 +53,24 @@ Provisional values (all absolute):
 | `M_Z`          | 0.1 MeV   | stat 4 keV ⊕ syst 100 keV                    | Z line-shape scan |
 | `alpha_s`      | 1.0e-4    | (stat 0.1 ⊕ syst 1.0) × 10⁻⁴                | combined Z fit    |
 | `alpha_em`     | 2.4e-7    | δα abs from δα⁻¹ ≈ 4×10⁻³ at M_Z²            | A_FB^μμ off-peak  |
-| `alpha_em_isr` | 1.0e-7    | scheme/scale variation (not direct FCC-ee obs) | held conservative |
+| `alpha_em_isr` | 2.4e-7    | δα(M_Z) abs, same FCC-ee A_FB^μμ projection  | Riembau 2501.05508 |
 
 Notes:
 
-- α_em is split into two independent nuisances so the ISR-side scheme
-  uncertainty decorrelates from the rest of the σ chain. The σ-chain
-  value tracks the FSR Table 2 conservative projection from A_FB^μμ
-  off-peak. The more aggressive Riembau-method projection (forward
-  dilepton ratios e⁻/μ⁻ + e⁻/e⁺, arXiv:2501.05508) is ~0.6×10⁻⁵
-  relative → δα ≈ 5×10⁻⁸ absolute, ~5× tighter than the FSR value
-  used here.
-- `alpha_em_isr` reflects an *ISR-scheme* variation (α(0) ↔ α_Gμ(M_W) ↔
-  α(M_Z) — see "PARAM_INPUTS"). FCC-ee does not directly measure this,
-  so the value is a held-conservative scheme uncertainty rather than a
-  parametric one.
+- α_em is split into two independent nuisances (**Option B**) so the
+  ISR-side α uncertainty decorrelates from the rest of the σ chain.
+  The σ-chain value tracks the FSR Table 2 conservative projection from
+  A_FB^μμ off-peak. The more aggressive Riembau-method projection
+  (forward dilepton ratios e⁻/μ⁻ + e⁻/e⁺, arXiv:2501.05508) is
+  ~0.6×10⁻⁵ relative → δα ≈ 5×10⁻⁸ absolute, ~5× tighter than the
+  FSR value used here.
+- `alpha_em_isr` is the same FCC-ee Δα(M_Z) projection applied to the
+  ISR-side input. Production NLL chain (DELTA + ALPMZ +
+  α(M_Z)=1/128.943) Asimov A/B (2026-05-28): Δα = 2.4×10⁻⁷ →
+  Δm_W = +0.043 MeV, sub-dominant vs the 5.4 MeV pure-NLL bracket
+  ([scripts/investigations/nll_isr/asimov_alpha_em_isr_AB.py]). The
+  remaining renormalisation-scheme ambiguity (ALPMZ ↔ ALGMU ↔ α(0))
+  is propagated through the same nuisance.
 - BR_W_* uncertainties are deliberately not in PARAM_UNC: in
   `pdg-constant` BR mode the BR is a measured constant, so its
   uncertainty is an analysis-level systematic rather than a
@@ -154,16 +161,36 @@ Both schemes implement LL+exp BETA radiator per LEP2 YR Beenakker (hep-ph/960235
 eq. 67 and BFS eq. 71.  They agree to <0.1%.
 
 - `"single_conv"` (default): LEP2 YR α→2α 1D shortcut; ~10× faster.
-- `"2leg"`: full per-leg double-convolution; natural starting point for the NLL ISR
-  upgrade.
+- `"2leg"`: full per-leg double-convolution.  Auto-selected when `isr_nll=True`
+  or `isr_emela_ll=True` (eMELA's ePDF is a per-leg `D(x, Q)`).
+
+### `isr_nll` / `isr_emela_ll` / `isr_emela_{pert_order,fac_scheme,ren_scheme}`
+
+NLL ISR via eMELA (BCFS arXiv:1911.12040) is shipped (commits 2b3f721,
+256677f, ce801c4).  Mutually-exclusive `isr_nll` (full NLL ePDF) and
+`isr_emela_ll` (DGLAP-evolved BETA-scheme LL diagnostic) both default
+to `False`, so the production card stays on the analytic LL+exp baseline
+for paper-closure tests.  Switching `isr_nll=True` is the **recommended
+precision setting** — the ±22.4 MeV LL+exp→NLL bias (see report
+§val-isr-cross) is ~90× the FCC-ee σ(m_W)=0.25 MeV target.
+
+The eMELA scheme knobs default to the production NLL central
+DELTA + ALPMZ + α(M_Z) = 1/128.943 (see `alpha_em_isr` above); ALGMU
+is the BFS-prescription diagnostic.  The renormalisation-scheme
+variation ALPMZ ↔ ALGMU ↔ α(0) is the genuine NLL theory uncertainty
+channel and is propagated via the `alpha_em_isr` PARAM_UNC nuisance.
+
+An `isr_scale_factor` (ξ ∈ [0.5, 2] on Q = ξ √s and the LL log) is
+implemented in `isr.py` for legacy investigation but intentionally not
+exposed at card level: in DELTA + collinear-finite c^(1,fin) the σ̂ has
+no μ_F dependence to cancel against D's evolution, so the variation
+measures DGLAP-evolution stability rather than NLL truncation
+(`scripts/investigations/nll_isr/scale_decouple_diagnostic.py`).
 
 ### `alpha_em_isr`
 
-`None` → α_Gμ(M_W_BFS_REF) ≈ 1/132.1, fixed across the fit (BFS prescription —
-avoids fictitious m_W dependence in the ISR kernel).
-
-Override with a float for a scheme-variation systematic.  A running-α option
-`alpha_em_running(Q)` is planned as part of the NLL ISR upgrade.
+See the `alpha_em_isr` paragraph in PARAM_INPUTS above for the
+production default; the PARAM_UNC entry holds the FCC-ee Δα(M_Z) = 2.4×10⁻⁷.
 
 ### `diagnostic_bfs_coulomb_nlo`
 
@@ -176,7 +203,11 @@ isolation.
 
 ## Open work for sub-MeV precision
 
-1. **NLL ISR** — analytic Skrzypek-Jadach or BCFS (arXiv:1911.12040).  Closes the
-   ±0.5% ISR residual to BFS Table 3.  Largest remaining theory systematic.
+1. **Flip `isr_nll=True` as production default.** NLL ISR plumbing is
+   shipped (eMELA, DELTA+ALPMZ+α(M_Z) central, Δα = 2.4×10⁻⁷ nuisance
+   propagating to ±0.043 MeV); ±22.4 MeV LL+exp→NLL bias is ~90× the
+   FCC-ee target.  Flip requires re-running BFS Tables 1–4 closure (or
+   tagging them as explicit `isr_nll=False` legacy snapshots) and
+   regenerating canonical templates on fcc-ironic-02.
 2. **RACOONWW grid above 170 GeV** — current calibration grid disagrees with BFS-era
    Born; replace before publishing plots outside [157, 165] GeV.
