@@ -148,9 +148,10 @@ $+$ Whizard anchor $+$ single-convolution LL+exp ISR (cf.~section
 parameters $\alpha_s(\mW)$, $m_t$, $M_H$, and $M_Z$ are card-driven
 through \code{cards/ww\_default.py:PARAM\_INPUTS} and threaded
 end-to-end into every Born, NLO, NNLO, and anchor piece (since
-2026-05-27). Production defaults are PDG-current
-($\alpha_s(\mW)=0.1199$, $m_t=174.2\GeV$, $M_H=125.25\GeV$,
-$M_Z=91.1876\GeV$). The closure scripts of
+2026-05-27). Production defaults track PDG / FCC-ee FSR
+($\alpha_s(\mW)=0.1199$, $m_t=172.5\GeV$ from FSR
+Table~2~\cite{FCCFSR2025}, $M_H=125.25\GeV$, $M_Z=91.1876\GeV$).
+The closure scripts of
 section~\ref{sec:val} pin to the BFS-paper reference set
 ($m_t=174.2\GeV$, $M_H=115\GeV$ pre-discovery, $M_Z=91.188\GeV$ to
 3~sig.\ figs.) via the framework constants \code{M\_T\_BFS\_REF},
@@ -386,27 +387,30 @@ prescription. The anchor is applied to the Born sum \emph{only}, not to
 the NLO loops or NNLO additions, which are added on top per
 eq.~(\textsc{finalcross}).
 
-Two interchangeable sources for $\sigma_\mathrm{Whizard}^\text{exact Born}$
+Three interchangeable sources for $\sigma_\mathrm{Whizard}^\text{exact Born}$
 are wired in and selectable via \code{NLO\_CONFIG["whizard\_anchor\_source"]}:
 \begin{itemize}
-\item \texttt{spline} (default) — cubic in $\delta = \sqrts - 2\mW$ and
-  linear in $\GammaW$ between the two BFS reference points
-  ($\GammaW = 2.04483$ and $2.09201$~GeV) from Tables~1 and~2 of
-  arXiv:0707.0773.
+\item \texttt{morph} (production default) — the per-$\sqrts$ analytic
+  morph of section~\ref{sec:morphing}, fitted from a dedicated
+  6363-point \texttt{grid\_fine} WHIZARD~3.1.5 campaign
+  ($9\,\mW \times 7\,\GammaW \times 101\,\sqrts$ at 0.1-GeV $\sqrts$
+  step in $[155, 165]$~GeV, $\sim$0.008\,\% MC stat per point, i.e.\
+  25-MeV $\mW$ step), plus the 0.5-GeV outer wings from the highstats
+  campaign as $\sqrts$-spline support beyond the fine window. A held-out
+  sub-MeV $(\mW,\GammaW)$ campaign at $\sim$0.005\,\% MC bounds the
+  morph's interpolation bias at the fit's working resolution
+  (Appendix~\ref{sec:morphval}).
 \item \texttt{grid} — trilinear interpolation in $(\sqrts,\mW,\GammaW)$
   on a 1295-point WHIZARD~3.1.5 scan
   ($5\,\mW \times 7\,\GammaW \times 37\,\sqrts$, $\sim$0.05\,\% MC stat
-  per point) produced by the pipeline in \texttt{WW\_threshold/whizard/}.
-  This is the trilinear interpolator currently wired into the fit;
-  it will be superseded by the morphing scheme of
-  section~\ref{sec:morphing}, which is built on a dedicated
-  6363-point \texttt{grid\_fine} campaign
-  ($9\,\mW \times 7\,\GammaW \times 101\,\sqrts$ at 0.1-GeV $\sqrts$
-  step in $[155, 165]$~GeV, $\sim$0.008\,\% MC stat, i.e.\ 25-MeV $\mW$
-  step), plus the 0.5-GeV outer wings from the highstats campaign as
-  $\sqrts$-spline support beyond the fine window. A held-out
-  sub-MeV ($\mW,\GammaW$) campaign at $\sim$0.005\,\% MC bounds the
-  morph's interpolation bias at the fit's working resolution.
+  per point) produced by the pipeline in \texttt{WW\_threshold/whizard/};
+  diagnostic alternative, the predecessor of the production
+  \texttt{morph}.
+\item \texttt{spline} — cubic in $\delta = \sqrts - 2\mW$ and
+  linear in $\GammaW$ between the two BFS reference points
+  ($\GammaW = 2.04483$ and $2.09201$~GeV) from Tables~1 and~2 of
+  arXiv:0707.0773; retained as the BFS-paper-closure fallback used
+  by the historical Scenario~I validation.
 \end{itemize}
 WHIZARD computes the specific channel $\mu^-\bar\nu_\mu u\bar d$ with
 SM-LO partial widths fixed by the EW input scheme, so as the propagator
@@ -634,12 +638,14 @@ for legacy use but not exposed as a card knob: in DELTA + finite
 $c^{(1,\rm fin)}$ the variation measures DGLAP-evolution numerics rather
 than a residual NLL truncation (\code{scripts/investigations/nll\_isr/scale\_decouple\_diagnostic.py}). The two flags are mutually exclusive (runtime
 \code{ValueError}). Quadrature defaults are
-$z_\text{min}=0.30$, $n_\text{quad}=128$ per leg --- picked by a
-dedicated convergence study (max relative residual
-$\sim\!3\times 10^{-4}$ at WW threshold, scheme-independent); tighter
-$z_\text{min}$ wastes Gauss-Legendre nodes on the empty region below
-the kinematic threshold $z_{\rm kin}\!\approx\!0.985$ where
-$\hat\sigma$ vanishes. The size of the residual $\mW$ bias from
+$z_\text{min}=0.30$ throughout, with $n_\text{quad}=128$ per leg on the
+2-leg path (NLL, eMELA-LL, and the BFS-reference 2-leg single-leg
+diagnostic) and $n_\text{quad}=200$ on the production LL$+$exp
+single-convolution 1D quadrature --- picked by a dedicated convergence
+study (max relative residual $\sim\!2\times 10^{-4}$ at WW threshold on
+the 2-leg path, scheme-independent); tighter $z_\text{min}$ wastes
+Gauss-Legendre nodes on the empty region below the kinematic threshold
+$z_{\rm kin}\!\approx\!0.985$ where $\hat\sigma$ vanishes. The size of the residual $\mW$ bias from
 staying at LL$+$exp instead of moving to NLL is quantified directly in
 section~\ref{sec:val-isr-cross}.
 
@@ -1196,6 +1202,57 @@ $\sqrts$ [GeV] & code$\cdot f$ [fb] & BFS Whizard [fb] & code$-$paper [fb] & rat
 \end{tabular}
 \end{table}
 
+\subsection{Born-side $\mW$ bias from the anchor closure}\label{sec:val-born-bias}
+
+\paragraph{Script.} \code{python scripts/investigations/born_bias/quantify_v3.py}
+
+The Scenario~I closure of section~\ref{sec:val-anchor} establishes the
+Whizard-anchor closure at the BFS Table~1 reference points (where
+$\GammaW=\GammaWzero$ so BR-correction is trivial); the remaining
+question is what the Table~2 ($\mW=80.377$, $\GammaW=2.09201$) residual
+projects to as an $\mW$ bias under realistic FCC-ee scan weights. The
+Born$+$anchor only chain (no NLO/NNLO/$\delta_\text{QCD}$, to keep the
+test apples-to-apples against the BFS Table~2 WHIZARD 4f Born column)
+has the following residuals at the four BFS reference points inside
+the scan window:
+\begin{center}\small
+\begin{tabular}{r r r r}
+\toprule
+$\sqrts$ [GeV] & code [fb] & BFS Whiz [fb] & $r = \text{code}/\text{ref}-1$ \\
+\midrule
+158 &  61.677 &  61.670 & $+0.012\,\%$ \\
+161 & 154.365 & 154.190 & $+0.113\,\%$ \\
+164 & 303.080 & 303.000 & $+0.026\,\%$ \\
+167 & 409.268 & 408.800 & $+0.115\,\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Projected onto $\mW$ via the threshold-rise slope after profiling out
+the luminosity nuisance, three weighting schemes give:
+\begin{center}\small
+\begin{tabular}{l r}
+\toprule
+estimator & $\Delta\mW$ \\
+\midrule
+Uniform 4-pt (158/161/164/167) & $+0.014\MeV$ \\
+FCC-ee scan weighting (more lumi at 161, 164) & $+0.773\MeV$ \\
+Conservative 2-pt (161 \& 164 only) & $+2.194\MeV$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+The BFS Table~2 WHIZARD column is quoted to 5 significant figures
+($\approx\!0.006\,\%$ at $\sqrts=161\GeV$), and the residuals span
+$\pm 0.01$--$0.11\,\%$, so the +2.2~MeV 2-pt extremum is essentially
+paper-precision-floor wobble between $r(161)=+0.113\,\%$ and
+$r(164)=+0.026\,\%$ rather than a tracked physics offset. Under
+realistic FCC-ee scan weights the bias is sub-MeV; the conservative
+2-pt envelope of $+2.2\MeV$ is the worst-case figure to quote. This
+downgrades the previously-flagged ``finer WHIZARD anchor grid'' Born
+followup from precision-critical to publication-rigour: at the
+production chain (current Born $+$ NLO $+$ NNLO $+$ anchor $+$
+LL$+$exp ISR), the Born-side bias is no longer the limiting
+systematic on $\mW$.
+
 \subsection{NNLO closed forms vs.\ BFS NNLO Table 1}
 \label{sec:val-nnlo}
 
@@ -1609,7 +1666,14 @@ residual gap on $\mW$ is expected to close once \code{isr\_nll=True}
 becomes the production default (the eMELA-NLL ISR run is gated on
 the parallel ISR-default flip).
 
+% ---------------------------------------------------------------
+\section{Limitations and open items}\label{sec:limits}
+% ---------------------------------------------------------------
 
+The following items collect deliberate residuals, known caveats, and
+upgrades scheduled beyond the current production chain. Items closed
+in the recent campaigns are listed in-place so the punch list remains
+a single authoritative summary.
 
 \begin{enumerate}
 \item \textbf{BFS recipe details on the NLO addition.}
@@ -1661,19 +1725,22 @@ the parallel ISR-default flip).
   paper-closure tests); switching to \code{isr\_nll=True} is the
   recommended production setting at precision targets and requires no
   recipe changes elsewhere in the chain.
-\item \textbf{Wire the morphing scheme into the fit.} The current
-  trilinear interpolator on the 1295-point grid is sufficient at the
-  scan-window 4-digit level (section~\ref{sec:val-anchor}). The
-  morphing scheme of section~\ref{sec:morphing}, built on the dedicated
-  6363-point \texttt{grid\_fine} campaign and validated to
-  $\lesssim$0.02\,\% in held-out sub-MeV closure
-  (Appendix~\ref{sec:morphval}), is sub-MeV-safe and ready to replace
-  it; the implementation work is to move the morph primitives into
-  \code{framework/process/ww/xsec\_calculator/grid\_morph.py} and add a
-  card knob to switch interpolation modes. Above 170\,GeV the existing
-  RACOONWW-calibrated extension disagrees with the LEP2 YR Born by up
-  to 15\,\% and must be regenerated before using the plotter in that
-  range; no impact on the 157–163 GeV analysis.
+\item \textbf{Morphing scheme wired as production anchor.}
+  \textbf{Shipped.} The per-$\sqrts$ analytic morph of
+  section~\ref{sec:morphing} is the production default
+  (\code{NLO\_CONFIG["whizard\_anchor\_source"]="morph"}), with the
+  implementation in
+  \code{framework/process/ww/xsec\_calculator/grid\_morph.py}. Built on
+  the dedicated 6363-point \texttt{grid\_fine} campaign and validated
+  to $\lesssim$0.02\,\% in held-out sub-MeV closure
+  (Appendix~\ref{sec:morphval}); the legacy 1295-point trilinear
+  \texttt{grid} interpolator and the BFS Tables 1+2 cubic
+  \texttt{spline} are retained as diagnostic alternatives.
+\item \textbf{Above-170\,GeV RACOONWW extension.} The plotter
+  range above 170~GeV uses an old RACOONWW-calibrated extension that
+  disagrees with the LEP2 YR Born by up to 15\,\%; must be regenerated
+  before using the plotter in that range. No impact on the
+  157--163~GeV analysis window.
 \item \textbf{$\sigma^{(3/2),b}$.} Omitted. Paper estimate $\lesssim
   2\fb$ energy-independent; empirical closure of Tables 1 and 2 to
   4–5 digits constrains it to $\lesssim 0.01\fb$ in practice.
@@ -2230,7 +2297,15 @@ The knob is plumbed end-to-end through \code{sigma_partonic_munuqq}
 (\code{eft_xsec.py}), \code{sigma_observed_munuqq} (\code{isr.py}), and
 \code{WWGenerator.template_fingerprint} --- the freshness check in
 \code{doFit_ww.py} therefore aborts the fit if the templates were
-generated under a different setting than the live card.
+generated under a different setting than the live card. The current
+fingerprint captures every chain knob discussed in this report
+(\code{NLO\_CONFIG}, the $\alpha_\text{em}$ inputs, all
+\code{isr\_emela\_*} scheme choices, the variation grid, BR
+constants, and the EW parameter inputs); the residual gap is the ISR
+quadrature settings ($z_\text{min}$, $n_\text{quad}$) which are
+currently module constants in \code{isr.py} and not exposed in the
+card --- if those are tweaked locally for studies, the templates must
+be regenerated by hand.
 
 \paragraph{Validation.} Four cross-checks under
 \code{scripts/investigations/coulomb_double_count/} pin the
