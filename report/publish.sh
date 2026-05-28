@@ -72,6 +72,17 @@ else
     echo "[publish] WARN: $COUL_SRC not found — Coulomb figs may be stale"
 fi
 
+# ISR diagnostic figure (3-way scheme comparison): produced by
+# scripts/investigations/nll_isr/plot_isr_comparison.py, output at
+# plots/isr_comparison.pdf (gitignored).
+ISR_SRC="../plots/isr_comparison.pdf"
+if [[ -f "$ISR_SRC" ]]; then
+    mkdir -p figs
+    cp -p "$ISR_SRC" "figs/isr_comparison.pdf"
+else
+    echo "[publish] WARN: $ISR_SRC missing — ISR-scheme figure will be stale"
+fi
+
 # Build twice so references resolve.
 echo "[publish] building $TEX.pdf"
 pdflatex -interaction=nonstopmode -halt-on-error "$TEX.tex" >/dev/null
