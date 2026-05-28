@@ -111,9 +111,10 @@ _DEFAULT_ISR_ALPHA = alpha_Gmu(M_W_BFS_REF)   # α_Gμ at the BFS reference m_W;
 # ISR radiator
 # ---------------------------------------------------------------------------
 
-def beta_ISR(s: float, alpha_em: float | None = None) -> float:
+def beta_ISR(s: float, alpha_em: float | None = None,
+             isr_scale_factor: float = 1.0) -> float:
     """LL exponent for the e+e- system (both legs combined):
-        β = (2α/π) (ln(s/m_e²) - 1).   At √s = 161 GeV: β ≈ 0.113-0.117.
+        β = (2α/π) (ln(ξ²s/m_e²) - 1).   At √s = 161 GeV, ξ=1: β ≈ 0.113-0.117.
 
     The α used here is configurable: BFS prescribes "α_Gμ everywhere
     including the initial-state radiation" (arXiv:0707.0773 line 2514).
@@ -122,10 +123,17 @@ def beta_ISR(s: float, alpha_em: float | None = None) -> float:
     here is α_Gμ at m_W (the BFS prescription) for consistency with the
     rest of the BFS chain — pass ``alpha_em=ALPHA_EM_0`` for the
     historical α(0) convention.
+
+    ``isr_scale_factor`` = ξ rescales the ISR factorisation scale
+    Q² → ξ² s inside the LL log; symmetric ξ ∈ {0.5, 1, 2} is the
+    standard factor-2 scale-variation envelope. The leading log captures
+    the bulk of the scale dependence at LL; the eMELA NLL path (in
+    sigma_ISR_2leg_convolution) absorbs much of it in the DGLAP
+    evolution, leaving the residual N²LL piece as the theory uncertainty.
     """
     if alpha_em is None:
         alpha_em = _DEFAULT_ISR_ALPHA
-    L_e = np.log(s / (M_E * M_E))
+    L_e = np.log(isr_scale_factor * isr_scale_factor * s / (M_E * M_E))
     return (2.0 * alpha_em / np.pi) * (L_e - 1.0)
 
 
@@ -243,6 +251,7 @@ def sigma_ISR_convolution(sqrt_s,
                           z_min: float = _Z_MIN_DEFAULT,
                           n_quad: int = 200,
                           alpha_em_isr: float | None = None,
+                          isr_scale_factor: float = 1.0,
                           **sigma_kwargs):
     """
     σ_obs(√s) = ∫_{z_min}^1 H(z; s) σ̂(z·s) dz.
@@ -263,7 +272,8 @@ def sigma_ISR_convolution(sqrt_s,
 
     for idx, sq in enumerate(sqrt_s_arr):
         s = sq * sq
-        beta = beta_ISR(s, alpha_em=alpha_em_isr)
+        beta = beta_ISR(s, alpha_em=alpha_em_isr,
+                        isr_scale_factor=isr_scale_factor)
         H_sv = H_SV(beta)
 
         u, w, z_vals, one_minus_z, jac_NS = _endpoint_substitution(
@@ -378,6 +388,10 @@ def sigma_ISR_2leg_convolution(sqrt_s,
                                emela_pert_order: str = "NLL",
                                emela_fac_scheme: str = "DELTA",
                                emela_ren_scheme: str = "ALGMU",
+                               # ISR factorisation scale ξ. Q² → ξ²·s in the
+                               # LL log (β_ISR) and Q → ξ·√s in eMELA DGLAP
+                               # evolution.  Symmetric ξ ∈ {0.5,1,2} envelope.
+                               isr_scale_factor: float = 1.0,
                                n_jobs: int = 6,
                                **sigma_kwargs):
     """Two-leg double-convolution ISR (BFS eq. 71):
@@ -462,6 +476,7 @@ def sigma_ISR_2leg_convolution(sqrt_s,
             emela_pert_order=emela_pert_order,
             emela_fac_scheme=emela_fac_scheme,
             emela_ren_scheme=emela_ren_scheme,
+            isr_scale_factor=isr_scale_factor,
             n_jobs=1,
             **sigma_kwargs,
         )
@@ -474,7 +489,8 @@ def sigma_ISR_2leg_convolution(sqrt_s,
 
     for idx, sq in enumerate(sqrt_s_arr):
         s = sq * sq
-        beta = beta_ISR(s, alpha_em=alpha_em_isr)
+        beta = beta_ISR(s, alpha_em=alpha_em_isr,
+                        isr_scale_factor=isr_scale_factor)
 
         u, w, x_vals, one_minus_x, jac_NS = _endpoint_substitution(
             beta / 2.0, x_min, n_quad)
@@ -495,7 +511,7 @@ def sigma_ISR_2leg_convolution(sqrt_s,
             # Limit x_i → 1 (omx_i → 0): substitute analytic H_SV limit.
             H_sv_em = _H_SV_per_leg(beta, nll=nll, alpha_em=alpha_a)
             per_leg_em = np.empty_like(x_vals)
-            Q = float(sq)
+            Q = float(sq) * isr_scale_factor
             for i in range(len(x_vals)):
                 omx_i = float(one_minus_x[i])
                 if omx_i < 1e-15:
@@ -565,6 +581,9 @@ def sigma_observed_munuqq(sqrt_s,
                           isr_emela_pert_order: str = "NLL",
                           isr_emela_fac_scheme: str = "DELTA",
                           isr_emela_ren_scheme: str = "ALGMU",
+                          # ISR factorisation scale ξ ∈ {0.5, 1, 2}. Affects
+                          # both LL log (β_ISR) and eMELA DGLAP Q = ξ·√s.
+                          isr_scale_factor: float = 1.0,
                           coulomb_kc_safe: bool = False,
                           decay_uses_full_born: bool = True,
                           m_t: float = M_T_DEFAULT,
@@ -596,6 +615,8 @@ def sigma_observed_munuqq(sqrt_s,
         alpha_em=alpha_em,
         # ISR-β α_em consumed by the convolution itself (beta_ISR call).
         alpha_em_isr=alpha_em_isr,
+        # ISR factorisation scale ξ consumed by beta_ISR + eMELA Q.
+        isr_scale_factor=isr_scale_factor,
         channel=channel,
         include_coulomb=include_coulomb,
         bfs=bfs,

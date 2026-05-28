@@ -49,12 +49,20 @@ NLO_CONFIG = {
     # analytic β³-truncated formula.  Quantifies LL truncation (~+0.8% at WW).
     # Mutually exclusive with isr_nll.  Forces 2leg.
     "isr_emela_ll":           False,
-    # eMELA scheme knobs.  BFS prescription: pert_order=NLL, fac=DELTA,
-    # ren=ALGMU (α_Gμ).  ren="ALPMZ" + α(M_Z) is the α_em_isr scheme-variation
-    # nuisance (see reference_emela_nll_isr.md).
+    # eMELA scheme knobs.  Production default switched 2026-05-28 from
+    # ALGMU (α_Gμ ≈ 1/132.1) to ALPMZ (α(M_Z) ≈ 1/128.9): the BFS hard
+    # σ̂ and the ISR β_e are formally independent at NLL, and α(M_Z) is
+    # what FCC-ee will actually measure (A_FB^μμ off-peak — Riembau).
+    # Paired with PARAM_INPUTS["alpha_em_isr"] = 1/128.943.
+    # ALGMU revert is the scheme-variation diagnostic (see reference_emela_nll_isr.md).
     "isr_emela_pert_order":   "NLL",
     "isr_emela_fac_scheme":   "DELTA",
-    "isr_emela_ren_scheme":   "ALGMU",
+    "isr_emela_ren_scheme":   "ALPMZ",
+    # ISR factorisation scale ξ. Central Q = √s; symmetric ξ ∈ {0.5,1,2}
+    # is the standard factor-2 envelope. Enters the LL log of β_ISR and
+    # the eMELA DGLAP scale (Q = ξ·√s). NLL absorbs the leading scale
+    # dependence; residual = N²LL theory unc on ISR.
+    "isr_scale_factor":       1.0,
     # α_em values (σ chain + ISR) live in PARAM_INPUTS — both default to
     # derived (α_Gμ on σ side; α_Gμ(M_W_BFS_REF) on ISR side per BFS
     # prescription).

@@ -154,6 +154,7 @@ def observed_kwargs_from_card(card) -> dict:
         "isr_emela_pert_order":  str(nlo.get("isr_emela_pert_order", "NLL")),
         "isr_emela_fac_scheme":  str(nlo.get("isr_emela_fac_scheme", "DELTA")),
         "isr_emela_ren_scheme":  str(nlo.get("isr_emela_ren_scheme", "ALGMU")),
+        "isr_scale_factor":      float(nlo.get("isr_scale_factor", 1.0)),
         "alpha_em_isr":          theory.get("alpha_em_isr", None),
     }
 
@@ -196,6 +197,7 @@ class WWGenerator:
                  isr_emela_pert_order: str = "NLL",
                  isr_emela_fac_scheme: str = "DELTA",
                  isr_emela_ren_scheme: str = "ALGMU",
+                 isr_scale_factor: float = 1.0,
                  alpha_em_isr: float | None = None,
                  coulomb_kc_safe: bool = False,
                  decay_uses_full_born: bool = True,
@@ -226,6 +228,7 @@ class WWGenerator:
         self.isr_emela_pert_order = isr_emela_pert_order
         self.isr_emela_fac_scheme = isr_emela_fac_scheme
         self.isr_emela_ren_scheme = isr_emela_ren_scheme
+        self.isr_scale_factor = isr_scale_factor
         self.alpha_em_isr = alpha_em_isr
         self.coulomb_kc_safe = coulomb_kc_safe
         self.decay_uses_full_born = decay_uses_full_born
@@ -309,6 +312,7 @@ class WWGenerator:
             "isr_emela_pert_order": self.isr_emela_pert_order,
             "isr_emela_fac_scheme": self.isr_emela_fac_scheme,
             "isr_emela_ren_scheme": self.isr_emela_ren_scheme,
+            "isr_scale_factor": f"{self.isr_scale_factor:.3f}",
             "m_t":             f"{self.m_t:.3f}",
             "M_H":             f"{self.M_H:.3f}",
             "M_Z":             f"{self.MZ:.4f}",
@@ -354,7 +358,7 @@ class WWGenerator:
             f"anchor={self.apply_whizard_anchor}[{self.whizard_anchor_source}]  "
             f"ISR={self.isr_scheme} NLL={self.isr_nll} eMELA_LL={self.isr_emela_ll} "
             f"({self.isr_emela_pert_order}/{self.isr_emela_fac_scheme}/{self.isr_emela_ren_scheme}; "
-            f"α_em_isr={a_isr})  "
+            f"ξ={self.isr_scale_factor:.2f}; α_em_isr={a_isr})  "
             f"α_em_chain={a_chain}  "
             f"m_t={self.m_t} M_H={self.M_H} M_Z={self.MZ}"
         )
@@ -422,6 +426,7 @@ class WWGenerator:
             isr_emela_pert_order=self.isr_emela_pert_order,
             isr_emela_fac_scheme=self.isr_emela_fac_scheme,
             isr_emela_ren_scheme=self.isr_emela_ren_scheme,
+            isr_scale_factor=self.isr_scale_factor,
             alpha_em=self.alpha_em,
             alpha_em_isr=self.alpha_em_isr,
             coulomb_kc_safe=self.coulomb_kc_safe,

@@ -17,14 +17,17 @@ PARAMETERS = {
 # External parameter inputs and uncertainties
 # ---------------------------------------------------------------------------
 # Production defaults are PDG 2024. α_em=None → derived α_Gμ (σ chain);
-# α_em_isr=None → α_Gμ(M_W_BFS_REF) per BFS prescription. See cards/README.md.
+# α_em_isr now set to α(M_Z) = 1/128.943 (PDG; Riembau/FCC-ee A_FB^μμ
+# off-peak is the projected uncertainty, see PARAM_UNC). Pair with
+# NLO_CONFIG["isr_emela_ren_scheme"]="ALPMZ" so eMELA evolves DGLAP
+# from the same input. See cards/README.md.
 PARAM_INPUTS = {
-    "m_t":          172.5,    # GeV, OS pole — FCC-ee FSR Table 2 (was 174.2 = BFS ref)
-    "M_H":          125.25,   # GeV
-    "M_Z":          91.1876,  # GeV
-    "alpha_s_MW":   0.1199,   # α_s(M_W) MS-bar
-    "alpha_em":     None,     # σ chain override; None → α_Gμ(m_W, M_Z)
-    "alpha_em_isr": None,     # ISR β_e override; None → α_Gμ(M_W_BFS_REF)
+    "m_t":          172.5,        # GeV, OS pole — FCC-ee FSR Table 2 (was 174.2 = BFS ref)
+    "M_H":          125.25,       # GeV
+    "M_Z":          91.1876,      # GeV
+    "alpha_s_MW":   0.1199,       # α_s(M_W) MS-bar
+    "alpha_em":     None,         # σ chain override; None → α_Gμ(m_W, M_Z) (Gμ scheme, unchanged)
+    "alpha_em_isr": 1.0/128.943,  # α(M_Z), PDG; paired with isr_emela_ren_scheme=ALPMZ
 }
 
 # FCC-ee parametric uncertainties (FSR Vol. 1 arXiv:2505.00272 Table 2).
@@ -35,7 +38,10 @@ PARAM_UNC = {
     "M_Z":          1.0e-4,  # GeV (Z line-shape stat 4 ⊕ syst 100 keV)
     "alpha_s":      1.0e-4,  # FSR (Z combined: stat 0.1 ⊕ syst 1.0)×10⁻⁴
     "alpha_em":     2.4e-7,  # δα abs; FSR A_FB^μμ off-peak (~3×10⁻⁵ rel)
-    "alpha_em_isr": 1.0e-7,  # ISR scheme/scale variation (not direct FCC-ee obs)
+    "alpha_em_isr": 2.4e-7,  # δα(M_Z) abs; FCC-ee A_FB^μμ off-peak (Riembau).
+                             # Independent of alpha_em above (Option B): hard σ̂
+                             # uses α_Gμ via G_F; ISR uses α(M_Z) → distinct
+                             # physical inputs, uncorrelated nuisances.
 }
 
 # ---------------------------------------------------------------------------
