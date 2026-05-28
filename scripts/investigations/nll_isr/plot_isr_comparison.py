@@ -88,7 +88,12 @@ sig_born = np.array([
     for sq in SQ_GRID
 ], dtype=float)
 
-ISR_KW = dict(mW=MW, gammaW=GW, x_min=X_MIN, n_quad=N_QUAD, **BORN_KW)
+ISR_KW = dict(mW=MW, gammaW=GW, x_min=X_MIN, n_quad=N_QUAD,
+              # Pin to ALGMU explicitly so this diagnostic plot stays
+              # consistent with the eMELA init above (line 57) regardless
+              # of the sigma_ISR_2leg_convolution default.
+              emela_ren_scheme="ALGMU",
+              **BORN_KW)
 
 print("2/4  Born + LL ISR (isr.py 2-leg β-scheme) ...", flush=True)
 sig_ll = sigma_ISR_2leg_convolution(

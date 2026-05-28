@@ -58,6 +58,7 @@ def run(sqgrid, n_quad, x_min, *, nll):
         sqgrid, sigma_partonic_munuqq,
         mW=MW, gammaW=GW, x_min=x_min, n_quad=n_quad,
         nll=nll, n_jobs=12,
+        emela_ren_scheme="ALGMU",  # match module-level em.initialize above
         **BORN_KW,
     )
 
@@ -67,6 +68,7 @@ def slope_dsigma_dmw(n_quad, x_min, *, nll):
         sigma_partonic_fn=sigma_partonic_munuqq,
         gammaW=GW, x_min=x_min, n_quad=n_quad,
         nll=nll, n_jobs=1,
+        emela_ren_scheme="ALGMU",  # match module-level em.initialize above
         **BORN_KW,
     )
     sig_p = sigma_ISR_2leg_convolution(SQ_SLOPE, mW=MW + DELTA_MW, **kw)

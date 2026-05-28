@@ -381,13 +381,14 @@ def sigma_ISR_2leg_convolution(sqrt_s,
                                alpha_em_isr: float | None = None,
                                nll: bool = False,
                                emela_ll: bool = False,
-                               # eMELA scheme knobs.  BFS prescription
-                               # (DELTA + ALGMU) is the default; ren_scheme
-                               # = "ALPMZ" is the scheme-variation nuisance
-                               # for α_em_isr (see reference_emela_nll_isr).
+                               # eMELA scheme knobs.  Production default
+                               # (DELTA + ALPMZ + α(M_Z)) since 2026-05-28
+                               # matches the card; ALGMU is the
+                               # scheme-variation diagnostic (BFS prescription;
+                               # see reference_emela_nll_isr).
                                emela_pert_order: str = "NLL",
                                emela_fac_scheme: str = "DELTA",
-                               emela_ren_scheme: str = "ALGMU",
+                               emela_ren_scheme: str = "ALPMZ",
                                # ISR factorisation scale ξ. Q² → ξ²·s in the
                                # LL log (β_ISR) and Q → ξ·√s in eMELA DGLAP
                                # evolution.  Symmetric ξ ∈ {0.5,1,2} envelope.

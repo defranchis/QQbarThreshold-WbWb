@@ -146,7 +146,8 @@ print(SEP)
 
 sq_fine = np.array([157., 158., 159., 160., 161., 162., 163., 165., 170.])
 sig_ll_f  = sigma_ISR_2leg_convolution(sq_fine, sigma_partonic_munuqq, nll=False)
-sig_nll_f = sigma_ISR_2leg_convolution(sq_fine, sigma_partonic_munuqq, nll=True)
+sig_nll_f = sigma_ISR_2leg_convolution(sq_fine, sigma_partonic_munuqq, nll=True,
+                                       emela_ren_scheme="ALGMU")
 
 print(f"  {'√s':>6}  {'σ_LL [pb]':>12}  {'σ_NLL [pb]':>12}  {'NLL/LL−1 [%]':>14}")
 for sq, sll, snll in zip(sq_fine, sig_ll_f, sig_nll_f):
@@ -172,7 +173,10 @@ _stdout_on()
 
 sig_nll_alpmz = sigma_ISR_2leg_convolution(
     sq_fine, sigma_partonic_munuqq, nll=True,
-    alpha_em_isr=ALPHA_MZ)
+    alpha_em_isr=ALPHA_MZ,
+    emela_ren_scheme="ALPMZ")  # match the em.initialize above (was relying
+                               # on a buggy ALGMU function default before
+                               # 2026-05-28 flip)
 
 # Restore ALGMU for subsequent use
 _stdout_off()
