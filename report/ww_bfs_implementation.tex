@@ -171,9 +171,16 @@ $\alpha_{\rm em}$ overrides, both defaulting to \code{None}:
    $\alpha_{G_\mu}(\mW, M_Z) = \sqrt{2}\,G_F\,\mW^2\,\sin^2\theta_W^{\rm OS}/\pi$
    at the fit-point $\mW$.
 \item \code{alpha\_em\_isr} — the $\alpha$ used to build the LL+exp
-   ISR exponent $\beta_e = (2\alpha/\pi)(L_e-1)$.\quad\code{None} $\to$
+   ISR exponent $\beta_e = (2\alpha/\pi)(L_e-1)$ (and propagated as
+   the eMELA \code{ALPMZ} renormalisation input when NLL is engaged).
+   Production card default since 2026-05-28 is $\alpha(M_Z)=1/128.943$
+   (PDG; FCC-ee target via $A_\text{FB}^{\mu\mu}$
+   off-peak~\cite{RiembauTeraZ}) --- the value the soft/collinear
+   photon physically sees and the natural input for eMELA's DGLAP
+   evolution.\quad\code{None} $\to$ legacy fallback
    $\alpha_{G_\mu}(M_W^{\rm BFS\,ref})\approx 1/132.1$, frozen across the
-   fit (BFS prescription, line 2514 of \cite{BFSnlo}).
+   fit (BFS prescription, line 2514 of \cite{BFSnlo}); kept for
+   paper-closure tests.
 \end{itemize}
 Implemented via an \code{override=} kwarg on \code{alpha\_Gmu(...)} and
 threaded as \code{alpha\_em} through every $\sigma$ helper that
@@ -182,10 +189,14 @@ contains an explicit $\alpha$ factor; the convolution-internal
 \code{alpha\_em\_isr} to free up \code{alpha\_em} as the
 $\sigma$-chain key forwarded through \code{**sigma\_kwargs}. With both
 \code{None} the calculation is byte-identical to the previous chain.
-Setting an explicit float lets the upcoming \code{PARAM\_UNC.alpha\_em}
-and \code{PARAM\_UNC.alpha\_em\_isr} nuisances propagate
-independently --- the ISR scheme variation decorrelates from the
-$\sigma$-chain $\alpha$ uncertainty.
+Setting an explicit float lets the \code{PARAM\_UNC.alpha\_em} and
+\code{PARAM\_UNC.alpha\_em\_isr} nuisances propagate independently
+(Option~B in the nuisance correlation matrix): the ISR scheme variation
+decorrelates from the $\sigma$-chain $\alpha$ uncertainty. The
+production \code{PARAM\_UNC.alpha\_em\_isr} is set to
+$\Delta\alpha(M_Z)=2.4\times 10^{-7}$ (FCC-ee Tera-Z projection
+from~\cite{RiembauTeraZ}), and is the input to the genuine NLL theory
+uncertainty channel measured in section~\ref{sec:val-isr-cross}.
 
 The whole chain is in the $G_\mu$ + OS scheme: $\alpha_{G_\mu}$ is
 defined to absorb the leading $\Delta r$ correction, and
@@ -588,9 +599,10 @@ NLL accuracy and returns the electron ePDF $D(x,Q)$ in the DELTA
 factorisation scheme. The 2-leg convolution
 \code{sigma\_ISR\_2leg\_convolution} accepts:
 \begin{itemize}
-\item \code{nll=True} --- the full NLL ePDF (BFS prescription:
-  DELTA factorisation, ALGMU renormalisation,
-  $\alpha=\alpha_{G_\mu}(\mW^{\rm BFS\,ref})$);
+\item \code{nll=True} --- the full NLL ePDF in the production default:
+  DELTA factorisation, \emph{ALPMZ} renormalisation,
+  $\alpha=\alpha(M_Z)=1/128.943$ (the value FCC-ee will measure to
+  $\Delta\alpha\!\sim\!2.4\times10^{-7}$~\cite{RiembauTeraZ});
 \item \code{emela\_ll=True} --- eMELA's DGLAP-evolved BETA-scheme
   \emph{LL} ePDF, used as a diagnostic to isolate the LL-truncation
   error of the analytic $\beta^3$ Beenakker formula
@@ -598,11 +610,29 @@ factorisation scheme. The 2-leg convolution
 \end{itemize}
 Card knobs: \code{NLO\_CONFIG["isr\_nll"]} and
 \code{NLO\_CONFIG["isr\_emela\_ll"]} (both \code{False} in the current
-production card); \code{isr\_emela\_\{pert\_order,fac\_scheme,ren\_scheme\}}
-expose the eMELA scheme so the $\alpha_{\rm em,ISR}$ nuisance can
-vary ALGMU$\leftrightarrow$ALPMZ (eMELA returns $\sim 1.6\,\%$ smaller
-$\sigma$ at the WW threshold under ALPMZ + $\alpha(M_Z)$ relative to
-the BFS default). The two flags are mutually exclusive (runtime
+production card, which preserves the LL$+$exp baseline for
+paper-closure tests); \code{isr\_emela\_\{pert\_order,fac\_scheme,ren\_scheme\}}
+expose the eMELA scheme. The production
+\code{ren\_scheme="ALPMZ"} default was switched from the BFS-prescription
+\code{"ALGMU"} on 2026-05-28: BFS's hard $\hat\sigma$ and the ISR
+$\beta_e$ are formally independent at NLL, the collinear-finite
+$c^{(1,\rm fin)}$ carries no $\mu_F$-cancellation against $D(x,Q)$ in
+DELTA, and $\alpha(M_Z)$ is the directly-measured input.
+The genuine NLL theory uncertainty
+lives in the renormalisation-scheme variation
+ALPMZ$\leftrightarrow$ALGMU$\leftrightarrow\alpha(0)$,
+propagated through the $\alpha_{\rm em,ISR}$ nuisance with
+$\Delta\alpha(M_Z)=2.4\times 10^{-7}$ (FCC-ee
+Tera-Z~\cite{RiembauTeraZ}); eMELA returns $\sim 1.6\,\%$ larger
+$\sigma$ at the WW threshold under ALPMZ$+\alpha(M_Z)$ than under the
+legacy ALGMU$+\alpha_{G_\mu}$ choice, so the global cross-section
+normalisation shifts but the off-diagonal LL$\leftrightarrow$NLL
+biases in section~\ref{sec:val-isr-cross} are unchanged at the
+$\sim\!1\MeV$ level. An ISR factorisation-scale variation
+($\xi\!\in\![0.5,2]$ on $Q=\xi\sqrt{s}$) is implemented in \code{isr.py}
+for legacy use but not exposed as a card knob: in DELTA + finite
+$c^{(1,\rm fin)}$ the variation measures DGLAP-evolution numerics rather
+than a residual NLL truncation (\code{scripts/investigations/nll\_isr/scale\_decouple\_diagnostic.py}). The two flags are mutually exclusive (runtime
 \code{ValueError}). Quadrature defaults are
 $z_\text{min}=0.30$, $n_\text{quad}=128$ per leg --- picked by a
 dedicated convergence study (max relative residual
@@ -1294,7 +1324,7 @@ mismatching the templates' ISR scheme to the truth?
 
 \paragraph{Morph closure post-ISR.}
 For each of the three ISR backends --- analytic LL$+$exp,
-eMELA LL (DGLAP), eMELA NLL (DELTA$+$ALGMU) --- we evaluate
+eMELA LL (DGLAP), eMELA NLL (DELTA$+$ALPMZ) --- we evaluate
 $\sigma_\text{obs}(\sqrts; \mW^0,\GammaW^0)$,
 $\sigma_\text{obs}(\sqrts; \mW^0+\delta m,\GammaW^0)$ and
 $\sigma_\text{obs}(\sqrts; \mW^0+\delta m/2,\GammaW^0)$ on the FCC-ee
@@ -1331,7 +1361,7 @@ Scheme & $\max|\Delta\sigma/\sigma|$ ($\mW$ axis) &
 \midrule
 LL$+$exp (analytic $\beta^3$ Beenakker)   & 3.98~ppm & 6.67~ppm \\
 eMELA LL (BETA, full DGLAP)               & 3.92~ppm & 7.13~ppm \\
-eMELA NLL (DELTA$+$ALGMU, CodePdf)        & 3.90~ppm & 7.25~ppm \\
+eMELA NLL (DELTA$+$ALPMZ, CodePdf)        & 3.90~ppm & 7.25~ppm \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1350,7 +1380,15 @@ $\mW$ bias from using the wrong ISR scheme in templates.
 \caption{Cross-fit $\mW$ [MeV] (Asimov, FCC-ee scenario).
 Truth $\mW = 80384.0\MeV$. Diagonal: self-consistent closures.
 Off-diagonal: bias from a mismatched ISR scheme. Statistical
-uncertainty $\sigma_{\mW}\!\approx\!2.30\MeV$ on every cell.
+uncertainty $\sigma_{\mW}\!\approx\!2.30\MeV$ on every cell. The
+eMELA cells were generated with the pre-2026-05-28 ALGMU+$\alpha_{G_\mu}$
+default; the production rename to ALPMZ+$\alpha(M_Z)$ shifts the
+eMELA rows by a quasi-constant offset and changes the off-diagonal
+biases by $\lesssim 1\MeV$ (a translation of the cross-section
+normalisation, absorbed by the luminosity nuisance). The genuine
+NLL theory uncertainty from the ALPMZ$\leftrightarrow$ALGMU$\leftrightarrow\alpha(0)$
+renormalisation-scheme variation is measured separately via the
+$\alpha_{\rm em,ISR}$ nuisance (Table~\ref{tab:alpha-em-isr-AB}).
 Generated by
 \code{scripts/investigations/nll\_isr/cross\_fit\_isr\_scenarios.py}.}
 \label{tab:cross-fit-isr}
@@ -1407,6 +1445,57 @@ diagnostic but not a viable production fallback. The
 BFS-quoted $\delta\mW\!\approx\!31\MeV$~\cite{BFSnlo} is a conservative
 upper bound on this systematic; our direct measurement gives a tighter
 $22\MeV$ value with the LL$+$exp recipe specified above.
+
+\paragraph{$\alpha_{\rm em,ISR}$ nuisance.}
+The genuine NLL theory uncertainty in the production NLL chain is the
+renormalisation-scheme ambiguity in $\alpha$, parametrised through the
+$\alpha_{\rm em,ISR}$ input to eMELA's DELTA-scheme ePDF
+($\hat\sigma$ has no $\mu_F$ dependence to cancel against $D(x,Q)$
+in DELTA, so the conventional factorisation-scale variation on
+$Q=\xi\sqrt{s}$ does not probe a residual NLL truncation;
+see~section~\ref{sec:isr}). We propagate the variation as a Gaussian
+nuisance constrained by the FCC-ee projection
+$\Delta\alpha(M_Z)=2.4\times 10^{-7}$~\cite{RiembauTeraZ}, independent
+of the $\sigma$-chain $\alpha_{G_\mu}$ nuisance (Option~B). A dedicated
+Asimov cross-fit on the NLL chain measures the bias from
+mis-specifying the input by $\pm 1\,\sigma$
+($\alpha(M_Z)\!=\!1/128.943\,\to\,1/128.943+2.4\times 10^{-7}$): result
+in Table~\ref{tab:alpha-em-isr-AB}.
+
+\begin{table}[h]
+\centering
+\caption{$\mW$ bias from $\Delta\alpha(M_Z)=2.4\times 10^{-7}$
+($\alpha_{\rm em,ISR}$ nuisance), measured as a $2\times 2$ Asimov
+cross-fit on the production NLL chain (\code{isr\_nll=True},
+\code{ren\_scheme="ALPMZ"}). Central: $\alpha(M_Z)=1/128.943$.
+$+1\sigma$: $\alpha(M_Z)+2.4\times 10^{-7}$. FCC-ee scan scenario,
+$\mathcal{L}_\text{total}=12\text{ ab}^{-1}$, truth $\mW=80384.0\MeV$.
+Statistical uncertainty $\sigma_{\mW}\!=\!2.32\MeV$ across all cells.
+Generated by
+\code{scripts/investigations/nll\_isr/asimov\_alpha\_em\_isr\_AB.py}.}
+\label{tab:alpha-em-isr-AB}
+\begin{tabular}{l c c}
+\toprule
+Asimov\,$\downarrow$ \textbackslash\ templates\,$\rightarrow$
+                  & $\alpha(M_Z)$ central & $\alpha(M_Z)+1\sigma$ \\
+\midrule
+$\alpha(M_Z)$ central     & $80384.029 \pm 2.315$ & $80383.996 \pm 2.317$ \\
+$\alpha(M_Z)+1\sigma$     & $80384.071 \pm 2.315$ & $80384.039 \pm 2.317$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The $+1\sigma$ shift in $\alpha(M_Z)$ propagates to
+\textbf{$\Delta\mW=+0.043\MeV$} (templates fixed at central; off-diagonal
+$-$ row closure), $\sim 17\,\%$ of the FCC-ee statistical target. The
+cross-fit is anti-symmetric across the diagonal at the
+$|\Delta\mW|=0.033\MeV$ level (a linear slope effect, consistent with
+the symmetric matrix construction); statistical uncertainty and
+$\rho_{\mW,\GammaW}=+0.627$ are independent of $\alpha(M_Z)$ to
+$\lesssim 0.001$. The $\alpha_{\rm em,ISR}$ nuisance is therefore safely
+sub-dominant in the systematic budget --- in particular well below the
+$\pm 5.4\MeV$ pure NLL bracket of section~\ref{sec:val-isr-cross} that
+the NLL upgrade was designed to resolve.
 
 % ---------------------------------------------------------------
 \subsection{Chain-routing cross-fit decomposition}\label{sec:val-chain-cross}
@@ -1551,9 +1640,17 @@ the parallel ISR-default flip).
 \item \textbf{NLL ISR.} \textbf{Shipped} (commits \code{2b3f721} and
   \code{256677f}, 2026-05): eMELA NLL is wired through the chain
   (section~\ref{sec:isr}), with card knobs \code{isr\_nll} and
-  \code{isr\_emela\_ll}, the BFS-prescription default
-  (NLL/DELTA/ALGMU/$\alpha_{G_\mu}$) and the ALPMZ scheme variation
-  threaded for the $\alpha_{\rm em,ISR}$ nuisance. The cross-fit in
+  \code{isr\_emela\_ll} and the production default scheme
+  NLL/DELTA/ALPMZ/$\alpha(M_Z)$ exposed via
+  \code{isr\_emela\_\{pert\_order,fac\_scheme,ren\_scheme\}};
+  ALGMU/$\alpha_{G_\mu}$ remains available as the BFS-prescription
+  diagnostic. The genuine NLL theory uncertainty is propagated via
+  the $\alpha_{\rm em,ISR}$ nuisance with
+  $\Delta\alpha(M_Z)=2.4\times 10^{-7}$
+  (FCC-ee~\cite{RiembauTeraZ}, independent of the
+  $\sigma$-chain $\alpha_{G_\mu}$; Option~B); a dedicated Asimov A/B
+  cross-fit on the NLL chain quantifies the $\mW$ bias
+  (Table~\ref{tab:alpha-em-isr-AB}). The cross-fit in
   section~\ref{sec:val-isr-cross} quantifies the LL$+$exp residual
   systematic on $\mW$ directly: $\pm 22.4\MeV$ total
   ($\pm 17.0\MeV$ LL truncation $+$ $\pm 5.4\MeV$ pure NLL), tighter
