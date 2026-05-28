@@ -47,9 +47,8 @@ Validation: 2-leg matches BFS Table 4 σ_obs Born×ISR to <0.5% at 158-170 GeV.
 
 from __future__ import annotations
 
-import warnings
 import numpy as np
-from scipy.special import gamma as gamma_fn, digamma, polygamma
+from scipy.special import gamma as gamma_fn
 
 from .bfs_c1fin import Li2 as _Li2
 
@@ -86,20 +85,6 @@ def _safe_log_pair(z, one_minus_z=None):
     one_minus_z = np.maximum(np.asarray(one_minus_z, dtype=float), _SAFE_FLOOR)
     z_safe = np.maximum(z_arr, _SAFE_FLOOR)
     return np.log(z_safe), np.log(one_minus_z), one_minus_z, z_arr
-
-def _A_func(kappa: float) -> float:
-    """BCFS arXiv:1911.12040 eq. Ares: A(κ) = −γ_E − ψ₀(κ)."""
-    return -EULER_GAMMA - float(digamma(kappa))
-
-
-def _B_func(kappa: float) -> float:
-    """BCFS arXiv:1911.12040 eq. Bres:
-    B(κ) = γ_E²/2 + π²/12 + γ_E ψ₀(κ) + ψ₀(κ)²/2 − ψ₁(κ)/2."""
-    psi0 = float(digamma(kappa))
-    psi1 = float(polygamma(1, kappa))
-    return (EULER_GAMMA**2 / 2.0 + np.pi**2 / 12.0
-            + EULER_GAMMA * psi0 + psi0**2 / 2.0 - psi1 / 2.0)
-
 
 # BFS prescription (arXiv:0707.0773 line 2514): use α_Gμ in the ISR β. The
 # value is evaluated at the BFS reference m_W = 80.377 since the ISR scale
@@ -399,21 +384,22 @@ def sigma_ISR_2leg_convolution(sqrt_s,
 
     Vectorised in ``sqrt_s``.
 
-    ``nll=True`` applies the BCFS arXiv:1911.12040 x-space NLL correction.
-    **NOT VALIDATED** — the x-space bracket diverges at WW threshold because
-    the endpoint-substitution nodes reach ln(1−x) ≈ −80 to −140, far outside
-    the range |ln(1−x)| ≲ 20 where the BCFS expansion is valid. The result is
-    unphysical (−5% at 161 GeV). Kept for reference; the correct path is
-    Mellin-space resummation or eMELA. Default is nll=False (LL+exp only).
+    ``nll=True`` uses the eMELA library (arXiv:1911.12040, DELTA factorisation
+    + ALGMU renormalisation) to replace the per-leg LL+exp weight with the
+    full NLL electron ePDF.  The per-leg integrand in u-space becomes
+    D_NLL(x_i, Q) × |dx/du|_i = CodePdf(11, x_i, omx_i, Q) / x_i × jac_NS_i.
+    Near x→1 (omx underflows below 1e-15): the analytic limit H_SV_NLL is
+    substituted (those nodes contribute negligibly to the sum).
+    eMELA must be importable (libeMELApy.so installed via
+    scripts/investigations/nll_isr/build_emela_wrapper.sh).
     """
+    # Initialise eMELA once before the loop (cached inside emela_wrapper).
     if nll:
-        warnings.warn(
-            "isr_nll=True (x-space BCFS NLL) is NOT VALIDATED. "
-            "The bracket diverges at WW threshold endpoint nodes "
-            "(ln(1−x) ≈ −80 to −140). Result is unphysical. "
-            "Use eMELA for NLL ISR instead.",
-            stacklevel=2,
-        )
+        from . import emela_wrapper as _emela
+        alpha_a = alpha_em_isr if alpha_em_isr is not None else _DEFAULT_ISR_ALPHA
+        _emela.initialize(pert_order="NLL", fac_scheme="DELTA",
+                          ren_scheme="ALGMU", alpha=alpha_a)
+
     sqrt_s_arr = np.atleast_1d(np.asarray(sqrt_s, dtype=float))
     out = np.zeros_like(sqrt_s_arr)
 
@@ -442,39 +428,22 @@ def sigma_ISR_2leg_convolution(sqrt_s,
         sigma_ll = np.einsum("i,j,ij->", weight_1d, weight_1d, sigma_hat)
 
         if nll:
-            # BCFS arXiv:1911.12040 NLLsol3, linearised at O(α/π):
-            #   σ_NLL = σ_LL + 2 × Σ_i w_i δ_NLL_i σ_1leg_LL_i
-            # where σ_1leg_LL_i = Σ_j w_j per_leg_j σ̂_ij is the 1-leg LL
-            # partial integral at fixed x_i.
-            #
-            # The x-space NLL bracket {1+(α/π)[C+C_log·ln(1-x)-ln²(1-x)]}
-            # is only valid for |ln(1-x)| ≲ 20.  At endpoint-substitution
-            # nodes ln(1-x) = ln(u)/κ ≈ −80 to −140 — far outside that
-            # range — so the direct (linear or exp) form diverges.  The
-            # linearised 2×Σ δ_NLL σ_1leg form correctly cancels the
-            # large-x divergence and reproduces the O(α/π) NLL result.
-            #
-            # In u-coordinates: ln(1-x) = ln(u)/κ.
-            alpha_a = alpha_em_isr if alpha_em_isr is not None else _DEFAULT_ISR_ALPHA
-            kappa = beta / 2.0
-            a_nll = _A_func(kappa)
-            b_nll = _B_func(kappa)
-            # At L₀=0:  −(A+3/4) − 2B + 7/4
-            c_const = -(a_nll + 0.75) - 2.0*b_nll + 1.75
-            # At L₀=0:  −1 − 2A
-            c_log = -1.0 - 2.0*a_nll
-            log_u = np.log(np.maximum(u, _SAFE_FLOOR))
-            # NLL bracket argument in u-space: ln(1-x) = ln(u)/κ
-            bracket_arg = (alpha_a / np.pi) * (
-                c_const + (c_log / kappa) * log_u - log_u**2 / kappa**2
-            )
-            H_sv_nll = _H_SV_per_leg(beta, nll=True, alpha_em=alpha_em_isr)
-            # δ_NLL = H_sv_nll × bracket_arg  (bracket correction)
-            #       + (H_sv_nll − H_sv)        (prefactor correction)
-            delta_sv = H_sv_nll * bracket_arg + (H_sv_nll - H_sv)
-            # σ_1leg_LL[i] = Σ_j w_j per_leg_j σ̂_ij
-            sigma_1leg = sigma_hat @ weight_1d
-            out[idx] = sigma_ll + 2.0 * np.sum(w * delta_sv * sigma_1leg)
+            # eMELA NLL per-leg integrand in u-space:
+            #   per_leg_nll[i] = D_NLL(x_i, Q) × |dx/du|_i
+            #                  = CodePdf(11, x_i, omx_i, Q) / x_i × jac_NS_i
+            # Limit x_i → 1 (omx_i → 0): per_leg_nll → H_SV_NLL (analytic).
+            H_sv_nll = _H_SV_per_leg(beta, nll=True, alpha_em=alpha_a)
+            per_leg_nll = np.empty_like(x_vals)
+            Q = float(sq)
+            for i in range(len(x_vals)):
+                omx_i = float(one_minus_x[i])
+                if omx_i < 1e-15:
+                    per_leg_nll[i] = H_sv_nll
+                else:
+                    xD = _emela.code_pdf(float(x_vals[i]), omx_i, Q)
+                    per_leg_nll[i] = xD / float(x_vals[i]) * float(jac_NS[i])
+            weight_nll = w * per_leg_nll
+            out[idx] = np.einsum("i,j,ij->", weight_nll, weight_nll, sigma_hat)
         else:
             out[idx] = sigma_ll
 
