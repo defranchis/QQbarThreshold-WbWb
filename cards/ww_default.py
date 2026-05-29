@@ -13,6 +13,18 @@ PARAMETERS = {
     "alphas": {"nominal": 0.0,    "pseudo": -0.0001,  "variation": 0.0003, "round_dec": 4},
 }
 
+# Bilinear cross-term morph: one extra corner template per pair
+# (both POIs shifted by their variation simultaneously). Captures the
+# residual non-multiplicative (m_W, Γ_W) curvature that the per-axis
+# linear morph misses. At σ_mW≈2 MeV the residual quadratic correction
+# is ~4% of the linear slope → potentially ~0.4 MeV bias if the cross
+# term is comparable; the corner template eliminates the leading-order
+# bias by closing exactly at (m_W+δm, Γ_W+δΓ).
+#
+# WW-only — WbWb card does not define CROSS_TERMS (fit-side uses
+# `getattr(card, "CROSS_TERMS", ())` so the feature stays opt-in).
+CROSS_TERMS = [("mass", "width")]
+
 # ---------------------------------------------------------------------------
 # External parameter inputs and uncertainties
 # ---------------------------------------------------------------------------

@@ -220,9 +220,12 @@ class FitCore:
 
         # Parameters --------------------------------------------------------
         card_params = card.PARAMETERS_1S if is_1s else card.PARAMETERS
+        # CROSS_TERMS is WW-only at the moment — WbWb card doesn't define it,
+        # so the getattr keeps the feature strictly opt-in.
         self.parameters = Parameters(
             card_params,
             scale_vars=scales["vars"] if read_scale_vars else [],
+            cross_terms=getattr(card, "CROSS_TERMS", ()),
         )
         self.d_params = self.parameters.as_dict()
         self.param_names = list(self.parameters.names)
@@ -278,6 +281,15 @@ class FitCore:
         self._per_kind_bin_idx = None
         self._xsec_base = None
         self._morph_matrix = None
+        # Bilinear POI×POI cross-term cache; populated by
+        # ``_build_chi2_caches`` only when the card declares ``CROSS_TERMS``
+        # and the corner templates exist on disk. ``_cross_idx`` is shape
+        # ``(n_pairs, 2)`` of param indices into ``param_names``;
+        # ``_cross_matrix`` is shape ``(n_pairs, n_ecm)`` of bilinear
+        # residuals ``(1+m_corner)/((1+m_a)(1+m_b)) - 1`` that multiply
+        # into ``th_xsec`` as ``Π (1 + p_a p_b · x_{ab})``.
+        self._cross_idx = None
+        self._cross_matrix = None
         self._cov_factor = None
 
         # Build templates --------------------------------------------------
@@ -554,6 +566,17 @@ class FitCore:
         return pd.DataFrame({"ecm": xsec_nom["ecm"],
                              "xsec": xsec_var["xsec"] / xsec_nom["xsec"] - 1})
 
+    def _morph_one_cross(self, name_a, name_b):
+        """Relative shift at the (a, b) cross-term corner template:
+        ``(σ_corner − σ_nom) / σ_nom`` per bin. The bilinear *residual*
+        relative to the multiplicative linear factor is derived in
+        ``_build_chi2_caches`` once all the linear rows are in hand."""
+        tag = self.parameters.cross_tag(name_a, name_b)
+        xsec_nom = self.template()
+        xsec_var = self.template(tag)
+        return pd.DataFrame({"ecm":  xsec_nom["ecm"],
+                             "xsec": xsec_var["xsec"] / xsec_nom["xsec"] - 1})
+
     def _morph_cross_sections(self):
         # Skip per-bin nuisance expansion names (e.g. ``BEC_bin0``,
         # ``lumi_bin3``) — their morph rows are synthesised sparsely from
@@ -566,6 +589,9 @@ class FitCore:
             return any(n.startswith(f"{k}_bin") for k in binned_kinds)
         self.morph_dict = {p: self._morph_one(p)
                            for p in self.param_names if not _is_per_bin(p)}
+        # POI cross-term corner rows (only when the card declares CROSS_TERMS).
+        for (a, b) in self.parameters.cross_terms:
+            self.morph_dict[self.parameters.cross_tag(a, b)] = self._morph_one_cross(a, b)
         if not self.read_scale_vars and self.mass_scheme != "1S" and not self.shift_scan:
             for kind in (*self._systematics_meta["binned"], *self._systematics_meta["global"]):
                 self.morph_dict[kind] = self._morph_one(kind)
@@ -719,6 +745,12 @@ class FitCore:
         for kind in (*self._systematics_meta["binned"], *self._systematics_meta["global"]):
             if kind in self.morph_dict:
                 self.morph_scenario[kind] = self.slice_to_scenario(self.morph_dict[kind])
+        # Cross-term corner rows are scenario-aliased alongside the linear
+        # rows so ``_build_chi2_caches`` can read them off ``morph_scenario``.
+        for (a, b) in self.parameters.cross_terms:
+            tag = self.parameters.cross_tag(a, b)
+            if tag in self.morph_dict:
+                self.morph_scenario[tag] = self.slice_to_scenario(self.morph_dict[tag])
 
         # Above-threshold rescaling for the lumi nuisance morph: in cov
         # mode the last-bin uncorr lumi unc is divided by sqrt(factor_above)
@@ -761,14 +793,19 @@ class FitCore:
 
         **Morphing convention.** The model cross section is built as the
         nominal lineshape times a product of per-parameter shape factors:
-        ``th_xsec = _xsec_base · Π_i (1 + p_i · morph_i)``. This assumes
-        the per-parameter variations combine multiplicatively, which is
-        exact only when cross-terms ``p_i · p_j · morph_i · morph_j`` are
-        negligible — i.e. in the small-variation regime where each
-        ``p_i · morph_i`` stays well below unity. Good for the WbWb /
-        WW threshold fits where the floating params sit near zero, but
-        the linearity assumption is implicit; deviations from it would
-        show up as a non-quadratic chi² far from the minimum.
+        ``th_xsec = _xsec_base · Π_i (1 + p_i · morph_i)``. The
+        multiplicative product already carries the per-pair factorisable
+        cross-term ``p_i p_j m_i m_j``; the residual non-factorisable
+        bilinear curvature is captured by an additional
+        ``Π_{(a,b)} (1 + p_a p_b · x_{ab})`` factor when the card
+        declares ``CROSS_TERMS`` (one corner template per pair, used to
+        derive the bilinear residual
+        ``x_{ab} = (1+m_corner)/((1+m_a)(1+m_b)) - 1``). At the corner
+        the product collapses to ``σ_0·(1+m_corner)`` exactly, so the
+        bilinear morph is closure-accurate on the calibration points;
+        away from the corner it interpolates smoothly. WW activates
+        this via ``CROSS_TERMS = [("mass", "width")]``; WbWb leaves the
+        attribute absent and recovers the pure-linear behaviour.
 
         Active 1-D Gaussian constraints (entries in ``self._constraints``
         with ``active=True``) add ``((param - centre) / sigma)²`` penalty
@@ -785,6 +822,11 @@ class FitCore:
         # values, the prior terms below stay on the raw free params.
         resolved_params, prior_extra = self.physical_fit_params(params.copy())
         th_xsec = self._xsec_base * np.prod(1 + resolved_params[:, None] * self._morph_matrix, axis=0)
+        if self._cross_matrix is not None:
+            p_a = resolved_params[self._cross_idx[:, 0]]
+            p_b = resolved_params[self._cross_idx[:, 1]]
+            th_xsec = th_xsec * np.prod(
+                1 + (p_a * p_b)[:, None] * self._cross_matrix, axis=0)
 
         res = self.pseudo_data_scenario - th_xsec
         chi2_val = float(res @ cho_solve(self._cov_factor, res))
@@ -903,6 +945,32 @@ class FitCore:
             else:
                 rows.append(np.asarray(self.morph_scenario[name]["xsec"]))
         self._morph_matrix = np.stack(rows)
+
+        # Bilinear cross-term: residual after the multiplicative linear
+        # product (1+p_a m_a)(1+p_b m_b) already implied by the chi2's
+        # ``np.prod`` line. Closure at the corner is exact: at p_a=p_b=1
+        # the prediction becomes σ_0·(1+m_corner) = σ_corner. Pairs are
+        # skipped if either POI is missing from this fit configuration
+        # (e.g. fixed under SM_width) or the corner template wasn't loaded.
+        cross_idx, cross_rows = [], []
+        for (a, b) in self.parameters.cross_terms:
+            if a not in self._idx or b not in self._idx:
+                continue
+            tag = self.parameters.cross_tag(a, b)
+            if tag not in self.morph_scenario:
+                continue
+            m_a = np.asarray(self.morph_scenario[a]["xsec"])
+            m_b = np.asarray(self.morph_scenario[b]["xsec"])
+            m_corner = np.asarray(self.morph_scenario[tag]["xsec"])
+            x_ab = (1.0 + m_corner) / ((1.0 + m_a) * (1.0 + m_b)) - 1.0
+            cross_idx.append((self._idx[a], self._idx[b]))
+            cross_rows.append(x_ab)
+        if cross_rows:
+            self._cross_idx = np.asarray(cross_idx, dtype=int)
+            self._cross_matrix = np.stack(cross_rows)
+        else:
+            self._cross_idx = None
+            self._cross_matrix = None
 
     def rebuild_chi2_state(self, *, init_vars=True, pseudodata=None):
         """Re-run ``create_scenario`` from the current ``scenario_dict``,

@@ -73,7 +73,8 @@ def main():
                          "overrides card's NLO_CONFIG['diagnostic_bfs_coulomb_nlo'].")
     args = ap.parse_args()
 
-    params = Parameters(card.PARAMETERS, scale_vars=[])
+    params = Parameters(card.PARAMETERS, scale_vars=[],
+                        cross_terms=getattr(card, "CROSS_TERMS", ()))
     tags = None
     if args.only_tag is not None:
         if args.only_tag not in params.tags:

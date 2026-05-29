@@ -48,7 +48,8 @@ def _bec_label(shift: float) -> str:
 def main() -> None:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-    params = Parameters(card.PARAMETERS, scale_vars=[])
+    params = Parameters(card.PARAMETERS, scale_vars=[],
+                        cross_terms=getattr(card, "CROSS_TERMS", ()))
     tags = params.tags
 
     lines: list[str] = [

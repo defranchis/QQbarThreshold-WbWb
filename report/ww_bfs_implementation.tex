@@ -1434,6 +1434,59 @@ eMELA NLL (DELTA$+$ALPMZ, CodePdf)        & 3.90~ppm & 7.25~ppm \\
 \end{tabular}
 \end{table}
 
+\paragraph{Bilinear ($\mW\times\GammaW$) cross-term morph.}
+Table~\ref{tab:morph-closure-isr} sweeps one POI at a time and
+confirms the linear-morph residual on either axis is sub-MeV-safe.
+The same diagonal test does \emph{not} cover the corner of the
+$(\mW,\GammaW)$ plane where \emph{both} POIs are simultaneously
+displaced from nominal --- there the multiplicative fit-side form
+$\prod_i(1+p_i\,m_i)$ approximates the joint dependence by
+$1+m_a+m_b+m_a m_b$, missing the residual non-factorisable curvature
+$(1+m_\text{corner})-(1+m_a)(1+m_b)$. The card knob
+\code{CROSS_TERMS = [("mass","width")]} (production default since
+2026-05-29) materialises one extra corner template at
+$(\mW^0+\delta m,\GammaW^0+\delta\GammaW)$ per BEC variation and the
+fit applies the residual factor
+\begin{equation*}
+  x_{ab}(\sqrts) \;=\;
+  \frac{1+m_\text{corner}(\sqrts)}{(1+m_a(\sqrts))(1+m_b(\sqrts))} \;-\; 1
+\end{equation*}
+(with $a=\mW$, $b=\GammaW$) as an additional multiplicative term
+$\prod(1+p_a\,p_b\,x_{ab})$ in the chi$^2$, so the prediction is
+closure-accurate at the corner by construction.
+
+Asimov closure on the corner pseudodata
+(\code{scripts/investigations/bilinear_morph/closure_corner.py}):
+truth $(\mW,\GammaW) = (80.389,\,2.095)\GeV$, FCC-ee scenario.
+
+\begin{table}[h]
+\centering
+\caption{Bilinear cross-term Asimov closure at the $(+10,+10)\MeV$
+corner. Truth at the corner; bias is the post-fit central value
+minus truth. Both chains share the same NLL ISR templates; the only
+difference is the cross-term factor in \code{chi2}.}
+\label{tab:bilinear-closure}
+\begin{tabular}{l r r r}
+\toprule
+Chain & $\Delta\mW$ [keV] & $\Delta\GammaW$ [keV] & $\rho(\mW,\GammaW)$ \\
+\midrule
+Linear-only (no \code{CROSS_TERMS})         & $-40$ & $-36$ & $+0.628$ \\
+Bilinear (\code{CROSS_TERMS=[("mass","width")]}, default) & $-1$  & $-25$ & $+0.633$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+The $\sim$40~keV linear-morph bias on $\mW$ at a $(+10,+10)\MeV$
+excursion drops to $\sim$1~keV under the bilinear chain --- a factor
+of 40 reduction, sub-MeV-safe relative to the
+$\sigma(\mW)=250\,\mathrm{keV}$ FCC-ee target. The residual 25~keV on
+$\GammaW$ is the per-axis quadratic curvature
+$\partial^2\sigma/\partial\GammaW^2$, which the single-corner template
+cannot capture (would require a $\pm\delta\GammaW$ pair); harmless at
+$\sigma(\GammaW)\!\sim\!2\MeV$. \code{CROSS_TERMS} is opt-in via the
+card; WbWb leaves it undefined and recovers the pure-linear morphing.
+
 \paragraph{Cross-fit $\mW$ matrix.}
 With morph closure established, we run the Asimov fit in a
 $3\times 3$ matrix: pseudodata $\sigma_\text{obs}(\sqrts)$ from scheme

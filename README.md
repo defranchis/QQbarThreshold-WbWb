@@ -572,21 +572,13 @@ NNLO validation (`scripts/investigations/bfs_nnlo/`):
 
 What's NOT yet in the calculation (priority order for sub-MeV m_W):
 
-1. **Bilinear (m_W × Γ_W) cross-term in template morphing.** Fit-side
-   morph is currently linear per POI (no curvature, no cross-term;
-   see `framework/common/fit_core.py:_morph_one`). At σ_mW ≈ 2 MeV
-   the residual quadratic correction is ~4 % of the linear slope →
-   potential ~0.4 MeV bias if the cross term is comparable. Plan:
-   add one extra `(m_W+δm, Γ_W+δΓ)` corner tag to `PARAMETERS` and
-   a `cross_var` morph row; no dense WHIZARD-style grid needed since
-   the Born is already smoothed by the morph anchor.
-2. **BFS NLO `√(x₁x₂s)>155 GeV` cut on the LL+exp convolution.** The
+1. **BFS NLO `√(x₁x₂s)>155 GeV` cut on the LL+exp convolution.** The
    companion BFS recipe detail (line 2664-2666 of arXiv:0707.0773);
    ≲0.1 % effect in the scan window, slightly larger at 158 GeV.
    Trivial to add. The dominant recipe-detail residual — BFS's
    σ̂_LR^(0)→σ̂_Born_full substitution in Δσ_decay — is implemented
    (see `decay_uses_full_born` knob in `NLO_CONFIG`).
-3. **Finer Whizard anchor grid** — currently uses only the 6 √s × 2 Γ_W
+2. **Finer Whizard anchor grid** — currently uses only the 6 √s × 2 Γ_W
    reference points from BFS Tables 1+2; a denser grid (run Whizard
    ourselves) would remove the 168-GeV dσ/dΓ_W bump and shrink the
    Born-side ~0.3 MeV systematic.
@@ -594,9 +586,20 @@ What's NOT yet in the calculation (priority order for sub-MeV m_W):
 Shipped 2026-05-29: **NLL ISR as production default** (`isr_nll=True`),
 removing the ±22.4 MeV LL+exp→NLL bias on m_W and (the closely related)
 LL+exp vs WHIZARD-multiplicative recipe difference. Canonical templates
-regenerated via `condor/ww_templates/` (15 jobs × 4 cores, ~5 min wall);
+regenerated via `condor/ww_templates/` (18 jobs × 4 cores, ~5 min wall);
 LL+exp baseline preserved under `output_xsec/ww/{nominal,BEC}_LLexp/`
 for paper-closure tests.
+
+Shipped 2026-05-29: **bilinear (m_W × Γ_W) cross-term in template
+morphing** (`CROSS_TERMS = [("mass", "width")]` in
+`cards/ww_default.py`). One extra `cross_mass_width` corner template
+per BEC set; the fit applies the residual non-multiplicative factor
+`(1+m_corner)/((1+m_a)(1+m_b))-1` so closure at the corner is exact.
+Asimov closure test at the (+10, +10) MeV corner
+(`scripts/investigations/bilinear_morph/closure_corner.py`): linear-only
+chain biases m_W by 40 keV, bilinear chain by 1 keV — sub-MeV-safe
+relative to the 250 keV FCC-ee target. Opt-in via the card; WbWb
+leaves `CROSS_TERMS` undefined and recovers the pure-linear behaviour.
 
 A parallel implementation based entirely on established generators
 (WHIZARD / Recola / MoCaNLO) is planned as a second `*Generator`

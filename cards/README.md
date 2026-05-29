@@ -207,15 +207,16 @@ isolation.
 
 ## Open work for sub-MeV precision
 
-1. **Bilinear (m_W × Γ_W) cross-term in template morphing.** Current
-   fit-side morph is linear in each POI independently (no cross-term,
-   no curvature); see `framework/common/fit_core.py:_morph_one`.  At
-   σ_mW ≈ 2 MeV (FCC-ee Asimov) the residual quadratic correction is
-   ~4 % of the linear slope → ~0.4 MeV potential bias if the cross
-   term is comparable in size.  Plan: add one extra
-   `(m_W+δm, Γ_W+δΓ)` corner tag to `PARAMETERS` and a `cross_var`
-   morph row; no need for a WHIZARD-style dense grid (Born already
-   smoothed by the morph anchor, rest of σ chain is analytic).
-2. **RACOONWW grid above 170 GeV** — current calibration grid
+1. **RACOONWW grid above 170 GeV** — current calibration grid
    disagrees with BFS-era Born; replace before publishing plots
    outside [157, 165] GeV.
+
+## CROSS_TERMS
+
+`CROSS_TERMS = [("mass", "width")]` in `ww_default.py` declares the
+POI pairs whose bilinear (cross-term) corner template is materialised.
+The fit applies the residual non-multiplicative factor
+`(1 + m_corner) / ((1 + m_a)(1 + m_b)) - 1` so the corner closure is
+exact (linear-morph residual ~40 keV on m_W reduced to ~1 keV;
+`scripts/investigations/bilinear_morph/closure_corner.py`).  Opt-in:
+omit the attribute (WbWb) to recover pure linear morphing.
