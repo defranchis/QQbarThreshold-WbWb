@@ -166,13 +166,17 @@ eq. 67 and BFS eq. 71.  They agree to <0.1%.
 
 ### `isr_nll` / `isr_emela_ll` / `isr_emela_{pert_order,fac_scheme,ren_scheme}`
 
-NLL ISR via eMELA (BCFS arXiv:1911.12040) is shipped (commits 2b3f721,
-256677f, ce801c4).  Mutually-exclusive `isr_nll` (full NLL ePDF) and
-`isr_emela_ll` (DGLAP-evolved BETA-scheme LL diagnostic) both default
-to `False`, so the production card stays on the analytic LL+exp baseline
-for paper-closure tests.  Switching `isr_nll=True` is the **recommended
-precision setting** — the ±22.4 MeV LL+exp→NLL bias (see report
-§val-isr-cross) is ~90× the FCC-ee σ(m_W)=0.25 MeV target.
+NLL ISR via eMELA (BCFS arXiv:1911.12040) is the **production default
+since 2026-05-29** (`isr_nll=True`).  Motivation: the LL+exp→NLL
+cross-fit bias is ±22.4 MeV on m_W (see report §val-isr-cross),
+~90× the FCC-ee σ(m_W)=0.25 MeV target.  The mutually-exclusive
+`isr_emela_ll` (DGLAP-evolved BETA-scheme LL diagnostic) and the
+LL+exp BETA baseline (`isr_nll=False`) remain available for paper-
+closure tests that match BFS's own structure-function radiator
+(e.g. BFS Tables 1-4).  When flipping `isr_nll` off→on, regenerate
+the canonical templates via `condor/ww_templates/submit.py` +
+`condor_submit` (15 jobs × 4 cores, ~5 min wall) or rerun
+`compute_xsec_ww.py` locally.
 
 The eMELA scheme knobs default to the production NLL central
 DELTA + ALPMZ + α(M_Z) = 1/128.943 (see `alpha_em_isr` above); ALGMU
@@ -203,11 +207,15 @@ isolation.
 
 ## Open work for sub-MeV precision
 
-1. **Flip `isr_nll=True` as production default.** NLL ISR plumbing is
-   shipped (eMELA, DELTA+ALPMZ+α(M_Z) central, Δα = 2.4×10⁻⁷ nuisance
-   propagating to ±0.043 MeV); ±22.4 MeV LL+exp→NLL bias is ~90× the
-   FCC-ee target.  Flip requires re-running BFS Tables 1–4 closure (or
-   tagging them as explicit `isr_nll=False` legacy snapshots) and
-   regenerating canonical templates on fcc-ironic-02.
-2. **RACOONWW grid above 170 GeV** — current calibration grid disagrees with BFS-era
-   Born; replace before publishing plots outside [157, 165] GeV.
+1. **Bilinear (m_W × Γ_W) cross-term in template morphing.** Current
+   fit-side morph is linear in each POI independently (no cross-term,
+   no curvature); see `framework/common/fit_core.py:_morph_one`.  At
+   σ_mW ≈ 2 MeV (FCC-ee Asimov) the residual quadratic correction is
+   ~4 % of the linear slope → ~0.4 MeV potential bias if the cross
+   term is comparable in size.  Plan: add one extra
+   `(m_W+δm, Γ_W+δΓ)` corner tag to `PARAMETERS` and a `cross_var`
+   morph row; no need for a WHIZARD-style dense grid (Born already
+   smoothed by the morph anchor, rest of σ chain is analytic).
+2. **RACOONWW grid above 170 GeV** — current calibration grid
+   disagrees with BFS-era Born; replace before publishing plots
+   outside [157, 165] GeV.

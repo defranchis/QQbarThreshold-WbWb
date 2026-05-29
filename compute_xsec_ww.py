@@ -29,8 +29,9 @@ from framework.process.ww.generator import WWGenerator
 def _generate_set(generator: WWGenerator, params: Parameters, *,
                   mass_scale: float, width_scale: float, mass_scheme: str,
                   outdir: str, ecm_shift_MeV: float = 0.0,
+                  tags: list[str] | None = None,
                   verbose: bool = True) -> None:
-    for tag in params.tags:
+    for tag in (tags if tags is not None else params.tags):
         vals = params.values(tag)
         path = generator.do_scan(
             vals,
@@ -48,10 +49,20 @@ def main():
                     help=f"nominal output directory (default: {card.INPUT_DIRS['nominal']})")
     ap.add_argument("--bec-outdir", default=card.INPUT_DIRS["BEC"],
                     help=f"BEC-variation output directory (default: {card.INPUT_DIRS['BEC']})")
-    ap.add_argument("--bec-vars-MeV", nargs="*", type=float, default=[10.0, 30.0],
+    ap.add_argument("--bec-vars-MeV", nargs="*", type=float,
+                    default=[card.INPUT_VAR["BEC"]],
                     help="absolute BEC shifts in MeV (each generates scan_p{v} and scan_m{v}); "
+                         "default = card's INPUT_VAR['BEC'] so the generator follows the same "
+                         "step the fit consumes (single source of truth); "
                          "set to empty list to skip")
     ap.add_argument("--no-bec", action="store_true", help="skip BEC-variation templates")
+    ap.add_argument("--only-tag", default=None,
+                    help="restrict to a single PARAMETERS tag (e.g. 'nominal', 'mass_var'); "
+                         "use with --only-bec-shift for per-job HTCondor fan-out")
+    ap.add_argument("--only-bec-shift", type=float, default=None,
+                    help="emit ONLY the set at this BEC shift in MeV. 0 → the nominal "
+                         "set (no BEC subdir); ±v → the matching BEC/scan_{p,m}|v| subdir. "
+                         "Overrides --bec-vars-MeV.")
     ap.add_argument("--diagnostic-bfs-coulomb-nlo",
                     action=argparse.BooleanOptionalAction, default=None,
                     help="DIAGNOSTIC ONLY — toggle the standalone BFS NLO "
@@ -63,6 +74,11 @@ def main():
     args = ap.parse_args()
 
     params = Parameters(card.PARAMETERS, scale_vars=[])
+    tags = None
+    if args.only_tag is not None:
+        if args.only_tag not in params.tags:
+            raise SystemExit(f"--only-tag {args.only_tag!r} not in {params.tags}")
+        tags = [args.only_tag]
     # CLI override of the card's diagnostic_bfs_coulomb_nlo flag.
     bfs = (BFSCorrections(enabled_coulomb_NLO=args.diagnostic_bfs_coulomb_nlo)
            if args.diagnostic_bfs_coulomb_nlo is not None else None)
@@ -79,20 +95,37 @@ def main():
 
     t0 = time.time()
 
-    print(f"\n[ nominal ]  outdir = {args.outdir}")
-    _generate_set(generator, params,
-                  mass_scale=mass_scale, width_scale=width_scale,
-                  mass_scheme=mass_scheme, outdir=args.outdir)
+    if args.only_bec_shift is not None:
+        shift = args.only_bec_shift
+        if shift == 0.0:
+            print(f"\n[ nominal ]  outdir = {args.outdir}")
+            _generate_set(generator, params,
+                          mass_scale=mass_scale, width_scale=width_scale,
+                          mass_scheme=mass_scheme, outdir=args.outdir,
+                          tags=tags)
+        else:
+            subdir = os.path.join(args.bec_outdir, bec_var_dir(shift))
+            print(f"\n[ BEC {shift:+.0f} MeV ]  outdir = {subdir}")
+            _generate_set(generator, params,
+                          mass_scale=mass_scale, width_scale=width_scale,
+                          mass_scheme=mass_scheme, outdir=subdir,
+                          ecm_shift_MeV=shift, tags=tags)
+    else:
+        print(f"\n[ nominal ]  outdir = {args.outdir}")
+        _generate_set(generator, params,
+                      mass_scale=mass_scale, width_scale=width_scale,
+                      mass_scheme=mass_scheme, outdir=args.outdir,
+                      tags=tags)
 
-    if not args.no_bec:
-        for var in args.bec_vars_MeV:
-            for shift in (+var, -var):
-                subdir = os.path.join(args.bec_outdir, bec_var_dir(shift))
-                print(f"\n[ BEC {shift:+.0f} MeV ]  outdir = {subdir}")
-                _generate_set(generator, params,
-                              mass_scale=mass_scale, width_scale=width_scale,
-                              mass_scheme=mass_scheme, outdir=subdir,
-                              ecm_shift_MeV=shift)
+        if not args.no_bec:
+            for var in args.bec_vars_MeV:
+                for shift in (+var, -var):
+                    subdir = os.path.join(args.bec_outdir, bec_var_dir(shift))
+                    print(f"\n[ BEC {shift:+.0f} MeV ]  outdir = {subdir}")
+                    _generate_set(generator, params,
+                                  mass_scale=mass_scale, width_scale=width_scale,
+                                  mass_scheme=mass_scheme, outdir=subdir,
+                                  ecm_shift_MeV=shift, tags=tags)
 
     print(f"\nDone in {time.time() - t0:.2f} s.")
 

@@ -43,8 +43,11 @@ NLO_CONFIG = {
     # NLL ISR correction (BCFS arXiv:1911.12040 eq. NLLsol3, fixed-α, N_F=0).
     # Adds the bracket {1+(α/π)[C_const+C_log·log(1-x)-log²(1-x)]} to the SV
     # piece of the 2-leg radiator.  Forces isr_scheme="2leg" automatically.
-    # OFF by default (LL+exp is the production chain; NLL is the upgrade target).
-    "isr_nll":                False,
+    # Production default since 2026-05-29: LL+exp would bias m_W by ±22 MeV
+    # vs NLL (cross-fit, see project_nll_isr_state_2026-05-27), ~90× the
+    # FCC-ee 0.25 MeV target.  Set False only for BFS Tables 1-4 legacy
+    # closure reruns (BFS use Skrzypek/Beenakker BETA = LL+exp).
+    "isr_nll":                True,
     # eMELA-LL diagnostic: full DGLAP-evolved BETA-scheme LL instead of the
     # analytic β³-truncated formula.  Quantifies LL truncation (~+0.8% at WW).
     # Mutually exclusive with isr_nll.  Forces 2leg.

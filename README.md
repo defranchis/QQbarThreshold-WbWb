@@ -60,8 +60,12 @@ WW_threshold/
 │               │                       + Whizard 4f Born anchor (sec. 6.2) + δ_QCD
 │               ├── eft_xsec.py       - σ partonic entry points + Fadin-Khoze-Martin
 │               │                       Coulomb K-factor + RACOONWW spline above 170 GeV
-│               └── isr.py            - LL+exp BETA-scheme ISR (LEP2 YR eq. 67),
-│                                       single-conv default + 2-leg per BFS eq. 71
+│               └── isr.py            - ISR convolution: LL+exp BETA radiator
+│                                       (LEP2 YR eq. 67) + eMELA NLL ePDF
+│                                       (BCFS arXiv:1911.12040). Single-conv
+│                                       default + 2-leg per BFS eq. 71.
+│                                       Production default since 2026-05-29:
+│                                       isr_nll=True (eMELA DELTA+ALPMZ).
 ├── output_xsec/            - pre-computed σ-template input files for the
 │   ├── wbwb/                 fit (gitignored; one subdir per process, each
 │   └── ww/                   with {nominal,scale_vars,BEC,sw2,pseudo,…})
@@ -463,13 +467,20 @@ Cross-section pipeline (in `framework/process/ww/xsec_calculator/`):
   ratios show kinks from quadrature noise). Switches to a RACOONWW
   CC03 spline above √s = 170 GeV (only the `--lastecm` 240-GeV
   point uses this region).
-* `isr.py` — LL+exp BETA-scheme ISR per LEP2 YR Beenakker eq. (67).
-  Two formally-equivalent implementations: `single_conv` (LEP2 YR α→2α
-  1D form, **default** at n_quad=200) and `2leg` (BFS eq. 71 double
-  convolution, n_quad=128 per leg). They are algebraically identical
-  at LL+exp; single-conv is ~10× faster for the same residual
-  quadrature noise. NLL upgrade (analytic Skrzypek-Jadach or eMELA)
-  is the next step — removes BFS's own ~31 MeV ISR systematic on m_W.
+* `isr.py` — ISR convolution. Two formally-equivalent LL+exp BETA
+  implementations per LEP2 YR Beenakker eq. (67): `single_conv`
+  (LEP2 YR α→2α 1D form, n_quad=200) and `2leg` (BFS eq. 71 double
+  convolution, n_quad=128 per leg). single-conv is ~10× faster at
+  the same residual quadrature noise.  `isr_nll=True`
+  (**production default since 2026-05-29**) swaps the LL+exp radiator
+  for the eMELA NLL ePDF (Bertone-Cacciari-Frixione-Stagnitto,
+  arXiv:1911.12040) in DELTA factorisation + ALPMZ renormalisation
+  with α(M_Z)=1/128.943; removes the ±22.4 MeV LL+exp→NLL bias on m_W
+  measured in the cross-fit (report §val-isr-cross).  `isr_emela_ll`
+  remains as an LL diagnostic isolating the truncation error of the
+  analytic β³ radiator.  Worker count for the parallel √s dispatch is
+  read from `WW_ISR_NJOBS` (defaults to 6); the condor pipeline
+  (`condor/ww_templates/`) sets it to 4 to match `request_cpus`.
 * `generator.py` — `WWGenerator.from_card(card)` factory + `.do_scan`
   template writer + chain-kwargs helpers (`partonic_kwargs_from_card`,
   `observed_kwargs_from_card`) + `chain_summary_latex(kwargs)` for
@@ -561,22 +572,31 @@ NNLO validation (`scripts/investigations/bfs_nnlo/`):
 
 What's NOT yet in the calculation (priority order for sub-MeV m_W):
 
-1. **BFS NLO `√(x₁x₂s)>155 GeV` cut on the LL+exp convolution.** The
+1. **Bilinear (m_W × Γ_W) cross-term in template morphing.** Fit-side
+   morph is currently linear per POI (no curvature, no cross-term;
+   see `framework/common/fit_core.py:_morph_one`). At σ_mW ≈ 2 MeV
+   the residual quadratic correction is ~4 % of the linear slope →
+   potential ~0.4 MeV bias if the cross term is comparable. Plan:
+   add one extra `(m_W+δm, Γ_W+δΓ)` corner tag to `PARAMETERS` and
+   a `cross_var` morph row; no dense WHIZARD-style grid needed since
+   the Born is already smoothed by the morph anchor.
+2. **BFS NLO `√(x₁x₂s)>155 GeV` cut on the LL+exp convolution.** The
    companion BFS recipe detail (line 2664-2666 of arXiv:0707.0773);
    ≲0.1 % effect in the scan window, slightly larger at 158 GeV.
    Trivial to add. The dominant recipe-detail residual — BFS's
-   σ̂_LR^(0)→σ̂_Born_full substitution in Δσ_decay — is now
-   implemented (see `decay_uses_full_born` knob in `NLO_CONFIG`).
-2. **NLL ISR** — analytic Skrzypek-Jadach or eMELA
-   (Bertone-Cacciari-Frixione-Stagnitto, arXiv:1911.12040). The
-   remaining systematic after item 1 is the LL+exp vs WHIZARD-ISR
-   recipe difference (~0.3-2 %) + the BFS-quoted ~31 MeV NLL ISR
-   systematic on m_W. NLL ISR closes both naturally and is also
-   WHIZARD-version-independent.
+   σ̂_LR^(0)→σ̂_Born_full substitution in Δσ_decay — is implemented
+   (see `decay_uses_full_born` knob in `NLO_CONFIG`).
 3. **Finer Whizard anchor grid** — currently uses only the 6 √s × 2 Γ_W
    reference points from BFS Tables 1+2; a denser grid (run Whizard
    ourselves) would remove the 168-GeV dσ/dΓ_W bump and shrink the
    Born-side ~0.3 MeV systematic.
+
+Shipped 2026-05-29: **NLL ISR as production default** (`isr_nll=True`),
+removing the ±22.4 MeV LL+exp→NLL bias on m_W and (the closely related)
+LL+exp vs WHIZARD-multiplicative recipe difference. Canonical templates
+regenerated via `condor/ww_templates/` (15 jobs × 4 cores, ~5 min wall);
+LL+exp baseline preserved under `output_xsec/ww/{nominal,BEC}_LLexp/`
+for paper-closure tests.
 
 A parallel implementation based entirely on established generators
 (WHIZARD / Recola / MoCaNLO) is planned as a second `*Generator`

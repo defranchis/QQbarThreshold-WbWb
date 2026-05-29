@@ -49,3 +49,10 @@ whizard/*.sub
 *.phs
 *.vg
 *.makefile
+condor/ww_templates/*.sub
+
+# Kerberos credential cache files (binary, per-user, not portable).
+# CERN tooling occasionally drops them in the cwd as <user>.cc.
+mdefranc.cc
+*.kcache
+krb5cc_*

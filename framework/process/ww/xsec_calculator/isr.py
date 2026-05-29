@@ -51,6 +51,7 @@ import concurrent.futures
 import functools
 import math
 import multiprocessing
+import os
 
 import numpy as np
 from scipy.special import gamma as gamma_fn
@@ -393,7 +394,7 @@ def sigma_ISR_2leg_convolution(sqrt_s,
                                # LL log (β_ISR) and Q → ξ·√s in eMELA DGLAP
                                # evolution.  Symmetric ξ ∈ {0.5,1,2} envelope.
                                isr_scale_factor: float = 1.0,
-                               n_jobs: int = 6,
+                               n_jobs: int | None = None,
                                **sigma_kwargs):
     """Two-leg double-convolution ISR (BFS eq. 71):
 
@@ -445,8 +446,13 @@ def sigma_ISR_2leg_convolution(sqrt_s,
     (``nll`` or ``emela_ll``); the analytic LL+exp path is fast enough that
     fork+pool overhead dominates.  Each child inherits the parent's eMELA
     C++ global state via COW, so no re-init is needed.  ``n_jobs=1`` forces
-    serial execution.
+    serial execution.  ``n_jobs=None`` (default) consults ``WW_ISR_NJOBS``
+    in the environment and falls back to 6 when unset — letting batch
+    wrappers pin the worker count to ``request_cpus`` without touching
+    callers.
     """
+    if n_jobs is None:
+        n_jobs = int(os.environ.get("WW_ISR_NJOBS", "6"))
     if nll and emela_ll:
         raise ValueError(
             "sigma_ISR_2leg_convolution: nll=True and emela_ll=True are "

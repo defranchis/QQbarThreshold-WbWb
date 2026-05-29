@@ -141,8 +141,16 @@ The public assembly functions are:
 \end{description}
 The defaults of \code{sigma_observed_munuqq} are the project's ``best
 calculation'': full BFS Born $+$ NLO loops $+$ NNLO $+$ $\delta_\text{QCD}$
-$+$ Whizard anchor $+$ single-convolution LL+exp ISR (cf.~section
-\ref{sec:isr}).
+$+$ Whizard anchor $+$ single-convolution eMELA-NLL ISR
+(DELTA factorisation, ALPMZ renormalisation, $\alpha(M_Z)\!=\!1/128.943$;
+cf.~section~\ref{sec:isr}). The card knob \code{isr_nll=True} became
+production default on 2026-05-29 after the cross-fit campaign of
+section~\ref{sec:val-isr-cross} quantified the LL$+$exp residual bias
+at $\pm 22.4\MeV$, $\sim 90\times$ the FCC-ee target
+$\sigma(\mW)\!=\!0.25\MeV$. The legacy LL$+$exp BETA radiator
+(\code{isr_nll=False}) is kept available for paper-closure tests
+that match BFS's own structure-function choice
+(cf.~section~\ref{sec:val-table4}).
 
 \paragraph{Theory inputs (production vs.\ paper closure).} The EW
 parameters $\alpha_s(\mW)$, $m_t$, $M_H$, and $M_Z$ are card-driven
@@ -920,7 +928,10 @@ widths at the vertices.
 and full NLO, specific channel $\munuqq$, $\mW=80.377$,
 $\GammaW=2.09201$. Code uses the 2-leg LL+exp ISR convolution, the
 Whizard anchor, no $K_C$ resummation, and $\delta_{\rm QCD}$ only on
-the NLO column (BFS \S6.1).}
+the NLO column (BFS \S6.1). Explicit \code{isr_nll=False} legacy
+baseline --- BFS's structure-function radiator is the
+Skrzypek/Cacciari/Beenakker BETA scheme that the production NLL
+chain (\code{isr_nll=True} since 2026-05-29) supersedes.}
 \label{fig:val-table4}
 \end{figure}
 
@@ -1654,17 +1665,25 @@ $\sigma_{\mW}^{(\mu\nu q\bar q)}\!=\!3.22\MeV$,
 $\sigma_{\GammaW}^{(\mu\nu q\bar q)}\!=\!4.04\MeV$,
 $\rho(\mW,\GammaW)\!=\!+0.49$. Channel-corrected by $\sqrt{B_\text{incl}}$
 to compare against the paper's all-channel projection:
-$\sigma_{\mW}\!=\!1.22\MeV$, $\sigma_{\GammaW}\!=\!1.53\MeV$. Versus
+$\sigma_{\mW}\!=\!1.22\MeV$, $\sigma_{\GammaW}\!=\!1.51\MeV$. Versus
 the paper's YFSWW3 projection ($0.5\MeV$, $1.2\MeV$): $\sigma_{\mW}$
 has improved $2.5\times$ from the 2026-05-18 baseline ($3.09\MeV$)
 that pre-dated the NLO loops, NNLO and the chain cleanup;
-$\sigma_{\GammaW}$ moved from $1.05\MeV$ to $1.53\MeV$, consistent
+$\sigma_{\GammaW}$ moved from $1.05\MeV$ to $1.51\MeV$, consistent
 with the $d\sigma/d\GammaW$ slope flattening toward the
 $162.3\GeV$ crossing that decorrelates the two POIs (the same
 mechanism that drove $\rho$ from $+0.75$ down to $+0.49$). The
-residual gap on $\mW$ is expected to close once \code{isr\_nll=True}
-becomes the production default (the eMELA-NLL ISR run is gated on
-the parallel ISR-default flip).
+rerun on 2026-05-29 under the NLL production default
+(\code{isr_nll=True}) leaves these numbers statistically
+unchanged ($\sigma_{\mW}\!=\!1.22\MeV$, $\sigma_{\GammaW}\!=\!1.51\MeV$,
+$\rho\!=\!+0.49$ to two digits), consistent with the
+scheme-invariance of self-consistent Asimov fits documented in the
+ISR cross-fit (section~\ref{sec:val-isr-cross}): NLL removes the
+$\pm 22\MeV$ \emph{bias} relative to LL$+$exp data but does not
+change the Asimov stat precision. The remaining gap to
+$0.5\MeV$ is therefore structural --- channel coverage (factor
+$\sim 7$ between $\mu\nu q\bar q$ and all-WW) and the BFS-LO$_\text{EFT}$
+Born versus YFSWW3 NLO-EW process modelling, not the ISR truncation.
 
 % ---------------------------------------------------------------
 \section{Limitations and open items}\label{sec:limits}
@@ -1720,11 +1739,16 @@ a single authoritative summary.
   ($\pm 17.0\MeV$ LL truncation $+$ $\pm 5.4\MeV$ pure NLL), tighter
   than the BFS-quoted $\delta\mW\!\approx\!31\MeV$ upper bound but
   still $\sim 90\times$ the FCC-ee $\sigma(\mW)\!=\!0.25\MeV$
-  statistical target. Production card defaults remain
-  \code{isr\_nll=False} (so the LL$+$exp baseline is preserved for
-  paper-closure tests); switching to \code{isr\_nll=True} is the
-  recommended production setting at precision targets and requires no
-  recipe changes elsewhere in the chain.
+  statistical target. \textbf{Flipped to production default on
+  2026-05-29:} \code{isr_nll=True} is now the card default
+  (\code{cards/ww_nlo_config.py}); the canonical templates in
+  \code{output_xsec/ww/\{nominal,BEC/scan_\{p,m\}10\}/} were
+  regenerated through HTCondor (15 jobs $\times$ 4 cores;
+  \code{condor/ww_templates/}). The LL$+$exp BETA radiator
+  (\code{isr_nll=False}) remains available for paper-closure tests
+  that match BFS's structure-function choice (e.g.\
+  Table~\ref{tab:val-table4}); the snapshot is preserved under
+  \code{output_xsec/ww/\{nominal,BEC\}_LLexp/}.
 \item \textbf{Morphing scheme wired as production anchor.}
   \textbf{Shipped.} The per-$\sqrts$ analytic morph of
   section~\ref{sec:morphing} is the production default
