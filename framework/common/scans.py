@@ -803,6 +803,11 @@ def scan_chi2(fit):
             y_offset = -0.003 if pb == "width" and pa == "mass" else 0
             plt.ylim(fit.value_from_param(gB[0], pb) + y_offset,
                      fit.value_from_param(gB[-1], pb) + y_offset)
-            plt.xticks(np.round(np.linspace(fit.value_from_param(gA[0], pa),
-                                            fit.value_from_param(gA[-1], pa), 5), 2))
+            # Round to enough digits that the 5 tick positions stay
+            # distinct: a 2-decimal round collapses the few-MeV-wide m_W
+            # range (in GeV) to a single value and crashes the locator.
+            _xt = np.unique(np.round(np.linspace(fit.value_from_param(gA[0], pa),
+                                                 fit.value_from_param(gA[-1], pa), 5), 4))
+            if len(_xt) >= 2:
+                plt.xticks(_xt)
             save_figure(fit.plot_dir, f"chi2_scan_{pa}_{pb}")

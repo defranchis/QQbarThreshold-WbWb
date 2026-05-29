@@ -37,8 +37,9 @@ def _order_tag(card) -> str:
     return r"N$^{3/2}$LO"
 
 
-# Future NLL ISR will register additional schemes here; today's LL+exp
-# BETA-scheme single-conv / 2-leg both land as ``"LL ISR"``.
+# The analytic BETA-scheme single-conv / 2-leg radiators are LL+exp;
+# when ``isr_nll=True`` the convolution is performed with the eMELA NLL
+# structure functions instead (production default since 2026-05-29).
 _ISR_SCHEME_TAG = {
     "single_conv": "LL ISR",
     "2leg":        "LL ISR",
@@ -46,7 +47,10 @@ _ISR_SCHEME_TAG = {
 
 
 def _isr_tag(card) -> str:
-    scheme = getattr(card, "NLO_CONFIG", {}).get("isr_scheme", "single_conv")
+    nlo = getattr(card, "NLO_CONFIG", {})
+    if nlo.get("isr_nll", False):
+        return "NLL ISR"
+    scheme = nlo.get("isr_scheme", "single_conv")
     return _ISR_SCHEME_TAG.get(scheme, "ISR")
 
 
