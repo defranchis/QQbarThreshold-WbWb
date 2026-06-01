@@ -162,22 +162,22 @@ def estimate_systematic(fit, name, syst, breakdown_parametric=False):
 # ---------------------------------------------------------------------------
 # Orchestration: build the table, print, write LaTeX
 # ---------------------------------------------------------------------------
-def print_syst_table(fit, *, latex_path=None):
+def compute_syst_breakdown(fit):
     """Iterate the configured systematics, capturing each one's quadrature
     contribution to the total uncertainty on each POI in ``card.POI_DISPLAY``.
+
+    Returns ``(syst, totals, centrals)`` — ``syst[poi][source]`` the per-source
+    contribution, ``totals[poi]`` the total experimental uncertainty,
+    ``centrals[poi]`` the best-fit central — without printing or writing any
+    table (so callers such as the scenario comparison can collect breakdowns
+    across several fit geometries and emit a consolidated table themselves).
 
     Mutates ``fit`` in place (priors + ``fit.minuit``). ``estimate_systematic``
     restores the priors after each entry via ``reinitialise_to_nominal``;
     a final ``fit_parameters()`` in the ``finally`` block puts ``fit.minuit``
     back to its pre-call nominal-migrad state.
-
-    ``latex_path`` defaults to ``fit.card.SYST_TABLE_PATH``; pass ``""`` to
-    suppress LaTeX output entirely.
     """
-    if latex_path is None:
-        latex_path = fit.card.SYST_TABLE_PATH
     syst = {poi: {} for poi in fit.tracked_pois()}
-
     try:
         breakdown = fit.stat_breakdown_default()
         for s in systematic_list(fit):
@@ -188,13 +188,29 @@ def print_syst_table(fit, *, latex_path=None):
     finally:
         # estimate_systematic / _estimate_stat leave fit.minuit at the last
         # iteration's migrad result; rerun the nominal fit so fit.minuit is
-        # bit-identical to its pre-call state.
+        # bit-identical to its pre-call state. ``last_fit_results`` is only
+        # populated by ``fit_results(printout=True)``, so set it explicitly
+        # here — this makes the breakdown self-contained (callers need not
+        # have done a prior printout fit to populate the nominal central).
         fit.reinitialise_to_nominal()
         fit.fit_parameters()
+        fit.last_fit_results = fit.fit_results(printout=False)
 
     totals = {poi: syst[poi].pop("total") for poi in syst}
     centrals = {poi: fit.last_fit_results[fit._idx[poi]].n for poi in syst}
+    return syst, totals, centrals
 
+
+def print_syst_table(fit, *, latex_path=None):
+    """Compute the systematics breakdown (:func:`compute_syst_breakdown`) and
+    print it, optionally writing the LaTeX table.
+
+    ``latex_path`` defaults to ``fit.card.SYST_TABLE_PATH``; pass ``""`` to
+    suppress LaTeX output entirely.
+    """
+    if latex_path is None:
+        latex_path = fit.card.SYST_TABLE_PATH
+    syst, totals, centrals = compute_syst_breakdown(fit)
     _print_table(fit.card, syst, totals, centrals)
     if latex_path:
         _write_latex(fit.card, syst, totals, centrals, latex_path)

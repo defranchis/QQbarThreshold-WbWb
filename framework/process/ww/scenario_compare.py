@@ -36,6 +36,8 @@ import numpy as np
 from cards import ww_default as card
 from framework.common.fit_core import ecm_to_str
 from framework.common.parameters import Parameters
+from framework.common.systematics import compute_syst_breakdown
+from framework.process.ww.fit import WWFit
 from framework.process.ww.generator import WWGenerator
 from framework.process.ww.theory_ladder import (
     HARD_RUNGS, LADDER_CACHE_DIR, run_theory_ladder,
@@ -115,13 +117,52 @@ def _row(rows, *, hard, isr, lumi):
                  if r["hard"] == hard and r["isr"] == isr and r["lumi"] == lumi), None)
 
 
+# ---------------------------------------------------------------------------
+# Full-production systematics breakdown per scenario
+# ---------------------------------------------------------------------------
+def _full_syst_breakdown(scn):
+    """Run the FULL production fit (all POIs + α_s/BES/BEC/lumi nuisances, real
+    priors — the same configuration as ``doFit_ww.py --systTable``) under the
+    scenario's scan geometry, and return its per-source systematics breakdown.
+
+    Returns ``(syst, totals, centrals)`` from
+    :func:`framework.common.systematics.compute_syst_breakdown`, or ``None`` if
+    the fit fails to converge (e.g. the 2-point Azzurri-like layout cannot
+    constrain all POIs + nuisances)."""
+    gen = WWGenerator.from_card(card)
+    fit = WWFit(card, gen, input_dir=card.INPUT_DIRS["nominal"], asimov=True,
+                mass_scheme=getattr(card, "MASS_SCHEME", "OS"))
+    fit.init_scenario(
+        scan_list=scn["scan_list"],
+        lumi_dict=scn.get("lumi_dict"),
+        total_lumi=scn.get("total_lumi", card.SCENARIO["total_lumi"]),
+        last_lumi=scn.get("last_lumi", card.SCENARIO["last_lumi"]),
+        add_last_ecm=scn.get("add_last_ecm", False),
+    )
+    # Match the --systTable configuration: BES + BEC binned nuisances on top of
+    # the auto-activated lumi nuisance (nuisance LUMI_MODE).
+    fit.add_binned_nuisance("BEC")
+    fit.add_binned_nuisance("BES")
+    fit.fit_parameters()
+    if not fit.minuit.valid:
+        print(f"   [syst] nominal fit did not converge — skipping breakdown")
+        return None
+    try:
+        return compute_syst_breakdown(fit)
+    except Exception as exc:  # under-constrained scenario → degenerate syst fit
+        print(f"   [syst] breakdown failed ({type(exc).__name__}: {exc}) — skipping")
+        return None
+
+
 def run_scenario_comparison(*, workers=48, out=None, scheme_var=False):
-    """Run the theory ladder under each scan scenario (shared cached templates)
-    and emit a consolidated sensitivity + ladder comparison table."""
+    """Run, for each scan scenario (shared cached templates): the theory ladder
+    (sensitivity + per-rung bias) AND the full-production systematics breakdown,
+    then emit one consolidated comparison table."""
     out = out or os.path.join("plots", "scenario_compare")
     scenarios = build_scenarios()
 
     results = {}
+    syst_results = {}
     for name, scn in scenarios.items():
         print(f"\n{'='*70}\n[scenario] {name}: {scn['desc']}\n{'='*70}")
         safe = name.replace(" ", "_").replace("/", "")
@@ -131,12 +172,45 @@ def run_scenario_comparison(*, workers=48, out=None, scheme_var=False):
             base=LADDER_CACHE_DIR, scenario=scn,
         )
         results[name] = rows
+        print(f"[scenario] {name}: full-production systematics breakdown ...")
+        syst_results[name] = _full_syst_breakdown(scn)
 
-    _emit_comparison(scenarios, results, out)
-    return results
+    _emit_comparison(scenarios, results, out, syst_results)
+    return results, syst_results
 
 
-def _emit_comparison(scenarios, results, out):
+# Sources shown in the per-scenario breakdown (matches the baseline syst
+# table: stat first, then the configured systematics, then the total).
+_SYST_ROWS = ["stat"] + list(card.SYST_TABLE_ORDER)
+
+
+def _grouped_syst(sb, poi, src):
+    """Return one source's contribution to σ(``poi``) [display units] from a
+    ``compute_syst_breakdown`` result ``sb=(syst, totals, centrals)``.
+
+    Binned nuisances are stored split as ``<src>_uncorr`` / ``<src>_corr``;
+    this quadrature-combines them into the single ``src`` (e.g. ``lumi``) so
+    the per-scenario comparison shows one row per physical source. Returns
+    ``None`` if ``sb`` is ``None`` or no finite entry is found."""
+    if sb is None:
+        return None
+    syst, totals, _c = sb
+    if src == "total":
+        v = totals.get(poi)
+        return v if (v is not None and np.isfinite(v)) else None
+    d = syst.get(poi, {})
+    if src == "stat":
+        v = d.get("stat")
+        return v if (v is not None and np.isfinite(v)) else None
+    acc, found = 0.0, False
+    for k, v in d.items():
+        if (k == src or k.startswith(src + "_")) and v is not None and np.isfinite(v):
+            acc += v * v
+            found = True
+    return acc ** 0.5 if found else None
+
+
+def _emit_comparison(scenarios, results, out, syst_results=None):
     lines = []
     lines.append("WW scan-scenario comparison — Asimov sensitivity + theory ladder")
     L_ab = card.SCENARIO["total_lumi"] / 1e6
@@ -187,12 +261,76 @@ def _emit_comparison(scenarios, results, out):
             lines.append(f"{name:14s} {isr_key:4s} " + " ".join(cells))
         lines.append("-" * len(hh))
     lines.append("")
+
+    # --- (c) full-production systematics breakdown per scenario -----------
+    if syst_results:
+        names = list(scenarios.keys())
+        lines.append("(c) SYSTEMATICS BREAKDOWN  full production fit (all POIs +")
+        lines.append("    α_s/BES/BEC/lumi nuisances, realistic priors — as --systTable)")
+        for poi in card.POI_DISPLAY:
+            disp = card.POI_DISPLAY[poi]
+            ch = (f"{'source':10s} " +
+                  " ".join(f"{n:>14s}" for n in names))
+            lines.append("-" * len(ch))
+            lines.append(f"σ({disp['symbol']})  [{disp['unit']}]")
+            lines.append(ch)
+            lines.append("-" * len(ch))
+            for src in _SYST_ROWS + ["total exp"]:
+                key = "total" if src == "total exp" else src
+                cells = []
+                for n in names:
+                    sb = syst_results.get(n)
+                    if sb is None:
+                        cells.append(f"{'n/c':>14s}")
+                        continue
+                    val = _grouped_syst(sb, poi, key)
+                    if val is None:
+                        cells.append(f"{'—':>14s}")
+                    else:
+                        cells.append(f"{val:>14.2f}")
+                lines.append(f"{src:10s} " + " ".join(cells))
+            lines.append("-" * len(ch))
+        if any(v is None for v in syst_results.values()):
+            lines.append("  n/c = full-syst fit did not converge for this scenario")
+            lines.append("        (too few points to constrain all POIs + nuisances).")
+        lines.append("")
+
+    # --- (d) uncertainty + correlation stability across the ladder --------
+    # σ(m_W), σ(Γ_W) and ρ are set by the lineshape + lumi constraint, NOT by
+    # which perturbative pieces are switched on, so they should be ~flat across
+    # the ladder rungs. The 'spread' column (max−min over the four rungs) makes
+    # that explicit per scenario; the scenario-to-scenario change is the
+    # geometry effect. NLL ISR, realistic corr-lumi prior throughout.
+    rungs = [k for k, _ in HARD_RUNGS]
+    qh = (f"{'scenario':14s} {'quantity':11s} " +
+          " ".join(f"{r:>8s}" for r in rungs) + f" {'spread':>8s}")
+    lines.append("(d) UNCERTAINTY & CORRELATION STABILITY across the ladder")
+    lines.append("    (NLL ISR, realistic corr-lumi prior; σ in MeV)")
+    lines.append("-" * len(qh))
+    lines.append(qh)
+    lines.append("-" * len(qh))
+    for name in scenarios:
+        rows = results[name]
+        rung_rows = [_row(rows, hard=r, isr="NLL", lumi="prior") for r in rungs]
+        for qkey, qlabel, fmt in (("sig_mW", "σ_mW [MeV]", "{:8.2f}"),
+                                  ("sig_gW", "σ_ΓW [MeV]", "{:8.2f}"),
+                                  ("rho",    "ρ",          "{:+8.2f}")):
+            vals = [rr[qkey] if rr else None for rr in rung_rows]
+            cells = " ".join(fmt.format(v) if v is not None else f"{'—':>8s}"
+                             for v in vals)
+            fin = [v for v in vals if v is not None]
+            spread = (max(fin) - min(fin)) if fin else float("nan")
+            sp = f"{spread:8.2f}" if np.isfinite(spread) else f"{'—':>8s}"
+            lines.append(f"{name:14s} {qlabel:11s} {cells} {sp}")
+        lines.append("-" * len(qh))
+    lines.append("")
+
     lines.append("Notes:")
     lines.append("  • Templates are identical across scenarios (σ on the fine √s")
     lines.append("    grid); only which points enter the fit changes.")
     lines.append("  • The Azzurri-like upper point is OUR dσ/dΓ_W=0 crossing")
     lines.append("    (snapped to the 0.1-GeV grid), not Azzurri's 162.3 GeV.")
-    lines.append("  • The Azzurri-like layout reduces ρ (here +0.25 vs +0.55 for")
+    lines.append("  • The Azzurri-like layout reduces ρ (here +0.19 vs +0.51 for")
     lines.append("    the 7-point) — the upper point carries little Γ_W info, partly")
     lines.append("    decorrelating the POIs — but NOT to ρ≈0: the corr-lumi-only")
     lines.append("    constraint leaves a residual (Azzurri's ρ≈0 uses a different")
@@ -218,3 +356,20 @@ def _emit_comparison(scenarios, results, out):
                             r["lumi"], f"{r['bias_mW']:.4f}", f"{r['bias_gW']:.4f}",
                             f"{r['sig_mW']:.4f}", f"{r['sig_gW']:.4f}", f"{r['rho']:.4f}"])
     print(f"[scenario] wrote {out}.txt and {out}.csv")
+
+    # Systematics breakdown CSV (one row per scenario × POI × source).
+    if syst_results:
+        with open(out + "_syst.csv", "w", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["scenario", "poi", "source", "value_displayunit", "converged"])
+            for name in scenarios:
+                sb = syst_results.get(name)
+                for poi in card.POI_DISPLAY:
+                    for src in _SYST_ROWS + ["total"]:
+                        if sb is None:
+                            w.writerow([name, poi, src, "", 0])
+                            continue
+                        val = _grouped_syst(sb, poi, src)
+                        cell = "" if val is None else f"{val:.4f}"
+                        w.writerow([name, poi, src, cell, 1])
+        print(f"[scenario] wrote {out}_syst.csv")

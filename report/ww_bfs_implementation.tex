@@ -4,6 +4,7 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{booktabs}
+\usepackage{multirow}
 \usepackage{graphicx}
 \usepackage{microtype}
 \usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue]{hyperref}
@@ -1791,30 +1792,30 @@ residual bias of each cumulative rung against the full production chain
 relative to the rung above. Closure: the $+\delta_\text{QCD}$/NLL row
 fits itself to $0$ by construction.}
 \label{tab:theory-ladder}
-\begin{tabular}{l l c c c c c}
+\begin{tabular}{l l c c c c c c}
 \toprule
-ISR & rung & $\Delta\mW$ & $\delta$(prev) & $\Delta\GammaW$ & $\sigma_{\mW}$ & $\rho$ \\
- & & [MeV] & [MeV] & [MeV] & [MeV] & \\
+ISR & rung & $\Delta\mW$ & $\delta$(prev) & $\Delta\GammaW$ & $\sigma_{\mW}$ & $\sigma_{\GammaW}$ & $\rho$ \\
+ & & [MeV] & [MeV] & [MeV] & [MeV] & [MeV] & \\
 \midrule
-\multicolumn{7}{l}{\emph{free correlated lumi (pure shape bias)}}\\
-LL  & LO                   & $-33.1$ &        & $+4.8$ & $5.77$ & $+0.28$ \\
-LL  & +NLO                 & $+4.4$  & $+37.5$ & $-3.2$ & $5.33$ & $+0.33$ \\
-LL  & +NNLO                & $+2.1$  & $-2.3$ & $+1.0$ & $5.33$ & $+0.32$ \\
-LL  & +$\delta_\text{QCD}$ & $+2.1$  & $+0.0$ & $+1.0$ & $5.33$ & $+0.32$ \\
-NLL & LO                   & $-35.3$ &        & $+4.0$ & $5.77$ & $+0.27$ \\
-NLL & +NLO                 & $+2.3$  & $+37.7$ & $-4.1$ & $5.33$ & $+0.32$ \\
-NLL & +NNLO                & $0.0$   & $-2.3$ & $0.0$  & $5.33$ & $+0.32$ \\
-NLL & +$\delta_\text{QCD}$ & $0.0$   & $+0.0$ & $0.0$  & $5.33$ & $+0.32$ \\
+\multicolumn{8}{l}{\emph{free correlated lumi (pure shape bias)}}\\
+LL  & LO                   & $-33.1$ &        & $+4.8$ & $4.56$ & $2.53$ & $+0.28$ \\
+LL  & +NLO                 & $+4.4$  & $+37.5$ & $-3.2$ & $4.21$ & $2.50$ & $+0.33$ \\
+LL  & +NNLO                & $+2.1$  & $-2.3$ & $+1.0$ & $4.22$ & $2.50$ & $+0.32$ \\
+LL  & +$\delta_\text{QCD}$ & $+2.1$  & $+0.0$ & $+1.0$ & $4.22$ & $2.50$ & $+0.32$ \\
+NLL & LO                   & $-35.3$ &        & $+4.0$ & $4.56$ & $2.52$ & $+0.27$ \\
+NLL & +NLO                 & $+2.3$  & $+37.7$ & $-4.1$ & $4.21$ & $2.50$ & $+0.32$ \\
+NLL & +NNLO                & $0.0$   & $-2.3$ & $0.0$  & $4.22$ & $2.49$ & $+0.32$ \\
+NLL & +$\delta_\text{QCD}$ & $0.0$   & $+0.0$ & $0.0$  & $4.22$ & $2.49$ & $+0.32$ \\
 \midrule
-\multicolumn{7}{l}{\emph{realistic FCC-ee correlated-lumi prior}}\\
-LL  & LO                   & $-95.0$ &        & $+1.5$ & $1.87$ & $+0.51$ \\
-LL  & +NLO                 & $-9.3$  & $+85.7$ & $-4.4$ & $1.85$ & $+0.54$ \\
-LL  & +NNLO                & $-6.1$  & $+3.2$ & $+0.2$ & $1.85$ & $+0.55$ \\
-LL  & +$\delta_\text{QCD}$ & $-6.1$  & $+0.0$ & $+0.2$ & $1.85$ & $+0.55$ \\
-NLL & LO                   & $-88.8$ &        & $+1.2$ & $1.87$ & $+0.51$ \\
-NLL & +NLO                 & $-3.2$  & $+85.6$ & $-4.6$ & $1.85$ & $+0.55$ \\
-NLL & +NNLO                & $0.0$   & $+3.2$ & $0.0$  & $1.85$ & $+0.55$ \\
-NLL & +$\delta_\text{QCD}$ & $0.0$   & $+0.0$ & $0.0$  & $1.85$ & $+0.55$ \\
+\multicolumn{8}{l}{\emph{realistic FCC-ee correlated-lumi prior}}\\
+LL  & LO                   & $-93.4$ &        & $+1.6$ & $1.63$ & $2.44$ & $+0.47$ \\
+LL  & +NLO                 & $-8.9$  & $+84.5$ & $-4.4$ & $1.61$ & $2.46$ & $+0.50$ \\
+LL  & +NNLO                & $-5.9$  & $+3.0$ & $+0.2$ & $1.61$ & $2.46$ & $+0.51$ \\
+LL  & +$\delta_\text{QCD}$ & $-5.9$  & $+0.0$ & $+0.2$ & $1.61$ & $2.46$ & $+0.51$ \\
+NLL & LO                   & $-87.4$ &        & $+1.2$ & $1.63$ & $2.45$ & $+0.47$ \\
+NLL & +NLO                 & $-3.0$  & $+84.4$ & $-4.6$ & $1.61$ & $2.46$ & $+0.51$ \\
+NLL & +NNLO                & $0.0$   & $+3.0$ & $0.0$  & $1.61$ & $2.47$ & $+0.51$ \\
+NLL & +$\delta_\text{QCD}$ & $0.0$   & $+0.0$ & $0.0$  & $1.61$ & $2.47$ & $+0.51$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1943,18 +1944,18 @@ truncation uncertainty in DELTA).}
  & & [MeV] & [MeV] & [MeV] & \\
 \midrule
 \multicolumn{6}{l}{\emph{free correlated lumi (pure shape)}}\\
-ren   & ALPMZ (prod)        & $0.0$  & $0.0$  & $5.33$ & $+0.32$ \\
-ren   & ALGMU               & $+3.5$ & $+2.3$ & $5.25$ & $+0.32$ \\
-ren   & $\alpha(0)$         & $+5.8$ & $+3.1$ & $5.14$ & $+0.33$ \\
-scale & $\xi=0.5$           & $+7.9$ & $+3.9$ & $5.17$ & $+0.32$ \\
-scale & $\xi=2.0$           & $-1.2$ & $+1.1$ & $5.48$ & $+0.31$ \\
+ren   & ALPMZ (prod)        & $0.0$  & $0.0$  & $4.22$ & $+0.32$ \\
+ren   & ALGMU               & $+3.5$ & $+2.3$ & $4.15$ & $+0.32$ \\
+ren   & $\alpha(0)$         & $+5.8$ & $+3.1$ & $4.06$ & $+0.33$ \\
+scale & $\xi=0.5$           & $+7.9$ & $+3.9$ & $4.09$ & $+0.32$ \\
+scale & $\xi=2.0$           & $-1.2$ & $+1.1$ & $4.33$ & $+0.31$ \\
 \midrule
 \multicolumn{6}{l}{\emph{realistic FCC-ee correlated-lumi prior}}\\
-ren   & ALPMZ (prod)        & $0.0$   & $0.0$   & $1.85$ & $+0.55$ \\
-ren   & ALGMU               & $+36.4$ & $+5.4$  & $1.85$ & $+0.57$ \\
-ren   & $\alpha(0)$         & $+75.8$ & $+10.4$ & $1.85$ & $+0.58$ \\
-scale & $\xi=0.5$           & $+44.8$ & $+7.3$  & $1.84$ & $+0.56$ \\
-scale & $\xi=2.0$           & $-44.1$ & $-2.1$  & $1.86$ & $+0.53$ \\
+ren   & ALPMZ (prod)        & $0.0$   & $0.0$   & $1.61$ & $+0.51$ \\
+ren   & ALGMU               & $+35.5$ & $+5.3$  & $1.61$ & $+0.53$ \\
+ren   & $\alpha(0)$         & $+73.7$ & $+10.2$ & $1.60$ & $+0.54$ \\
+scale & $\xi=0.5$           & $+43.7$ & $+7.2$  & $1.59$ & $+0.52$ \\
+scale & $\xi=2.0$           & $-42.9$ & $-2.0$  & $1.62$ & $+0.49$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -2026,6 +2027,191 @@ $+\!\int\!K(x)\,\sigma_\text{Born}$ collinear counterterm before
 DELTA$-$MS$\overline{\text{S}}$ becomes a meaningful uncertainty rather
 than an $\mathcal{O}(\alpha)$ double-count. This is the natural phase-2
 extension of the ISR scheme study.
+
+% ---------------------------------------------------------------
+\subsection{Scan-scenario comparison and FCC-ee inputs}\label{sec:val-scenarios}
+% ---------------------------------------------------------------
+
+\paragraph{FCC-ee input assumptions.}
+The luminosity and beam-energy inputs are taken from the FCC Feasibility
+Study Report Vol.~1 (\arxiv{2505.00272}); Table~\ref{tab:fcc-inputs} lists
+the production values with their provenance in that document.
+
+\begin{table}[h]
+\centering
+\caption{FCC-ee WW-threshold input assumptions and their source in the FSR
+Vol.~1 (\arxiv{2505.00272}). The $\sqrt s$-calibration (BEC) numbers are the
+absolute (fully correlated) and point-to-point (uncorrelated) components on
+the collision energy; the corresponding $\mW$ contributions are half of
+these ($150$/$50\,\text{keV}$, total $\sqrt s$-related $158\,\text{keV}$ vs
+$180\,\text{keV}$ statistical).}
+\label{tab:fcc-inputs}
+\begin{tabular}{l l l}
+\toprule
+Input & Value & FSR source \\
+\midrule
+WW-threshold integrated lumi & $19.2\,\text{ab}^{-1}$ (2 yr, 4 IP) & \texttt{tab:seqbaseline} \\
+$ZH$ ($240\GeV$) integrated lumi & $10.8\,\text{ab}^{-1}$ & \texttt{tab:seqbaseline} \\
+Beam energy spread (per beam) & $0.105\,\%$ (SR$+$beamstrahlung) & \texttt{tab:IR\_parameters} ($E_b=80\GeV$) \\
+$\sqrt s$ calibration, absolute (corr.) & $0.3\MeV$ & §Energy calibration \\
+$\sqrt s$ calibration, point-to-point (uncorr.) & $0.1\MeV$ & \texttt{tab:DS-Ecal-errors-final} \\
+BES knowledge (corr./uncorr.) & $0.5\,\%$ / $1\,\%$ & cf.\ $\pm0.05\MeV$ on $70\MeV$ \\
+Luminosity unc.\ (corr./uncorr.) & $5\!\times\!10^{-4}$ / $10^{-3}$ & cf.\ $\Delta L/L\!\lesssim\!2\!\times\!10^{-4}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The WW value is the FSR machine baseline; an earlier $12\,\text{ab}^{-1}$
+(Azzurri \arxiv{2107.04444} convention) was used before this update. The
+$\sqrt s$-calibration prior was previously a $1$/$2\MeV$ placeholder and is
+now pinned to the FSR resonant-depolarisation projection ($0.3$/$0.1\MeV$ on
+$\sqrt s$, an order of magnitude tighter).
+
+\paragraph{Scan layouts.}
+With the templates fixed (the $\sigma$ is stored on the fine $\sqrts$ grid;
+a scan layout merely selects which points enter the fit), three layouts are
+compared at the \emph{same} total luminosity and with the reduced 2-POI
+stat$+$corr-lumi setup of the ladder, so the comparison isolates the scan
+geometry (\code{doFit\_ww.py --compareScenarios}):
+\begin{itemize}\itemsep0pt
+  \item \textbf{7-point} (baseline): $157$--$163\GeV$, $1\GeV$ step, equal split;
+  \item \textbf{3-point FCC}: $157$, $160$, $163\GeV$, equal split;
+  \item \textbf{Azzurri-like} 2-point: $157\GeV$ plus the
+  $\mathrm{d}\sigma/\mathrm{d}\GammaW=0$ (``$\GammaW$-insensitive'') crossing. Computed from
+  \emph{our own} templates this falls at $\sqrts=162.4\GeV$ --- close to
+  Azzurri's $162.3\GeV$ (\arxiv{2107.04444}) despite the different
+  (BFS-EFT vs YFSWW3) chain --- with the $60/40$ low/high luminosity split of
+  that reference.
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{Asimov $(\mW,\GammaW)$ sensitivity per scan layout in the reduced
+2-POI stat$+$corr-lumi setup (production chain, NLL ISR, realistic corr-lumi
+prior; same total luminosity for all layouts). $\rho$ is the fitted
+$\mW$--$\GammaW$ correlation. This isolates the scan geometry; the full
+systematics breakdown (all nuisances) is in Table~\ref{tab:scenario-syst}.
+Per-rung theory-ladder biases are nearly layout-independent (the converged
+NNLO bias spans $\lesssim\!2\MeV$ across layouts, $0$ at NLL by closure);
+see \code{plots/scenario\_compare.txt}.}
+\label{tab:scenarios}
+\begin{tabular}{l c c c c}
+\toprule
+Layout & pts & $\sigma_{\mW}$ [MeV] & $\sigma_{\GammaW}$ [MeV] & $\rho$ \\
+\midrule
+7-point baseline & 7 & 1.61 & 2.47 & $+0.51$ \\
+3-point FCC      & 3 & 1.75 & 2.36 & $+0.51$ \\
+Azzurri-like     & 2 & 1.76 & 2.05 & $+0.19$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Full-production systematics breakdown per scan layout: quadrature
+contribution of each source to $\sigma(\mW)$ and $\sigma(\GammaW)$ [MeV],
+from the \emph{complete} fit (POIs $+$ $\alpha_s$/BES/BEC/lumi nuisances,
+realistic priors --- identical to \code{--systTable}) run under each
+geometry. Generated automatically by \code{--compareScenarios}
+(Table-(c) of \code{plots/scenario\_compare.txt}). Contrast with
+Table~\ref{tab:scenarios}: once all nuisances are profiled, the
+\emph{luminosity} term dominates and the ranking inverts --- the 7-point
+layout, with the most points to pin the lumi nuisance, gives the smallest
+total $\sigma(\mW)$, while the 2-point Azzurri-like layout (best in the
+stat$+$lumi-only view) is the \emph{worst} once the under-constrained lumi
+systematic is included.}
+\label{tab:scenario-syst}
+\begin{tabular}{l c c c c c c}
+\toprule
+ & \multicolumn{3}{c}{$\sigma(\mW)$ [MeV]} & \multicolumn{3}{c}{$\sigma(\GammaW)$ [MeV]} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Source & 7-pt & 3-pt & Azz. & 7-pt & 3-pt & Azz. \\
+\midrule
+stat       & $0.85$ & $0.92$ & $1.06$ & $1.82$ & $1.83$ & $1.85$ \\
+$\alpha_s$ & $0.07$ & $0.08$ & $0.09$ & $0.00$ & $0.00$ & $0.02$ \\
+BES        & $0.01$ & $0.03$ & $0.00$ & $0.02$ & $0.02$ & $0.02$ \\
+BEC        & $0.18$ & $0.19$ & $0.20$ & $0.06$ & $0.07$ & $0.07$ \\
+lumi       & $1.75$ & $2.49$ & $2.94$ & $2.29$ & $3.31$ & $3.08$ \\
+\midrule
+total exp  & $2.12$ & $2.81$ & $3.17$ & $3.37$ & $4.06$ & $3.69$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Findings.}
+In the geometry-isolating 2-POI view (Table~\ref{tab:scenarios}) the
+3-point layout loses very little on $\mW$ relative to the 7-point (the
+threshold turn-on is anchored by the end points), at a small cost in
+$\GammaW$. The Azzurri-like 2-point layout \emph{decorrelates} the two POIs
+--- $\rho$ drops from $+0.51$ (7-point) to $+0.19$ --- and gives the tightest
+$\GammaW$, the upper point near the $\GammaW$-insensitive crossing carrying
+almost pure $\mW$ information. It does not reach the $\rho\!\approx\!0$
+Azzurri quotes, because the correlated-luminosity-only constraint used here
+leaves a residual coupling. (The pure-shape ``free'' fit is degenerate for
+the 2-point layout --- two points cannot constrain two POIs plus a floating
+normalisation --- so only the realistic-prior column is meaningful there.)
+
+The full systematics breakdown (Table~\ref{tab:scenario-syst}) tells the
+operationally more important story: with every nuisance profiled, the
+\textbf{luminosity uncertainty dominates} the $\mW$ budget
+($1.75$--$2.94\MeV$ vs.\ a $\lesssim\!0.2\MeV$ BES$+$BEC$+\alpha_s$ sum), and
+the layout ranking \emph{inverts}. The fewer points a layout has, the less
+it can constrain the lumi nuisance internally, so $\sigma(\mW)_\text{tot}$
+grows from $2.1\MeV$ (7-point) to $2.8\MeV$ (3-point) to $3.2\MeV$
+(Azzurri-like) --- the opposite order to the stat$+$lumi-only column. The
+2-point layout's POI decorrelation is therefore bought at the price of much
+greater exposure to the luminosity systematic; the multi-point scan is the
+robust choice for the $\mW$ measurement, and tightening the absolute
+luminosity (and/or adding an off-threshold normalisation anchor) is the
+single most effective experimental lever, consistent with the dominance of
+the rate in the ISR-scheme study (section~\ref{sec:val-isr-scheme}).
+
+\paragraph{Stability of $\sigma$ and $\rho$ across the ladder.}
+A consistency requirement on the whole exercise is that the
+\emph{uncertainties} and the $\mW$--$\GammaW$ \emph{correlation} be set by the
+lineshape and the luminosity constraint, \emph{not} by which perturbative
+pieces happen to be switched on: the perturbative order moves the central
+value (the bias of Table~\ref{tab:theory-ladder}), it should not move the
+error ellipse. Table~\ref{tab:scenario-stability} confirms this for every
+scan layout. Across the four ladder rungs $\sigma_{\mW}$ varies by
+$\le\!0.03\MeV$, $\sigma_{\GammaW}$ by $\le\!0.02\MeV$ and $\rho$ by
+$\le\!0.04$ --- and the only visible move is the single LO$\to$+NLO step
+(the LO Born lineshape is slightly too shallow), after which all three are
+flat to the rounding. The error ellipse is therefore a property of the scan
+geometry alone, which is exactly why the per-rung bias (not its error bar) is
+the meaningful theory-uncertainty figure, and why the geometry comparison of
+Table~\ref{tab:scenarios} is rung-independent.
+
+\begin{table}[h]
+\centering
+\caption{Stability of the Asimov uncertainties and the $\mW$--$\GammaW$
+correlation across the perturbative ladder, for each scan layout (NLL ISR,
+realistic corr-lumi prior). ``spread'' is the max$-$min over the four rungs.
+All three quantities are flat to the rounding once past the LO$\to$+NLO step,
+confirming the error ellipse is fixed by the scan geometry and luminosity,
+not by the perturbative order.}
+\label{tab:scenario-stability}
+\begin{tabular}{l l c c c c c}
+\toprule
+Layout & Quantity & LO & +NLO & +NNLO & +$\delta_\text{QCD}$ & spread \\
+\midrule
+\multirow{3}{*}{7-point}
+ & $\sigma_{\mW}$ [MeV]     & $1.63$ & $1.61$ & $1.61$ & $1.61$ & $0.02$ \\
+ & $\sigma_{\GammaW}$ [MeV] & $2.45$ & $2.46$ & $2.47$ & $2.47$ & $0.02$ \\
+ & $\rho$                   & $+0.47$ & $+0.51$ & $+0.51$ & $+0.51$ & $0.04$ \\
+\midrule
+\multirow{3}{*}{3-point FCC}
+ & $\sigma_{\mW}$ [MeV]     & $1.77$ & $1.74$ & $1.75$ & $1.75$ & $0.02$ \\
+ & $\sigma_{\GammaW}$ [MeV] & $2.34$ & $2.36$ & $2.36$ & $2.36$ & $0.02$ \\
+ & $\rho$                   & $+0.47$ & $+0.51$ & $+0.51$ & $+0.51$ & $0.04$ \\
+\midrule
+\multirow{3}{*}{Azzurri-like}
+ & $\sigma_{\mW}$ [MeV]     & $1.79$ & $1.77$ & $1.76$ & $1.76$ & $0.03$ \\
+ & $\sigma_{\GammaW}$ [MeV] & $2.04$ & $2.05$ & $2.05$ & $2.05$ & $0.01$ \\
+ & $\rho$                   & $+0.17$ & $+0.19$ & $+0.19$ & $+0.19$ & $0.03$ \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 % ---------------------------------------------------------------
 \section{Limitations and open items}\label{sec:limits}
