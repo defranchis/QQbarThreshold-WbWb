@@ -1381,6 +1381,27 @@ partonic NNLO: roughly 30\% of the partonic effect survives the radiator
 at 161\,GeV, growing to $\sim$77\% at 170\,GeV.
 
 % ---------------------------------------------------------------
+% ===============================================================
+\section{Sensitivity and uncertainty estimates from the fit}\label{sec:fitresults}
+% ===============================================================
+
+The preceding section established that the cross-section chain reproduces
+the BFS paper numbers. The studies in this section are of a different
+kind: they are \emph{results of the Asimov fit}, not BFS-paper closure
+checks. They quantify the fitted $(\mW,\GammaW)$ precision and decompose
+it into its statistical, experimental-systematic and theory components ---
+the ISR-scheme systematic measured directly by cross-fitting
+(section~\ref{sec:val-isr-cross}), the chain-routing decomposition
+(section~\ref{sec:val-chain-cross}), the incremental perturbative theory
+ladder (section~\ref{sec:val-theory-ladder}) and ISR scheme variation
+(section~\ref{sec:val-isr-scheme}), the scan-scenario comparison with the
+FCC-ee input assumptions and per-layout systematics
+(section~\ref{sec:val-scenarios}), and the extrapolation of the
+experimental uncertainty from the $\mu\nu q\bar q$ channel to inclusive WW
+(section~\ref{sec:val-channel-extrap}). Unless stated otherwise the fits
+use the full production chain ($+\delta_\text{QCD}$, NLL ISR) at
+$\sqrts\in[157,163]\GeV$.
+
 \subsection{ISR-scheme systematic on the fitted $m_W$}\label{sec:val-isr-cross}
 % ---------------------------------------------------------------
 
@@ -1710,34 +1731,50 @@ deltas can be summed but the final number for any concrete cleanup
 should still be measured directly.
 
 \paragraph{Cross-check: \arxiv{2107.04444} sensitivity rerun.}
-The Azzurri optimal scenario (\arxiv{2107.04444}, $E_1=157.1\GeV,
-E_2=162.3\GeV$, $f=0.40$, $\mathcal{L}=12\text{ ab}^{-1}$) provides
-an independent sensitivity benchmark. Run on the same production
-templates used above
-(\code{scripts/investigations/old\_new\_AB/run\_2107\_followup.py}):
-$\sigma_{\mW}^{(\mu\nu q\bar q)}\!=\!3.22\MeV$,
-$\sigma_{\GammaW}^{(\mu\nu q\bar q)}\!=\!4.04\MeV$,
-$\rho(\mW,\GammaW)\!=\!+0.49$. Channel-corrected by $\sqrt{B_\text{incl}}$
-to compare against the paper's all-channel projection:
-$\sigma_{\mW}\!=\!1.22\MeV$, $\sigma_{\GammaW}\!=\!1.51\MeV$. Versus
-the paper's YFSWW3 projection ($0.5\MeV$, $1.2\MeV$): $\sigma_{\mW}$
-has improved $2.5\times$ from the 2026-05-18 baseline ($3.09\MeV$)
-that pre-dated the NLO loops, NNLO and the chain cleanup;
-$\sigma_{\GammaW}$ moved from $1.05\MeV$ to $1.51\MeV$, consistent
-with the $d\sigma/d\GammaW$ slope flattening toward the
-$162.3\GeV$ crossing that decorrelates the two POIs (the same
-mechanism that drove $\rho$ from $+0.75$ down to $+0.49$). The
-rerun on 2026-05-29 under the NLL production default
-(\code{isr_nll=True}) leaves these numbers statistically
-unchanged ($\sigma_{\mW}\!=\!1.22\MeV$, $\sigma_{\GammaW}\!=\!1.51\MeV$,
-$\rho\!=\!+0.49$ to two digits), consistent with the
-scheme-invariance of self-consistent Asimov fits documented in the
-ISR cross-fit (section~\ref{sec:val-isr-cross}): NLL removes the
-$\pm 22\MeV$ \emph{bias} relative to LL$+$exp data but does not
-change the Asimov stat precision. The remaining gap to
-$0.5\MeV$ is therefore structural --- channel coverage (factor
-$\sim 7$ between $\mu\nu q\bar q$ and all-WW) and the BFS-LO$_\text{EFT}$
-Born versus YFSWW3 NLO-EW process modelling, not the ISR truncation.
+The Azzurri optimal scenario (\arxiv{2107.04444}, $E_1=157.1\GeV$,
+$E_2=162.3\GeV$, $f=0.40$, $\mathcal{L}=12\,\text{ab}^{-1}$ --- kept at
+that reference's luminosity for a like-for-like comparison) is an
+independent sensitivity benchmark. Run on the same production templates
+(\code{scripts/investigations/old\_new\_AB/run\_2107\_followup.py}),
+Table~\ref{tab:azzurri-xcheck} compares our $\mu\nu q\bar q$ fit, its
+all-channel projection (scaled by $\sqrt{B_\text{incl}}$, the stat-limited
+regime this benchmark sits in), and the paper's YFSWW3 number.
+
+\begin{table}[h]
+\centering
+\caption{Sensitivity cross-check against the \arxiv{2107.04444} Azzurri
+scenario ($\mathcal{L}=12\,\text{ab}^{-1}$, $f=0.40$). Our $\mu\nu q\bar q$
+fit, its all-channel projection ($\sqrt{B_\text{incl}}$ stat scaling), and
+the paper's all-channel YFSWW3 projection. $\rho$ is channel-independent.
+The NLL production rerun (2026-05-29) is statistically identical to LL$+$exp
+(self-consistent Asimov fits are scheme-invariant; NLL removes the
+$\pm22\MeV$ \emph{bias}, not the precision).}
+\label{tab:azzurri-xcheck}
+\begin{tabular}{l c c c}
+\toprule
+ & $\sigma_{\mW}$ [MeV] & $\sigma_{\GammaW}$ [MeV] & $\rho$ \\
+\midrule
+This work, $\mu\nu q\bar q$                & $3.22$ & $4.04$ & $+0.49$ \\
+This work, all-channel ($\sqrt{B_\text{incl}}$) & $1.22$ & $1.51$ & $+0.49$ \\
+Azzurri YFSWW3, all-channel               & $0.5$  & $1.2$  & $\approx 0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two observations. First, $\sigma_{\mW}$ ($\mu\nu q\bar q$) has improved
+$2.5\times$ from the 2026-05-18 baseline ($3.09\MeV$, all-channel) that
+pre-dated the NLO loops, NNLO and the chain cleanup; $\sigma_{\GammaW}$
+moved from $1.05$ to $1.51\MeV$ and $\rho$ from $+0.75$ to $+0.49$,
+consistent with the $d\sigma/d\GammaW$ slope flattening toward the
+$162.3\GeV$ crossing that decorrelates the two POIs. Second, the residual
+gap to the paper's $0.5\MeV$ is \emph{structural} --- channel coverage
+(the factor $\sim\!7$ between $\mu\nu q\bar q$ and all-WW, treated
+rigorously in section~\ref{sec:val-channel-extrap}) and BFS-LO$_\text{EFT}$
+Born vs.\ YFSWW3 NLO-EW process modelling --- not ISR truncation. The
+$\sqrt{B_\text{incl}}$ scaling used here is the naive stat-only limit valid
+for this stat-limited benchmark; section~\ref{sec:val-channel-extrap} shows
+that under the realistic luminosity systematic only the statistical part
+scales with channel.
 
 % ---------------------------------------------------------------
 \subsection{Incremental theory-piece ladder}\label{sec:val-theory-ladder}
@@ -2212,6 +2249,65 @@ Layout & Quantity & LO & +NLO & +NNLO & +$\delta_\text{QCD}$ & spread \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+% ---------------------------------------------------------------
+\subsection{Channel extrapolation: $\mu\nu q\bar q\to$ inclusive WW}\label{sec:val-channel-extrap}
+% ---------------------------------------------------------------
+
+All fits above are performed in the reconstructed $\mu\nu q\bar q$ channel.
+The threshold lineshape $\sigma(\sqrts)$ is the same for every WW decay
+channel --- in the \code{pdg-constant} convention the branching ratio is a
+flat multiplicative factor that cancels in the fit's relative response ---
+so moving to the full inclusive WW sample multiplies the event yield by
+$1/B_{\mu\nu q\bar q}$ with $B_{\mu\nu q\bar q}=2\,\mathrm{BR}(W\!\to\!\mu\nu)\,
+\mathrm{BR}(W\!\to\!\text{had})\approx0.143$ (a factor $\approx7$), and
+changes nothing else about the \emph{experimental} fit. Since $N=\sigma\cdot
+L$, this is implemented exactly as an effective-luminosity boost $L\to L/B$
+(\code{doFit\_ww.py --channelExtrap}), leaving the lineshape and every
+relative systematic bit-identical so that each maps through the full Asimov
+fit correctly --- the only honest way to extrapolate, since a naive
+$\sqrt{B}$ scaling of the \emph{total} uncertainty would wrongly shrink the
+irreducible systematics. \textbf{Theory uncertainties are deliberately not
+extrapolated} here: they differ channel-by-channel and are the
+$\mu\nu q\bar q$-specific numbers of the preceding subsections.
+
+\begin{table}[h]
+\centering
+\caption{Experimental-uncertainty extrapolation from $\mu\nu q\bar q$ to
+inclusive WW (effective lumi $\times\,1/B_{\mu\nu q\bar q}=6.98$; full
+production fit, baseline 7-point scan, realistic priors). Only the
+\emph{statistical} term scales --- by exactly $\sqrt{1/B}=2.64$ --- while the
+luminosity, beam (BES/BEC) and parametric ($\alpha_s$) systematics are
+channel-common and stay flat. The luminosity term dominates, so the inclusive
+gain on $\mW$ is modest ($2.1\to1.8\MeV$); the more stat-limited $\GammaW$
+improves more ($3.4\to2.4\MeV$). When the ISR input coupling $\alpha(M_Z)$ is
+promoted to a profiled nuisance it will be another channel-common parametric
+term and will likewise stay flat here.}
+\label{tab:channel-extrap}
+\begin{tabular}{l c c c c}
+\toprule
+ & \multicolumn{2}{c}{$\sigma(\mW)$ [MeV]} & \multicolumn{2}{c}{$\sigma(\GammaW)$ [MeV]} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Source & $\mu\nu q\bar q$ & incl.\ WW & $\mu\nu q\bar q$ & incl.\ WW \\
+\midrule
+stat       & $0.85$ & $0.32$ & $1.82$ & $0.69$ \\
+$\alpha_s$ & $0.07$ & $0.07$ & $0.00$ & $0.02$ \\
+BES        & $0.01$ & $0.02$ & $0.02$ & $0.02$ \\
+BEC        & $0.18$ & $0.18$ & $0.06$ & $0.05$ \\
+lumi       & $1.75$ & $1.76$ & $2.29$ & $2.20$ \\
+\midrule
+total exp  & $2.12$ & $1.78$ & $3.37$ & $2.39$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The result makes the experimental hierarchy explicit: the inclusive
+statistical precision on $\mW$ ($0.32\MeV$) is already well below the
+$0.25\MeV$ FCC-ee target, but the \emph{luminosity} systematic
+($\approx1.8\MeV$, unchanged by the channel boost) sets the experimental
+floor. Inclusive coverage therefore helps $\GammaW$ (stat-limited) more than
+$\mW$ (systematics-limited); the decisive experimental lever for $\mW$
+remains the absolute luminosity, not the channel multiplicity.
 
 % ---------------------------------------------------------------
 \section{Limitations and open items}\label{sec:limits}

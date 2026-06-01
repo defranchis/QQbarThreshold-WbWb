@@ -113,6 +113,15 @@ def parse_args():
     parser.add_argument("--scenarioSchemeVar", action="store_true",
                         help="also run the ISR scheme-variation block within each "
                              "--compareScenarios scenario (default off)")
+    # --- Channel extrapolation (standalone mode) ----------------------------
+    parser.add_argument("--channelExtrap", action="store_true",
+                        help="extrapolate the EXPERIMENTAL uncertainty (stat + "
+                             "α_s/BES/BEC/lumi) from the μνqq̄ channel to inclusive "
+                             "WW by rescaling the rate (effective lumi × 1/B_μνqq̄), "
+                             "running the full Asimov syst breakdown at both and "
+                             "comparing, then exit. Theory is channel-specific and "
+                             "NOT extrapolated; see "
+                             "framework/process/ww/channel_extrap.py.")
     parser.add_argument("--parallel", type=int, default=6, metavar="N",
                         help="run the requested scans in parallel with up to N worker "
                              "processes (default: 6; pass --parallel 1 to force sequential)")
@@ -184,6 +193,11 @@ def main():
         from framework.process.ww.scenario_compare import run_scenario_comparison
         run_scenario_comparison(workers=args.ladderWorkers,
                                 scheme_var=args.scenarioSchemeVar)
+        return
+
+    if args.channelExtrap:
+        from framework.process.ww.channel_extrap import run_channel_extrapolation
+        run_channel_extrapolation()
         return
 
     generator = WWGenerator.from_card(card)
