@@ -583,11 +583,16 @@ def sigma_observed_munuqq(sqrt_s,
                           # Mutually exclusive with isr_nll.
                           isr_emela_ll: bool = False,
                           # eMELA scheme knobs (only used when isr_nll or
-                          # isr_emela_ll is True).  Default = BFS prescription.
-                          # ren_scheme="ALPMZ" is the α_em_isr nuisance variation.
+                          # isr_emela_ll is True).  Default = production card
+                          # value (ALPMZ, α(M_Z)) since 2026-05-28; ALGMU
+                          # (α_Gμ, the old BFS prescription) is the
+                          # scheme-variation diagnostic. Keep this in sync with
+                          # cards/ww_nlo_config.py — the function default is only
+                          # hit by bare callers; the card-driven generator passes
+                          # isr_emela_ren_scheme explicitly.
                           isr_emela_pert_order: str = "NLL",
                           isr_emela_fac_scheme: str = "DELTA",
-                          isr_emela_ren_scheme: str = "ALGMU",
+                          isr_emela_ren_scheme: str = "ALPMZ",
                           # ISR factorisation scale ξ ∈ {0.5, 1, 2}. Affects
                           # both LL log (β_ISR) and eMELA DGLAP Q = ξ·√s.
                           isr_scale_factor: float = 1.0,

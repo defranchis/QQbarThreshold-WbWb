@@ -93,7 +93,11 @@ def parse_args():
     parser.add_argument("--ladderOut", default="plots/theory_ladder", metavar="STEM",
                         help="output stem for the ladder table (.txt + .csv)")
     parser.add_argument("--ladderKeep", action="store_true",
-                        help="keep the temporary ladder template directory")
+                        help="(deprecated no-op) ladder templates are now cached "
+                             "persistently in output_xsec/ww/theory_ladder/ and "
+                             "reused on the next run when their fingerprint still "
+                             "matches; delete that directory by hand to force a "
+                             "full rebuild")
     parser.add_argument("--ladderNoSchemeVar", action="store_true",
                         help="skip the ISR scheme-variation block (α-renormalisation "
                              "ALPMZ/ALGMU/α(0) + ξ stability) that otherwise rides on "
@@ -158,8 +162,10 @@ def main():
 
     if args.theoryLadder:
         from framework.process.ww.theory_ladder import run_theory_ladder
+        # Templates are cached persistently (LADDER_CACHE_DIR) and reused via
+        # the ensure_scan fingerprint check, so --ladderKeep is now a no-op.
         run_theory_ladder(isr=args.ladderISR, workers=args.ladderWorkers,
-                          out=args.ladderOut, keep=args.ladderKeep,
+                          out=args.ladderOut,
                           scheme_var=not args.ladderNoSchemeVar)
         return
 

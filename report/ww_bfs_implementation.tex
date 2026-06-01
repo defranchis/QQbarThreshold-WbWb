@@ -1972,6 +1972,31 @@ under the prior, near-cancelling in free mode), confirming they are a
 normalisation-driven stability artefact rather than a clean uncertainty
 --- exactly the reason $\xi$ was removed from the production card.
 
+\paragraph{Cross-section-level verification.}
+Because the prior-mode shifts are large, the effect was checked
+independently at the $\sigma$ level (script
+\code{scripts/investigations/isr\_scheme/verify\_isr\_alpha\_scheme.py}).
+The ratio $R(\sqrts)=\sigma_\text{scheme}/\sigma_\text{ALPMZ}$ on
+$\sqrts\in[157,163]\GeV$ is an almost \emph{flat} offset: $R-1=+1.62\,\%$
+(ALGMU) and $+3.43\,\%$ ($\alpha(0)$), with a $\sqrts$-slope of only
+$\sim\!10^{-3}\,\%/\GeV$ --- i.e.\ the shape distortion sits at or below
+the quadrature floor, and the mean offset is stable to $2.5\times10^{-5}$
+across $n_\text{quad}=128/192/256$. Three controls confirm the effect is
+genuine and purely from ISR: (i) the \emph{partonic} $\hat\sigma$ is
+identical across the three schemes (the ISR coupling never touches the
+hard side); (ii) the shift tracks the $\alpha$ \emph{value} entering
+$\beta_e$ (about half) plus the eMELA DGLAP renormalisation-scheme running
+(about half), not the scheme \emph{string}; (iii) $\beta_e$ scales exactly
+linearly in $\alpha$. So the scheme dependence is a nearly-pure
+\emph{normalisation} shift of the ISR-corrected rate: with the rate floated
+(free) only the tiny slope biases $\mW$ (the residual few-MeV figure is
+mostly the statistically-constrained rate, not a clean shape), while under
+the tight luminosity prior the $1.6$--$3.4\,\%$ rate offset cannot be
+absorbed and is compensated by $\mW$ sliding along the steep threshold
+turn-on ($\mathrm{d}\sigma/\mathrm{d}\sqrts\!\approx\!+0.16\,\text{pb}/\GeV$), giving the
+$\sim\!36$/$76\MeV$ shifts --- the factor $\sim\!10$ between prior and free
+is exactly the dominant-normalisation expectation.
+
 \paragraph{Interpretation and recommended number.}
 ALPMZ is the theoretically preferred scheme: the NLL resummation is built
 consistently with the measured $\alpha(M_Z)$, and $\alpha(0)$ is a known

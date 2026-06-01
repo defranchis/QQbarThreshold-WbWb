@@ -68,7 +68,6 @@ from __future__ import annotations
 import copy
 import os
 import shutil
-import tempfile
 import types
 from concurrent.futures import ProcessPoolExecutor
 
@@ -154,19 +153,21 @@ def _scales():
 # inner per-√s eMELA pool never nests inside this outer pool and oversubscribes
 # (workers × WW_ISR_NJOBS). The outer pool IS the parallelism.
 def _gen_one(spec):
-    """Worker: generate one template. ``spec`` is fully picklable (strings +
-    plain dicts) so the generator is rebuilt inside the worker — the steering
-    card is a module and does not survive pickling."""
+    """Worker: generate one template, reusing an up-to-date cached file if the
+    persistent base already holds one with a matching fingerprint
+    (``ensure_scan``). ``spec`` is fully picklable (strings + plain dicts) so
+    the generator is rebuilt inside the worker — the steering card is a module
+    and does not survive pickling."""
     label, hard_over, isr_over, order, tag, outdir = spec
     gen = _make_generator(hard_over, isr_over, order)
     params = _ladder_parameters()
     mass_scale, width_scale, mass_scheme = _scales()
-    path = gen.do_scan(
+    path, regen = gen.ensure_scan(
         params.values(tag),
         mass_scale=mass_scale, width_scale=width_scale, mass_scheme=mass_scheme,
         outdir=outdir,
     )
-    return f"{label:16s} {tag:18s} → {os.path.basename(path)}"
+    return f"{label:16s} {tag:18s} [{'gen  ' if regen else 'reuse'}] → {os.path.basename(path)}"
 
 
 def _rung_dir(base: str, hard_key: str, isr_key: str) -> str:
@@ -361,7 +362,14 @@ def _fit_rung(card_ov, hard_key, isr_key, base, truth_nom, lumi_corr):
 # ---------------------------------------------------------------------------
 # Orchestration + reporting
 # ---------------------------------------------------------------------------
-def run_theory_ladder(*, isr="both", workers=48, out=None, keep=False, base=None,
+#: Persistent on-disk cache for the ladder/scheme-variation templates. Lives
+#: under the (git-ignored) output area so a re-run reuses every unchanged
+#: template (``ensure_scan`` fingerprint check) instead of rebuilding the
+#: expensive NLL set. Wiped only by deleting the directory by hand.
+LADDER_CACHE_DIR = os.path.join("output_xsec", "ww", "theory_ladder")
+
+
+def run_theory_ladder(*, isr="both", workers=48, out=None, keep=True, base=None,
                        scheme_var=True):
     """Run the full ladder and emit the residual-bias table.
 
@@ -371,8 +379,11 @@ def run_theory_ladder(*, isr="both", workers=48, out=None, keep=False, base=None
     workers : process-pool size for template generation
     out : path stem for the output table (``.csv`` + ``.md`` written); default
           ``plots/theory_ladder``
-    keep : keep the temporary template directory (else removed at the end)
-    base : explicit template base dir (else a fresh tempdir)
+    keep : keep the template directory after the run. Default ``True``: the
+        templates persist in :data:`LADDER_CACHE_DIR` so the next run reuses
+        the unchanged ones. Set ``False`` only with an explicit throwaway
+        ``base`` to have it removed at the end.
+    base : template directory (default :data:`LADDER_CACHE_DIR`, persistent).
     scheme_var : also run the ISR scheme-variation block (α-renormalisation
         scheme + ξ stability) on top of the perturbative ladder. Always NLL
         (eMELA); fit against the production truth. Default True.
@@ -384,9 +395,14 @@ def run_theory_ladder(*, isr="both", workers=48, out=None, keep=False, base=None
     gen_keys = list(dict.fromkeys(report_keys + [TRUTH_ISR]))
     out = out or os.path.join("plots", "theory_ladder")
 
-    own_base = base is None
-    base = base or tempfile.mkdtemp(prefix="ww_theory_ladder_")
-    print(f"[ladder] template base: {base}")
+    # Persistent cache by default (templates saved on disk, reused next run);
+    # an explicit ``base`` can opt into a throwaway dir + ``keep=False``.
+    own_base = base is not None
+    base = base or LADDER_CACHE_DIR
+    os.makedirs(base, exist_ok=True)
+    print(f"[ladder] template cache: {base} "
+          f"(reused where the fingerprint matches; pass keep=False + an "
+          f"explicit base to discard)")
     variants = _isr_scheme_variants() if scheme_var else []
     # Force the inner per-√s eMELA pool to serial for the duration of template
     # generation, so it does NOT nest inside the outer template pool and
@@ -418,6 +434,8 @@ def run_theory_ladder(*, isr="both", workers=48, out=None, keep=False, base=None
                 srow["kind"] = kind
                 scheme_rows.append(srow)
     finally:
+        # Only discard a *throwaway* base (explicit base + keep=False); the
+        # default persistent cache (own_base False) is always kept.
         if own_base and not keep:
             shutil.rmtree(base, ignore_errors=True)
         if _prev_njobs is None:

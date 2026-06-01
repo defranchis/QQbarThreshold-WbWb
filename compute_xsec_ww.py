@@ -9,8 +9,14 @@ xsec_calc. Generates:
   * BEC-variation templates in ``card.INPUT_DIRS["BEC"]/scan_{p,m}<var>/``
     with the ECM grid uniformly shifted by ±``INPUT_VAR["BEC"]`` MeV.
 
-The WW BFS-EFT chain is Python-only and vectorised — fast enough that we
-don't bother with multiprocessing here (each template ~50 ms).
+A template is (re)generated only if it is **missing** or its stored
+fingerprint header no longer matches the live card (``ensure_scan``);
+unchanged templates are reused, so re-running after an unrelated card edit
+is cheap. Pass ``--force`` to regenerate unconditionally.
+
+With the NLL-eMELA default a single fine-grid template is ~10 min on one
+core (the LL+exp analytic chain is ~ms), so the reuse check matters: never
+rebuild an expensive set you already have.
 """
 
 from __future__ import annotations
@@ -29,18 +35,18 @@ from framework.process.ww.generator import WWGenerator
 def _generate_set(generator: WWGenerator, params: Parameters, *,
                   mass_scale: float, width_scale: float, mass_scheme: str,
                   outdir: str, ecm_shift_MeV: float = 0.0,
-                  tags: list[str] | None = None,
+                  tags: list[str] | None = None, force: bool = False,
                   verbose: bool = True) -> None:
     for tag in (tags if tags is not None else params.tags):
         vals = params.values(tag)
-        path = generator.do_scan(
+        path, regen = generator.ensure_scan(
             vals,
             mass_scale=mass_scale, width_scale=width_scale,
             mass_scheme=mass_scheme, outdir=outdir,
-            ecm_shift_MeV=ecm_shift_MeV,
+            ecm_shift_MeV=ecm_shift_MeV, force=force,
         )
         if verbose:
-            print(f"  {tag:14s} → {path}")
+            print(f"  {tag:14s} [{'gen  ' if regen else 'reuse'}] → {path}")
 
 
 def main():
@@ -56,6 +62,11 @@ def main():
                          "step the fit consumes (single source of truth); "
                          "set to empty list to skip")
     ap.add_argument("--no-bec", action="store_true", help="skip BEC-variation templates")
+    ap.add_argument("--force", action="store_true",
+                    help="regenerate every template even if an up-to-date one "
+                         "(matching fingerprint header) is already on disk; "
+                         "default reuses fresh templates and only (re)builds "
+                         "missing or stale ones")
     ap.add_argument("--only-tag", default=None,
                     help="restrict to a single PARAMETERS tag (e.g. 'nominal', 'mass_var'); "
                          "use with --only-bec-shift for per-job HTCondor fan-out")
@@ -103,20 +114,20 @@ def main():
             _generate_set(generator, params,
                           mass_scale=mass_scale, width_scale=width_scale,
                           mass_scheme=mass_scheme, outdir=args.outdir,
-                          tags=tags)
+                          tags=tags, force=args.force)
         else:
             subdir = os.path.join(args.bec_outdir, bec_var_dir(shift))
             print(f"\n[ BEC {shift:+.0f} MeV ]  outdir = {subdir}")
             _generate_set(generator, params,
                           mass_scale=mass_scale, width_scale=width_scale,
                           mass_scheme=mass_scheme, outdir=subdir,
-                          ecm_shift_MeV=shift, tags=tags)
+                          ecm_shift_MeV=shift, tags=tags, force=args.force)
     else:
         print(f"\n[ nominal ]  outdir = {args.outdir}")
         _generate_set(generator, params,
                       mass_scale=mass_scale, width_scale=width_scale,
                       mass_scheme=mass_scheme, outdir=args.outdir,
-                      tags=tags)
+                      tags=tags, force=args.force)
 
         if not args.no_bec:
             for var in args.bec_vars_MeV:
@@ -126,7 +137,7 @@ def main():
                     _generate_set(generator, params,
                                   mass_scale=mass_scale, width_scale=width_scale,
                                   mass_scheme=mass_scheme, outdir=subdir,
-                                  ecm_shift_MeV=shift, tags=tags)
+                                  ecm_shift_MeV=shift, tags=tags, force=args.force)
 
     print(f"\nDone in {time.time() - t0:.2f} s.")
 

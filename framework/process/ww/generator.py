@@ -46,7 +46,7 @@ from framework.process.ww.xsec_calculator.eft_xsec import (
     BFSCorrections,
 )
 from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq
-from framework.process.ww.template_metadata import compose_header
+from framework.process.ww.template_metadata import compose_header, read_header
 
 
 # ---------------------------------------------------------------------------
@@ -449,3 +449,49 @@ class WWGenerator:
             for ecm, sigma in zip(ecm_grid, sigma_obs):
                 fh.write(f"{ecm:.4f}, {sigma:.8f}\n")
         return path
+
+    # ------------------------------------------------------------------
+    # Cached generation
+    # ------------------------------------------------------------------
+    def template_is_current(self, path: str) -> bool:
+        """True iff the template at ``path`` exists and its stored fingerprint
+        header agrees with what this generator would stamp now.
+
+        Uses the same fail-closed rule as the fit's
+        ``_check_template_freshness``: a fingerprint key that is *missing*
+        from the header, or present but *different*, marks the file stale.
+        Empty-valued fingerprint fields are ignored (mirroring
+        ``compose_header``, which omits them). A template with no preamble at
+        all (pre-metadata) cannot be proven current → treated as stale."""
+        if not os.path.exists(path):
+            return False
+        meta = read_header(path)
+        if not meta:
+            return False
+        for key, value in self.template_fingerprint().items():
+            if value is None or value == "":
+                continue
+            if meta.get(key) != value:
+                return False
+        return True
+
+    def ensure_scan(self, values: dict, *, mass_scale: float, width_scale: float,
+                    mass_scheme: str = "OS", outdir: str = "output_xsec/ww/nominal",
+                    ecm_shift_MeV: float = 0.0, force: bool = False):
+        """Cached :meth:`do_scan`. Regenerate the template only if it is
+        missing or its stored fingerprint no longer matches this generator
+        (the chain config / physics inputs changed); otherwise reuse the file
+        already on disk. Returns ``(path, regenerated)`` so callers can report
+        a reuse/gen tally. ``force=True`` always regenerates.
+
+        This is the single source of "(re)generate iff missing or changed"
+        used by ``compute_xsec_ww.py`` and the theory-ladder / scenario
+        drivers so an expensive NLL template set is never rebuilt needlessly."""
+        path = self.file_name(values, mass_scale=mass_scale, width_scale=width_scale,
+                              mass_scheme=mass_scheme, indir=outdir)
+        if not force and self.template_is_current(path):
+            return path, False
+        path = self.do_scan(values, mass_scale=mass_scale, width_scale=width_scale,
+                            mass_scheme=mass_scheme, outdir=outdir,
+                            ecm_shift_MeV=ecm_shift_MeV)
+        return path, True
