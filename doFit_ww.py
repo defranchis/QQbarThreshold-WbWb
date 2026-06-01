@@ -102,6 +102,17 @@ def parse_args():
                         help="skip the ISR scheme-variation block (α-renormalisation "
                              "ALPMZ/ALGMU/α(0) + ξ stability) that otherwise rides on "
                              "top of the perturbative ladder")
+    # --- Scan-scenario comparison (standalone mode) -------------------------
+    parser.add_argument("--compareScenarios", action="store_true",
+                        help="compare the 7-point baseline, a 3-point FCC baseline "
+                             "(157/160/163), and an Azzurri-like 2-point layout "
+                             "(157 + our dσ/dΓ_W=0 crossing, 60/40 split, same total "
+                             "lumi) — reporting σ(m_W), σ(Γ_W), ρ and the theory "
+                             "ladder per scenario, then exit. Shares one cached "
+                             "template set; see framework/process/ww/scenario_compare.py.")
+    parser.add_argument("--scenarioSchemeVar", action="store_true",
+                        help="also run the ISR scheme-variation block within each "
+                             "--compareScenarios scenario (default off)")
     parser.add_argument("--parallel", type=int, default=6, metavar="N",
                         help="run the requested scans in parallel with up to N worker "
                              "processes (default: 6; pass --parallel 1 to force sequential)")
@@ -167,6 +178,12 @@ def main():
         run_theory_ladder(isr=args.ladderISR, workers=args.ladderWorkers,
                           out=args.ladderOut,
                           scheme_var=not args.ladderNoSchemeVar)
+        return
+
+    if args.compareScenarios:
+        from framework.process.ww.scenario_compare import run_scenario_comparison
+        run_scenario_comparison(workers=args.ladderWorkers,
+                                scheme_var=args.scenarioSchemeVar)
         return
 
     generator = WWGenerator.from_card(card)

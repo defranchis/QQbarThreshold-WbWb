@@ -380,11 +380,18 @@ class WWGenerator:
             parts.append(f"{label}{val:.{decimals}f}")
         return "_".join(parts)
 
-    def file_name(self, values: dict, *, mass_scale: float, width_scale: float,
-                  mass_scheme: str = "OS", indir: str = ".") -> str:
+    def file_name(self, values: dict, *, mass_scale: float | None = None,
+                  width_scale: float | None = None, mass_scheme: str = "OS",
+                  indir: str = ".") -> str:
+        """WW template path: ``WW_<order>_<body>.txt`` where ``<body>`` is the
+        POI point (e.g. ``mass80.379_width2.085`` or, when α_s is a fit
+        parameter, ``…_asVar0.0000``). The WbWb-inherited ``scaleM/scaleW``
+        suffix is dropped — the BFS-EFT chain has no μ-renormalisation scale,
+        so those were always fixed (80.0/80.0) noise. ``mass_scale`` /
+        ``width_scale`` / ``mass_scheme`` are accepted (callers still pass
+        them) but no longer enter the name."""
         body = self.file_tag(values)
-        scales = f"scaleM{mass_scale:.1f}_scaleW{width_scale:.1f}"
-        return os.path.join(indir, f"WW_{self._order_str(self.order)}_{body}_{scales}.txt")
+        return os.path.join(indir, f"WW_{self._order_str(self.order)}_{body}.txt")
 
     # ------------------------------------------------------------------
     # Template production

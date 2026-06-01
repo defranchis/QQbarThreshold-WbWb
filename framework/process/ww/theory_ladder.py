@@ -250,13 +250,31 @@ def _ladder_card():
     return c
 
 
-def _build_fit(card_ov, hard_key, isr_key, base):
+def _init_scenario(fit, scenario):
+    """Apply a scan scenario to ``fit``. ``scenario=None`` → the card's default
+    uniform 7-point grid (157–163, step 1). Otherwise ``scenario`` is a dict
+    with an explicit ``scan_list`` (and optional per-point ``lumi_dict``,
+    ``total_lumi``, ``last_lumi``, ``add_last_ecm``) — used by
+    ``--compareScenarios`` to fit the SAME templates over different √s sets."""
+    if scenario is None:
+        S = card.SCENARIO
+        fit.init_scenario(scan_min=S["scan_min"], scan_max=S["scan_max"],
+                          scan_step=S["scan_step"], total_lumi=S["total_lumi"],
+                          last_lumi=S["last_lumi"])
+    else:
+        fit.init_scenario(
+            scan_list=scenario["scan_list"],
+            lumi_dict=scenario.get("lumi_dict"),
+            total_lumi=scenario.get("total_lumi", card.SCENARIO["total_lumi"]),
+            last_lumi=scenario.get("last_lumi", card.SCENARIO["last_lumi"]),
+            add_last_ecm=scenario.get("add_last_ecm", False),
+        )
+
+
+def _build_fit(card_ov, hard_key, isr_key, base, scenario=None):
     gen = _make_generator(dict(HARD_RUNGS_BY_KEY[hard_key]), ISR_LEGS[isr_key], ORDER_OF[hard_key])
     fit = WWFit(card_ov, gen, input_dir=_rung_dir(base, hard_key, isr_key), asimov=True)
-    S = card.SCENARIO
-    fit.init_scenario(scan_min=S["scan_min"], scan_max=S["scan_max"],
-                      scan_step=S["scan_step"], total_lumi=S["total_lumi"],
-                      last_lumi=S["last_lumi"])
+    _init_scenario(fit, scenario)
     return fit
 
 
@@ -307,15 +325,13 @@ def _isr_var_dir(base: str, label: str) -> str:
     return os.path.join(base, f"isrvar_{safe}")
 
 
-def _fit_isr_variant(card_ov, label, overrides, base, truth_nom, lumi_corr):
+def _fit_isr_variant(card_ov, label, overrides, base, truth_nom, lumi_corr,
+                     scenario=None):
     """Fit one ISR-scheme variant against the production truth; return a row."""
     gen = _make_generator(dict(HARD_RUNGS_BY_KEY[TRUTH_HARD]), overrides,
                           ORDER_OF[TRUTH_HARD])
     fit = WWFit(card_ov, gen, input_dir=_isr_var_dir(base, label), asimov=True)
-    S = card.SCENARIO
-    fit.init_scenario(scan_min=S["scan_min"], scan_max=S["scan_max"],
-                      scan_step=S["scan_step"], total_lumi=S["total_lumi"],
-                      last_lumi=S["last_lumi"])
+    _init_scenario(fit, scenario)
     fit.lumi_uncorr = 0.0
     fit.lumi_corr = lumi_corr
     fit.create_scenario(pseudodata=truth_nom)
@@ -336,9 +352,9 @@ def _fit_isr_variant(card_ov, label, overrides, base, truth_nom, lumi_corr):
     }
 
 
-def _fit_rung(card_ov, hard_key, isr_key, base, truth_nom, lumi_corr):
+def _fit_rung(card_ov, hard_key, isr_key, base, truth_nom, lumi_corr, scenario=None):
     """Fit one rung against the injected truth; return a result row dict."""
-    fit = _build_fit(card_ov, hard_key, isr_key, base)
+    fit = _build_fit(card_ov, hard_key, isr_key, base, scenario=scenario)
     fit.lumi_uncorr = 0.0
     fit.lumi_corr = lumi_corr
     fit.create_scenario(pseudodata=truth_nom)
@@ -370,7 +386,7 @@ LADDER_CACHE_DIR = os.path.join("output_xsec", "ww", "theory_ladder")
 
 
 def run_theory_ladder(*, isr="both", workers=48, out=None, keep=True, base=None,
-                       scheme_var=True):
+                       scheme_var=True, scenario=None):
     """Run the full ladder and emit the residual-bias table.
 
     Parameters
@@ -387,6 +403,11 @@ def run_theory_ladder(*, isr="both", workers=48, out=None, keep=True, base=None,
     scheme_var : also run the ISR scheme-variation block (α-renormalisation
         scheme + ξ stability) on top of the perturbative ladder. Always NLL
         (eMELA); fit against the production truth. Default True.
+    scenario : optional scan-scenario dict (``scan_list`` + optional
+        ``lumi_dict`` / ``total_lumi`` / ``last_lumi`` / ``add_last_ecm``). The
+        templates are scenario-independent (fine √s grid), so only the FIT step
+        changes — this is what ``--compareScenarios`` uses to fit one cached
+        template set over different √s sets. ``None`` → card's 7-point grid.
     """
     # Legs reported in the table vs. legs whose templates we must build. The
     # truth rung (NLL) is always generated so it can be injected as the
@@ -415,7 +436,7 @@ def run_theory_ladder(*, isr="both", workers=48, out=None, keep=True, base=None,
 
         # Injected truth = production hard side + NLL ISR, smeared nominal.
         card_ov = _ladder_card()
-        truth_fit = _build_fit(card_ov, TRUTH_HARD, TRUTH_ISR, base)
+        truth_fit = _build_fit(card_ov, TRUTH_HARD, TRUTH_ISR, base, scenario=scenario)
         truth_nom = truth_fit.template("nominal")
 
         rows = []
@@ -424,12 +445,13 @@ def run_theory_ladder(*, isr="both", workers=48, out=None, keep=True, base=None,
                                      ("prior", card.PRIORS["lumi"]["corr"])):
             for isr_key in [k for k in ("LL", "NLL") if k in report_keys]:
                 for hard_key, _ in HARD_RUNGS:
-                    row = _fit_rung(card_ov, hard_key, isr_key, base, truth_nom, lumi_corr)
+                    row = _fit_rung(card_ov, hard_key, isr_key, base, truth_nom,
+                                    lumi_corr, scenario=scenario)
                     row["lumi"] = lumi_mode
                     rows.append(row)
             for label, kind, overrides in variants:
                 srow = _fit_isr_variant(card_ov, label, overrides, base,
-                                        truth_nom, lumi_corr)
+                                        truth_nom, lumi_corr, scenario=scenario)
                 srow["lumi"] = lumi_mode
                 srow["kind"] = kind
                 scheme_rows.append(srow)

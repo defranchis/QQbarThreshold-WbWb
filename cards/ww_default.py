@@ -64,8 +64,9 @@ from cards.ww_nlo_config import NLO_CONFIG  # noqa: E402
 # ---------------------------------------------------------------------------
 # Beam-energy spectrum & scan grid
 # ---------------------------------------------------------------------------
-# FCC-ee BES at WW point: σ_δ = 0.105% per beam (arXiv:2505.00272 Table 14, BS).
-BEAM_ENERGY_RES = 0.105   # % per beam
+# FCC-ee BES at WW point: σ_δ = 0.105% per beam — FSR Vol.1 arXiv:2505.00272
+# tab:IR_parameters (E_beam = 80 GeV, SR/BS = 0.069/0.105; BS = SR+beamstrahlung).
+BEAM_ENERGY_RES = 0.105   # % per beam (SR+beamstrahlung)
 PEAK_ECM = 162.5
 LAST_ECM = 240.0
 
@@ -73,8 +74,10 @@ SCENARIO = {
     "scan_min":   157.0,
     "scan_max":   163.0,
     "scan_step":  1.0,
-    "total_lumi":     12.0e6,   # /pb (PLACEHOLDER)
-    "last_lumi":      5.0e6,
+    "total_lumi":     19.2e6,   # /pb — FSR 2505.00272 tab:seqbaseline WW baseline
+                                #   (20e34/IP, 9.6/ab/yr × 2 yr × 4 IP = 19.2/ab)
+    "last_lumi":      10.8e6,   # /pb — ZH 240 GeV baseline, FSR tab:seqbaseline
+                                #   (only used with --lastecm; dormant otherwise)
     "stat_inflation": 1.0,
     "coarse_scan": {
         "scan_min": 158.0, "scan_max": 162.0, "scan_step": 2.0,
@@ -102,7 +105,10 @@ LUMI_MODE = "nuisance"
 # ---------------------------------------------------------------------------
 PRIORS = {
     "alphas": 1.0e-4,
-    "BEC":    {"uncorr": 2.0,    "corr": 1.0},          # PLACEHOLDER
+    # MeV on √s. FSR 2505.00272 §EnergyCalibration: absolute (fully correlated)
+    # ≈300 keV, point-to-point ≈100 keV at the WW threshold (→ m_W 150/50 keV,
+    # tab:DS-Ecal-errors-final). Was 1/2 MeV placeholder.
+    "BEC":    {"uncorr": 0.1,    "corr": 0.3},
     "BES":    {"uncorr": 0.01,   "corr": 5.0e-3},
     "lumi":   {"uncorr": 1.0e-3, "corr": 5.0e-4},
 }
