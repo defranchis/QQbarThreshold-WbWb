@@ -956,8 +956,9 @@ def delta_sigma_NLO_decay_specific_pb(s, mW: float = M_W_DEFAULT,
 
     At BFS reference parameters this is ≈ −0.71 % × σ^(0). Returns Δσ in
     pb. The (m_W, Γ_W) dependence is captured through α_Gμ(m_W) and
-    sigma_LR0_specific_pb(s, mW, gammaW); the m_W dependence of
-    c_d,l/h^(1,fin) themselves is sub-percent and is neglected.
+    sigma_LR0_specific_pb(s, mW, gammaW); the m_W/m_t/M_H/M_Z dependence of
+    c_d,l/h^(1,fin) is now included analytically (bfs_c1fin), evaluated at
+    the passed (mW, mt, MH, MZ) — see ``delta_decay_EW_relative``.
     """
     sigma_LR0 = sigma_LR0_specific_pb(s, mW, gammaW,
                                        apply_BR_correction=apply_BR_correction,
