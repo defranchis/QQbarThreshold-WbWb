@@ -1887,6 +1887,122 @@ $K_C$ multiplier (sections~\ref{sec:kcsafe}, \ref{sec:limits}). These set
 the priority for the next round of theory-uncertainty work.
 
 % ---------------------------------------------------------------
+\subsection{ISR scheme-variation uncertainty}\label{sec:val-isr-scheme}
+% ---------------------------------------------------------------
+
+The perturbative ladder above estimates the missing higher order by the
+size of the last included term --- the standard proxy when a true scheme
+variation is unavailable. On the \emph{hard} (BFS) side it has to be:
+the calculation lives in a fixed electroweak input scheme ($G_\mu$
+coupling, on-shell $\sin^2\theta_W=1-\mW^2/M_Z^2$) baked into the analytic
+NLO matching coefficients $c^{(1,\text{fin})}$ (section~\ref{sec:nlo}),
+so a genuine EW-scheme variation would mean re-deriving the entire
+matching tower --- a separate, multi-week project, out of scope for the
+match-to-BFS goal. The \emph{ISR} side, by contrast, admits a clean
+scheme variation that is fully decoupled from the BFS $\hat\sigma$: the
+hard cross section and the ISR exponent $\beta_e$ are formally independent
+at NLL, so changing the eMELA renormalisation scheme of the running QED
+coupling needs no change to $c^{(1,\text{fin})}$. This is run as part of
+the same driver (\code{--theoryLadder}); it rides on the full production
+hard side ($+\delta_\text{QCD}$) with NLL ISR throughout, varying only the
+ISR knobs and fitting each against the production truth (ALPMZ, $\xi=1$).
+
+\paragraph{Knobs varied.}
+Two handles, with very different status:
+\begin{itemize}\itemsep0pt
+  \item \textbf{$\alpha$ renormalisation scheme} (the headline). The
+  coupling in $\beta_e=(2\alpha/\pi)(\ln(s/m_e^2)-1)$ is taken in three
+  schemes: \code{ALPMZ} ($\alpha(M_Z)=1/128.94$, production --- what
+  FCC-ee measures via off-peak $A_\text{FB}^{\mu\mu}$), \code{ALGMU}
+  ($\alpha_{G_\mu}\!\approx\!1/132.17$, the BFS prescription), and
+  \code{FIXED}/$\alpha(0)$ ($1/137.04$, Thomson). Since $\beta_e\propto
+  \alpha$, the $2.5\,\%$ (ALPMZ$\to$ALGMU) to $5.9\,\%$
+  (ALPMZ$\to\alpha(0)$) coupling spread is a genuine NLL-order (formally
+  N$^2$LL) ambiguity that shifts the threshold lineshape.
+  \item \textbf{Factorisation scale} $\xi$ ($Q=\xi\sqrt s$,
+  $\xi\in\{0.5,2\}$), reported as a \emph{DGLAP-stability check only}.
+  In the DELTA scheme with a collinear-finite $c^{(1,\text{fin})}$ the
+  $\hat\sigma$ carries no $\mu_F$ dependence to cancel the evolution of
+  the structure function, so $\xi$-variation probes the numerical
+  stability of the eMELA evolution, not a physical truncation
+  uncertainty.
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{ISR scheme variation. Asimov $(\mW,\GammaW)$ bias of each ISR
+scheme against the production truth (ALPMZ, $\xi=1$), hard side fixed at
+$+\delta_\text{QCD}$ with NLL ISR. The ALPMZ row is the closure check
+($0$ by construction). \emph{ren} rows are the genuine NLL scheme
+uncertainty; \emph{scale} rows are the DGLAP-stability check (not a
+truncation uncertainty in DELTA).}
+\label{tab:isr-scheme}
+\begin{tabular}{l l c c c c}
+\toprule
+ & variant & $\Delta\mW$ & $\Delta\GammaW$ & $\sigma_{\mW}$ & $\rho$ \\
+ & & [MeV] & [MeV] & [MeV] & \\
+\midrule
+\multicolumn{6}{l}{\emph{free correlated lumi (pure shape)}}\\
+ren   & ALPMZ (prod)        & $0.0$  & $0.0$  & $5.33$ & $+0.32$ \\
+ren   & ALGMU               & $+3.5$ & $+2.3$ & $5.25$ & $+0.32$ \\
+ren   & $\alpha(0)$         & $+5.8$ & $+3.1$ & $5.14$ & $+0.33$ \\
+scale & $\xi=0.5$           & $+7.9$ & $+3.9$ & $5.17$ & $+0.32$ \\
+scale & $\xi=2.0$           & $-1.2$ & $+1.1$ & $5.48$ & $+0.31$ \\
+\midrule
+\multicolumn{6}{l}{\emph{realistic FCC-ee correlated-lumi prior}}\\
+ren   & ALPMZ (prod)        & $0.0$   & $0.0$   & $1.85$ & $+0.55$ \\
+ren   & ALGMU               & $+36.4$ & $+5.4$  & $1.85$ & $+0.57$ \\
+ren   & $\alpha(0)$         & $+75.8$ & $+10.4$ & $1.85$ & $+0.58$ \\
+scale & $\xi=0.5$           & $+44.8$ & $+7.3$  & $1.84$ & $+0.56$ \\
+scale & $\xi=2.0$           & $-44.1$ & $-2.1$  & $1.86$ & $+0.53$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Reading the table (Table~\ref{tab:isr-scheme}).}
+The pure-shape (\textbf{free}) column is modest: the ISR coupling-scheme
+choice moves $\mW$ by $+3.5\MeV$ (ALPMZ$\to$ALGMU) to $+5.8\MeV$
+(ALPMZ$\to\alpha(0)$) once the rate is floated. The realistic-prior
+column is far larger --- $+36\MeV$ (ALGMU) and $+76\MeV$ ($\alpha(0)$)
+--- because a $2.5$--$5.9\,\%$ change in the ISR coupling rescales the
+\emph{total} radiated energy, and that normalisation shift is \emph{not}
+absorbable by a luminosity constrained to $5\times10^{-4}$, so it leaks
+directly into $\mW$. The $\xi$ rows behave the same way ($\pm45\MeV$
+under the prior, near-cancelling in free mode), confirming they are a
+normalisation-driven stability artefact rather than a clean uncertainty
+--- exactly the reason $\xi$ was removed from the production card.
+
+\paragraph{Interpretation and recommended number.}
+ALPMZ is the theoretically preferred scheme: the NLL resummation is built
+consistently with the measured $\alpha(M_Z)$, and $\alpha(0)$ is a known
+\emph{poor} choice for a high-scale collinear process (it omits the large
+QED running logs the NLL evolution is designed to capture), so the
+$\alpha(0)$ row is an extreme bound rather than an equal-validity
+alternative. Taking the ALPMZ$\leftrightarrow$ALGMU spread as the
+defensible scheme variation gives a residual ISR theory uncertainty of
+$\approx\!3.5\MeV$ (pure shape) rising to $\approx\!36\MeV$ once the
+non-absorbable rate component is included under the realistic lumi
+constraint. Either way the message is the same as the LL$\to$NLL
+cross-fit (section~\ref{sec:val-isr-cross}): \textbf{ISR is the dominant
+single theory systematic on $\mW$}, an order of magnitude or more above
+the $\mathcal{O}(2$--$3\MeV)$ perturbative-truncation proxy, and well
+above the $0.25\MeV$ FCC-ee target. Pinning the ISR coupling scheme (and
+ultimately the input $\alpha(M_Z)$ to the Tera-$Z$ precision) is
+therefore a precondition for an MeV-level $\mW$ extraction.
+
+\paragraph{Not yet varied: factorisation scheme.}
+A genuine factorisation-scheme variation (DELTA$\leftrightarrow$MS$\overline{\text{S}}$)
+is deferred. DELTA is currently the \emph{only} scheme consistent with
+our $\hat\sigma=\sigma_\text{Born}$ (no ISR collinear subtraction):
+eMELA's DELTA radiator equals the BFS LL subtractant by construction
+(section~\ref{sec:isr}), whereas MS$\overline{\text{S}}$ differs by a
+finite kernel $K(x)$ that would have to be added to $\hat\sigma$ as a
+$+\!\int\!K(x)\,\sigma_\text{Born}$ collinear counterterm before
+DELTA$-$MS$\overline{\text{S}}$ becomes a meaningful uncertainty rather
+than an $\mathcal{O}(\alpha)$ double-count. This is the natural phase-2
+extension of the ISR scheme study.
+
+% ---------------------------------------------------------------
 \section{Limitations and open items}\label{sec:limits}
 % ---------------------------------------------------------------
 

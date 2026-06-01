@@ -30,6 +30,29 @@ guideline):
          (``card.PRIORS['lumi']['corr']``), so the residual flat component
          that leaks into m_W/Γ_W under the real constraint is included.
 
+On top of the perturbative ladder, an **ISR scheme-variation** block
+probes the ISR theory uncertainty by scheme comparison (the BFS hard side
+admits no cheap scheme variation — its EW input scheme is baked into the
+analytic matching coefficients — so the perturbative ladder above is the
+hard-side missing-higher-order proxy, while the ISR side *does* admit a
+clean scheme variation that is fully decoupled from the BFS σ̂):
+
+  * **α renormalisation scheme** — ALPMZ (production, α(M_Z)=1/128.943) vs
+    ALGMU (α_Gμ≈1/132.17, the BFS prescription) vs FIXED/α(0) (Thomson,
+    1/137.036). β_e ∝ α, so this is a genuine NLL-order (≡ NNLL-ambiguity)
+    *shape* shift on m_W, and — per reference_emela_nll_isr — needs **no**
+    change to c^(1,fin) (hard σ̂ and ISR β_e are formally independent at
+    NLL). This is the headline ISR theory uncertainty.
+  * **factorisation scale ξ** (Q=ξ√s, ξ∈{0.5,2}) — reported as a *DGLAP-
+    stability check only*, NOT a truncation uncertainty: in the DELTA
+    scheme with collinear-finite c^(1,fin) the σ̂ has no μ_F to cancel D's
+    evolution, so ξ-variation measures evolution stability of D, not a
+    physical NLL ambiguity (see cards/ww_nlo_config.py notes).
+
+A genuine factorisation-scheme variation (DELTA↔MSBAR) is deferred: it
+would require adding the +∫K(x)σ_Born collinear counterterm to σ̂, since
+DELTA is the only factorisation scheme consistent with our σ̂=σ_Born.
+
 What this ladder does **not** capture: pieces entirely absent from the
 BFS chain — NLO electroweak (YFSWW3-class non-factorisable + initial-final
 interference) and higher-order Coulomb (the BFS unstable-W Green function
@@ -56,6 +79,9 @@ from cards import ww_default as card
 from framework.common.parameters import Parameters
 from framework.process.ww.generator import WWGenerator
 from framework.process.ww.fit import WWFit
+from framework.process.ww.xsec_calculator.eft_xsec import (
+    ALPHA_EM_0, alpha_Gmu, M_W_BFS_REF,
+)
 
 # ---------------------------------------------------------------------------
 # Ladder definition
@@ -118,17 +144,21 @@ def _scales():
 
 
 # ---------------------------------------------------------------------------
-# Template generation (parallel over rung × tag)
+# Template generation
 # ---------------------------------------------------------------------------
+# All templates — perturbative-ladder rungs (LL/NLL) AND the ISR-scheme
+# variants — are generated in a SINGLE flat pool so every (slow) NLL template
+# competes for the worker pool at once, in one ~10-min wave, rather than two
+# sequential waves that each leave most of the pool idle. Each template pins
+# exactly ONE core: ``run_theory_ladder`` forces ``WW_ISR_NJOBS=1`` so the
+# inner per-√s eMELA pool never nests inside this outer pool and oversubscribes
+# (workers × WW_ISR_NJOBS). The outer pool IS the parallelism.
 def _gen_one(spec):
-    """Worker: generate one (rung, tag) template into its rung dir.
-
-    ``spec`` is fully picklable (strings + plain dicts) so the generator is
-    reconstructed inside the worker — the steering card is a module and does
-    not survive pickling.
-    """
-    hard_key, hard_over, isr_key, isr_over, tag, outdir = spec
-    gen = _make_generator(hard_over, isr_over, ORDER_OF[hard_key])
+    """Worker: generate one template. ``spec`` is fully picklable (strings +
+    plain dicts) so the generator is rebuilt inside the worker — the steering
+    card is a module and does not survive pickling."""
+    label, hard_over, isr_over, order, tag, outdir = spec
+    gen = _make_generator(hard_over, isr_over, order)
     params = _ladder_parameters()
     mass_scale, width_scale, mass_scheme = _scales()
     path = gen.do_scan(
@@ -136,7 +166,7 @@ def _gen_one(spec):
         mass_scale=mass_scale, width_scale=width_scale, mass_scheme=mass_scheme,
         outdir=outdir,
     )
-    return f"{hard_key:7s} {isr_key:3s} {tag:18s} → {os.path.basename(path)}"
+    return f"{label:16s} {tag:18s} → {os.path.basename(path)}"
 
 
 def _rung_dir(base: str, hard_key: str, isr_key: str) -> str:
@@ -144,19 +174,35 @@ def _rung_dir(base: str, hard_key: str, isr_key: str) -> str:
     return os.path.join(base, f"{safe}_{isr_key}")
 
 
-def _generate_all_templates(base: str, isr_keys, max_workers: int, verbose=True):
-    """Generate every (rung, isr, tag) template under ``base``; parallel."""
-    specs = []
+def _ladder_specs(base, isr_keys):
+    """Unified specs for every perturbative rung × ISR leg × tag."""
     for hard_key, hard_over in HARD_RUNGS:
         for isr_key in isr_keys:
-            isr_over = ISR_LEGS[isr_key]
             outdir = _rung_dir(base, hard_key, isr_key)
             for tag in _GEN_TAGS:
-                specs.append((hard_key, hard_over, isr_key, isr_over, tag, outdir))
+                yield (f"{hard_key} {isr_key}", hard_over, ISR_LEGS[isr_key],
+                       ORDER_OF[hard_key], tag, outdir)
+
+
+def _variant_specs(base, variants):
+    """Unified specs for the ISR-scheme variants (hard side fixed at the truth
+    rung; only the eMELA α-scheme / ξ overrides change)."""
+    hard_over = dict(HARD_RUNGS_BY_KEY[TRUTH_HARD])
+    for label, _kind, overrides in variants:
+        outdir = _isr_var_dir(base, label)
+        for tag in _GEN_TAGS:
+            yield (f"isr:{label}", hard_over, overrides,
+                   ORDER_OF[TRUTH_HARD], tag, outdir)
+
+
+def _generate_templates(base, isr_keys, variants, max_workers, verbose=True):
+    """Generate ALL templates (ladder rungs + ISR-scheme variants) in one pool,
+    then drop the pseudodata-tag copies FitCore unconditionally reads."""
+    specs = list(_ladder_specs(base, isr_keys)) + list(_variant_specs(base, variants))
     if verbose:
         print(f"[ladder] generating {len(specs)} templates "
-              f"({len(HARD_RUNGS)} rungs × {len(isr_keys)} ISR × {len(_GEN_TAGS)} tags) "
-              f"on {max_workers} workers ...")
+              f"({len(HARD_RUNGS)}×{len(isr_keys)} ladder + {len(variants)} ISR-scheme, "
+              f"× {len(_GEN_TAGS)} tags) on {max_workers} workers ...")
     if max_workers > 1:
         with ProcessPoolExecutor(max_workers=max_workers) as ex:
             for line in ex.map(_gen_one, specs):
@@ -169,19 +215,23 @@ def _generate_all_templates(base: str, isr_keys, max_workers: int, verbose=True)
                 print("   " + line)
 
     # Satisfy FitCore's unconditional read of the 'pseudodata' tag by copying
-    # each rung's nominal template onto the pseudodata filename (content is
+    # each output dir's nominal template onto the pseudodata filename (content
     # discarded — the fit always injects the production truth as pseudodata).
+    # Only ``order`` enters the filename, so a throwaway LO-override generator
+    # at the dir's order suffices.
     params = _ladder_parameters()
     mass_scale, width_scale, mass_scheme = _scales()
-    for hard_key, _ in HARD_RUNGS:
-        for isr_key in isr_keys:
-            gen = _make_generator(HARD_RUNGS[0][1], ISR_LEGS[isr_key], ORDER_OF[hard_key])
-            outdir = _rung_dir(base, hard_key, isr_key)
-            nom = gen.file_name(params.values("nominal"), mass_scale=mass_scale,
-                                width_scale=width_scale, mass_scheme=mass_scheme, indir=outdir)
-            pse = gen.file_name(params.values("pseudodata"), mass_scale=mass_scale,
-                                width_scale=width_scale, mass_scheme=mass_scheme, indir=outdir)
-            shutil.copyfile(nom, pse)
+    dir_order = (
+        [(_rung_dir(base, hk, ik), ORDER_OF[hk]) for hk, _ in HARD_RUNGS for ik in isr_keys]
+        + [(_isr_var_dir(base, lbl), ORDER_OF[TRUTH_HARD]) for lbl, _, _ in variants]
+    )
+    for outdir, order in dir_order:
+        gen = _make_generator(HARD_RUNGS[0][1], ISR_LEGS[isr_keys[0]], order)
+        nom = gen.file_name(params.values("nominal"), mass_scale=mass_scale,
+                            width_scale=width_scale, mass_scheme=mass_scheme, indir=outdir)
+        pse = gen.file_name(params.values("pseudodata"), mass_scale=mass_scale,
+                            width_scale=width_scale, mass_scheme=mass_scheme, indir=outdir)
+        shutil.copyfile(nom, pse)
 
 
 # ---------------------------------------------------------------------------
@@ -212,6 +262,79 @@ def _build_fit(card_ov, hard_key, isr_key, base):
 HARD_RUNGS_BY_KEY = dict(HARD_RUNGS)
 
 
+# ---------------------------------------------------------------------------
+# ISR scheme variation (phase 1: α-renormalisation scheme + ξ stability)
+# ---------------------------------------------------------------------------
+# All variants ride on the full production hard side (+dQCD) with NLL ISR;
+# only the eMELA α-renormalisation scheme (+ its paired α value) or the ISR
+# factorisation scale ξ changes. Each is fit against the production truth
+# (ALPMZ, ξ=1), so its best-fit shift is the scheme-induced m_W/Γ_W bias.
+#
+# 'ren'   rows → genuine NLL ISR scheme uncertainty (headline).
+# 'scale' rows → DGLAP-stability check, NOT a truncation uncertainty in the
+#                DELTA scheme (see module docstring / cards notes).
+_ALPHA_MZ_FALLBACK = 1.0 / 128.943   # ALPMZ; matches card PARAM_INPUTS alpha_em_isr
+
+
+def _isr_scheme_variants():
+    """Return [(label, kind, isr_overrides), ...] for the ISR scheme scan.
+
+    The production ISR α (ALPMZ) is read from the live card so the baseline
+    variant is bit-identical to the injected truth (closure sanity row)."""
+    prod = WWGenerator.from_card(card)
+    a_mz = prod.alpha_em_isr if prod.alpha_em_isr is not None else _ALPHA_MZ_FALLBACK
+    a_gmu = alpha_Gmu(M_W_BFS_REF)   # ALGMU, BFS prescription (≈1/132.17)
+    a_0 = ALPHA_EM_0                 # FIXED/Thomson α(0) (≈1/137.036)
+    nll = {"isr_nll": True}          # +dQCD hard already production; NLL ISR
+    return [
+        ("ALPMZ(prod)", "ren",   {**nll, "isr_emela_ren_scheme": "ALPMZ",
+                                   "alpha_em_isr": a_mz,  "isr_scale_factor": 1.0}),
+        ("ALGMU",       "ren",   {**nll, "isr_emela_ren_scheme": "ALGMU",
+                                   "alpha_em_isr": a_gmu, "isr_scale_factor": 1.0}),
+        ("alpha(0)",    "ren",   {**nll, "isr_emela_ren_scheme": "FIXED",
+                                   "alpha_em_isr": a_0,   "isr_scale_factor": 1.0}),
+        ("xi=0.5",      "scale", {**nll, "isr_emela_ren_scheme": "ALPMZ",
+                                   "alpha_em_isr": a_mz,  "isr_scale_factor": 0.5}),
+        ("xi=2.0",      "scale", {**nll, "isr_emela_ren_scheme": "ALPMZ",
+                                   "alpha_em_isr": a_mz,  "isr_scale_factor": 2.0}),
+    ]
+
+
+def _isr_var_dir(base: str, label: str) -> str:
+    safe = (label.replace("(", "").replace(")", "").replace("=", "")
+            .replace(".", "p").replace("/", "").replace(" ", ""))
+    return os.path.join(base, f"isrvar_{safe}")
+
+
+def _fit_isr_variant(card_ov, label, overrides, base, truth_nom, lumi_corr):
+    """Fit one ISR-scheme variant against the production truth; return a row."""
+    gen = _make_generator(dict(HARD_RUNGS_BY_KEY[TRUTH_HARD]), overrides,
+                          ORDER_OF[TRUTH_HARD])
+    fit = WWFit(card_ov, gen, input_dir=_isr_var_dir(base, label), asimov=True)
+    S = card.SCENARIO
+    fit.init_scenario(scan_min=S["scan_min"], scan_max=S["scan_max"],
+                      scan_step=S["scan_step"], total_lumi=S["total_lumi"],
+                      last_lumi=S["last_lumi"])
+    fit.lumi_uncorr = 0.0
+    fit.lumi_corr = lumi_corr
+    fit.create_scenario(pseudodata=truth_nom)
+    fit.fit_parameters()
+    res = fit.fit_results(printout=False)
+    mass, width = res[0], res[1]
+    truth_mass = fit.d_params["nominal"]["mass"]
+    truth_width = fit.d_params["nominal"]["width"]
+    rho = float(unc.correlation_matrix([mass, width])[0, 1])
+    return {
+        "variant": label,
+        "bias_mW": (mass.n - truth_mass) * 1e3,
+        "bias_gW": (width.n - truth_width) * 1e3,
+        "sig_mW": mass.s * 1e3,
+        "sig_gW": width.s * 1e3,
+        "rho": rho,
+        "valid": bool(fit.minuit.valid),
+    }
+
+
 def _fit_rung(card_ov, hard_key, isr_key, base, truth_nom, lumi_corr):
     """Fit one rung against the injected truth; return a result row dict."""
     fit = _build_fit(card_ov, hard_key, isr_key, base)
@@ -238,7 +361,8 @@ def _fit_rung(card_ov, hard_key, isr_key, base, truth_nom, lumi_corr):
 # ---------------------------------------------------------------------------
 # Orchestration + reporting
 # ---------------------------------------------------------------------------
-def run_theory_ladder(*, isr="both", workers=8, out=None, keep=False, base=None):
+def run_theory_ladder(*, isr="both", workers=48, out=None, keep=False, base=None,
+                       scheme_var=True):
     """Run the full ladder and emit the residual-bias table.
 
     Parameters
@@ -249,6 +373,9 @@ def run_theory_ladder(*, isr="both", workers=8, out=None, keep=False, base=None)
           ``plots/theory_ladder``
     keep : keep the temporary template directory (else removed at the end)
     base : explicit template base dir (else a fresh tempdir)
+    scheme_var : also run the ISR scheme-variation block (α-renormalisation
+        scheme + ξ stability) on top of the perturbative ladder. Always NLL
+        (eMELA); fit against the production truth. Default True.
     """
     # Legs reported in the table vs. legs whose templates we must build. The
     # truth rung (NLL) is always generated so it can be injected as the
@@ -260,8 +387,15 @@ def run_theory_ladder(*, isr="both", workers=8, out=None, keep=False, base=None)
     own_base = base is None
     base = base or tempfile.mkdtemp(prefix="ww_theory_ladder_")
     print(f"[ladder] template base: {base}")
+    variants = _isr_scheme_variants() if scheme_var else []
+    # Force the inner per-√s eMELA pool to serial for the duration of template
+    # generation, so it does NOT nest inside the outer template pool and
+    # oversubscribe (workers × WW_ISR_NJOBS processes). The outer pool is the
+    # parallelism — one core per template. Saved/restored around the run.
+    _prev_njobs = os.environ.get("WW_ISR_NJOBS")
+    os.environ["WW_ISR_NJOBS"] = "1"
     try:
-        _generate_all_templates(base, gen_keys, max_workers=workers)
+        _generate_templates(base, gen_keys, variants, max_workers=workers)
 
         # Injected truth = production hard side + NLL ISR, smeared nominal.
         card_ov = _ladder_card()
@@ -269,6 +403,7 @@ def run_theory_ladder(*, isr="both", workers=8, out=None, keep=False, base=None)
         truth_nom = truth_fit.template("nominal")
 
         rows = []
+        scheme_rows = []
         for lumi_mode, lumi_corr in (("free", _LUMI_CORR_FREE),
                                      ("prior", card.PRIORS["lumi"]["corr"])):
             for isr_key in [k for k in ("LL", "NLL") if k in report_keys]:
@@ -276,15 +411,25 @@ def run_theory_ladder(*, isr="both", workers=8, out=None, keep=False, base=None)
                     row = _fit_rung(card_ov, hard_key, isr_key, base, truth_nom, lumi_corr)
                     row["lumi"] = lumi_mode
                     rows.append(row)
+            for label, kind, overrides in variants:
+                srow = _fit_isr_variant(card_ov, label, overrides, base,
+                                        truth_nom, lumi_corr)
+                srow["lumi"] = lumi_mode
+                srow["kind"] = kind
+                scheme_rows.append(srow)
     finally:
         if own_base and not keep:
             shutil.rmtree(base, ignore_errors=True)
+        if _prev_njobs is None:
+            os.environ.pop("WW_ISR_NJOBS", None)
+        else:
+            os.environ["WW_ISR_NJOBS"] = _prev_njobs
 
-    _emit_table(rows, out, report_keys)
-    return rows
+    _emit_table(rows, out, report_keys, scheme_rows)
+    return rows, scheme_rows
 
 
-def _emit_table(rows, out, isr_keys):
+def _emit_table(rows, out, isr_keys, scheme_rows=None):
     lines = []
     lines.append("WW theory-uncertainty ladder — Asimov (m_W, Γ_W) residual bias")
     lines.append(f"Injected truth: {TRUTH_HARD} hard side + {TRUTH_ISR} ISR (full production).")
@@ -321,10 +466,45 @@ def _emit_table(rows, out, isr_keys):
                     f"{'ok' if r['valid'] else 'BAD'}")
                 prev = r["bias_mW"]
             lines.append("-" * len(header))
+
+    # --- ISR scheme-variation block ----------------------------------------
+    if scheme_rows:
+        s_header = (f"{'lumi':5s} {'variant':12s} {'kind':6s} "
+                    f"{'Δm_W':>9s} {'ΔΓ_W':>9s} "
+                    f"{'σ_mW':>7s} {'σ_ΓW':>7s} {'ρ':>6s}  conv")
+        s_units = (f"{'':5s} {'':12s} {'':6s} "
+                   f"{'[MeV]':>9s} {'[MeV]':>9s} "
+                   f"{'[MeV]':>7s} {'[MeV]':>7s} {'':>6s}")
+        lines.append("")
+        lines.append("#" * len(s_header))
+        lines.append("ISR scheme variation — hard side = +dQCD, NLL ISR throughout.")
+        lines.append("Reference truth = ALPMZ, ξ=1 (production); ALPMZ row is the closure check.")
+        lines.append("'ren'   = α-renormalisation scheme (ALPMZ↔ALGMU↔α(0)): genuine NLL")
+        lines.append("          ISR scheme uncertainty, decoupled from the BFS σ̂.")
+        lines.append("'scale' = ISR factorisation scale ξ (Q=ξ√s): DGLAP-stability check")
+        lines.append("          ONLY — NOT a truncation uncertainty in the DELTA scheme.")
+        lines.append("#" * len(s_header))
+        for lumi_mode in ("free", "prior"):
+            sub = [r for r in scheme_rows if r["lumi"] == lumi_mode]
+            if not sub:
+                continue
+            lines.append(s_header)
+            lines.append(s_units)
+            lines.append("-" * len(s_header))
+            for r in sub:
+                lines.append(
+                    f"{lumi_mode:5s} {r['variant']:12s} {r['kind']:6s} "
+                    f"{r['bias_mW']:+9.3f} {r['bias_gW']:+9.3f} "
+                    f"{r['sig_mW']:7.3f} {r['sig_gW']:7.3f} {r['rho']:+6.2f}  "
+                    f"{'ok' if r['valid'] else 'BAD'}")
+            lines.append("-" * len(s_header))
+
     lines.append("")
     lines.append("NOT captured by this ladder (separate estimate needed):")
     lines.append("  • NLO electroweak (YFSWW3-class non-factorisable + initial-final).")
     lines.append("  • Higher-order Coulomb (BFS G_C vs. dropped FKM K_C).")
+    lines.append("  • Factorisation-scheme (DELTA↔MSBAR) ISR uncertainty — needs the")
+    lines.append("    +∫K(x)σ_Born collinear counterterm in σ̂ (deferred).")
     text = "\n".join(lines)
     print("\n" + text + "\n")
 
@@ -335,10 +515,15 @@ def _emit_table(rows, out, isr_keys):
     import csv
     with open(out + ".csv", "w", newline="") as fh:
         w = csv.writer(fh)
-        w.writerow(["lumi", "isr", "rung", "bias_mW_MeV", "bias_gW_MeV",
+        w.writerow(["block", "lumi", "isr", "rung", "bias_mW_MeV", "bias_gW_MeV",
                     "sig_mW_MeV", "sig_gW_MeV", "rho", "minuit_valid"])
         for r in rows:
-            w.writerow([r["lumi"], r["isr"], r["hard"],
+            w.writerow(["ladder", r["lumi"], r["isr"], r["hard"],
+                        f"{r['bias_mW']:.4f}", f"{r['bias_gW']:.4f}",
+                        f"{r['sig_mW']:.4f}", f"{r['sig_gW']:.4f}",
+                        f"{r['rho']:.4f}", int(r["valid"])])
+        for r in (scheme_rows or []):
+            w.writerow([f"isr_scheme:{r['kind']}", r["lumi"], "NLL", r["variant"],
                         f"{r['bias_mW']:.4f}", f"{r['bias_gW']:.4f}",
                         f"{r['sig_mW']:.4f}", f"{r['sig_gW']:.4f}",
                         f"{r['rho']:.4f}", int(r["valid"])])

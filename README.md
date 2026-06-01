@@ -452,21 +452,36 @@ differences give the per-piece pulls. The fit floats **m_W, Γ_W only** with
 twice: `free` (lumi opened up → pure shape bias) and `prior` (realistic
 FCC-ee corr-lumi). Implementation: `framework/process/ww/theory_ladder.py`.
 
+On top of the perturbative ladder it also runs an **ISR scheme-variation**
+block (the BFS hard side has no cheap scheme variation — its EW input
+scheme is baked into the matching coefficients — but the ISR side does,
+decoupled from the BFS σ̂): the eMELA **α-renormalisation scheme**
+`ALPMZ`↔`ALGMU`↔`α(0)` (β_e ∝ α → a real NLL-order shift on m_W) and the
+**ISR scale ξ** (reported as a DGLAP-stability check only, *not* a
+truncation uncertainty in the DELTA scheme). Disable with
+`--ladderNoSchemeVar`.
+
 | Flag | Effect |
 |---|---|
 | `--theoryLadder` | run the ladder and exit (skips the normal fit) |
 | `--ladderISR {both,LL,NLL}` | which ISR leg(s) to report (default `both`) |
-| `--ladderWorkers N` | process-pool size for template generation (NLL ≈ 90 s/template) |
+| `--ladderWorkers N` | template-gen pool size (default **48** = ironic core cap; inner per-√s eMELA loop forced serial so workers map 1:1 to cores). One NLL template ≈ 10 min on 1 core (152-pt fine grid); all ~36 NLL templates run in one pool → ~10 min wall on a 48-core node |
+| `--ladderNoSchemeVar` | skip the ISR scheme-variation block |
 | `--ladderOut STEM` | output stem for the table (`.txt` + `.csv`; default `plots/theory_ladder`) |
-| `--ladderKeep` | keep the temporary template directory |
+| `--ladderKeep` | keep the temporary template directory (else rmtree'd at end) |
 
 The ladder bounds only the **missing higher order of pieces already in the
 chain** (it confirms the series has converged by NNLO, ~2–3 MeV residual on
 m_W, and that δ_QCD is an exact no-op under the pdg-constant BR routing).
-It does **not** capture pieces entirely absent from the chain — NLO-EW
-(YFSWW3-class) and higher-order Coulomb (BFS `G_C` vs the dropped FKM
-`K_C`) — which need a separate estimate. See
-`report/ww_bfs_implementation.tex` §`sec:val-theory-ladder`.
+The ISR scheme block shows **ISR is the dominant single theory systematic
+on m_W**: the α-scheme spread is ~3.5 MeV (pure shape, ALPMZ↔ALGMU) rising
+to ~36 MeV once the non-lumi-absorbable rate component is included under
+the realistic prior. It does **not** capture pieces entirely absent from
+the chain — NLO-EW (YFSWW3-class), higher-order Coulomb (BFS `G_C` vs the
+dropped FKM `K_C`), and the deferred DELTA↔MSBAR ISR factorisation-scheme
+variation — which need a separate estimate. See
+`report/ww_bfs_implementation.tex` §`sec:val-theory-ladder` and
+§`sec:val-isr-scheme`.
 
 Cross-section pipeline (in `framework/process/ww/xsec_calculator/`):
 

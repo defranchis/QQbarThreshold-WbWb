@@ -85,12 +85,19 @@ def parse_args():
                              "framework/process/ww/theory_ladder.py.")
     parser.add_argument("--ladderISR", choices=["both", "LL", "NLL"], default="both",
                         help="which ISR leg(s) of the ladder to run (default both)")
-    parser.add_argument("--ladderWorkers", type=int, default=8, metavar="N",
-                        help="process-pool size for ladder template generation")
+    parser.add_argument("--ladderWorkers", type=int, default=48, metavar="N",
+                        help="process-pool size for ladder template generation "
+                             "(default 48 = the fcc-ironic core cap; the inner "
+                             "per-√s eMELA loop is forced serial so workers map "
+                             "1:1 to cores without oversubscription)")
     parser.add_argument("--ladderOut", default="plots/theory_ladder", metavar="STEM",
                         help="output stem for the ladder table (.txt + .csv)")
     parser.add_argument("--ladderKeep", action="store_true",
                         help="keep the temporary ladder template directory")
+    parser.add_argument("--ladderNoSchemeVar", action="store_true",
+                        help="skip the ISR scheme-variation block (α-renormalisation "
+                             "ALPMZ/ALGMU/α(0) + ξ stability) that otherwise rides on "
+                             "top of the perturbative ladder")
     parser.add_argument("--parallel", type=int, default=6, metavar="N",
                         help="run the requested scans in parallel with up to N worker "
                              "processes (default: 6; pass --parallel 1 to force sequential)")
@@ -152,7 +159,8 @@ def main():
     if args.theoryLadder:
         from framework.process.ww.theory_ladder import run_theory_ladder
         run_theory_ladder(isr=args.ladderISR, workers=args.ladderWorkers,
-                          out=args.ladderOut, keep=args.ladderKeep)
+                          out=args.ladderOut, keep=args.ladderKeep,
+                          scheme_var=not args.ladderNoSchemeVar)
         return
 
     generator = WWGenerator.from_card(card)
