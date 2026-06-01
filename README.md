@@ -432,6 +432,42 @@ python3 -m scripts.validate_bfs_nlo   # validate against BFS Tables 1+2+3+4
 python3 -m scripts.plot_ww_diagnostics  # diagnostic plot set
 ```
 
+### Theory-uncertainty ladder (`--theoryLadder`)
+
+A first, internally-consistent estimate of the theory uncertainty from
+truncating the calculation, run as a standalone mode of the fit driver:
+
+```bash
+python3 doFit_ww.py --theoryLadder            # both ISR legs, writes plots/theory_ladder.{txt,csv}
+python3 doFit_ww.py --theoryLadder --ladderISR NLL --ladderWorkers 16
+```
+
+It turns the BFS perturbative pieces on cumulatively — LO → +NLO loops →
++NNLO → +δ_QCD, on a *fixed* WHIZARD-Born anchor — each under both LL+exp
+and NLL ISR, and runs an Asimov fit of `(m_W, Γ_W)` against the full
+production chain (`+δ_QCD`/NLL) as the injected truth. The best-fit shift
+from the truth is the residual bias of stopping at that rung; adjacent-rung
+differences give the per-piece pulls. The fit floats **m_W, Γ_W only** with
+**stat + correlated-lumi** uncertainties (everything else fixed), and runs
+twice: `free` (lumi opened up → pure shape bias) and `prior` (realistic
+FCC-ee corr-lumi). Implementation: `framework/process/ww/theory_ladder.py`.
+
+| Flag | Effect |
+|---|---|
+| `--theoryLadder` | run the ladder and exit (skips the normal fit) |
+| `--ladderISR {both,LL,NLL}` | which ISR leg(s) to report (default `both`) |
+| `--ladderWorkers N` | process-pool size for template generation (NLL ≈ 90 s/template) |
+| `--ladderOut STEM` | output stem for the table (`.txt` + `.csv`; default `plots/theory_ladder`) |
+| `--ladderKeep` | keep the temporary template directory |
+
+The ladder bounds only the **missing higher order of pieces already in the
+chain** (it confirms the series has converged by NNLO, ~2–3 MeV residual on
+m_W, and that δ_QCD is an exact no-op under the pdg-constant BR routing).
+It does **not** capture pieces entirely absent from the chain — NLO-EW
+(YFSWW3-class) and higher-order Coulomb (BFS `G_C` vs the dropped FKM
+`K_C`) — which need a separate estimate. See
+`report/ww_bfs_implementation.tex` §`sec:val-theory-ladder`.
+
 Cross-section pipeline (in `framework/process/ww/xsec_calculator/`):
 
 * `bfs_eft.py` — BFS-EFT N^(3/2)LO Born expansion from arXiv:0707.0773:

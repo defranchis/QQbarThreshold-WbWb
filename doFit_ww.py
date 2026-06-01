@@ -76,6 +76,21 @@ def parse_args():
     parser.add_argument("--chi2scans", action="store_true")
     parser.add_argument("--systTable", action="store_true")
     parser.add_argument("--noPlots", action="store_true")
+    # --- Theory-uncertainty ladder (standalone mode) -----------------------
+    parser.add_argument("--theoryLadder", action="store_true",
+                        help="run the incremental-piece theory-uncertainty Asimov "
+                             "ladder (LO→+NLO→+NNLO→+δ_QCD, ×{LL,NLL} ISR) against "
+                             "the production chain as truth, then exit. Fit uses "
+                             "m_W/Γ_W + stat + correlated lumi only; see "
+                             "framework/process/ww/theory_ladder.py.")
+    parser.add_argument("--ladderISR", choices=["both", "LL", "NLL"], default="both",
+                        help="which ISR leg(s) of the ladder to run (default both)")
+    parser.add_argument("--ladderWorkers", type=int, default=8, metavar="N",
+                        help="process-pool size for ladder template generation")
+    parser.add_argument("--ladderOut", default="plots/theory_ladder", metavar="STEM",
+                        help="output stem for the ladder table (.txt + .csv)")
+    parser.add_argument("--ladderKeep", action="store_true",
+                        help="keep the temporary ladder template directory")
     parser.add_argument("--parallel", type=int, default=6, metavar="N",
                         help="run the requested scans in parallel with up to N worker "
                              "processes (default: 6; pass --parallel 1 to force sequential)")
@@ -106,6 +121,12 @@ def _check_template_freshness(fit, generator):
 
 def main():
     args = parse_args()
+
+    if args.theoryLadder:
+        from framework.process.ww.theory_ladder import run_theory_ladder
+        run_theory_ladder(isr=args.ladderISR, workers=args.ladderWorkers,
+                          out=args.ladderOut, keep=args.ladderKeep)
+        return
 
     generator = WWGenerator.from_card(card)
     fit = WWFit(

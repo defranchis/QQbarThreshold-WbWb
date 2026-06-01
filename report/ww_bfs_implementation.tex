@@ -1739,6 +1739,154 @@ $\sim 7$ between $\mu\nu q\bar q$ and all-WW) and the BFS-LO$_\text{EFT}$
 Born versus YFSWW3 NLO-EW process modelling, not the ISR truncation.
 
 % ---------------------------------------------------------------
+\subsection{Incremental theory-piece ladder}\label{sec:val-theory-ladder}
+% ---------------------------------------------------------------
+
+The chain-routing cross-fit above (section~\ref{sec:val-chain-cross})
+compares the production chain against \emph{historical} alternatives.
+This subsection instead turns the BFS perturbative pieces on one at a
+time and measures how each successive correction moves the fitted
+$(\mW,\GammaW)$ --- a first, internally-consistent estimate of the
+theory uncertainty carried by the truncation of the calculation itself.
+This is a standalone mode of the main fit driver,
+\code{doFit\_ww.py --theoryLadder} (orchestration in
+\code{framework/process/ww/theory\_ladder.py}).
+
+\paragraph{Ladder and methodology.}
+Four cumulative rungs are built on a \emph{fixed} WHIZARD-Born anchor
+(the anchor is not a perturbative order; it is the common Born the whole
+series rides on):
+\begin{equation*}
+  \text{LO}\;\to\;\text{+NLO loops}\;\to\;\text{+NNLO}\;\to\;\text{+}\delta_\text{QCD},
+\end{equation*}
+each run with both LL$+$exp and NLL ISR ($8$ chain configurations). For
+every configuration an Asimov fit injects the \emph{full production
+chain} ($+\delta_\text{QCD}$ with NLL ISR) as truth and lets Minuit find
+$(\mW,\GammaW)$; the best-fit shift away from the injected truth is the
+residual theory bias of stopping at that rung. To isolate a genuine
+theory effect from the trivial normalisation difference between
+perturbative orders, the fit floats $\mW$ and $\GammaW$ only, with
+\emph{statistical $+$ correlated-luminosity} uncertainties and nothing
+else ($\alpha_s$, BEC, BES, $m_t$, $M_H$, $M_Z$ all fixed). Each rung is
+fit twice:
+\begin{itemize}\itemsep0pt
+  \item \textbf{free} --- the correlated-luminosity prior is opened up
+  ($\sim\!100\,\%$), so any flat $\sigma$-rescale between orders is fully
+  absorbed by the normalisation and the residual is a \emph{pure shape}
+  bias on $\mW$;
+  \item \textbf{prior} --- the realistic FCC-ee correlated-lumi prior
+  ($5\times10^{-4}$), so the flat component that leaks into $\mW$ under
+  the true constraint is included.
+\end{itemize}
+Both modes use the threshold scan $\sqrts\in[157,163]\GeV$, no
+above-threshold point; the per-rung $\sigma_{\mW}$ here is therefore a
+test-specific figure (2-POI, stat$+$corr-lumi only), not the headline
+analysis sensitivity.
+
+\begin{table}[h]
+\centering
+\caption{Incremental theory-piece ladder: Asimov $(\mW,\GammaW)$
+residual bias of each cumulative rung against the full production chain
+($+\delta_\text{QCD}$, NLL) as truth. $\delta$(prev) is the $\mW$ step
+relative to the rung above. Closure: the $+\delta_\text{QCD}$/NLL row
+fits itself to $0$ by construction.}
+\label{tab:theory-ladder}
+\begin{tabular}{l l c c c c c}
+\toprule
+ISR & rung & $\Delta\mW$ & $\delta$(prev) & $\Delta\GammaW$ & $\sigma_{\mW}$ & $\rho$ \\
+ & & [MeV] & [MeV] & [MeV] & [MeV] & \\
+\midrule
+\multicolumn{7}{l}{\emph{free correlated lumi (pure shape bias)}}\\
+LL  & LO                   & $-33.1$ &        & $+4.8$ & $5.77$ & $+0.28$ \\
+LL  & +NLO                 & $+4.4$  & $+37.5$ & $-3.2$ & $5.33$ & $+0.33$ \\
+LL  & +NNLO                & $+2.1$  & $-2.3$ & $+1.0$ & $5.33$ & $+0.32$ \\
+LL  & +$\delta_\text{QCD}$ & $+2.1$  & $+0.0$ & $+1.0$ & $5.33$ & $+0.32$ \\
+NLL & LO                   & $-35.3$ &        & $+4.0$ & $5.77$ & $+0.27$ \\
+NLL & +NLO                 & $+2.3$  & $+37.7$ & $-4.1$ & $5.33$ & $+0.32$ \\
+NLL & +NNLO                & $0.0$   & $-2.3$ & $0.0$  & $5.33$ & $+0.32$ \\
+NLL & +$\delta_\text{QCD}$ & $0.0$   & $+0.0$ & $0.0$  & $5.33$ & $+0.32$ \\
+\midrule
+\multicolumn{7}{l}{\emph{realistic FCC-ee correlated-lumi prior}}\\
+LL  & LO                   & $-95.0$ &        & $+1.5$ & $1.87$ & $+0.51$ \\
+LL  & +NLO                 & $-9.3$  & $+85.7$ & $-4.4$ & $1.85$ & $+0.54$ \\
+LL  & +NNLO                & $-6.1$  & $+3.2$ & $+0.2$ & $1.85$ & $+0.55$ \\
+LL  & +$\delta_\text{QCD}$ & $-6.1$  & $+0.0$ & $+0.2$ & $1.85$ & $+0.55$ \\
+NLL & LO                   & $-88.8$ &        & $+1.2$ & $1.87$ & $+0.51$ \\
+NLL & +NLO                 & $-3.2$  & $+85.6$ & $-4.6$ & $1.85$ & $+0.55$ \\
+NLL & +NNLO                & $0.0$   & $+3.2$ & $0.0$  & $1.85$ & $+0.55$ \\
+NLL & +$\delta_\text{QCD}$ & $0.0$   & $+0.0$ & $0.0$  & $1.85$ & $+0.55$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Reading the table (Table~\ref{tab:theory-ladder}).}
+Four features stand out.
+\begin{enumerate}\itemsep1pt
+  \item \textbf{Closure.} The $+\delta_\text{QCD}$/NLL rung is the
+  injected truth and fits itself to exactly $0$ in both lumi modes ---
+  an end-to-end check of the template generation, BES smearing, the
+  bilinear $(\mW,\GammaW)$ morph and the fit.
+  \item \textbf{The NLO loops dominate.} LO$\to$NLO is by far the largest
+  step: $\sim\!37\MeV$ (free) / $\sim\!86\MeV$ (prior). The LO
+  WHIZARD-Born lineshape alone is a poor template; the bulk of the
+  perturbative information is in the NLO hard$+$Coulomb$+$decay
+  correction.
+  \item \textbf{The series has converged by NNLO.} The NNLO step is
+  $\sim\!2.3\MeV$ (free) / $\sim\!3.2\MeV$ (prior). Taking the size of
+  the last included term as the truncation proxy, the residual
+  perturbative (missing N$^3$LO-type) theory uncertainty on $\mW$ is
+  $\mathcal{O}(2\text{--}3\MeV)$.
+  \item \textbf{$\delta_\text{QCD}$ is an exact no-op here.} The
+  $+\delta_\text{QCD}$ row is bit-identical to $+$NNLO ($\delta$(prev)
+  $=0$). In the \code{pdg-constant} convention $\delta_\text{QCD}$ enters
+  only as the ratio
+  $\delta_\text{QCD}(\alpha_s)/\delta_\text{QCD}(\alpha_s^\text{ref})$
+  on the fixed branching ratio (section~\ref{sec:dqcd}); with $\alpha_s$
+  pinned at its reference this ratio is unity, so $\delta_\text{QCD}$
+  does \emph{not} affect the $\mW$ lineshape at all --- it is felt only
+  through the (here-disabled) $\alpha_s$ nuisance. This is the same
+  mechanism that made the $\delta_\text{QCD}$-routing cross-fit of
+  section~\ref{sec:val-chain-cross} a pure normalisation effect.
+\end{enumerate}
+
+\paragraph{ISR scheme.}
+The LL$\to$NLL difference at the converged ($+$NNLO/$+\delta_\text{QCD}$)
+rung is the residual ISR-scheme bias on $\mW$: $+2.1\MeV$ in free mode
+(pure shape) and $-6.1\MeV$ under the realistic lumi prior, with
+$|\Delta\GammaW|\!\lesssim\!1\MeV$. This is consistent in magnitude with
+the $\pm5.4\MeV$ pure-NLL figure of the dedicated ISR cross-fit
+(section~\ref{sec:val-isr-cross}) and reaffirms that running the analysis
+with the NLL default (\code{isr_nll=True}) is necessary at the FCC-ee
+$0.25\MeV$ target.
+
+\paragraph{Free vs.\ prior.}
+The two lumi modes bracket the role of the absolute rate. With the
+normalisation floated (\textbf{free}) the residuals are smaller in
+central value but the stat precision degrades to
+$\sigma_{\mW}\!\approx\!5.3\MeV$ (the rate carries $\mW$ information that
+is thrown away); with the tight realistic prior (\textbf{prior}) the rate
+sharpens $\sigma_{\mW}$ to $\approx\!1.85\MeV$ but couples a low-order
+normalisation error into $\mW$ --- which is why the LO bias balloons to
+$\sim\!90\MeV$ and the NNLO residual grows from $2.3$ to $3.2\MeV$. The
+honest perturbative-truncation number for the budget is the
+\textbf{free} (pure-shape) NNLO step, $\sim\!2.3\MeV$; the prior column
+shows how much a low-order rate error would additionally leak through the
+luminosity constraint.
+
+\paragraph{What this ladder does \emph{not} capture.}
+By construction the ladder only bounds the missing \emph{higher order of
+pieces already in the chain}. Two genuine theory uncertainties live
+entirely outside it and need a separate, non-ladder estimate:
+(i) NLO electroweak corrections of the YFSWW3 class (non-factorisable
+photon exchange and initial--final interference), absent from the
+BFS-LO$_\text{EFT}$ Born --- the structural part of the residual gap to
+the \arxiv{2107.04444} $0.5\MeV$ projection
+(section~\ref{sec:val-chain-cross}); and (ii) higher-order Coulomb,
+i.e.\ the BFS unstable-$W$ Green function $G_C$ versus the dropped FKM
+$K_C$ multiplier (sections~\ref{sec:kcsafe}, \ref{sec:limits}). These set
+the priority for the next round of theory-uncertainty work.
+
+% ---------------------------------------------------------------
 \section{Limitations and open items}\label{sec:limits}
 % ---------------------------------------------------------------
 
