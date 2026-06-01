@@ -98,22 +98,49 @@ def parse_args():
 
 
 def _check_template_freshness(fit, generator):
-    """Abort if any field of the template's stored ``template_fingerprint``
-    disagrees with what the live card+generator would produce. Templates
-    without a fingerprint (older runs) are skipped silently."""
+    """Abort if the templates' stored ``template_fingerprint`` disagrees with
+    what the live card+generator would produce — i.e. the card's physics
+    parameters no longer correspond to the calculation the templates were
+    generated from. Two failure modes are caught, both fail *closed*:
+
+      * **mismatch** — a fingerprint key present in the template header but
+        with a value different from the live card (e.g. ``m_t`` edited in the
+        card without regenerating templates);
+      * **missing** — a fingerprint key the live card expects but the template
+        header lacks, i.e. the template predates that input. Left unchecked,
+        such an input could differ silently, so it is treated as stale.
+
+    Templates with NO fingerprint at all (empty header — pre-metadata runs)
+    are skipped, matching the documented back-compat behaviour. The
+    ``v not in (None, "")`` guard mirrors ``compose_header``, which omits
+    empty values, so a legitimately-blank fingerprint field is not reported
+    as missing."""
     metadata = fit.template_metadata()
     if not metadata:
         return
-    diffs = [
+    fingerprint = generator.template_fingerprint()
+    mismatched = [
         f"  {k}: template={metadata[k]!r}  card={v!r}"
-        for k, v in generator.template_fingerprint().items()
+        for k, v in fingerprint.items()
         if k in metadata and metadata[k] != v
     ]
-    if diffs:
+    missing = [
+        f"  {k}: (absent from template header)  card={v!r}"
+        for k, v in fingerprint.items()
+        if k not in metadata and v not in (None, "")
+    ]
+    if mismatched or missing:
+        lines = []
+        if mismatched:
+            lines.append("Input(s) that changed since the templates were generated:")
+            lines.extend(mismatched)
+        if missing:
+            lines.append("Input(s) the templates predate (not in their fingerprint):")
+            lines.extend(missing)
         raise SystemExit(
-            "\n[stale templates] The following input(s) in the templates\n"
-            "do not match the current card:\n"
-            + "\n".join(diffs) + "\n"
+            "\n[stale templates] The card's parameters no longer match the\n"
+            "calculation the input templates were generated from:\n"
+            + "\n".join(lines) + "\n"
             "→ regenerate templates: `python compute_xsec_ww.py`\n"
             "→ then re-run this script. Refusing to fit on outdated templates."
         )
