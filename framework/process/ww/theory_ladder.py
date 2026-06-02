@@ -66,6 +66,7 @@ or import :func:`run_theory_ladder`.
 from __future__ import annotations
 
 import copy
+import multiprocessing
 import os
 import shutil
 import types
@@ -118,8 +119,10 @@ TRUTH_ISR = "NLL"
 _GEN_TAGS = ["nominal", "mass_var", "width_var", "cross_mass_width"]
 
 # Lumi prior used in 'free' mode: huge correlated prior ⇒ overall
-# normalisation effectively unconstrained.
-_LUMI_CORR_FREE = 1.0
+# normalisation effectively unconstrained. Public so the production
+# ``doFit_ww.py --shapeOnly`` fit reuses the SAME free-lumi value (single
+# source of truth — a flat 100% correlated normalisation variance).
+LUMI_CORR_FREE = 1.0
 
 
 def _ladder_parameters() -> Parameters:
@@ -204,8 +207,34 @@ def _generate_templates(base, isr_keys, variants, max_workers, verbose=True):
         print(f"[ladder] generating {len(specs)} templates "
               f"({len(HARD_RUNGS)}×{len(isr_keys)} ladder + {len(variants)} ISR-scheme, "
               f"× {len(_GEN_TAGS)} tags) on {max_workers} workers ...")
-    if max_workers > 1:
-        with ProcessPoolExecutor(max_workers=max_workers) as ex:
+    if max_workers > 1 and len(specs) > 1:
+        # Cap the pool to the number of templates (no point forking more workers
+        # than there is work — ``--ladderWorkers`` defaults to 48 while a typical
+        # ladder has ~32–52 specs), and use the ``forkserver`` start method.
+        #
+        # forkserver forks each worker from a *clean* server process rather than
+        # from the threaded main interpreter (matplotlib/Agg + eMELA pull in
+        # background threads at import). The default ``fork`` method copies those
+        # threads' locks in arbitrary states, which trips the CPython
+        # fork-with-threads teardown race (cpython#90622): on an all-cache-hit
+        # ladder every ``_gen_one`` returns in ~ms, so the workers finish almost
+        # simultaneously — exactly the timing that left the ProcessPoolExecutor
+        # manager thread unable to join them. The idle (state-S) workers were
+        # then never reaped, the ``with`` block's shutdown blocked forever, and
+        # because the children are non-daemonic the foreground ssh never
+        # returned (the run looked "still running" long after the table printed).
+        # forkserver's sentinel-based teardown is not subject to that race.
+        #
+        # ``_gen_one`` + its specs are fully picklable by design (strings + plain
+        # dicts; the generator is rebuilt inside the worker), so forkserver — which
+        # re-imports this module per worker instead of inheriting parent memory —
+        # needs no code change. Workers inherit ``os.environ`` (incl. the
+        # ``WW_ISR_NJOBS=1`` guard set by ``run_theory_ladder``); the morph grid is
+        # pre-warmed into the AFS client cache by the launch scripts, so the
+        # per-worker re-read on a cache miss does not re-introduce grid contention.
+        n_workers = min(max_workers, len(specs))
+        ctx = multiprocessing.get_context("forkserver")
+        with ProcessPoolExecutor(max_workers=n_workers, mp_context=ctx) as ex:
             for line in ex.map(_gen_one, specs):
                 if verbose:
                     print("   " + line)
@@ -441,7 +470,7 @@ def run_theory_ladder(*, isr="both", workers=48, out=None, keep=True, base=None,
 
         rows = []
         scheme_rows = []
-        for lumi_mode, lumi_corr in (("free", _LUMI_CORR_FREE),
+        for lumi_mode, lumi_corr in (("free", LUMI_CORR_FREE),
                                      ("prior", card.PRIORS["lumi"]["corr"])):
             for isr_key in [k for k in ("LL", "NLL") if k in report_keys]:
                 for hard_key, _ in HARD_RUNGS:
