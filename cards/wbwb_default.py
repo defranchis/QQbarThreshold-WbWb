@@ -144,8 +144,9 @@ PRIORS = {
 
 # SYSTEMATICS schema:
 #   type:      "constraint" | "binned" | "global"
-#   always_on: constraints only — False means an entry-script flag
-#              decides (today: --fitYukawa gates Yukawa).
+#   always_on: constraints + globals — True auto-activates the nuisance at
+#              init_scenario; absent/False means an entry-script flag decides
+#              (today: --fitYukawa gates Yukawa; WbWb sw2 is entry-script-gated).
 #   center:    constraints, optional — defaults to pseudodata "true" value.
 #   source:    binned + global — { kind: "template_dir" | "smear_shift", ... }.
 #              template_dir loads INPUT_DIRS[name]; var_subdir + snap_to_grid

@@ -219,18 +219,28 @@ contains an explicit $\alpha$ factor; the convolution-internal
 \code{alpha\_em\_isr} to free up \code{alpha\_em} as the
 $\sigma$-chain key forwarded through \code{**sigma\_kwargs}. With both
 \code{None} the calculation is byte-identical to the previous chain.
-Of the two couplings only $\alpha_{\rm em,ISR}$ carries an $\mW$
-uncertainty. The $\sigma$-chain $\alpha_{G_\mu}(\mW,M_Z)$ enters through
-$G_F$ as an overall normalisation and is luminosity-degenerate --- a shift
-is absorbed by the luminosity nuisance with no $\mW$ bias --- so
-\code{PARAM\_UNC.alpha\_em} is set to \code{None}; $\alpha_{\rm em,ISR}$
-enters the ISR radiator exponent $\beta_e$ as a genuine \emph{shape} effect.
-The production \code{PARAM\_UNC.alpha\_em\_isr} is therefore the only
-$\alpha$ nuisance, $\Delta\alpha(M_Z)=4.7\times 10^{-8}$ (FCC-ee combined
-Tera-Z projection,~\cite{RiembauTeraZ}), profiled as a Gaussian-constraint
-nuisance: its $\mW$ impact is $\approx0.005\MeV$ (the $\alpha_{\rm em,ISR}$
-row of Table~\ref{tab:scenario-syst}, sweep in
-Fig.~\ref{fig:scenario-scan-mW}), far below the $0.25\MeV$ target. This is
+The two couplings enter $\mW$ differently. $\alpha_{\rm em,ISR}$ enters the
+ISR radiator exponent $\beta_e$ as a genuine \emph{shape} effect, capable of
+biasing $\mW$; its input uncertainty $\Delta\alpha(M_Z)=4.7\times 10^{-8}$
+(FCC-ee combined Tera-Z projection,~\cite{RiembauTeraZ}) is profiled as the
+Gaussian-constraint nuisance \code{aem\_isr}, $\mW$ impact $\approx0.005\MeV$
+(the $\alpha_{\rm em,ISR}$ row of Table~\ref{tab:scenario-syst}, sweep in
+Fig.~\ref{fig:scenario-scan-mW}). The $\sigma$-chain coupling
+$\alpha_{G_\mu}(\mW,M_Z)$ instead enters through $G_F$ as an overall
+\emph{normalisation} ($\sigma\propto\alpha^2$): a shift does \emph{not} bias
+$\mW$ --- it is degenerate with luminosity, orthogonal to $\mW$ in the mean ---
+so \code{PARAM\_UNC.alpha\_em} stays \code{None}. But because $\mW$ is extracted
+substantially from the \emph{rate} (the shape-only fit inflates $\sigma(\mW)$
+from $1.23$ to $4.18\MeV$ once the rate is removed), this normalisation
+uncertainty still \emph{inflates} $\sigma(\mW)$ --- it is not orthogonal to
+$\mW$ in the covariance. It is therefore profiled as a separate \emph{flat
+normalisation} nuisance \code{aemEW}, with prior $\delta\sigma/\sigma =
+1.2\times 10^{-5} = 2\,\delta\alpha/\alpha$ from the same Riembau $\alpha(M_Z)$
+(modelled as a flat rescale rather than an $\alpha_{\rm em}$ override, since the
+$\alpha$-blind WHIZARD anchor cancels the leading $\alpha^2$ Born dependence).
+Its Asimov $\mW$ impact is $\approx0.03\MeV$ with $\rho(\mW,\code{aemEW})\approx
++0.02$ (the $\alpha_{\rm em,EW}$ row of Table~\ref{tab:scenario-syst}). Both
+$\alpha$ \emph{input} nuisances are far below the $0.25\MeV$ target and are
 distinct from the NLL ISR \emph{renormalisation-scheme} variation
 (ALPMZ$\leftrightarrow$ALGMU$\leftrightarrow\alpha(0)$), a separate theory
 uncertainty measured in section~\ref{sec:val-isr-cross}.
@@ -2191,6 +2201,7 @@ Source & 7-pt & 3-pt & Azz. & 7-pt & 3-pt & Azz. \\
 stat       & $0.85$ & $0.92$ & $1.06$ & $1.82$ & $1.83$ & $1.85$ \\
 $\alpha_s$ & $0.08$ & $0.09$ & $0.09$ & $0.01$ & $0.02$ & $0.02$ \\
 $\alpha_{\rm em,ISR}$ & $0.01$ & $0.01$ & $0.01$ & $0.00$ & $0.00$ & $0.00$ \\
+$\alpha_{\rm em,EW}$ & $0.03$ & $0.03$ & $0.03$ & $0.00$ & $0.01$ & $0.00$ \\
 BES        & $0.01$ & $0.02$ & $0.00$ & $0.02$ & $0.03$ & $0.01$ \\
 BEC        & $0.19$ & $0.20$ & $0.20$ & $0.06$ & $0.08$ & $0.07$ \\
 lumi       & $0.37$ & $0.41$ & $0.41$ & $0.48$ & $0.49$ & $0.33$ \\
@@ -2221,8 +2232,8 @@ than the earlier placeholder --- the $\mW$ budget is \textbf{statistics-dominate
 and \textbf{almost layout-independent}. The total experimental $\sigma(\mW)$ is
 $1.23$--$1.27\MeV$ across all three geometries; the luminosity contributes only
 $0.37$--$0.41\MeV$ and the leading systematic is the beam-energy calibration
-(BEC, $\approx0.2\MeV$), with $\alpha_s$, $\alpha_{\rm em,ISR}$ and BES all
-$\lesssim\!0.1\MeV$. The scan geometry therefore moves the budget only through
+(BEC, $\approx0.2\MeV$), with $\alpha_s$, $\alpha_{\rm em,ISR}$,
+$\alpha_{\rm em,EW}$ and BES all $\lesssim\!0.1\MeV$. The scan geometry therefore moves the budget only through
 (i) the statistical term --- $\sigma_\text{stat}(\mW)$ grows mildly from
 $0.85\MeV$ (7-point) to $1.06\MeV$ (Azzurri-like) as points are removed --- and
 (ii) the luminosity--$\GammaW$ coupling: the Azzurri-like upper point near the
@@ -2562,8 +2573,10 @@ a single authoritative summary.
   diagnostic. The $\alpha(M_Z)$ \emph{input} uncertainty is propagated as
   the profiled $\alpha_{\rm em,ISR}$ nuisance with
   $\Delta\alpha(M_Z)=4.7\times 10^{-8}$ (FCC-ee combined
-  Tera-Z~\cite{RiembauTeraZ}; $\alpha_{G_\mu}$ is luminosity-degenerate and
-  carries no $\mW$ bias, so \code{PARAM\_UNC.alpha\_em=None}); its $\mW$
+  Tera-Z~\cite{RiembauTeraZ}; $\alpha_{G_\mu}$ carries no $\mW$ \emph{bias}
+  --- it is luminosity-degenerate --- but its overall-rate uncertainty still
+  inflates $\sigma(\mW)$, profiled as the separate flat \code{aemEW} nuisance,
+  so \code{PARAM\_UNC.alpha\_em} stays \code{None}); its $\mW$
   impact is $\approx0.005\MeV$ (Fig.~\ref{fig:scenario-scan-mW}). The
   genuine NLL truncation systematic is the separate renormalisation-scheme
   variation: the cross-fit in

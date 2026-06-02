@@ -36,9 +36,12 @@ closure must use `M_T_BFS_REF` (already pinned in validation scripts).
   the fit (BFS prescription, arXiv:0707.0773 line 2514); kept for paper-
   closure tests.
 
-Only the ISR side carries a fit nuisance (`PARAM_UNC.alpha_em_isr` →
-`aem_isr`); the σ-chain `alpha_em` (Gμ scheme) is luminosity-degenerate for
-m_W and is left unpropagated (`PARAM_UNC.alpha_em = None`). See PARAM_UNC.
+The ISR-side α carries the `aem_isr` input nuisance (`PARAM_UNC.alpha_em_isr`).
+The σ-chain coupling `alpha_em` (Gμ scheme) stays derived (`PARAM_UNC.alpha_em
+= None`), but the EW coupling's **normalization** uncertainty is now profiled as a
+separate flat nuisance `aemEW` (see "EW-coupling normalization nuisance" below) —
+m_W is extracted substantially from the rate, so a normalization prior inflates
+σ_mW even though it does not bias the central value. See PARAM_UNC.
 
 ### PARAM_UNC — parametric uncertainties (FCC-ee projections)
 
@@ -54,7 +57,7 @@ nuisance). Only `alpha_s` and `alpha_em_isr` are profiled.
 | `m_t`          | None    | no        | negligible σ-response (see below) |
 | `M_H`          | None    | no        | negligible σ-response (see below) |
 | `M_Z`          | None    | no        | sub-0.1 MeV on m_W; not propagated |
-| `alpha_em`     | None    | no        | Gμ-scheme α: luminosity-degenerate for m_W |
+| `alpha_em`     | None    | norm→`aemEW` | Gμ α stays derived; its **normalization** unc is the flat `aemEW` nuisance |
 
 **`alpha_em_isr` = 4.7×10⁻⁸** — δα(M_Z) absolute = 0.6×10⁻⁵ (relative) × α(M_Z),
 the Riembau (arXiv:2501.05508) **combined on-peak** projection (A_FB^μμ + e/μ + e/e
@@ -76,10 +79,43 @@ m_t/M_H uncertainty through the Δr(m_t, M_H) relation (and with `pdg-constant` 
 α_Gμ, m_t/M_H never enter the normalisation either). There is no clean morph template
 to build for them, so they are documented as negligible rather than profiled.
 
-**`alpha_em` (Gμ-scheme, hard σ̂)** is luminosity-degenerate for m_W (it rescales the
-overall normalisation, absorbed by the lumi nuisance), so profiling it buys nothing
-for the mass; left `None`. Only the ISR-side α (`alpha_em_isr`, a shape effect via
-β_e) matters.
+**`alpha_em` (Gμ-scheme, hard σ̂)** stays derived (`None`): in the Gμ scheme its
+literal *input* error is negligible (G_F to 5×10⁻⁶, M_Z lumi-degenerate), so there is
+no coupling *value* to propagate. What matters is the **normalization** uncertainty
+the EW coupling carries — handled by the `aemEW` flat nuisance below, not by an
+`alpha_em` override.
+
+### EW-coupling normalization nuisance (`aemEW`)
+
+`aemEW` is a **flat normalization nuisance** (`SYSTEMATICS["aemEW"] = {type: global,
+always_on, source: {kind: flat}}`, auto-activated for every fit) that rescales the
+observed σ uniformly by `1 + δσ/σ`. **Why it exists:** m_W is read substantially off
+the cross-section *rate*, not only the lineshape (`--shapeOnly`: σ_mW 1.23→4.18 MeV
+when the rate is removed). The EW coupling that sets the rate through σ ∝ α² therefore
+injects a floor into the rate-based m_W. This does **not** bias the central value (a
+flat α-rescale is degenerate with luminosity — orthogonal to m_W in the *mean*) but it
+**inflates** σ_mW (not orthogonal in the *covariance*: m_W and the normalization both
+act on the rate). Asimov impact σ_mW ≈ 0.028 MeV, ρ(m_W, `aemEW`) ≈ +0.02 — sub-
+dominant, ranks at the bottom of the systematics table.
+
+- **Prior** `PRIORS["aemEW"] = 1.2×10⁻⁵` (in δσ/σ units) `= 2 × δα/α = 2 × 6.0×10⁻⁶`,
+  the Riembau combined α(M_Z) — the *same* input as `aem_isr`, kept coherent.
+  `INPUT_VAR["aemEW"] = 0.01` is only the fit-space morph unit (numerical), decoupled
+  from the prior (`σ_fit = PRIORS/INPUT_VAR`). Conservative single-method alternative:
+  FSR Vol.1 off-peak A_FB^μμ `δα/α = 3.0×10⁻⁵` → `δσ/σ = 6.0×10⁻⁵` (≈0.12 MeV).
+- **Flat template, not an `alpha_em` override.** The production chain uses the α-blind
+  WHIZARD morph anchor, so the leading α² of the anchored Born *cancels*; an `alpha_em`
+  override moves only the un-anchored NLO/NNLO loops (~0.12 %/1e-4 offset, ~22× screened
+  vs the 2·δα/α a true rescale gives) and would silently under-cover. The flat template
+  rescales the final σ and is anchor-proof; it needs **no template regeneration** (the
+  morph is synthesized in-memory from the nominal via `_morph_one` `kind="flat"`).
+- **Scope.** `aemEW` is the α(M_Z) *input* nuisance, used as a conservative production-
+  normalization proxy. It is **not** the EW-coupling *scheme* / missing-higher-order
+  normalization theory spread (α(0) vs α(M_Z) vs α_Gμ at the Born/NLO vertices, ~1 % on
+  σ, anchor-mitigated) — a separate, larger theory systematic (parallel to the ISR
+  ALPMZ↔ALGMU spread), future work. `aemEW` and `aem_isr` trace to the same α(M_Z)
+  measurement, so their priors are 100 % correlated (negligible double-count given both
+  are <0.05 MeV).
 
 BR_W_* uncertainties are deliberately not in `PARAM_UNC`: in `pdg-constant` BR mode
 the BR is a measured constant, an analysis-level systematic rather than a theory-input

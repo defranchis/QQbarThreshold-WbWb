@@ -690,6 +690,15 @@ class FitCore:
         # parallel BES/BEC-style flag for it.
         if self.lumi_mode == "nuisance":
             self.add_binned_nuisance("lumi")
+        # Always-on global nuisances (``always_on=True`` in card.SYSTEMATICS,
+        # e.g. the WW EW-coupling normalization nuisance ``aemEW``) auto-activate
+        # here — mirroring the always-on constraint nuisances registered in
+        # __init__ — so every entry script picks them up without an explicit
+        # add_global_nuisance call. Opt-in globals (no always_on, e.g. WbWb
+        # ``sw2``) are left for entry scripts. Idempotent.
+        for kind, spec in self._systematics_meta["global"].items():
+            if spec.get("always_on"):
+                self.add_global_nuisance(kind)
 
     def create_scenario(self, *, init_vars=True, pseudodata=None):
         """Build the scenario tensors from ``self.scenario_dict``.
@@ -1107,15 +1116,21 @@ class FitCore:
             if name == "mass":
                 print(f"uncertainty in mass: {val.s * 1e3:.2f} MeV")
             print()
-        # Print the POI × POI block only. self.parameters.names is set from
-        # card.PARAMETERS at construction time and is never mutated by
-        # add_*_nuisance(), so it's the right slice length even when
-        # binned/global nuisances have extended self.param_names.
+        # Print the POI/constraint block (mass, width + the PARAMETERS-key
+        # constraint nuisances alphas/aem_isr) PLUS any active global nuisances
+        # (e.g. the EW-coupling normalization nuisance aemEW) so their
+        # correlation with the POIs is visible. self.parameters.names is the
+        # POI/constraint slice (never mutated by add_*_nuisance). Per-bin
+        # binned nuisances (lumi/BES/BEC bins) are omitted — they would swamp
+        # the matrix.
         n_poi = len(self.parameters.names)
-        print("Correlation matrix:")
-        print(self.param_names[:n_poi])
+        extra = [i for i, k in enumerate(self.param_names)
+                 if i >= n_poi and k in self._active_global_nuisances]
+        sel = list(range(n_poi)) + extra
         corr = np.round(unc.correlation_matrix(params_w_cov), 2)
-        print(corr[:n_poi, :n_poi])
+        print("Correlation matrix:")
+        print([self.param_names[i] for i in sel])
+        print(corr[np.ix_(sel, sel)])
         self.last_fit_results = params_w_cov
 
     # ------------------------------------------------------------------

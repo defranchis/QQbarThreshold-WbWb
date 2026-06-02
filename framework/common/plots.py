@@ -245,10 +245,12 @@ def _format_delta(delta_disp: float, unit: str) -> str:
 
 def _poi_display_spec(card, name: str) -> tuple[str, float, str]:
     """``(math_symbol, display_scale, unit)`` for ``name`` from
-    ``card.POI_DISPLAY``. Falls back to the bare name with no scale/unit
-    if the parameter has no display spec (shouldn't happen for POIs)."""
+    ``card.POI_DISPLAY``. For non-POI nuisances (no POI_DISPLAY entry, e.g. a
+    global flat normalization nuisance) the math symbol falls back to
+    ``card.PARAM_MATH_LABELS``; failing that, the bare name with no scale/unit."""
     spec = getattr(card, "POI_DISPLAY", {}).get(name, {})
-    symbol = spec.get("symbol", name)
+    symbol = (spec.get("symbol")
+              or getattr(card, "PARAM_MATH_LABELS", {}).get(name, name))
     return symbol, float(spec.get("scale", 1.0)), spec.get("unit", "")
 
 
@@ -258,7 +260,13 @@ def _poi_pm_label(card, name: str) -> str:
     + the dimension-aware Δ formatting — used by every plot that draws
     "POI ± Δ" curves so they stay consistent."""
     symbol, scale, unit = _poi_display_spec(card, name)
-    delta = float(card.PARAMETERS[name]["variation"]) * scale
+    params = getattr(card, "PARAMETERS", {})
+    if name in params:
+        delta = float(params[name]["variation"]) * scale
+    else:
+        # nuisance without a PARAMETERS entry (e.g. a global flat normalization
+        # nuisance): annotate with its morph unit INPUT_VAR[name].
+        delta = float(getattr(card, "INPUT_VAR", {}).get(name, 1.0)) * scale
     return rf"${symbol} \pm {_format_delta(delta, unit)}$"
 
 

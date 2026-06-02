@@ -80,6 +80,7 @@ INPUT_VAR = {
     "BEC":  10.0,   # MeV — matches output_xsec/ww/BEC/scan_{p,m}10/
     "BES":  0.1,
     "lumi": 0.01,   # 1% nuisance unit
+    "aemEW": 0.01,  # fit-space unit for the flat EW-coupling norm nuisance
 }
 
 # ---------------------------------------------------------------------------
@@ -106,6 +107,7 @@ UNCORR_COUNTING_KINDS = ("BES",)
 PRIORS = {
     "alphas":  1.0e-4,
     "aem_isr": 4.7e-8,
+    "aemEW":   1.2e-5,   # δσ/σ; = 2·(δα/α)=2·6.0e-6 Riembau α(M_Z) (sec EW coupling)
     "BEC":     {"uncorr": 0.1,    "corr": 0.3},
     "BES":     {"uncorr": 0.01,   "corr": 5.0e-3},
     "lumi":    {"uncorr": 2.0e-4, "corr": 1.0e-4},
@@ -114,6 +116,7 @@ PRIORS = {
 SYSTEMATICS = {
     "alphas":  {"type": "constraint", "always_on": True},
     "aem_isr": {"type": "constraint", "always_on": True},
+    "aemEW":   {"type": "global", "always_on": True, "source": {"kind": "flat"}},
     "BEC":     {"type": "binned",
                 "source": {"kind": "template_dir",
                            "var_subdir": True, "snap_to_grid": True}},
@@ -121,7 +124,7 @@ SYSTEMATICS = {
                 "source": {"kind": "smear_shift"}},
 }
 
-SYST_TABLE_ORDER = ["alphas", "aem_isr", "BES", "BEC", "lumi"]
+SYST_TABLE_ORDER = ["alphas", "aem_isr", "aemEW", "BES", "BEC", "lumi"]
 
 # ---------------------------------------------------------------------------
 # POI display + axis labels
@@ -133,8 +136,9 @@ POI_DISPLAY = {
 
 PROCESS_ID = "ww"
 
-PARAM_MATH_LABELS = {"alphas": r"\alpha_s", "aem_isr": r"\alpha(M_Z)_\mathrm{ISR}"}
-PARAM_UNITS = {"mass": "GeV", "width": "GeV", "alphas": "", "aem_isr": ""}
+PARAM_MATH_LABELS = {"alphas": r"\alpha_s", "aem_isr": r"\alpha(M_Z)_\mathrm{ISR}",
+                     "aemEW": r"\alpha_\mathrm{EW}"}
+PARAM_UNITS = {"mass": "GeV", "width": "GeV", "alphas": "", "aem_isr": "", "aemEW": ""}
 
 # ---------------------------------------------------------------------------
 # PDG branching ratios
