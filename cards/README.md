@@ -121,7 +121,11 @@ instead has a *larger* fully-correlated resonant-depolarisation component
 - **BES (beam energy spread)** — relative, on the 0.105 % spread. `uncorr 0.01 /
   corr 0.005` (1 % / 0.5 %). Blondel-Janot: σ_√s monitored continuously from
   di-muon events to ~0.6 % at the Z (and "virtually infinite precision"), with 1 %
-  used as their benchmark variation. BES contributes ≈0 to m_W regardless.
+  used as their benchmark variation. Because the spread is read off the di-muon
+  sample, its uncorrelated component is a **counting** measurement and shares
+  lumi's per-point `√(L_ref/L_i)` rescale (see `UNCORR_COUNTING_KINDS` below).
+  BES contributes ≈0 to m_W regardless, so the rescale is a self-consistency
+  refinement, not a headline shift.
 
 - **Luminosity** — relative, per scan point. `uncorr 2×10⁻⁴ / corr 1×10⁻⁴`.
   Estimated from a **central di-photon (e⁺e⁻→γγ) counting** measurement, the method
@@ -148,6 +152,17 @@ in `fit_core._nuisance_prior`/`_build_cov`). The correlated (common-normalisatio
 component does **not** scale. The channel extrapolation applies its inclusive yield
 boost as a stat-only rescale at the real machine luminosity, so this prior is
 unaffected by the (fictitious) yield boost.
+
+`UNCORR_COUNTING_KINDS` lists the *other* binned nuisances whose uncorrelated
+component is a counting measurement and so share the same per-point
+`√(L_ref/L_i)` factor (reference `L_ref = LUMI_UNCORR_CALIB_LUMI`, the baseline
+per-point lumi). For WW it is `("BES",)` — the beam-spread monitor reads the
+di-muon sample, so its point-to-point precision improves with per-point lumi
+exactly like the luminosity. lumi is always scaled implicitly; the master
+on/off is still `LUMI_UNCORR_SCALES`. **BEC is deliberately excluded** — its
+point-to-point figure is a resonant-depolarisation / calibration reproducibility,
+not a per-point counting statistic, so keeping it fixed per point is the
+conservative choice (and BEC is the systematic that actually drives m_W).
 
 ### PEAK_ECM — BES-smearing reference
 

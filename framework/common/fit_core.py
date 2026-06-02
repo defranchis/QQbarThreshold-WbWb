@@ -270,11 +270,16 @@ class FitCore:
         self._active_binned_nuisances = set()
         self._active_global_nuisances = set()
         self._nuisance_priors = {}
-        # Per-bin rescale of the uncorrelated lumi prior: the luminosity is a
-        # counting measurement, so its point-to-point uncertainty scales as
+        # Per-bin rescale of an uncorrelated counting-measurement prior: a
+        # counting measurement's point-to-point uncertainty scales as
         # 1/√(L_point). Set in create_scenario when card.LUMI_UNCORR_SCALES is
         # True; None disables the rescale (uniform card prior). See _nuisance_prior.
-        self._lumi_perbin_scale = None
+        self._uncorr_perbin_scale = None
+        # Binned nuisances whose uncorrelated component is a counting
+        # measurement (per-point precision ∝ 1/√L_point) and so share the same
+        # per-point √(L_ref/L_i) rescale. lumi is always included; the card may
+        # add more (e.g. BES, di-muon-monitored) via UNCORR_COUNTING_KINDS.
+        self._counting_uncorr_kinds = {"lumi", *getattr(card, "UNCORR_COUNTING_KINDS", ())}
         # param_idx -> (kind, bin_idx_in_morph_scenario[kind]) — populated
         # by _expand_per_bin_nuisance. Avoids re-parsing "BEC_bin{i}" names.
         self._per_bin_meta = {}
@@ -780,7 +785,7 @@ class FitCore:
         # last-bin uncorr lumi unc is divided by sqrt(factor_above) (see
         # ``_build_cov``); this mirrors it by scaling the lumi morph at the
         # above-threshold bin. When LUMI_UNCORR_SCALES is True, the general
-        # per-point ``_lumi_perbin_scale`` below already tightens the last
+        # per-point ``_uncorr_perbin_scale`` below already tightens the last
         # (higher-lumi) bin via sqrt(L_ref/L_i) — which equals 1/sqrt(factor_above)
         # there — so this block MUST be gated off to avoid double-counting the
         # last-bin shrink (the cov path is made mutually exclusive the same way).
@@ -794,21 +799,22 @@ class FitCore:
                 morph.iloc[-1]["xsec"] / factor_above ** 0.5)
             self.morph_scenario["lumi"] = morph
 
-        # Per-point rescale of the uncorrelated lumi prior. The luminosity is a
-        # counting measurement (di-photon / large-angle Bhabha), so its
-        # point-to-point uncertainty scales as 1/√(L_point): a scan with fewer
-        # points concentrates more luminosity per point → smaller uncorr lumi.
+        # Per-point rescale of an uncorrelated counting-measurement prior. The
+        # luminosity (di-photon / large-angle Bhabha) and any other counting
+        # measurement (e.g. BES, di-muon-monitored) have a point-to-point
+        # uncertainty that scales as 1/√(L_point): a scan with fewer points
+        # concentrates more luminosity per point → smaller per-point uncorr.
         # uncorr_i = uncorr_ref · √(L_ref / L_i), with (uncorr_ref, L_ref) the
-        # card calibration. Applied to the per-bin lumi nuisance in
-        # _nuisance_prior; the correlated (common-normalisation) piece does not
-        # scale. The per-point lumi L_i is taken in the (ecm-sorted) order that
-        # matches the lumi nuisance bins.
+        # card calibration. Applied to the per-bin nuisances of
+        # _counting_uncorr_kinds in _nuisance_prior; the correlated
+        # (common-normalisation) piece does not scale. The per-point lumi L_i is
+        # taken in the (ecm-sorted) order that matches the nuisance bins.
         if getattr(self.card, "LUMI_UNCORR_SCALES", False):
             L_i = np.array(list(self.scenario.values()), dtype=float)
             L_ref = float(self.card.LUMI_UNCORR_CALIB_LUMI)
-            self._lumi_perbin_scale = np.sqrt(L_ref / L_i)
+            self._uncorr_perbin_scale = np.sqrt(L_ref / L_i)
         else:
-            self._lumi_perbin_scale = None
+            self._uncorr_perbin_scale = None
 
     def slice_to_scenario(self, df):
         """Select the rows of ``df`` whose ECM is in ``self.scenario``.
@@ -896,10 +902,14 @@ class FitCore:
         bin_idx = self._per_kind_bin_idx[kind]
         bin_params = params[bin_idx]
         corr_idx = self._idx[kind]
-        if kind == "lumi" and self._lumi_perbin_scale is not None:
+        scale = self._uncorr_perbin_scale
+        if (scale is not None and kind in self._counting_uncorr_kinds
+                and len(scale) == len(bin_params)):
             # Counting-measurement scaling: per-point uncorr prior
             # uncorr_i = prior_u · √(L_ref/L_i) (more lumi/point → tighter).
-            prior_u_vec = np.maximum(prior_u * self._lumi_perbin_scale, _PRIOR_FLOOR)
+            # Applies to lumi and to card.UNCORR_COUNTING_KINDS (e.g. BES,
+            # whose spread is di-muon-monitored → precision ∝ 1/√L_point).
+            prior_u_vec = np.maximum(prior_u * scale, _PRIOR_FLOOR)
             return float(np.sum((bin_params / prior_u_vec) ** 2)
                          + (params[corr_idx] / prior_c) ** 2)
         return float(np.sum((bin_params / prior_u) ** 2) + (params[corr_idx] / prior_c) ** 2)

@@ -94,6 +94,10 @@ LUMI_UNCORR_SCALES = True
 _N_BASELINE_POINTS = round((SCENARIO["scan_max"] - SCENARIO["scan_min"]) / SCENARIO["scan_step"]) + 1
 LUMI_UNCORR_CALIB_LUMI = SCENARIO["total_lumi"] / _N_BASELINE_POINTS
 
+# Other binned nuisances that share lumi's per-point √(L_ref/L_i) counting
+# rescale: BES is di-muon-monitored → precision ∝ 1/√L_point. cards/README.md.
+UNCORR_COUNTING_KINDS = ("BES",)
+
 # ---------------------------------------------------------------------------
 # Priors / systematics  (rationale + sources in cards/README.md)
 # ---------------------------------------------------------------------------
