@@ -38,8 +38,10 @@ expansion through $N^{3/2}\text{LO}_\text{EFT}$, the NLO loop corrections
 (hard$+$soft$+$collinear, NLO Coulomb, EW decay), the dominant NNLO
 $\sigma^{(3/2)}_\text{LR}$ contributions of eq.~(49) of \cite{BFSnnlo},
 a multiplicative QCD width correction $\delta_\text{QCD}$, a Whizard
-exact-Born anchor on the Born sum, and an $\mathrm{LL{+}exp}$ ISR
-convolution in the BETA scheme. Every numerical table in this report
+exact-Born anchor on the Born sum, and an eMELA next-to-leading-log
+(NLL) ISR convolution (DELTA factorisation, $\alpha(M_Z)$
+renormalisation; the $\mathrm{LL{+}exp}$ BETA-scheme radiator is retained
+only for the BFS-table closure reruns). Every numerical table in this report
 corresponds to a script in the repository (cf.~\code{report/README.md});
 all numbers shown are reproduced verbatim from the current code.
 \end{abstract}
@@ -120,16 +122,25 @@ The BFS chain lives under \code{framework/process/ww/xsec_calculator/}:
 \begin{description}
 \item[\code{eft_xsec.py}] EW couplings ($s_W^2$ OS, $\alpha_{G_\mu}(\mW)$),
    the BFS-paper reference constants, the partonic specific-channel
-   driver $\code{sigma\_partonic\_munuqq}$, and the $K_C$ Coulomb
-   resummation factor.
+   driver $\code{sigma\_partonic\_munuqq}$, and the (off-by-default)
+   multiplicative FKM $K_C$ Coulomb factor.
 \item[\code{bfs_eft.py}] All closed-form BFS contributions: Born
    expansion (eqs.~17, 33, 37, 38, 39, 40 of \cite{BFSnlo}), NLO
    loop corrections (HSC bracket, NLO Coulomb eq.~62, EW decay), and
    the dominant NNLO pieces (eq.~49 of \cite{BFSnnlo}). Also the
    Whizard-anchor factor and the $\delta_\text{QCD}$ multiplier.
-\item[\code{isr.py}] LL+exp ISR convolution in the BETA scheme,
-   in two forms: a single-convolution shortcut and the BFS-style
-   two-leg double convolution.
+\item[\code{bfs_c1fin.py}] The analytic NLO hard-matching coefficients
+   $c_{p,\mathrm{LR}}$, $c_{d,l}$, $c_{d,h}^{(1,\mathrm{fin})}$ as
+   closed-form functions of $(\mW,m_t,M_H,M_Z)$ (cf.~Scenario~H).
+\item[\code{isr.py}] ISR convolution: the production eMELA NLL radiator
+   (DELTA factorisation) and the LL$+$exp BETA-scheme radiator
+   (single-convolution shortcut and BFS-style two-leg double
+   convolution), the latter kept for the BFS-table closure reruns.
+\item[\code{emela_wrapper.py}] Thin wrapper around the eMELA NLL
+   electron ePDF $D(x,Q)$ consumed by the two-leg ISR convolution.
+\item[\code{grid_morph.py}, \code{whizard_grid.py}] The Whizard
+   exact-Born anchor: the per-$\sqrts$ quadratic morphing predictor
+   (trained on the fine Whizard grid) and the raw grid loader.
 \end{description}
 
 The public assembly functions are:
@@ -176,7 +187,7 @@ threshold $\mW$ extraction is a direct kinematic measurement of the WW productio
 turn-on, immune to the SM $\Delta r(m_t,M_H)$ loop relation that drives the
 indirect $\mW$-from-EW-fit determination, so $m_t$/$M_H$ enter only through these
 sub-permille $\sigma$-chain slopes. With the FCC-ee projected input precisions
-($\delta m_t\!\sim\!7\MeV$, $\delta M_H\!\sim\!5\MeV$) the induced $\mW$ shift is
+($\delta m_t\!\sim\!6.5\MeV$, $\delta M_H\!\sim\!4\MeV$) the induced $\mW$ shift is
 $\ll0.01\MeV$; \code{PARAM\_UNC} for $m_t$, $M_H$, $M_Z$ and the $\sigma$-chain
 $\alpha_{\rm em}$ is therefore set to \code{None} (documented, not profiled), and
 only $\alpha_s$ and $\alpha_{\rm em,ISR}$ are carried as parametric nuisances.
@@ -243,19 +254,20 @@ $\munuqq$ is
 \sigma_\mathrm{LR}^{(1)} \,+\, \sigma_\mathrm{LR}^{(3/2),a},
 \end{equation}
 plus the analogous $RL$ sum (no $RL^{(0)}$ contribution: see
-Ref.~\cite{BFSnlo} section 4.1). The five pieces correspond to:
+Ref.~\cite{BFSnlo} section 4.1). The four pieces correspond to:
 \begin{itemize}
 \item $\sigma_\mathrm{LR}^{(0)}$ — doubly resonant LO, eq.~(17) of
    \cite{BFSnlo}, evaluated with the complex-velocity
-   $\beta(s)=\sqrt{(s-4\mW^2+i\Gamma_W\,\cdot 2\mW)/s}$. Coded in
+   $\beta(s)=\sqrt{(s-4\mW^2+i\Gamma_W\,\cdot 4\mW)/s}$. Coded in
    \code{sigma_LR0_specific_pb}.
 \item $\sigma_\mathrm{LR,RL}^{(1)}$ — NLO subleading potential
-   (single-Coulomb-exchange residue), eq.~(33). Note that the
-   $\GammaW^\text{NLO}$ correction to the potential cross section (the
-   $\GammaW \to \GammaW(1+\delta_\text{decay}^\text{(1,ew)})$ shift
-   inside eq.~33) is folded into our NLO-decay term and \emph{not}
-   here, to avoid double counting; \code{sigma_LR_RL_NLO_potential_specific_pb}
-   takes an explicit $\GammaW^\text{NLO}$ argument that defaults to zero.
+   (single-Coulomb-exchange residue), eq.~(33). The
+   $\GammaW^\text{NLO}$ EW shift inside eq.~(33) (the
+   $\GammaW \to \GammaW(1+\delta_\text{decay}^\text{(1,ew)})$
+   replacement) is dropped here: $\GammaW$ is a free fit parameter, not
+   split into $\GammaW^{(0)}+\GammaW^{(1)}$, so the decay-side EW
+   correction enters the chain once only, via the NLO-decay term
+   \code{delta_sigma_NLO_decay_specific_pb} (no double counting).
 \item $\sigma_\mathrm{LR,RL}^{(1/2)}$ — hard non-resonant, eqs.~(37)+(38)
    plus the appendix-A $C^f_{h_i,h}\,K^f_{h_i}$ coefficients for $h_4$–$h_7$.
    Coded in \code{sigma_LR_RL_half_specific_pb}; the $K$-coefficients
@@ -313,10 +325,12 @@ is the residue of the hard $+$ soft $+$ collinear corrections after all
 $1/\epsilon^2$ and $1/\epsilon$ poles cancel against each other and
 against the LL-ePDF scheme conversion. Coded in
 \code{delta_sigma_NLO_hard_softcoll_specific_pb}. The hard matching
-coefficient is $\mathrm{Re}\,c_{p,\mathrm{LR}}^{(1,\mathrm{fin})}=-10.076$
-(BFS line 1797); its $\mW$ dependence is sub-percent on $\sigma^{(1,\mathrm{HSC})}$
-in the fit range, see section \ref{sec:val-loops} and the
-Scenario~H closure.
+coefficient, evaluated analytically as a closed-form function of
+$(\mW,m_t,M_H,M_Z)$ in \code{bfs_c1fin.py}, equals
+$\mathrm{Re}\,c_{p,\mathrm{LR}}^{(1,\mathrm{fin})}=-10.076$ at the BFS
+reference inputs (BFS line 1797); its $\mW$ dependence is sub-percent on
+$\sigma^{(1,\mathrm{HSC})}$ in the fit range, see
+section~\ref{sec:val-loops} and the Scenario~H closure.
 
 \paragraph{NLO Coulomb potential.}
 Eq.~(62) of \cite{BFSnlo}, the $\alpha\,\alpha_\text{em}^2/s$
@@ -333,7 +347,9 @@ Ref.~\cite{BFSnlo} eq.~(\textsc{delta-decay}) / eq.~(60),
 \end{equation}
 with the bracket from eq.~(\textsc{Gamma1ewFS}) evaluated with
 $c_{d,\ell}^{(1,\mathrm{fin})}=-2.709$, $c_{d,h}^{(1,\mathrm{fin})}=-2.034$
-(BFS line 1920). At the BFS reference parameters the bracket equals
+at the BFS reference inputs (BFS line 1920; both are analytic functions
+of $(\mW,m_t,M_H,M_Z)$ in \code{bfs_c1fin.py}). At the BFS reference
+parameters the bracket equals
 $-0.71\%$ (purely EW; QCD content is captured by $\delta_\text{QCD}$
 below — including both would double-count). Coded in
 \code{delta_sigma_NLO_decay_specific_pb}.
@@ -539,10 +555,13 @@ eq.~88) cite this as a residual ISR systematic of
 $\delta\mW\!\approx\!31\MeV$, the motivation for the NLL upgrade
 discussed in section~\ref{sec:limits}. Per-leg validation against BFS
 Table~4 (the 2-leg reference) is below 0.5\% at 158–170 GeV; the
-single-convolution form, as used by default, agrees with the 2-leg form
-to better than 0.1\% on the scan window after the integration
-substitution $u=(1-z)^\beta$ that smooths the soft endpoint and a
-$n_\text{quad}=200$ Gauss-Legendre rule.
+single-convolution form (the default value of the \code{isr\_scheme}
+field, though the production chain with \code{isr\_nll=True} auto-promotes
+to the 2-leg eMELA NLL path) agrees with the 2-leg LL$+$exp form to
+better than 0.1\% on the scan window after the integration substitution
+$u=(1-z)^\beta$ that smooths the soft endpoint and a
+$n_\text{quad}=200$ Gauss-Legendre rule --- an LL$+$exp internal
+cross-check, not the production ISR.
 
 \paragraph{The BFS prescription and where it differs from ours.}
 A careful read of \cite{BFSnlo} lines 2645--2666 (the paragraph just
@@ -637,10 +656,12 @@ factorisation scheme. The 2-leg convolution
   error of the analytic $\beta^3$ Beenakker formula
   (eq.~\eqref{eq:beenakker-beta}) from the pure NLL bracket.
 \end{itemize}
-Card knobs: \code{NLO\_CONFIG["isr\_nll"]} and
-\code{NLO\_CONFIG["isr\_emela\_ll"]} (both \code{False} in the current
-production card, which preserves the LL$+$exp baseline for
-paper-closure tests); \code{isr\_emela\_\{pert\_order,fac\_scheme,ren\_scheme\}}
+Card knobs: \code{NLO\_CONFIG["isr\_nll"]} is \code{True} (the production
+default since 2026-05-29 --- eMELA NLL) and
+\code{NLO\_CONFIG["isr\_emela\_ll"]} is \code{False}; the LL$+$exp
+single-convolution baseline (\code{isr\_nll=False}) is retained only for
+the BFS-table closure reruns.
+\code{isr\_emela\_\{pert\_order,fac\_scheme,ren\_scheme\}}
 expose the eMELA scheme. The production
 \code{ren\_scheme="ALPMZ"} default was switched from the BFS-prescription
 \code{"ALGMU"} on 2026-05-28: BFS's hard $\hat\sigma$ and the ISR
@@ -883,7 +904,7 @@ evaluated analytically per BFS appendix B (eq. PV0LR$+$CTLR plus the
 leptonic/hadronic decay analogues) in
 \code{framework/process/ww/xsec\_calculator/bfs\_c1fin.py}. Reference
 closure at $(\mW,m_t,M_H,M_Z)=(80.377,174.2,115,91.188)\GeV$:
-$-10.0758{+}0.2049\,i$ (BFS: $-10.076{+}0.205\,i$), $-2.7093$,
+$-10.0763{+}0.2049\,i$ (BFS: $-10.076{+}0.205\,i$), $-2.7093$,
 $-2.0341$ — matching the BFS quotation to all printed digits.
 Fit-relevant slopes from central finite differences at the reference:
 \begin{tabular}{l c c c}
@@ -965,18 +986,18 @@ only ($\alpha_s=0.1199$). All cross sections in fb.}\label{tab:val-table4}
 \cmidrule(lr){2-4}\cmidrule(lr){5-7}
 $\sqrts$ [GeV] & code & paper & code$-$paper & code & paper & code$-$paper \\
 \midrule
-158 &  44.555 &  45.640 & $-1.085$ &  47.757 &  49.190 & $-1.433$ \\
-161 & 107.979 & 108.600 & $-0.621$ & 116.758 & 117.810 & $-1.052$ \\
-164 & 219.497 & 219.700 & $-0.203$ & 234.177 & 234.900 & $-0.723$ \\
-167 & 310.659 & 310.200 & $+0.459$ & 328.096 & 328.200 & $-0.104$ \\
-170 & 377.683 & 378.400 & $-0.717$ & 396.379 & 398.000 & $-1.621$ \\
+158 &  44.556 &  45.640 & $-1.084$ &  48.182 &  49.190 & $-1.008$ \\
+161 & 107.910 & 108.600 & $-0.690$ & 117.166 & 117.810 & $-0.644$ \\
+164 & 218.956 & 219.700 & $-0.744$ & 234.152 & 234.900 & $-0.748$ \\
+167 & 309.715 & 310.200 & $-0.485$ & 327.713 & 328.200 & $-0.487$ \\
+170 & 376.546 & 378.400 & $-1.854$ & 395.878 & 398.000 & $-2.122$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Both columns close to better than $1\%$ for the four scan-relevant
-energies $161$--$170\GeV$: Born$\otimes$ISR within $0.0$--$0.6\%$, NLO
-within $0.03$--$0.9\%$. The $\sim 2.5$--$3\%$ deviation at
+energies $161$--$170\GeV$: Born$\otimes$ISR within $0.2$--$0.6\%$, NLO
+within $0.15$--$0.55\%$. The $\sim 2$--$2.5\%$ deviation at
 $\sqrts=158\GeV$ deserves a careful decomposition — initially we
 attributed it to "EFT-truncation breakdown below threshold", but a
 diagnostic campaign (section~\ref{sec:val-table4-budget}) shows the
@@ -1167,7 +1188,7 @@ difference), not the decay substitution.}
 \paragraph{Impact on \texorpdfstring{$\mW$}{mW} from Asimov A/B.}
 Two template sets, identical chain except \code{decay\_uses\_full\_born}
 $\in\{$OFF, ON$\}$, both ran through the production FCC-ee Asimov fit
-(7 scan energies, total $\mathcal{L}=240\,\text{ab}^{-1}$, full
+(7 scan energies, total $\mathcal{L}=19.2\,\text{ab}^{-1}$, full
 nuisance set). Cross-fitting Asimov from one chain with templates from
 the other isolates the central-value shift attributable to the
 substitution:
@@ -1198,16 +1219,20 @@ The anchor factor $f$ of section~\ref{sec:anchor} should, by construction,
 bring our BFS Born sum onto the Whizard exact-Born reference column of
 the same BFS table. At Table~1 inputs ($\GammaW=\GammaWzero$, BR
 correction off), the ratio of $\sigma_\mathrm{BFS}\cdot f$ to the BFS
-Whizard reference is between 0.99989 and 1.00003 at the six BFS
-energies, i.e.\ a 4-digit closure across the full scan window.
+Whizard reference is between 0.99978 and 1.00156 at the six BFS
+energies, i.e.\ closure at the few-per-mille level; the worst case
+($+0.16\%$ at $170\GeV$) sits at the high-energy end, above the
+$157$--$163\GeV$ scan window, with the production morph predictor
+(\code{whizard\_anchor\_source="morph"}).
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.78\linewidth]{val_whizard_anchor}
 \caption{Whizard-anchor closure at BFS NLO Table~1 inputs:
 $\sigma_\mathrm{BFS}\cdot f$ vs the BFS Whizard exact-Born reference.
-The 4-digit closure across the scan window confirms that the multiplicative
-anchor recovers the exact-Born result.}
+The closure (within $\sim0.16\%$ across the scan window, sub-per-mille
+over $155$--$164\GeV$) confirms that the multiplicative anchor recovers
+the exact-Born result.}
 \label{fig:val-anchor}
 \end{figure}
 
@@ -1220,12 +1245,12 @@ vs.\ BFS Whizard reference.}
 \toprule
 $\sqrts$ [GeV] & code$\cdot f$ [fb] & BFS Whizard [fb] & code$-$paper [fb] & ratio \\
 \midrule
-155 & 34.426 & 34.430 & $-0.004$ & 0.99989 \\
-158 & 63.387 & 63.390 & $-0.003$ & 0.99995 \\
-161 & 160.617 & 160.620 & $-0.003$ & 0.99998 \\
-164 & 318.288 & 318.300 & $-0.012$ & 0.99996 \\
-167 & 428.557 & 428.600 & $-0.043$ & 0.99990 \\
-170 & 505.113 & 505.100 & $+0.013$ & 1.00003 \\
+155 & 34.463 & 34.430 & $+0.033$ & 1.00096 \\
+158 & 63.415 & 63.390 & $+0.025$ & 1.00039 \\
+161 & 160.585 & 160.620 & $-0.035$ & 0.99978 \\
+164 & 318.297 & 318.300 & $-0.003$ & 0.99999 \\
+167 & 429.209 & 428.600 & $+0.609$ & 1.00142 \\
+170 & 505.886 & 505.100 & $+0.786$ & 1.00156 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1316,13 +1341,13 @@ $C\!\times\!{\rm decay}$ (40) & $C\!\times\!{\rm res}$ (48) & $C3$ (11) \\
 \midrule
 158 & $-0.1162/{-}0.1160$ & $+0.1041/{+}0.1040$ & $-0.0365/{-}0.0370$
     & $+0.0442/{+}0.0440$ & $+0.0038/{+}0.0040$ \\
-161 & $-0.3214/{-}0.3210$ & $+0.2263/{+}0.2260$ & $-0.0914/{-}0.0910$
+161 & $-0.3214/{-}0.3210$ & $+0.2263/{+}0.2260$ & $-0.0915/{-}0.0910$
     & $+0.3237/{+}0.3240$ & $+0.0099/{+}0.0100$ \\
-164 & $-0.4165/{-}0.4170$ & $+0.3931/{+}0.3930$ & $-0.1341/{-}0.1340$
+164 & $-0.4165/{-}0.4170$ & $+0.3931/{+}0.3930$ & $-0.1342/{-}0.1340$
     & $+0.9654/{+}0.9650$ & $+0.0028/{+}0.0030$ \\
 167 & $-0.3894/{-}0.3890$ & $+0.4728/{+}0.4730$ & $-0.1419/{-}0.1420$
     & $+1.3451/{+}1.3450$ & $+0.0009/{+}0.0010$ \\
-170 & $-0.3542/{-}0.3540$ & $+0.5114/{+}0.5110$ & $-0.1418/{-}0.1420$
+170 & $-0.3543/{-}0.3540$ & $+0.5114/{+}0.5110$ & $-0.1419/{-}0.1420$
     & $+1.5616/{+}1.5610$ & $+0.0004/{+}0.0000$ \\
 \bottomrule
 \end{tabular}
@@ -1884,7 +1909,7 @@ Four features stand out.
 \paragraph{ISR scheme.}
 The LL$\to$NLL difference at the converged ($+$NNLO/$+\delta_\text{QCD}$)
 rung is the residual ISR-scheme bias on $\mW$: $+2.1\MeV$ in free mode
-(pure shape) and $-6.1\MeV$ under the realistic lumi prior, with
+(pure shape) and $-6.5\MeV$ under the realistic lumi prior, with
 $|\Delta\GammaW|\!\lesssim\!1\MeV$. This is consistent in magnitude with
 the $\pm5.4\MeV$ pure-NLL figure of the dedicated ISR cross-fit
 (section~\ref{sec:val-isr-cross}) and reaffirms that running the analysis
@@ -1895,11 +1920,11 @@ $0.25\MeV$ target.
 The two lumi modes bracket the role of the absolute rate. With the
 normalisation floated (\textbf{free}) the residuals are smaller in
 central value but the stat precision degrades to
-$\sigma_{\mW}\!\approx\!5.3\MeV$ (the rate carries $\mW$ information that
+$\sigma_{\mW}\!\approx\!4.2\MeV$ (the rate carries $\mW$ information that
 is thrown away); with the tight realistic prior (\textbf{prior}) the rate
-sharpens $\sigma_{\mW}$ to $\approx\!1.85\MeV$ but couples a low-order
+sharpens $\sigma_{\mW}$ to $\approx\!1.18\MeV$ but couples a low-order
 normalisation error into $\mW$ --- which is why the LO bias balloons to
-$\sim\!90\MeV$ and the NNLO residual grows from $2.3$ to $3.2\MeV$. The
+$\sim\!90$--$100\MeV$ and the NNLO residual grows from $2.3$ to $3.4\MeV$. The
 honest perturbative-truncation number for the budget is the
 \textbf{free} (pure-shape) NNLO step, $\sim\!2.3\MeV$; the prior column
 shows how much a low-order rate error would additionally leak through the
@@ -1982,11 +2007,11 @@ scale & $\xi=0.5$           & $+7.9$ & $+3.9$ & $4.09$ & $+0.32$ \\
 scale & $\xi=2.0$           & $-1.2$ & $+1.1$ & $4.33$ & $+0.31$ \\
 \midrule
 \multicolumn{6}{l}{\emph{realistic FCC-ee correlated-lumi prior}}\\
-ren   & ALPMZ (prod)        & $0.0$   & $0.0$   & $1.61$ & $+0.51$ \\
-ren   & ALGMU               & $+35.5$ & $+5.3$  & $1.61$ & $+0.53$ \\
-ren   & $\alpha(0)$         & $+73.7$ & $+10.2$ & $1.60$ & $+0.54$ \\
-scale & $\xi=0.5$           & $+43.7$ & $+7.2$  & $1.59$ & $+0.52$ \\
-scale & $\xi=2.0$           & $-42.9$ & $-2.0$  & $1.62$ & $+0.49$ \\
+ren   & ALPMZ (prod)        & $0.0$   & $0.0$   & $1.18$ & $+0.66$ \\
+ren   & ALGMU               & $+38.0$ & $+5.6$  & $1.18$ & $+0.68$ \\
+ren   & $\alpha(0)$         & $+79.2$ & $+10.8$ & $1.19$ & $+0.69$ \\
+scale & $\xi=0.5$           & $+46.6$ & $+7.4$  & $1.17$ & $+0.67$ \\
+scale & $\xi=2.0$           & $-46.2$ & $-2.2$  & $1.18$ & $+0.64$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1995,10 +2020,10 @@ scale & $\xi=2.0$           & $-42.9$ & $-2.0$  & $1.62$ & $+0.49$ \\
 The pure-shape (\textbf{free}) column is modest: the ISR coupling-scheme
 choice moves $\mW$ by $+3.5\MeV$ (ALPMZ$\to$ALGMU) to $+5.8\MeV$
 (ALPMZ$\to\alpha(0)$) once the rate is floated. The realistic-prior
-column is far larger --- $+36\MeV$ (ALGMU) and $+76\MeV$ ($\alpha(0)$)
+column is far larger --- $+38\MeV$ (ALGMU) and $+79\MeV$ ($\alpha(0)$)
 --- because a $2.5$--$5.9\,\%$ change in the ISR coupling rescales the
 \emph{total} radiated energy, and that normalisation shift is \emph{not}
-absorbable by a luminosity constrained to $5\times10^{-4}$, so it leaks
+absorbable by a luminosity constrained to $1\times10^{-4}$, so it leaks
 directly into $\mW$. The $\xi$ rows behave the same way ($\pm45\MeV$
 under the prior, near-cancelling in free mode), confirming they are a
 normalisation-driven stability artefact rather than a clean uncertainty
@@ -2026,7 +2051,7 @@ mostly the statistically-constrained rate, not a clean shape), while under
 the tight luminosity prior the $1.6$--$3.4\,\%$ rate offset cannot be
 absorbed and is compensated by $\mW$ sliding along the steep threshold
 turn-on ($\mathrm{d}\sigma/\mathrm{d}\sqrts\!\approx\!+0.16\,\text{pb}/\GeV$), giving the
-$\sim\!36$/$76\MeV$ shifts --- the factor $\sim\!10$ between prior and free
+$\sim\!38$/$79\MeV$ shifts --- the factor $\sim\!10$ between prior and free
 is exactly the dominant-normalisation expectation.
 
 \paragraph{Interpretation and recommended number.}
@@ -2037,7 +2062,7 @@ QED running logs the NLL evolution is designed to capture), so the
 $\alpha(0)$ row is an extreme bound rather than an equal-validity
 alternative. Taking the ALPMZ$\leftrightarrow$ALGMU spread as the
 defensible scheme variation gives a residual ISR theory uncertainty of
-$\approx\!3.5\MeV$ (pure shape) rising to $\approx\!36\MeV$ once the
+$\approx\!3.5\MeV$ (pure shape) rising to $\approx\!38\MeV$ once the
 non-absorbable rate component is included under the realistic lumi
 constraint. Either way the message is the same as the LL$\to$NLL
 cross-fit (section~\ref{sec:val-isr-cross}): \textbf{ISR is the dominant
@@ -2073,9 +2098,11 @@ the production values with their provenance in that document.
 \caption{FCC-ee WW-threshold input assumptions and their source in the FSR
 Vol.~1~\cite{FCCFSR2025}. The $\sqrt s$-calibration (BEC) numbers are the
 absolute (fully correlated) and point-to-point (uncorrelated) components on
-the collision energy; the corresponding $\mW$ contributions are half of
-these ($150$/$50\,\text{keV}$, total $\sqrt s$-related $158\,\text{keV}$ vs
-$180\,\text{keV}$ statistical).}
+the collision energy; the corresponding raw (input-level) $\mW$ contributions are half of
+these ($150$/$50\,\text{keV}$, $158\,\text{keV}$ in quadrature on the
+$\sqrt s$ scale); the \emph{fitted} BEC impact on $\mW$ in the
+per-scenario breakdown below is $0.19\MeV$, larger because of the
+lineshape leverage that maps a $\sqrt s$ shift onto $\mW$.}
 \label{tab:fcc-inputs}
 \begin{tabular}{l l l}
 \toprule
@@ -2093,7 +2120,7 @@ Luminosity unc.\ (corr./uncorr.) & $1\!\times\!10^{-4}$ / $2\!\times\!10^{-4}$ &
 \end{table}
 
 The WW value is the FSR machine baseline; an earlier $12\,\text{ab}^{-1}$
-(Azzurri~\cite{Azzurri2021} convention) was used before this update. The
+project baseline was used before this update. The
 $\sqrt s$-calibration prior was previously a $1$/$2\MeV$ placeholder and is
 now pinned to the FSR resonant-depolarisation projection ($0.3$/$0.1\MeV$ on
 $\sqrt s$, an order of magnitude tighter).
@@ -2178,7 +2205,7 @@ In the geometry-isolating 2-POI view (Table~\ref{tab:scenarios}) the
 3-point layout loses very little on $\mW$ relative to the 7-point (the
 threshold turn-on is anchored by the end points), at a small cost in
 $\GammaW$. The Azzurri-like 2-point layout \emph{decorrelates} the two POIs
---- $\rho$ drops from $+0.51$ (7-point) to $+0.19$ --- and gives the tightest
+--- $\rho$ drops from $+0.66$ (7-point) to $+0.40$ --- and gives the tightest
 $\GammaW$, the upper point near the $\GammaW$-insensitive crossing carrying
 almost pure $\mW$ information. It does not reach the $\rho\!\approx\!0$
 Azzurri quotes, because the correlated-luminosity-only constraint used here
@@ -2646,8 +2673,9 @@ authoritative copies are in
 \includegraphics[width=0.85\linewidth]{diag/xsec_vs_sqrts}
 \caption{Cross-section chain build-up: BFS Born at successive orders
 ($\sigma^{(0)} \to \sigma^{(0)}+\sigma^{(1/2)} \to +\sigma^{(1)} \to
-+\sigma^{(3/2),a}$) and then with the Coulomb $K$-factor and
-LL$+$exp ISR layered on. Top panel: $\sigma(\sqrts)$ on linear scale.
++\sigma^{(3/2),a}$) and then with the production NLL ISR (eMELA,
+single-conv) layered on (the multiplicative FKM $K_C$ factor is off by
+default). Top panel: $\sigma(\sqrts)$ on linear scale.
 Bottom panel: ratios relative to the full $N^{3/2}\mathrm{LO}$ Born.}
 \end{figure}
 
@@ -2658,7 +2686,7 @@ Bottom panel: ratios relative to the full $N^{3/2}\mathrm{LO}$ Born.}
 $\mathrm{d}\sigma/\mathrm{d}\mW$ (top) and
 $\mathrm{d}\sigma/\mathrm{d}\GammaW$ (bottom) computed by central
 finite difference, both for the partonic $\hat\sigma$ and the observed
-$\sigma_\mathrm{obs}$ after LL$+$exp ISR.}
+$\sigma_\mathrm{obs}$ after NLL ISR (eMELA).}
 \end{figure}
 
 \begin{figure}[h]
@@ -3148,9 +3176,10 @@ implementation:
   $\Delta\sigma_{\mathrm{Coul}}^{(1),\,\mathrm{term\,1}}$ assembled
   directly from the helper, with the appropriate $27/4$
   specific-to-total factor (and $\times\delta_\mathrm{QCD}$ when
-  active). Max relative error $3.4\times 10^{-15}$ without
-  $\delta_\mathrm{QCD}$, $5.1\times 10^{-15}$ with --- machine
-  precision.
+  active). The maximum relative error is $<10^{-14}$ both with and
+  without $\delta_\mathrm{QCD}$ --- i.e.\ machine precision; the
+  individual per-row values are floating-point round-off and vary at the
+  last digit from run to run.
 \item \textbf{Same-physics overlap.} $K_C-1$ and
   $\Delta\sigma_{\mathrm{Coul}}^{(1),\,\mathrm{term\,1}}/\sigma_{LR}^{(0)}$
   are both $\sim 5{-}7\%$ at threshold, fall to $\sim 3\%$ at
@@ -3164,7 +3193,7 @@ implementation:
   $K_C$-on chain (PDG-constant BR, full NLO$+$NNLO,
   $\delta_\mathrm{QCD}$, Whizard anchor), the $K_C$-safe combination
   reduces $\sigma_\mathrm{partonic}$ by $-7.9\%$ at $\sqrts=157\GeV$,
-  $-7.7\%$ at $161\GeV$, $-6.5\%$ at $163\GeV$. The shift is smooth in
+  $-7.6\%$ at $161\GeV$, $-6.5\%$ at $163\GeV$. The shift is smooth in
   $\sqrts$ with no new kinks;
   $\mathrm{d}\sigma/\mathrm{d}\mW$ and $\mathrm{d}\sigma/\mathrm{d}\GammaW$
   retain the same overall shape (Fig.~\ref{fig:kcsafe-chain}). The
