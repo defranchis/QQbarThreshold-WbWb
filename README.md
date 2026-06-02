@@ -4,11 +4,10 @@ A modular chi2/Minuit fit of the cross-section lineshape near production
 thresholds at FCC-ee. Currently configured for **WbWb** (top-quark threshold,
 ~343 GeV) and scaffolded for **WW** (W-pair threshold, ~161 GeV).
 
-The framework grew out of the monolithic `work/doFit.py` (see commit
-history in this repository for the legacy reference); the goal of the
-refactor was to split fit machinery from process-specific glue so that
-different theory generators and different threshold processes can share
-the same chi2/scans/systematic-table pipeline.
+It grew out of the monolithic `work/doFit.py` (in the commit history); the
+refactor split the fit machinery from process-specific glue so that different
+theory generators and threshold processes share one chi2/scans/systematics
+pipeline.
 
 ## Layout
 
@@ -260,12 +259,11 @@ INPUT_DIRS["new_binned"] = "new_binned_variations"   # template dir
 INPUT_VAR["new_binned"] = 10.0                       # template-frozen
 ```
 
-Plus call `fit.add_binned_nuisance("new_binned")` in the entry script
-(or wire it into a CLI flag). The chi² loop, `_morph_one` dispatcher,
-nuisance-prior helper, and syst-table machinery all pick it up.
-`template_dir` sources read their path from `INPUT_DIRS[name]` — one
-mapping for all on-disk template directories, including the nominal /
-scale-vars / pseudo ones.
+Plus call `fit.add_binned_nuisance("new_binned")` in the entry script (or
+wire a CLI flag). The chi² loop, `_morph_one` dispatcher, nuisance prior,
+and syst-table machinery all pick it up; `template_dir` sources read their
+path from `INPUT_DIRS[name]` (one mapping for every on-disk template dir —
+nominal / scale-vars / pseudo included).
 
 **Adding a new global nuisance** is analogous with `"type": "global"`
 and a scalar `PRIORS["x"] = ...`.
@@ -283,25 +281,17 @@ POI_DISPLAY["my_poi"] = {"symbol": r"\mu", "unit": "MeV", "scale": 1000}
 THEORY_UNC["my_poi"]  = 5.0   # MeV, optional
 ```
 
-Both the syst-table (`print_syst_table`) and the scan-impact plot
-helpers in `framework/common/scans.py` pick it up automatically:
-
-* `print_syst_table` adds one column per POI in the printed table and
-  LaTeX file.
-* `scan_alphas` / `scan_bec` / `scan_bes` / `scan_lumi` /
-  `scan_beam_resolution` / `scan_scale_vars` / `scan_true_value` /
-  `scan_shift` / `scan_chi2` iterate `fit.tracked_pois()` and emit one
-  line per POI per panel. POIs sharing a unit go on the same panel
-  (e.g. `mass + width` in MeV); separate units get their own panels
-  (e.g. `yukawa` in %). Filenames follow the convention
-  `uncert_<pois>_vs_<scan-axis>` — recovers the legacy
-  `uncert_mass_width_vs_alphas` on WbWb-default.
-
-POIs filtered out at runtime: those not in `PARAMETERS` (so not
-actually fit) and those currently treated as constrained nuisances
-(e.g. `yukawa` under `--fitYukawa` not set). Use `"relative": True`
-for POIs whose uncertainty is naturally quoted as a fraction of the
-central value (divide-by-central applied at display time).
+Both `print_syst_table` and the scan-impact helpers in
+`framework/common/scans.py` pick it up automatically: the table gains one
+column per POI, and the scan helpers (`scan_alphas`, `scan_bec`, `scan_bes`,
+`scan_lumi`, `scan_beam_resolution`, `scan_scale_vars`, `scan_true_value`,
+`scan_shift`, `scan_chi2`) iterate `fit.tracked_pois()` and emit one line per
+POI per panel — POIs sharing a unit share a panel (`mass + width` in MeV;
+`yukawa` in % gets its own), with filenames `uncert_<pois>_vs_<scan-axis>`
+(recovering the legacy `uncert_mass_width_vs_alphas` on WbWb-default).
+Runtime-filtered POIs: those not in `PARAMETERS` (not fit) and those treated
+as constrained nuisances (e.g. `yukawa` without `--fitYukawa`). Set
+`"relative": True` for POIs quoted as a fraction of the central value.
 
 WbWb-specific scans (yukawa-constraint sweep, yukawa-theory shift,
 the legacy yukawa-vs-lumi-ratio panel, the yukawa-shift-vs-scale
@@ -442,24 +432,21 @@ python3 doFit_ww.py --theoryLadder            # both ISR legs, writes plots/theo
 python3 doFit_ww.py --theoryLadder --ladderISR NLL --ladderWorkers 16
 ```
 
-It turns the BFS perturbative pieces on cumulatively — LO → +NLO loops →
-+NNLO → +δ_QCD, on a *fixed* WHIZARD-Born anchor — each under both LL+exp
-and NLL ISR, and runs an Asimov fit of `(m_W, Γ_W)` against the full
-production chain (`+δ_QCD`/NLL) as the injected truth. The best-fit shift
-from the truth is the residual bias of stopping at that rung; adjacent-rung
-differences give the per-piece pulls. The fit floats **m_W, Γ_W only** with
-**stat + correlated-lumi** uncertainties (everything else fixed), and runs
-twice: `free` (lumi opened up → pure shape bias) and `prior` (realistic
-FCC-ee corr-lumi). Implementation: `framework/process/ww/theory_ladder.py`.
+It turns the BFS pieces on cumulatively — LO → +NLO loops → +NNLO → +δ_QCD
+on a *fixed* WHIZARD-Born anchor, each under both LL+exp and NLL ISR — and
+Asimov-fits `(m_W, Γ_W)` against the full production chain (`+δ_QCD`/NLL) as
+truth. The best-fit shift from truth is the residual bias of stopping at that
+rung; adjacent-rung differences give the per-piece pulls. The fit floats
+**m_W, Γ_W only** with **stat + correlated-lumi** (everything else fixed) and
+runs twice: `free` (lumi opened → pure shape bias) and `prior` (realistic
+FCC-ee corr-lumi). Code: `framework/process/ww/theory_ladder.py`.
 
-On top of the perturbative ladder it also runs an **ISR scheme-variation**
-block (the BFS hard side has no cheap scheme variation — its EW input
-scheme is baked into the matching coefficients — but the ISR side does,
-decoupled from the BFS σ̂): the eMELA **α-renormalisation scheme**
-`ALPMZ`↔`ALGMU`↔`α(0)` (β_e ∝ α → a real NLL-order shift on m_W) and the
-**ISR scale ξ** (reported as a DGLAP-stability check only, *not* a
-truncation uncertainty in the DELTA scheme). Disable with
-`--ladderNoSchemeVar`.
+On top of that it runs an **ISR scheme-variation** block (the BFS hard side
+has no cheap scheme variation — its EW scheme is baked into the matching
+coefficients — but the ISR side does, decoupled from σ̂): the eMELA
+**α-renormalisation scheme** `ALPMZ`↔`ALGMU`↔`α(0)` (β_e ∝ α → a real
+NLL-order m_W shift) and the **ISR scale ξ** (a DGLAP-stability check only,
+*not* a DELTA-scheme truncation uncertainty). Disable with `--ladderNoSchemeVar`.
 
 | Flag | Effect |
 |---|---|
@@ -470,46 +457,40 @@ truncation uncertainty in the DELTA scheme). Disable with
 | `--ladderOut STEM` | output stem for the table (`.txt` + `.csv`; default `plots/theory_ladder`) |
 | `--ladderKeep` | keep the temporary template directory (else rmtree'd at end) |
 
-The ladder bounds only the **missing higher order of pieces already in the
-chain** (it confirms the series has converged by NNLO, ~2–3 MeV residual on
-m_W, and that δ_QCD is an exact no-op under the pdg-constant BR routing).
-The ISR scheme block shows **ISR is the dominant single theory systematic
-on m_W**: the α-scheme spread is ~3.5 MeV (pure shape, ALPMZ↔ALGMU) rising
-to ~36 MeV once the non-lumi-absorbable rate component is included under
-the realistic prior. It does **not** capture pieces entirely absent from
-the chain — NLO-EW (YFSWW3-class), higher-order Coulomb (BFS `G_C` vs the
-dropped FKM `K_C`), and the deferred DELTA↔MSBAR ISR factorisation-scheme
-variation — which need a separate estimate. See
-`report/ww_bfs_implementation.tex` §`sec:val-theory-ladder` and
-§`sec:val-isr-scheme`.
+The ladder bounds only the **missing higher orders of pieces already in the
+chain**: the series has converged by NNLO (~2–3 MeV residual on m_W) and
+δ_QCD is an exact no-op under pdg-constant BR routing. The scheme block shows
+**ISR is the dominant single theory systematic on m_W** — the α-scheme spread
+is ~3.5 MeV (pure shape, ALPMZ↔ALGMU), rising to ~36 MeV once the
+non-lumi-absorbable rate component is included under the realistic prior. It
+does **not** capture pieces entirely absent from the chain — NLO-EW
+(YFSWW3-class), higher-order Coulomb (BFS `G_C` vs the dropped FKM `K_C`), and
+the deferred DELTA↔MSBAR ISR factorisation variation — which need a separate
+estimate. See `report/ww_bfs_implementation.tex` §`sec:val-theory-ladder`
+and §`sec:val-isr-scheme`.
 
 Cross-section pipeline (in `framework/process/ww/xsec_calculator/`):
 
 * `bfs_eft.py` — BFS-EFT N^(3/2)LO Born expansion from arXiv:0707.0773:
-  eq. (17) σ_LR^(0), eq. (33) σ^(1)_pot, eq. (37+38+appendix A)
-  σ^(1/2) including h1–h3 *and* h4–h7 single-resonant, eq. (39+40)
-  σ^(3/2),a. Plus NLO loops (HSC eq. 54-56, NLO Coulomb eq. 62, EW
-  decay eq. 60). Plus **BFS dominant NNLO** from arXiv:0807.0102
-  eq. (49): C×[S+H] + NLO-C + C×decay + C×res + C3, all closed-form
-  (eqs. 11, 34, 39, 40, 48). Plus δ_QCD multiplier (eq. delta_qcd)
-  and the Whizard 4f Born anchor (BFS sec. 6.2 prescription).
-  Anchor available in two sources — `spline` (BFS Tables 1+2, cubic
-  in δ=√s−2m_W + linear in Γ_W) and `grid` (1295-pt WHIZARD 3.1.5
-  scan, 3D trilinear; the dedicated 6363-pt `grid_fine` campaign
-  (0.1-GeV √s in [155,165], ~0.008% MC) plus the 0.5-GeV highstats
-  outer wings now feed the per-√s quadratic + bilinear morphing scheme
-  validated under `scripts/investigations/whizard_grid_highstats/`
-  — sub-MeV-safe on the held-out `grid_validate_fine` 0.005%-MC scans;
-  not yet wired into the fit) — selectable via
-  `NLO_CONFIG["whizard_anchor_source"]`. Both apply a fixed BR-strip
-  factor `(Γ_W / Γ_W^(0)(M_W_BFS_REF))²` when invoked through the
-  PDG-constant BR chain so σ_observed = σ_WW × BR_PDG (Azzurri picture;
-  the Γ_W lineshape crossing at √s ≈ 162 GeV is preserved). All chain
-  knobs card-driven and on by default; see `cards/ww_default.py`
-  NLO_CONFIG (includes `include_BFS_NNLO` and `whizard_anchor_source`).
-  PDG branching ratios (`BR_W_MUNU`, `BR_W_HAD`, `BR_W_UD`) live in
-  the card as primitives; `BR_INCLUSIVE_MUNUQQ = 2·BR_μν·BR_had` and
-  `BR_MUNUUD = BR_μν·BR_ud` are derived once in `eft_xsec.py`.
+  eq. (17) σ_LR^(0), eq. (33) σ^(1)_pot, eq. (37+38+appendix A) σ^(1/2)
+  (h1–h3 *and* h4–h7 single-resonant), eq. (39+40) σ^(3/2),a; plus NLO
+  loops (HSC eq. 54-56, NLO Coulomb eq. 62, EW decay eq. 60), the
+  **dominant NNLO** from arXiv:0807.0102 eq. (49) — C×[S+H] + NLO-C +
+  C×decay + C×res + C3, all closed-form (eqs. 11, 34, 39, 40, 48) — a
+  δ_QCD multiplier, and the Whizard 4f Born anchor (BFS sec. 6.2). The
+  anchor has two sources via `NLO_CONFIG["whizard_anchor_source"]`:
+  `spline` (BFS Tables 1+2, cubic in δ=√s−2m_W + linear in Γ_W) and
+  `grid` (1295-pt WHIZARD 3.1.5 scan, 3D trilinear). A denser morphing
+  scheme (per-√s quadratic + bilinear, fed by the 6363-pt `grid_fine`
+  campaign + 0.5-GeV highstats wings) is validated sub-MeV-safe under
+  `scripts/investigations/whizard_grid_highstats/` but not yet wired into
+  the fit. Both anchors apply a fixed BR-strip `(Γ_W / Γ_W^(0)(M_W_BFS_REF))²`
+  under the PDG-constant chain so σ_observed = σ_WW × BR_PDG (Azzurri
+  picture; the Γ_W crossing at √s ≈ 162 GeV is preserved). All chain knobs
+  are card-driven and on by default (`cards/ww_default.py` NLO_CONFIG).
+  PDG branching ratios (`BR_W_MUNU`, `BR_W_HAD`, `BR_W_UD`) are card
+  primitives; `BR_INCLUSIVE_MUNUQQ` and `BR_MUNUUD` are derived once in
+  `eft_xsec.py`.
 * `eft_xsec.py` — partonic entry points `sigma_partonic_munuqq` and
   `sigma_WW_partonic`. Coulomb K-factor (Fadin-Khoze-Martin +
   Bardin-Riemann α²). σ̂(s) is C² smoothly tapered to zero across
@@ -550,23 +531,20 @@ Validation (`scripts/validate_bfs_nlo.py`, 10 scenarios A–J):
 - Scenario A: BFS Table 1 (LO width, no BR corr) closes to **4-5 digits**.
 - Scenario B: BFS Table 2 (NLO+QCD width, BR corr) closes to 0.1 %
   in the scan window, 0.8 % at 155 GeV (EFT-validity edge).
-- Scenario F: full NLO chain vs BFS Table 4 σ_obs — **±0.5 % residual
-  in the scan window** (`[161, 170]` GeV) with the BFS decay
-  substitution on (production default), 2 % at 158 GeV.
-  Full residual decomposition in
+- Scenario F: full NLO chain vs BFS Table 4 σ_obs — **±0.5 % residual in
+  the scan window** (`[161, 170]` GeV, BFS decay substitution on = production
+  default), 2 % at 158 GeV. Decomposition in
   `report/ww_bfs_implementation.tex` §5.5 "Closure budget": (i) WHIZARD-3.1.5
-  vs WHIZARD-1.x version drift on Born(ISR) reference: +0.8-1.2 %;
-  (ii) LL+exp BETA vs WHIZARD multiplicative ISR recipe: 0.3-2 % (worst
-  at 158 GeV); (iii) BFS's σ̂_LR^(0)→σ̂_Born substitution in NLO decay
-  correction (line 2660-2661 of arXiv:0707.0773): +0.5-0.7 % —
-  **now applied** as `NLO_CONFIG["decay_uses_full_born"] = True`
-  (default), closes the scan-window residual to MC stat and shifts
-  the Asimov-fit m_W central value by ±5.5 MeV (≈3σ_stat); (iv) BFS's
-  √(x₁x₂s)>155 GeV cut on the NLO LL+exp convolution: ≲0.1 %, not
-  yet applied. Diagnostic scripts live in
-  `scripts/investigations/whizard_isr_verification/` and
-  `scripts/investigations/c1fin_analytic/`. The 31-MeV NLL ISR
-  systematic BFS itself quotes is the remainder once (iv) is applied.
+  vs 1.x version drift on the Born(ISR) reference, +0.8-1.2 %; (ii) LL+exp
+  BETA vs WHIZARD multiplicative ISR recipe, 0.3-2 % (worst at 158 GeV);
+  (iii) BFS's σ̂_LR^(0)→σ̂_Born substitution in the NLO decay correction
+  (line 2660-2661 of arXiv:0707.0773), +0.5-0.7 % — **now applied**
+  (`NLO_CONFIG["decay_uses_full_born"]=True`), closing the scan-window
+  residual to MC stat and shifting the Asimov m_W by ±5.5 MeV (≈3σ_stat);
+  (iv) BFS's √(x₁x₂s)>155 GeV cut on the NLO convolution, ≲0.1 %, not yet
+  applied. Diagnostics under `scripts/investigations/whizard_isr_verification/`
+  and `.../c1fin_analytic/`. The 31-MeV NLL ISR systematic BFS quotes is the
+  remainder once (iv) is applied.
 - Scenario I: Whizard-anchor closure to 4-5 digits at Table 1
   reference points.
 
@@ -634,25 +612,19 @@ What's NOT yet in the calculation (priority order for sub-MeV m_W):
    ourselves) would remove the 168-GeV dσ/dΓ_W bump and shrink the
    Born-side ~0.3 MeV systematic.
 
-Shipped 2026-05-29: **NLL ISR as production default** (`isr_nll=True`),
-removing the ±22.4 MeV LL+exp→NLL bias on m_W and (the closely related)
-LL+exp vs WHIZARD-multiplicative recipe difference. Canonical templates
-regenerated via `condor/ww_templates/` (18 jobs × 4 cores, ~5 min wall);
-LL+exp baseline preserved under `output_xsec/ww/{nominal,BEC}_LLexp/`
-for paper-closure tests.
+Shipped 2026-05-29:
+- **NLL ISR as production default** (`isr_nll=True`) — removes the
+  ±22.4 MeV LL+exp→NLL bias on m_W (and the related LL+exp-vs-WHIZARD
+  recipe difference). Templates regenerated via `condor/ww_templates/`
+  (18 jobs × 4 cores, ~5 min); the LL+exp baseline is kept under
+  `output_xsec/ww/{nominal,BEC}_LLexp/` for paper-closure tests.
+- **Bilinear (m_W × Γ_W) cross-term morph** (`CROSS_TERMS=[("mass","width")]`):
+  one extra corner template per BEC set + a residual non-multiplicative
+  factor, making corner closure exact. Asimov closure at the (+10,+10) MeV
+  corner cuts the m_W bias 40 keV → 1 keV
+  (`scripts/investigations/bilinear_morph/`). Opt-in; WbWb recovers
+  pure-linear behaviour by leaving `CROSS_TERMS` undefined.
 
-Shipped 2026-05-29: **bilinear (m_W × Γ_W) cross-term in template
-morphing** (`CROSS_TERMS = [("mass", "width")]` in
-`cards/ww_default.py`). One extra `cross_mass_width` corner template
-per BEC set; the fit applies the residual non-multiplicative factor
-`(1+m_corner)/((1+m_a)(1+m_b))-1` so closure at the corner is exact.
-Asimov closure test at the (+10, +10) MeV corner
-(`scripts/investigations/bilinear_morph/closure_corner.py`): linear-only
-chain biases m_W by 40 keV, bilinear chain by 1 keV — sub-MeV-safe
-relative to the 250 keV FCC-ee target. Opt-in via the card; WbWb
-leaves `CROSS_TERMS` undefined and recovers the pure-linear behaviour.
-
-A parallel implementation based entirely on established generators
-(WHIZARD / Recola / MoCaNLO) is planned as a second `*Generator`
-class slotting into the same `do_scan` / `file_name` contract — needed
-for publication-level cross-validation.
+A parallel implementation on established generators (WHIZARD / Recola /
+MoCaNLO), as a second `*Generator` slotting into the same `do_scan` /
+`file_name` contract, is planned for publication-level cross-validation.
