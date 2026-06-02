@@ -72,6 +72,44 @@ else
     echo "[publish] WARN: $COUL_SRC not found — Coulomb figs may be stale"
 fi
 
+# Scan-scenario comparison figures: produced by `doFit_ww.py --compareScenarios`
+# (framework/process/ww/scenario_compare.py), output at plots/scenario_compare_*.pdf
+# (gitignored). Mirror the set into figs/ verbatim — the report includes them by
+# their plots/ basenames (layout, ellipses, per-POI syst bars, systematic sweeps).
+mkdir -p figs
+_scen_n=0
+for f in ../plots/scenario_compare_layout.pdf \
+         ../plots/scenario_compare_ellipses.pdf \
+         ../plots/scenario_compare_syst_mW.pdf ../plots/scenario_compare_syst_gW.pdf \
+         ../plots/scenario_compare_scan_*.pdf; do
+    if [[ -f "$f" ]]; then cp -p "$f" "figs/$(basename "$f")"; _scen_n=$((_scen_n+1)); fi
+done
+[[ $_scen_n -gt 0 ]] || echo "[publish] WARN: no plots/scenario_compare_*.pdf — scenario figs stale"
+
+# Cross-section diagnostic figures (σ-chain vs √s, dσ/dm_W & dσ/dΓ_W sensitivity,
+# lineshape ratios, Azzurri-style overlays): produced by
+# scripts/plot_ww_diagnostics.py into fit_output/ww/diagnostics/ (gitignored).
+# The report embeds them as diag/<name>; mirror the set into figs/diag/ so the
+# published PDF tracks the LIVE σ chain. (These were previously a hand-copied
+# snapshot that drifted stale — e.g. predating NLL ISR — because nothing wired
+# the regenerated figures into the report build.)
+DIAG_SRC="../fit_output/ww/diagnostics"
+if [[ -d "$DIAG_SRC" ]]; then
+    mkdir -p figs/diag
+    _diag_n=0
+    for name in xsec_vs_sqrts sensitivity_vs_sqrts ratios_mW_GammaW \
+                azzurri_style_pm1GeV azzurri_style_overlay; do
+        if [[ -f "$DIAG_SRC/$name.pdf" ]]; then
+            cp -p "$DIAG_SRC/$name.pdf" "figs/diag/$name.pdf"; _diag_n=$((_diag_n+1))
+        else
+            echo "[publish] WARN: $DIAG_SRC/$name.pdf missing — diag fig stale"
+        fi
+    done
+    [[ $_diag_n -gt 0 ]] || echo "[publish] WARN: no diagnostics PDFs mirrored"
+else
+    echo "[publish] WARN: $DIAG_SRC not found — diagnostic figs may be stale"
+fi
+
 # ISR diagnostic figure (3-way scheme comparison): produced by
 # scripts/investigations/nll_isr/plot_isr_comparison.py, output at
 # plots/isr_comparison.pdf (gitignored).

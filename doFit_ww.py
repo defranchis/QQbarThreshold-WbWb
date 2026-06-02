@@ -45,6 +45,7 @@ def dump_fit_metadata(fit, args):
             "lastecm":         args.lastecm,
             "BECnuisances":    args.BECnuisances,
             "BESnuisances":    args.BESnuisances,
+            "shapeOnly":       args.shapeOnly,
         },
     }
     os.makedirs(fit.plot_dir, exist_ok=True)
@@ -75,6 +76,15 @@ def parse_args():
     parser.add_argument("--alphaSscan", action="store_true")
     parser.add_argument("--chi2scans", action="store_true")
     parser.add_argument("--systTable", action="store_true")
+    parser.add_argument("--shapeOnly", action="store_true",
+                        help="shape-only fit: float the correlated-luminosity "
+                             "nuisance (~100%% prior → overall normalisation "
+                             "unconstrained) and switch the uncorrelated per-point "
+                             "lumi off, so m_W/Γ_W are extracted from the lineshape "
+                             "SHAPE only. Keeps the full production systematics "
+                             "(BEC/BES/α_s/α_em_isr). Mirrors the theory ladder's "
+                             "free-lumi mode (LUMI_CORR_FREE); incompatible with "
+                             "--systTable.")
     parser.add_argument("--noPlots", action="store_true")
     # --- Theory-uncertainty ladder (standalone mode) -----------------------
     parser.add_argument("--theoryLadder", action="store_true",
@@ -180,6 +190,14 @@ def _check_template_freshness(fit, generator):
 def main():
     args = parse_args()
 
+    if args.shapeOnly and args.systTable:
+        raise SystemExit(
+            "--shapeOnly is incompatible with --systTable: the systematics-table "
+            "machinery (reinitialise_to_nominal/stat) resets the luminosity priors "
+            "and would clobber the floated correlated-lumi nuisance mid-table. Run "
+            "--shapeOnly on its own for the shape-only σ(m_W)/σ(Γ_W)/ρ (it already "
+            "activates the full production systematics).")
+
     if args.theoryLadder:
         from framework.process.ww.theory_ladder import run_theory_ladder
         # Templates are cached persistently (LADDER_CACHE_DIR) and reused via
@@ -222,10 +240,28 @@ def main():
         same_evts=args.sameNevts,
     )
 
-    if args.BECnuisances or args.BECscans or args.systTable:
+    # --shapeOnly carries the full production systematics so its σ is directly
+    # comparable to the constrained (realistic-lumi) headline — only the lumi
+    # prior changes — so BEC/BES are activated here too.
+    if args.BECnuisances or args.BECscans or args.systTable or args.shapeOnly:
         fit.add_binned_nuisance("BEC")
-    if args.BESnuisances or args.BESscans or args.systTable:
+    if args.BESnuisances or args.BESscans or args.systTable or args.shapeOnly:
         fit.add_binned_nuisance("BES")
+
+    if args.shapeOnly:
+        # Shape-only fit: float the correlated luminosity nuisance (≈100% prior →
+        # overall normalisation unconstrained) and switch the uncorrelated
+        # per-point lumi off, so m_W/Γ_W are extracted from the lineshape SHAPE
+        # only. All other systematics keep their production priors. Reuses the
+        # theory ladder's free-lumi value (single source of truth). Must run
+        # AFTER init_scenario, which auto-activates the lumi binned nuisance in
+        # nuisance mode (otherwise _nuisance_priors['lumi'] doesn't exist yet).
+        from framework.process.ww.theory_ladder import LUMI_CORR_FREE
+        if fit.lumi_mode == "nuisance":
+            fit.set_binned_nuisance_priors("lumi", uncorr=0.0, corr=LUMI_CORR_FREE)
+        else:  # cov mode: zero the uncorr block, open the corr block wide
+            fit.lumi_uncorr = 0.0
+            fit.lumi_corr = LUMI_CORR_FREE
 
     dump_fit_metadata(fit, args)
     # Make the chain summary from the actual templates show up at the
@@ -239,6 +275,15 @@ def main():
 
     fit.fit_parameters()
     fit.fit_results()
+
+    if args.shapeOnly:
+        import uncertainties as unc
+        mass, width = fit.last_fit_results[0], fit.last_fit_results[1]
+        rho = float(unc.correlation_matrix([mass, width])[0, 1])
+        print("\n[shape-only] correlated luminosity floated (≈100% prior), "
+              "uncorrelated lumi off; full production systematics:")
+        print(f"[shape-only] σ(m_W) = {mass.s * 1e3:6.2f} MeV   "
+              f"σ(Γ_W) = {width.s * 1e3:6.2f} MeV   ρ = {rho:+.2f}")
 
     if not args.noPlots:
         plot_fit_scenario(fit)
