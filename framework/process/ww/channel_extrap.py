@@ -24,14 +24,18 @@ way to map every systematic correctly, which is what this module does.
 
 Implementation
 --------------
-Since ``N = σ·L``, the inclusive rate boost is applied as an **effective
-luminosity** scaling ``L → L/B`` — this reproduces the inclusive yield
-*exactly* while leaving the cross-section templates (the lineshape) and every
-relative systematic bit-identical, so no template regeneration is needed and
-all systematics map by construction. The full experimental breakdown
-(:func:`framework.common.systematics.compute_syst_breakdown`: stat + α_s +
-BES + BEC + lumi, realistic priors — the ``--systTable`` configuration) is
-computed at both the μνqq̄ and the inclusive effective luminosity and compared.
+The inclusive WW sample has ``1/B`` times more events than μνqq̄ at the SAME
+machine luminosity (``N = σ·L`` with σ_incl = σ_μνqq̄/B), so its statistical
+uncertainty shrinks by ``√B`` while every relative systematic — and crucially
+the luminosity measurement itself (a di-photon/Bhabha count of the real machine
+luminosity, identical for any WW final state) — is unchanged. We therefore apply
+the boost as a **statistical-only rescale** (``_extra_stat_scale = √B``) at the
+real luminosity, rather than inflating the luminosity (which would wrongly shrink
+the per-point lumi counting prior, see ``LUMI_UNCORR_SCALES``). The full
+experimental breakdown (:func:`framework.common.systematics.compute_syst_breakdown`:
+stat + α_s + BES + BEC + lumi, realistic priors — the ``--systTable``
+configuration) is computed for both the μνqq̄ and the inclusive stat scaling and
+compared.
 
 Scope / caveats
 ---------------
@@ -40,14 +44,13 @@ Scope / caveats
   different modelling) and are reported separately (the μνqq̄-specific theory
   ladder / ISR-scheme study). This module touches only stat + beam +
   parametric terms.
-* **Future parametric nuisance: α_em_isr (ISR input coupling).** Once the
-  ISR coupling α(M_Z) is wired as a profiled nuisance (its FCC-ee Tera-Z input
-  uncertainty ≈ 2.4×10⁻⁷, ~0.04 MeV — *not* the ISR α-scheme spread, which is
-  theory), it is a *parametric/experimental* term that is **channel-common**
-  (ISR is identical for every WW final state), so it maps through this
-  extrapolation *unchanged*, exactly like luminosity/BES/BEC. No code change is
-  needed here: ``_SYST_ROWS`` is derived from ``card.SYST_TABLE_ORDER``, so the
-  new source appears automatically once added to the card.
+* **Parametric nuisance: α_em_isr (ISR input coupling) is now profiled**
+  (``PARAM_UNC["alpha_em_isr"] = 4.7×10⁻⁸``, Riembau combined; ~0.008 MeV — *not*
+  the ISR α-scheme spread, which is a separate theory uncertainty). It is
+  **channel-common** (ISR is identical for every WW final state), so it maps
+  through this extrapolation *unchanged*, exactly like luminosity/BES/BEC —
+  confirmed flat in the emitted table. ``_SYST_ROWS`` is derived from
+  ``card.SYST_TABLE_ORDER``, so the ``aem_isr`` row appears automatically.
 * This is the *idealised* statistical ceiling — it treats the full WW rate as
   if reconstructed with the μνqq̄ per-event sensitivity (no channel-dependent
   background, purity or resolution). A real multi-channel combination sits
@@ -73,18 +76,23 @@ from framework.process.ww.xsec_calculator.eft_xsec import BR_INCLUSIVE_MUNUQQ
 INCLUSIVE_FACTOR = 1.0 / BR_INCLUSIVE_MUNUQQ
 
 
-def _build_full_fit(lumi_scale: float) -> WWFit:
+def _build_full_fit(stat_scale: float) -> WWFit:
     """Full production fit (all POIs + α_s/BES/BEC/lumi nuisances, realistic
     priors — the ``--systTable`` configuration) on the card's baseline 7-point
-    scan, with the effective luminosity scaled by ``lumi_scale``."""
+    scan at the *real* machine luminosity, with the statistical term rescaled by
+    ``stat_scale``. The inclusive WW sample has 1/B times more events at the same
+    luminosity, so its statistical uncertainty shrinks by √B; we apply that as a
+    stat-only rescale (``_extra_stat_scale``) rather than boosting the luminosity,
+    so the luminosity-measurement priors stay tied to the real machine lumi (the
+    di-photon/Bhabha luminometer is the same regardless of WW decay channel)."""
     gen = WWGenerator.from_card(card)
     fit = WWFit(card, gen, input_dir=card.INPUT_DIRS["nominal"], asimov=True,
                 mass_scheme=getattr(card, "MASS_SCHEME", "OS"))
+    fit._extra_stat_scale = stat_scale   # consumed by create_scenario (init_scenario)
     S = card.SCENARIO
     fit.init_scenario(
         scan_min=S["scan_min"], scan_max=S["scan_max"], scan_step=S["scan_step"],
-        total_lumi=S["total_lumi"] * lumi_scale,
-        last_lumi=S["last_lumi"] * lumi_scale,
+        total_lumi=S["total_lumi"], last_lumi=S["last_lumi"],
     )
     fit.add_binned_nuisance("BEC")
     fit.add_binned_nuisance("BES")
@@ -94,16 +102,17 @@ def _build_full_fit(lumi_scale: float) -> WWFit:
 
 def run_channel_extrapolation(out=None):
     """Compute the experimental systematics breakdown for the μνqq̄ channel and
-    its inclusive-WW extrapolation (effective lumi × 1/B), and emit a
-    side-by-side comparison table."""
+    its inclusive-WW extrapolation (stat × √B at the same machine luminosity;
+    1/B more events), and emit a side-by-side comparison table."""
     out = out or os.path.join("plots", "channel_extrap")
     channels = [
         ("munuqq", 1.0),
-        ("inclusive WW", INCLUSIVE_FACTOR),
+        ("inclusive WW", BR_INCLUSIVE_MUNUQQ ** 0.5),   # stat × √B (1/B more events)
     ]
     results = {}
     for label, scale in channels:
-        print(f"\n[channel-extrap] {label}: effective lumi × {scale:.3f} ...")
+        print(f"\n[channel-extrap] {label}: stat × {scale:.3f} "
+              f"(events × {1.0/scale**2:.2f}) ...")
         fit = _build_full_fit(scale)
         results[label] = compute_syst_breakdown(fit)
     _emit(channels, results, out)
@@ -114,12 +123,12 @@ def _emit(channels, results, out):
     names = [c[0] for c in channels]
     lines = []
     lines.append("WW experimental-uncertainty extrapolation: μνqq̄ → inclusive WW")
-    lines.append(f"Inclusive rate boost = 1/B(μνqq̄) = {INCLUSIVE_FACTOR:.3f} "
-                 f"(B = 2·BR_μν·BR_had = {BR_INCLUSIVE_MUNUQQ:.4f}).")
-    lines.append("Applied as an effective-luminosity scaling (N=σ·L); the")
-    lines.append("lineshape σ and every RELATIVE systematic are unchanged, so only")
-    lines.append("the statistical term scales (∝1/√N). Full production fit (all POIs")
-    lines.append("+ α_s/BES/BEC/lumi nuisances, realistic priors); baseline 7-point")
+    lines.append(f"Inclusive event yield = 1/B(μνqq̄) = {INCLUSIVE_FACTOR:.3f}× "
+                 f"(B = 2·BR_μν·BR_had = {BR_INCLUSIVE_MUNUQQ:.4f}) at the SAME")
+    lines.append("machine luminosity, so only the statistical term scales (× √B).")
+    lines.append("Luminosity (incl. its per-point counting prior), BES, BEC and α_s")
+    lines.append("are channel-common and held fixed. Full production fit (all POIs +")
+    lines.append("α_s/BES/BEC/lumi nuisances, realistic priors); baseline 7-point")
     lines.append("scan. THEORY uncertainties are channel-specific and NOT extrapolated.")
     lines.append("")
     for poi in card.POI_DISPLAY:

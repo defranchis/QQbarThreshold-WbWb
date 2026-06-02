@@ -270,6 +270,11 @@ class FitCore:
         self._active_binned_nuisances = set()
         self._active_global_nuisances = set()
         self._nuisance_priors = {}
+        # Per-bin rescale of the uncorrelated lumi prior: the luminosity is a
+        # counting measurement, so its point-to-point uncertainty scales as
+        # 1/√(L_point). Set in create_scenario when card.LUMI_UNCORR_SCALES is
+        # True; None disables the rescale (uniform card prior). See _nuisance_prior.
+        self._lumi_perbin_scale = None
         # param_idx -> (kind, bin_idx_in_morph_scenario[kind]) — populated
         # by _expand_per_bin_nuisance. Avoids re-parsing "BEC_bin{i}" names.
         self._per_bin_meta = {}
@@ -720,6 +725,12 @@ class FitCore:
 
         unc_stat = (np.array(self.pseudo_data_scenario) / np.array(list(self.scenario.values()))) ** 0.5
         unc_stat *= self.card.SCENARIO["stat_inflation"]
+        # Optional per-fit statistical-only rescale (default 1.0). Used by the
+        # channel extrapolation to represent a sample with a different effective
+        # event yield (e.g. inclusive WW = μνqq̄ × 1/B → stat × √B) WITHOUT
+        # touching the luminosity, so the lumi-measurement priors stay tied to
+        # the real machine luminosity rather than the fictitious yield boost.
+        unc_stat *= getattr(self, "_extra_stat_scale", 1.0)
         self.unc_pseudodata_scenario = unc_stat
         if not self.asimov:
             if self.legacy_pseudo_rng:
@@ -752,16 +763,17 @@ class FitCore:
             if tag in self.morph_dict:
                 self.morph_scenario[tag] = self.slice_to_scenario(self.morph_dict[tag])
 
-        # Above-threshold rescaling for the lumi nuisance morph: in cov
-        # mode the last-bin uncorr lumi unc is divided by sqrt(factor_above)
-        # (see ``_build_cov``); mirror that here by scaling the lumi morph
-        # at the above-threshold bin. The corr lumi component sees the
-        # same vector so it gets the same scaling — this is a small
-        # asymmetry vs the cov mode (which keeps the corr piece flat),
-        # negligible because the corr lumi contribution at the above-
-        # threshold bin is sub-dominant in the scenarios that use
-        # add_last_ecm.
+        # Above-threshold rescaling for the lumi nuisance morph — the
+        # FALLBACK used only when LUMI_UNCORR_SCALES is False. In cov mode the
+        # last-bin uncorr lumi unc is divided by sqrt(factor_above) (see
+        # ``_build_cov``); this mirrors it by scaling the lumi morph at the
+        # above-threshold bin. When LUMI_UNCORR_SCALES is True, the general
+        # per-point ``_lumi_perbin_scale`` below already tightens the last
+        # (higher-lumi) bin via sqrt(L_ref/L_i) — which equals 1/sqrt(factor_above)
+        # there — so this block MUST be gated off to avoid double-counting the
+        # last-bin shrink (the cov path is made mutually exclusive the same way).
         if (self.lumi_mode == "nuisance"
+                and not getattr(self.card, "LUMI_UNCORR_SCALES", False)
                 and self.scenario_dict["add_last_ecm"]
                 and "lumi" in self.morph_scenario):
             factor_above = self.scenario[ecm_to_str(self.last_ecm)] / self.scenario[list(self.scenario.keys())[0]]
@@ -769,6 +781,22 @@ class FitCore:
             morph.iloc[-1, morph.columns.get_loc("xsec")] = (
                 morph.iloc[-1]["xsec"] / factor_above ** 0.5)
             self.morph_scenario["lumi"] = morph
+
+        # Per-point rescale of the uncorrelated lumi prior. The luminosity is a
+        # counting measurement (di-photon / large-angle Bhabha), so its
+        # point-to-point uncertainty scales as 1/√(L_point): a scan with fewer
+        # points concentrates more luminosity per point → smaller uncorr lumi.
+        # uncorr_i = uncorr_ref · √(L_ref / L_i), with (uncorr_ref, L_ref) the
+        # card calibration. Applied to the per-bin lumi nuisance in
+        # _nuisance_prior; the correlated (common-normalisation) piece does not
+        # scale. The per-point lumi L_i is taken in the (ecm-sorted) order that
+        # matches the lumi nuisance bins.
+        if getattr(self.card, "LUMI_UNCORR_SCALES", False):
+            L_i = np.array(list(self.scenario.values()), dtype=float)
+            L_ref = float(self.card.LUMI_UNCORR_CALIB_LUMI)
+            self._lumi_perbin_scale = np.sqrt(L_ref / L_i)
+        else:
+            self._lumi_perbin_scale = None
 
     def slice_to_scenario(self, df):
         """Select the rows of ``df`` whose ECM is in ``self.scenario``.
@@ -856,6 +884,12 @@ class FitCore:
         bin_idx = self._per_kind_bin_idx[kind]
         bin_params = params[bin_idx]
         corr_idx = self._idx[kind]
+        if kind == "lumi" and self._lumi_perbin_scale is not None:
+            # Counting-measurement scaling: per-point uncorr prior
+            # uncorr_i = prior_u · √(L_ref/L_i) (more lumi/point → tighter).
+            prior_u_vec = np.maximum(prior_u * self._lumi_perbin_scale, _PRIOR_FLOOR)
+            return float(np.sum((bin_params / prior_u_vec) ** 2)
+                         + (params[corr_idx] / prior_c) ** 2)
         return float(np.sum((bin_params / prior_u) ** 2) + (params[corr_idx] / prior_c) ** 2)
 
     def init_minuit(self):
@@ -884,24 +918,26 @@ class FitCore:
         that mode so downstream printouts (e.g. scan_lumi_yukawa_ratio)
         retain their reference figure.
 
-        TODO: re-introduce a way to rescale ``lumi.uncorr`` when the
-        scenario's total lumi / N differs from the calibration assumption.
-        The previous ``scale_uncorr`` card flag did this by multiplying by
-        sqrt(N_threshold) — it was removed because it was dead code (always
-        False) and its semantics weren't pinned down. A proper rewrite
-        should compute the per-point scaling from the actual per-point
-        lumi (``self.scenario`` values) against a card-declared
-        calibration reference, so it works for ``same_evts=True`` and
-        custom scenarios too.
+        When ``card.LUMI_UNCORR_SCALES`` is set, the uncorr lumi figure is
+        rescaled per point as ``uncorr_i = uncorr_ref·√(L_ref/L_i)`` from the
+        actual per-point lumi (``self.scenario`` values) against the card
+        calibration ``LUMI_UNCORR_CALIB_LUMI`` — the counting-measurement
+        scaling, mirroring the nuisance-mode treatment in ``_nuisance_prior``.
+        (Works for ``same_evts=True`` and custom scenarios too.)
 
         Called by ``init_minuit`` but also directly by scans that mutate the
         lumi covariance without needing a fresh ``minuit`` (e.g.
         ``scan_lumi``)."""
         cov_stat = np.diag(self.unc_pseudodata_scenario ** 2)
-        lumi_uncorr_ecm = np.full(len(self.pseudo_data_scenario), self.lumi_uncorr, dtype=float)
-        if self.scenario_dict["add_last_ecm"]:
-            factor_above = self.scenario[ecm_to_str(self.last_ecm)] / self.scenario[list(self.scenario.keys())[0]]
-            lumi_uncorr_ecm[-1] = self.lumi_uncorr / factor_above ** 0.5
+        if getattr(self.card, "LUMI_UNCORR_SCALES", False):
+            L_i = np.array(list(self.scenario.values()), dtype=float)
+            lumi_uncorr_ecm = self.lumi_uncorr * np.sqrt(
+                float(self.card.LUMI_UNCORR_CALIB_LUMI) / L_i)
+        else:
+            lumi_uncorr_ecm = np.full(len(self.pseudo_data_scenario), self.lumi_uncorr, dtype=float)
+            if self.scenario_dict["add_last_ecm"]:
+                factor_above = self.scenario[ecm_to_str(self.last_ecm)] / self.scenario[list(self.scenario.keys())[0]]
+                lumi_uncorr_ecm[-1] = self.lumi_uncorr / factor_above ** 0.5
         self.lumi_uncorr_ecm = lumi_uncorr_ecm
 
         if self.lumi_mode == "nuisance":

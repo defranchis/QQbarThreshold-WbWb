@@ -36,46 +36,164 @@ closure must use `M_T_BFS_REF` (already pinned in validation scripts).
   the fit (BFS prescription, arXiv:0707.0773 line 2514); kept for paper-
   closure tests.
 
-Both feed the `PARAM_UNC.{alpha_em, alpha_em_isr}` nuisances; the ISR
-side is held independent of the σ-chain side (Option B — see Notes).
+Only the ISR side carries a fit nuisance (`PARAM_UNC.alpha_em_isr` →
+`aem_isr`); the σ-chain `alpha_em` (Gμ scheme) is luminosity-degenerate for
+m_W and is left unpropagated (`PARAM_UNC.alpha_em = None`). See PARAM_UNC.
 
 ### PARAM_UNC — parametric uncertainties (FCC-ee projections)
 
-Values are the FCC-ee Feasibility Study Report Vol. 1 projections
-(arXiv:2505.00272, Table 2 of §1.4) — stat ⊕ syst, where available.
-**Not yet wired** into the fit; no SYSTEMATICS entry reads them.
-Provisional values (all absolute):
+`PARAM_UNC` holds the FCC-ee parametric-input uncertainties. A value of
+`None` means the input is **not** propagated as a fit nuisance (it has no
+usable handle on the threshold lineshape, or it is degenerate with another
+nuisance). Only `alpha_s` and `alpha_em_isr` are profiled.
 
-| Key            | Value     | FCC-ee projection (FSR Vol. 1)              | Source            |
-|----------------|-----------|----------------------------------------------|-------------------|
-| `m_t`          | 7 MeV     | stat 4.2 ⊕ syst 4.9 MeV (FSR ≈ 6.5; rounded) | tt̄ threshold scan |
-| `M_H`          | 5 MeV     | ZH recoil ≈ 4 MeV (FSR §4.3; rounded)        | Higgs run         |
-| `M_Z`          | 0.1 MeV   | stat 4 keV ⊕ syst 100 keV                    | Z line-shape scan |
-| `alpha_s`      | 1.0e-4    | (stat 0.1 ⊕ syst 1.0) × 10⁻⁴                | combined Z fit    |
-| `alpha_em`     | 2.4e-7    | δα abs from δα⁻¹ ≈ 4×10⁻³ at M_Z²            | A_FB^μμ off-peak  |
-| `alpha_em_isr` | 2.4e-7    | δα(M_Z) abs, same FCC-ee A_FB^μμ projection  | Riembau 2501.05508 |
+| Key            | Value   | Profiled? | Basis / why |
+|----------------|---------|-----------|-------------|
+| `alpha_s`      | 1.0e-4  | yes (`alphas`)   | FCC-ee FSR Vol.1 Tera-Z; enters δ_QCD routing |
+| `alpha_em_isr` | 4.7e-8  | yes (`aem_isr`)  | Riembau arXiv:2501.05508 (see below) |
+| `m_t`          | None    | no        | negligible σ-response (see below) |
+| `M_H`          | None    | no        | negligible σ-response (see below) |
+| `M_Z`          | None    | no        | sub-0.1 MeV on m_W; not propagated |
+| `alpha_em`     | None    | no        | Gμ-scheme α: luminosity-degenerate for m_W |
 
-Notes:
+**`alpha_em_isr` = 4.7×10⁻⁸** — δα(M_Z) absolute = 0.6×10⁻⁵ (relative) × α(M_Z),
+the Riembau (arXiv:2501.05508) **combined on-peak** projection (A_FB^μμ + e/μ + e/e
+ratios, coverage to cosθ=0.99). This supersedes the earlier 2.4×10⁻⁷, which was
+Riembau's more conservative off-peak A_FB^μμ-only figure (≈3×10⁻⁵ rel). Profiled
+as the `aem_isr` offset nuisance (template variation 1×10⁻⁴, prior 4.7×10⁻⁸; see
+PARAMETERS). Asimov impact ~0.008 MeV — the *input* uncertainty, distinct from the
+ISR renormalisation-scheme ambiguity (ALPMZ↔ALGMU, ~36 MeV under prior), which is a
+missing-higher-order **theory** uncertainty reported separately (theory ladder).
 
-- α_em is split into two independent nuisances (**Option B**) so the
-  ISR-side α uncertainty decorrelates from the rest of the σ chain.
-  The σ-chain value tracks the FSR Table 2 conservative projection from
-  A_FB^μμ off-peak. The more aggressive Riembau-method projection
-  (forward dilepton ratios e⁻/μ⁻ + e⁻/e⁺, arXiv:2501.05508) is
-  ~0.6×10⁻⁵ relative → δα ≈ 5×10⁻⁸ absolute, ~5× tighter than the
-  FSR value used here.
-- `alpha_em_isr` is the same FCC-ee Δα(M_Z) projection applied to the
-  ISR-side input. Production NLL chain (DELTA + ALPMZ +
-  α(M_Z)=1/128.943) Asimov A/B (2026-05-28): Δα = 2.4×10⁻⁷ →
-  Δm_W = +0.043 MeV, sub-dominant vs the 5.4 MeV pure-NLL bracket
-  ([scripts/investigations/nll_isr/asimov_alpha_em_isr_AB.py]). The
-  remaining renormalisation-scheme ambiguity (ALPMZ ↔ ALGMU ↔ α(0))
-  is propagated through the same nuisance.
-- BR_W_* uncertainties are deliberately not in PARAM_UNC: in
-  `pdg-constant` BR mode the BR is a measured constant, so its
-  uncertainty is an analysis-level systematic rather than a
-  theory-input nuisance. The W BR is also measured at FCC-ee but
-  enters σ via the BR normalisation, not via the BFS partonic chain.
+**`m_t`/`M_H` are negligible by measurement, not by omission.** The σ-response of
+the threshold lineshape to these inputs (measured in
+`scripts/investigations/parametric_nuisance_variations/measure_response.py`) is
++0.0016 %/GeV (m_t) and −0.0058 %/GeV (M_H) — so over the *entire* FCC-ee input
+uncertainty the σ shifts by ~10⁻⁵ %, a thousand-fold below the ~0.02 % morph noise
+floor, i.e. <1 keV on m_W. Physically, a *direct* threshold-lineshape m_W reads the
+mass off the kinematic turn-on; unlike an indirect EW fit it does **not** inherit the
+m_t/M_H uncertainty through the Δr(m_t, M_H) relation (and with `pdg-constant` BR +
+α_Gμ, m_t/M_H never enter the normalisation either). There is no clean morph template
+to build for them, so they are documented as negligible rather than profiled.
+
+**`alpha_em` (Gμ-scheme, hard σ̂)** is luminosity-degenerate for m_W (it rescales the
+overall normalisation, absorbed by the lumi nuisance), so profiling it buys nothing
+for the mass; left `None`. Only the ISR-side α (`alpha_em_isr`, a shape effect via
+β_e) matters.
+
+BR_W_* uncertainties are deliberately not in `PARAM_UNC`: in `pdg-constant` BR mode
+the BR is a measured constant, an analysis-level systematic rather than a theory-input
+nuisance.
+
+---
+
+## PARAMETERS — fit parameters & template variations
+
+`mass` and `width` are the POIs (absolute values). `alphas` and `aem_isr` are
+**offsets** from their nominal inputs (α_s(M_W) and the ISR coupling α(M_Z)),
+profiled as Gaussian-constraint nuisances (`SYSTEMATICS[...] = constraint`).
+
+The `variation` field is the **template finite-difference step** used to build the
+morph slope — a purely numerical choice, decoupled from the physical prior in
+`PRIORS`. It is sized to lift the σ-response well above the ~0.02 % morph noise
+floor while staying in the linear regime, exactly as the `mass` POI uses a 10 MeV
+variation yet the fit reports sub-MeV. For `aem_isr`, variation `1×10⁻⁴` gives a
+~0.46 % σ-response (≈23× noise, clean & linear); the prior `4.7×10⁻⁸` is ~2000×
+smaller and is the physical FCC-ee input width (the constraint is applied as
+`σ_fit = PRIORS[name]/variation`, so the two never need to match). `aem_isr` is
+applied in `generator.do_scan` as `α_em_isr → α_em_isr + offset` (ISR β_e only).
+
+## Priors / nuisances — beam energy, spread, luminosity
+
+`PRIORS` gives the Gaussian-constraint widths for the beam/luminosity nuisances
+(`uncorr` = point-to-point between scan points, `corr` = fully correlated). For
+**BES and luminosity** the correlated component is half the uncorrelated
+(`corr = ½·uncorr`, following the WbWb threshold paper arXiv:2503.18713); **BEC**
+instead has a *larger* fully-correlated resonant-depolarisation component
+(`corr 0.3 > uncorr 0.1` MeV — the absolute √s scale is the dominant common term).
+
+- **BEC (beam energy calibration)** — MeV on √s. `corr 0.3 / uncorr 0.1`. FCC-ee
+  resonant depolarisation: Blondel & Janot arXiv:1909.12245 quote a 300 keV √s
+  determination at the WW threshold (di-muon Z-return, calibrated to similar
+  accuracy by RDP) with ~100 keV point-to-point. (The LEP-era ±10 MeV is *not* the
+  FCC-ee projection.)
+
+- **BES (beam energy spread)** — relative, on the 0.105 % spread. `uncorr 0.01 /
+  corr 0.005` (1 % / 0.5 %). Blondel-Janot: σ_√s monitored continuously from
+  di-muon events to ~0.6 % at the Z (and "virtually infinite precision"), with 1 %
+  used as their benchmark variation. BES contributes ≈0 to m_W regardless.
+
+- **Luminosity** — relative, per scan point. `uncorr 2×10⁻⁴ / corr 1×10⁻⁴`.
+  Estimated from a **central di-photon (e⁺e⁻→γγ) counting** measurement, the method
+  used in the WbWb paper (arXiv:2503.18713, 0.1 %/point at 41 fb⁻¹). Using the
+  fiducial σ_γγ = 13.2 pb at √s=160 GeV (Carloni Calame et al. arXiv:1906.08056,
+  central acceptance 20°<θ_γ<160°, E_γ>0.25√s) and L = 2.74 ab⁻¹/point
+  (19.2 ab⁻¹ over 7 points): δℒ/ℒ = 1/√(σ·L) = **1.7×10⁻⁴**, which we conservatively
+  inflate to **2×10⁻⁴**. (σ_γγ ∝ 1/s exactly within fixed acceptance — confirmed by
+  1906.08056 to <0.5 % — so the 4.6× higher γγ rate at WW than at the tt̄ threshold
+  would give ~5.7×10⁻⁵; we do not bank that gain pending a fiducial efficiency study.
+  Small-angle Bhabha, ~20× the rate, would do better — di-photon is the conservative
+  fallback.)
+
+### LUMI_UNCORR_SCALES — per-point luminosity scaling
+
+The luminosity is a **counting** measurement, so its uncorrelated (point-to-point)
+prior scales as `1/√(L_point)`: a scan with fewer points puts more luminosity per
+point → smaller per-point uncorr lumi. With `LUMI_UNCORR_SCALES = True`, the fit
+rescales the prior per scan point as `uncorr_i = uncorr_ref·√(L_ref/L_i)`, where
+`(uncorr_ref, L_ref) = (PRIORS["lumi"]["uncorr"], LUMI_UNCORR_CALIB_LUMI)` is
+calibrated at the baseline 7-point per-point luminosity. So the 7-point baseline
+keeps 2×10⁻⁴, the 3-point FCC scenario gets 2×10⁻⁴·√(3/7) ≈ 1.3×10⁻⁴, etc. (applied
+in `fit_core._nuisance_prior`/`_build_cov`). The correlated (common-normalisation)
+component does **not** scale. The channel extrapolation applies its inclusive yield
+boost as a stat-only rescale at the real machine luminosity, so this prior is
+unaffected by the (fictitious) yield boost.
+
+### PEAK_ECM — BES-smearing reference
+
+`PEAK_ECM = 160.0` is used **only** as the reference √s that converts the relative
+beam-energy spread (BES, % per beam) into the absolute Gaussian smearing-kernel
+width (`σ_√s = PEAK_ECM·BES%/100/√2`, in `common/smearing.py`). It does not enter
+the cross-section calculation, scan grid, or morph. 160 GeV is the WW operating
+point (E_beam = 80 GeV, where the 0.105 % spread is quoted), replacing the earlier
+162.5 scan-centre placeholder (a 1.5 % narrower kernel; sub-MeV on the fit).
+
+---
+
+## SCENARIO & INPUT_VAR
+
+`SCENARIO` defines the baseline scan and luminosity:
+
+- `scan_min/max/step = 157/163/1.0` → the 7-point threshold scan.
+- `total_lumi = 19.2e6` /pb — FCC-ee FSR Vol.1 (arXiv:2505.00272) `tab:seqbaseline`
+  WW baseline: 20×10³⁴/cm²s per IP × 9.6 ab⁻¹/yr × 2 yr × 4 IP = 19.2 ab⁻¹, split
+  equally across the 7 points (2.74 ab⁻¹/point).
+- `last_lumi = 10.8e6` /pb — ZH 240 GeV baseline (FSR `tab:seqbaseline`); only used
+  with `--lastecm`, dormant otherwise.
+- `stat_inflation = 1.0` — global stat multiplier (WbWb uses 1.2 for background
+  contamination; WW reco study pending). `coarse_scan` is a 3-point fallback
+  geometry; `true_value_pivot = "mass"` selects which POI the Asimov truth pivots on.
+
+`INPUT_VAR` gives the **fit-parameter units** of the binned nuisances — the step a
+nuisance value of 1.0 corresponds to: `BEC = 10` MeV (matches the
+`output_xsec/ww/BEC/scan_{p,m}10/` template shift), `BES = 0.1` (10 % of the spread),
+`lumi = 0.01` (1 %). These are numerical units; the physical constraint widths are in
+`PRIORS` (the fit applies `σ_fit = PRIORS/INPUT_VAR`).
+
+**Scan-scenario comparison.** `doFit_ww.py --compareScenarios` compares three √s
+layouts (7-point baseline, 3-point FCC, 2-point Azzurri-like) at the same total
+luminosity, writing `plots/scenario_compare*`: the 2-POI sensitivity, the
+per-scenario full-systematics breakdown and theory ladder (text/CSV), and plots —
+`_layout` (scan points on the lineshape + per-point lumi), `_ellipses`
+((m_W,Γ_W) error contours), `_syst_{mW,gW}` (per-source budget bars), and
+`_scan_<syst>_{mW,gW}` (the `uncert_mass_width_vs_<syst>` impact sweeps overlaid
+across layouts, one figure per systematic × POI). The systematics scanned are
+derived from `SYST_TABLE_ORDER` (no hand-maintained list). The constraint-nuisance
+sweeps (`alphas`, `aem_isr`) use an **exact rank-1 Gaussian covariance update** —
+one calibrated Hesse per nuisance, then an analytic curve — instead of a per-point
+re-fit, which removes the quadrature-subtraction noise that otherwise swamps their
+sub-0.1 MeV impacts. All of this is documented in the report's scan-scenario
+comparison section.
 
 ---
 
@@ -194,7 +312,8 @@ measures DGLAP-evolution stability rather than NLL truncation
 ### `alpha_em_isr`
 
 See the `alpha_em_isr` paragraph in PARAM_INPUTS above for the
-production default; the PARAM_UNC entry holds the FCC-ee Δα(M_Z) = 2.4×10⁻⁷.
+production default; the PARAM_UNC entry holds the FCC-ee Δα(M_Z) = 4.7×10⁻⁸
+(Riembau combined projection), profiled as the `aem_isr` nuisance.
 
 ### `diagnostic_bfs_coulomb_nlo`
 

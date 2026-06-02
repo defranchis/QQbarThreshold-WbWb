@@ -372,11 +372,14 @@ class WWGenerator:
     def _order_str(order: int) -> str:
         return {0: "LO", 1: "NLO", 2: "NNLO", 3: "N3LO"}.get(order, f"O{order}")
 
+    #: Fit-parameter → (filename label, decimals). Offsets (alphas, aem_isr)
+    #: get short tags + 4 decimals to resolve their small variation magnitudes.
+    _TAG_LABELS = {"alphas": ("asVar", 4), "aem_isr": ("aemVar", 4)}
+
     def file_tag(self, values: dict) -> str:
         parts = []
         for name, val in values.items():
-            label = "asVar" if name == "alphas" else name
-            decimals = 4 if name == "alphas" else 3
+            label, decimals = self._TAG_LABELS.get(name, (name, 3))
             parts.append(f"{label}{val:.{decimals}f}")
         return "_".join(parts)
 
@@ -413,6 +416,19 @@ class WWGenerator:
         # α_s(M_W) (matches the WbWb convention). Add it to the generator's
         # nominal α_s when computing the effective δ_QCD(α_s) at this fit point.
         alpha_s_eff = self.alpha_s + float(values.get("alphas", 0.0))
+        # ``aem_isr`` is likewise an OFFSET from the nominal ISR coupling
+        # α(M_Z); it shifts only the ISR β_e exponent (profiled nuisance).
+        aem_isr_eff = self.alpha_em_isr
+        aem_off = float(values.get("aem_isr", 0.0))
+        if aem_off and self.alpha_em_isr is None:
+            # ISR would fall back to its module-default α, so the offset would be
+            # silently dropped → the aem_isr variation template = nominal → a
+            # zero-slope, powerless always-on nuisance. Fail loud instead.
+            raise ValueError(
+                "aem_isr offset requested but alpha_em_isr is None — set a concrete "
+                "PARAM_INPUTS['alpha_em_isr'] (the variation would be a no-op otherwise).")
+        if self.alpha_em_isr is not None:
+            aem_isr_eff = self.alpha_em_isr + aem_off
 
         ecm_grid = _build_fine_grid() + ecm_shift_MeV * 1e-3
         sigma_obs = sigma_observed_munuqq(
@@ -437,7 +453,7 @@ class WWGenerator:
             isr_emela_ren_scheme=self.isr_emela_ren_scheme,
             isr_scale_factor=self.isr_scale_factor,
             alpha_em=self.alpha_em,
-            alpha_em_isr=self.alpha_em_isr,
+            alpha_em_isr=aem_isr_eff,
             coulomb_kc_safe=self.coulomb_kc_safe,
             decay_uses_full_born=self.decay_uses_full_born,
             m_t=self.m_t, M_H=self.M_H, MZ=self.MZ,
