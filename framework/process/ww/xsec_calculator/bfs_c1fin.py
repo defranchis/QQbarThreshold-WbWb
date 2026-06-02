@@ -88,7 +88,6 @@ def L_MW2_m_MW(M_W2: float, m_2: float) -> complex:
     return t1 * log1 + t2 * log2
 
 
-
 def L_pp2_m_m(p2: float, m_2: float) -> complex:
     """L(p², m², m²) for equal internal masses, general p² > 0.
 
@@ -144,10 +143,10 @@ def C0_zero_MW2_mMW2_0_m_MW(M_W2: float, m_2: float) -> complex:
     M_mW4 = M_mW2 * M_mW2
     inv = 1.0 / (4.0 * M_W2)
     if m_2 == 0.0:
-        return 0.0 + 0.0j  # 0/0 limit, handled by enclosing code
+        return 0.0 + 0.0j  # m^2->0 limit (defensive; not hit on current call paths)
     arg1 = 1.0 - 2.0 * M_W2 / m_2
     arg2 = (2.0 * M_W2 - m_2) / (4.0 * M_W2 - m_2)
-    arg3 = (m_2 * m_2) / M_mW4   # M_Z⁴/M_mW⁴
+    arg3 = (m_2 * m_2) / M_mW4   # m⁴/M_mW⁴
     arg4 = (2.0 * M_W2 - m_2) / M_mW2
     arg5 = (m_2 - 2.0 * M_W2) / M_mW2
     return inv * (

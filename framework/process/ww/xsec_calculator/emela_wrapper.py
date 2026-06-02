@@ -73,13 +73,17 @@ def initialize(pert_order: str = "NLL",
                alpha: float = 1.0 / 132.1) -> None:
     """Initialise eMELA.  Must be called once before code_pdf / ll_pdf.
 
-    Defaults match the BFS prescription:
+    The bare-call defaults follow the old BFS prescription:
       - DELTA factorisation: σ̂ = σ_Born, no ISR collinear subtractions.
       - ALGMU renormalisation: fixed coupling α_Gμ(M_W) ≈ 1/132.1,
         matching BFS arXiv:0707.0773 line 2514.
-
-    For the scheme-variation nuisance, call again with ren_scheme="ALPMZ"
-    and alpha = alpha(M_Z) ≈ 1/128.9 (then re-evaluate σ_obs).
+    Note these are only the fallback used when initialize() is called with
+    no overrides.  Production (isr.py / WWGenerator) has overridden these
+    since 2026-05-28 to ren_scheme="ALPMZ" + alpha = alpha(M_Z) = 1/128.943;
+    the ALGMU / ≈1/132.1 path is now retained only as the diagnostic
+    scheme variation.  The literal default 1.0/132.1 here is a rounded
+    fallback that differs from isr._DEFAULT_ISR_ALPHA = α_Gμ(M_W_BFS_REF)
+    = 1/132.168 (the value the production bare-ISR path actually uses).
 
     Calling with identical arguments is a no-op (cached).
     """
@@ -96,7 +100,8 @@ def initialize(pert_order: str = "NLL",
 
 
 def code_pdf(x: float, omx: float, Q: float) -> float:
-    """Return x * D_NLL(x, Q) for the electron (PDG id 11).
+    """Return x * D(x, Q) at the order passed to initialize() (NLL in
+    production) for the electron (PDG id 11).
 
     Parameters
     ----------

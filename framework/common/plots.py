@@ -335,9 +335,10 @@ def plot_fit_input_ratios(fit):
 
 # Display-scale "wide band" per-POI shifts for the Azzurri overlay
 # (Azzurri 2107.04444 Fig. 1 scale). ±1 GeV on mass and width to match
-# the literature reference; α_s gets a comparable display-scale offset.
-# Each value is in the POI's *native* unit (GeV / GeV / dimensionless).
-_AZZURRI_POI_DELTA = {"mass": 1.0, "width": 1.0, "alphas": 0.005}
+# the literature reference. Each value is in the POI's *native* unit (GeV).
+# Only tracked POIs are overlaid (`_fit_input_poi_variations` skips the
+# constrained α_s/α_em_isr nuisances), so no nuisance entry is needed here.
+_AZZURRI_POI_DELTA = {"mass": 1.0, "width": 1.0}
 
 
 def plot_fit_input_azzurri_overlay(fit):
@@ -392,6 +393,15 @@ def plot_fit_input_azzurri_overlay(fit):
             apply_whizard_anchor=gen.apply_whizard_anchor,
             whizard_anchor_source=gen.whizard_anchor_source,
             isr_scheme=gen.isr_scheme,
+            # Match the production ISR scheme of the on-disk nominal template
+            # (generator.do_scan): without these the ±Δ bands default to
+            # isr_nll=False (LL+exp) while the nominal curve is NLL — two
+            # different schemes on the same axes.
+            isr_nll=gen.isr_nll,
+            isr_emela_ll=gen.isr_emela_ll,
+            isr_emela_pert_order=gen.isr_emela_pert_order,
+            isr_emela_fac_scheme=gen.isr_emela_fac_scheme,
+            isr_emela_ren_scheme=gen.isr_emela_ren_scheme,
             alpha_em_isr=gen.alpha_em_isr,
             coulomb_kc_safe=gen.coulomb_kc_safe,
             decay_uses_full_born=gen.decay_uses_full_born,

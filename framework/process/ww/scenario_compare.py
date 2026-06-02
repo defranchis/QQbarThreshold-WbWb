@@ -2,9 +2,10 @@
 
 Compares three √s data-taking layouts — all using the SAME cross-section
 templates (the σ is stored on the fine √s grid; a scenario merely selects which
-points the fit consumes), all with the SAME total luminosity (the project's own
-12 ab⁻¹), and all fit with the reduced 2-POI stat + correlated-lumi setup of the
-theory ladder (so the comparison isolates the effect of the scan geometry):
+points the fit consumes), all with the SAME total luminosity
+(``card.SCENARIO["total_lumi"]``), and all fit with the reduced 2-POI stat +
+correlated-lumi setup of the theory ladder (so the comparison isolates the
+effect of the scan geometry):
 
   * **7pt**         — the project baseline: 157–163 GeV, 1 GeV step (7 points),
                       equal luminosity split.
@@ -221,6 +222,7 @@ def _grouped_syst(sb, poi, src):
 
 def _emit_comparison(scenarios, results, out, syst_results=None):
     lines = []
+    rungs = [k for k, _ in HARD_RUNGS]   # ladder rung keys, used by (b) and (d)
     lines.append("WW scan-scenario comparison — Asimov sensitivity + theory ladder")
     L_ab = card.SCENARIO["total_lumi"] / 1e6
     lines.append(f"Total luminosity = {L_ab:.1f} /ab for ALL scenarios (same lumi).")
@@ -255,7 +257,6 @@ def _emit_comparison(scenarios, results, out, syst_results=None):
     # --- (b) theory ladder per scenario -----------------------------------
     lines.append("(b) THEORY LADDER  Δm_W vs production truth [MeV], realistic "
                  "corr-lumi prior")
-    rungs = [k for k, _ in HARD_RUNGS]
     hh = f"{'scenario':14s} {'ISR':4s} " + " ".join(f"{r:>9s}" for r in rungs)
     lines.append("-" * len(hh))
     lines.append(hh)
@@ -310,7 +311,6 @@ def _emit_comparison(scenarios, results, out, syst_results=None):
     # the ladder rungs. The 'spread' column (max−min over the four rungs) makes
     # that explicit per scenario; the scenario-to-scenario change is the
     # geometry effect. NLL ISR, realistic corr-lumi prior throughout.
-    rungs = [k for k, _ in HARD_RUNGS]
     qh = (f"{'scenario':14s} {'quantity':11s} " +
           " ".join(f"{r:>8s}" for r in rungs) + f" {'spread':>8s}")
     lines.append("(d) UNCERTAINTY & CORRELATION STABILITY across the ladder")
@@ -339,11 +339,11 @@ def _emit_comparison(scenarios, results, out, syst_results=None):
     lines.append("    grid); only which points enter the fit changes.")
     lines.append("  • The Azzurri-like upper point is OUR dσ/dΓ_W=0 crossing")
     lines.append("    (snapped to the 0.1-GeV grid), not Azzurri's 162.3 GeV.")
-    lines.append("  • The Azzurri-like layout reduces ρ (here +0.19 vs +0.51 for")
-    lines.append("    the 7-point) — the upper point carries little Γ_W info, partly")
-    lines.append("    decorrelating the POIs — but NOT to ρ≈0: the corr-lumi-only")
-    lines.append("    constraint leaves a residual (Azzurri's ρ≈0 uses a different")
-    lines.append("    setup). It also gives the tightest σ_ΓW.")
+    lines.append("  • The Azzurri-like layout reduces ρ relative to the 7-point")
+    lines.append("    (see panel (a) for the live values) — the upper point carries")
+    lines.append("    little Γ_W info, partly decorrelating the POIs — but NOT to")
+    lines.append("    ρ≈0: the corr-lumi-only constraint leaves a residual (Azzurri's")
+    lines.append("    ρ≈0 uses a different setup). It also gives the tightest σ_ΓW.")
     lines.append("  • The 'free-lumi' σ is meaningless for the 2-point Azzurri-like")
     lines.append("    scenario (huge values): 2 points cannot constrain 2 POIs PLUS")
     lines.append("    a floating normalisation — read its 'prior' (realistic) column.")

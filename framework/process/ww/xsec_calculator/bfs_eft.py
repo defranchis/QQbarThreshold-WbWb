@@ -731,8 +731,8 @@ def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
         W mass and physical width in GeV. The width enters via the
         complex-velocity propagator only (no BR-correction multiplication
         with the default).
-    order : {"LO", "N1/2LO", "NLO", "N3/2LO"}
-        Truncation of the BFS Born expansion.
+    order : {"N3/2LO"}
+        The only supported value; retained as a guard.
     apply_BR_correction : bool
         Default False — DO NOT use for total σ_WW. See module docstring.
 
@@ -835,7 +835,7 @@ def delta_sigma_NLO_hard_softcoll_specific_pb(s, mW: float = M_W_DEFAULT,
     against the conventional-scheme conversion of the LL ePDFs.
 
     Combined with Δσ_Coulomb^(1) (eq. 62, ``delta_sigma_Coulomb_NLO_specific_pb``)
-    and Δσ_decay^(1) (eq. 49, ``delta_sigma_NLO_decay_specific_pb``) reproduces
+    and Δσ_decay^(1) (eq. 60, ``delta_sigma_NLO_decay_specific_pb``) reproduces
     the full NLO ``σ̂_LR_conv^(1)`` of BFS eq. (finalcross), the NLO correction
     to the partonic σ_LR in the conventional ISR scheme.
 
@@ -1230,11 +1230,13 @@ def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
     BR factor's correct (m_W, Γ_W) dependence is preserved in the fit.
 
     ``include_NLO_hard_decay`` adds the NLO hard+soft+collinear piece
-    (eq. finalcross bracket × √) and the decay correction (eq. 49) on
+    (eq. finalcross bracket × √) and the decay correction (eq. 60) on
     top of the σ_LR Born expansion. This is the bulk of the BFS NLO
-    physical-σ correction; the NLO Coulomb (eq. 62) is still handled
-    separately via ``coulomb_K_factor`` / ``BFSCorrections`` so users can
-    choose K_C vs eq. 62 without double-counting at LO.
+    physical-σ correction. The NLO Coulomb (eq. 62) is added ADDITIVELY
+    inside ``_add_nlo_loops_to_LR``; ``coulomb_kc_safe`` (which passes
+    ``subleading_only=True``) guards the double-count only WHEN the FKM
+    K_C resummation is enabled — which is OFF by default, so the full
+    eq. 62 is added.
 
     Parameters mirror ``sigma_BFS_LO_total_WW_pb``.
     """

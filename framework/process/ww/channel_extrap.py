@@ -33,7 +33,7 @@ the boost as a **statistical-only rescale** (``_extra_stat_scale = √B``) at th
 real luminosity, rather than inflating the luminosity (which would wrongly shrink
 the per-point lumi counting prior, see ``LUMI_UNCORR_SCALES``). The full
 experimental breakdown (:func:`framework.common.systematics.compute_syst_breakdown`:
-stat + α_s + BES + BEC + lumi, realistic priors — the ``--systTable``
+stat + α_s + aem_isr + BES + BEC + lumi, realistic priors — the ``--systTable``
 configuration) is computed for both the μνqq̄ and the inclusive stat scaling and
 compared.
 
@@ -126,7 +126,7 @@ def _emit(channels, results, out):
     lines.append(f"Inclusive event yield = 1/B(μνqq̄) = {INCLUSIVE_FACTOR:.3f}× "
                  f"(B = 2·BR_μν·BR_had = {BR_INCLUSIVE_MUNUQQ:.4f}) at the SAME")
     lines.append("machine luminosity, so only the statistical term scales (× √B).")
-    lines.append("Luminosity (incl. its per-point counting prior), BES, BEC and α_s")
+    lines.append("Luminosity (incl. its per-point counting prior), BES, BEC, α_s and aem_isr")
     lines.append("are channel-common and held fixed. Full production fit (all POIs +")
     lines.append("α_s/BES/BEC/lumi nuisances, realistic priors); baseline 7-point")
     lines.append("scan. THEORY uncertainties are channel-specific and NOT extrapolated.")

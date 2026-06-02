@@ -68,6 +68,8 @@ _WHIZARD_WORK  = _QQBAR_ROOT / "whizard" / "work"
 
 GRID_FINE_CSV          = _WHIZARD_WORK / "grid_fine"       / "grid.csv"
 GRID_HIGHSTATS_CSV     = _WHIZARD_WORK / "grid_highstats"  / "grid.csv"
+# Not used by the production morph (which combines grid_fine + grid_highstats
+# wings); the validation grids are loaded only via an explicit grid_path.
 GRID_VALIDATE_CSV      = _WHIZARD_WORK / "grid_validate"   / "grid.csv"
 GRID_VALIDATE_FINE_CSV = _WHIZARD_WORK / "grid_validate_fine" / "grid.csv"
 
@@ -92,8 +94,11 @@ def load_operational_grid() -> pd.DataFrame:
 
     Returns the full frame including the two BFS-reference Γ_W rows so
     external closure scripts can compare at those exact values.
-    :func:`build_morph_from_df` calls :func:`filter_uniform_gw` internally
-    before fitting, so the BFS-ref rows do not enter the morph fit.
+    This function does **not** filter: the uniform-Γ_W cut is applied by
+    :func:`build_operational_morph` and :func:`_get_morph_splines`, which
+    call :func:`filter_uniform_gw` before handing the frame to
+    :func:`build_morph_from_df`, so the BFS-ref rows do not enter the
+    morph fit.
     """
     fine = load_grid(GRID_FINE_CSV)
     hs   = load_grid(GRID_HIGHSTATS_CSV)
@@ -145,7 +150,9 @@ def denoise_grid(df: pd.DataFrame, *, chi2_per_dof: float = 1.0) -> pd.DataFrame
     snom_clean = {k: float(np.mean(v)) for k, v in est.items()}
 
     for index, x, _, Rs in curves:
-        sc = np.array([snom_clean[round(float(xi), 4)] for xi in x])
+        sc = np.array([snom_clean.get(round(float(xi), 4),
+                                       np.interp(xi, x_nom, snom_raw))
+                       for xi in x])
         out.loc[index, "sigma_fb"] = Rs * sc
     return out
 

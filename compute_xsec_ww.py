@@ -81,7 +81,13 @@ def main():
                          "via BFSCorrections. With include_NLO_hard_decay=True "
                          "(the production default) this double-counts; use only "
                          "when reproducing isolated BFS paper plots. CLI value "
-                         "overrides card's NLO_CONFIG['diagnostic_bfs_coulomb_nlo'].")
+                         "overrides card's NLO_CONFIG['diagnostic_bfs_coulomb_nlo']. "
+                         "NOTE: this flag is NOT encoded in the template filename or "
+                         "fingerprint header, so a diagnostic run writes to — and the "
+                         "freshness check would later reuse — the SAME path as a "
+                         "production template. Always pair it with --force or a "
+                         "dedicated --outdir to avoid aliasing/clobbering production "
+                         "templates.")
     args = ap.parse_args()
 
     params = Parameters(card.PARAMETERS, scale_vars=[],

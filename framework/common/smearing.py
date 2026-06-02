@@ -20,7 +20,7 @@ def find_peak(df_xsec, range_max_ecm=None, step=1.0):
         range_max_ecm = df_xsec["ecm"].max()
     in_range = df_xsec[df_xsec["ecm"] <= range_max_ecm]
     peak_xsec = in_range["xsec"].max()
-    peak_ecm = df_xsec.loc[df_xsec["xsec"] == peak_xsec, "ecm"].values[0]
+    peak_ecm = in_range.loc[in_range["xsec"] == peak_xsec, "ecm"].values[0]
     if peak_ecm > range_max_ecm - step / 2:
         return find_peak(df_xsec, range_max_ecm - step, step)
     return peak_xsec, peak_ecm
@@ -37,6 +37,8 @@ def convolute_gauss(df_xsec, beam_energy_res, peak_ecm=None):
         looked up via :func:`find_peak`.
     """
     ecms = df_xsec["ecm"].to_numpy()
+    if len(ecms) < 2:
+        raise ValueError("convolute_gauss needs >=2 ecm points")
     pitches = np.round(np.diff(ecms), _PITCH_TOLERANCE)
     pitch = pitches[0]
     if not np.all(pitches == pitch):

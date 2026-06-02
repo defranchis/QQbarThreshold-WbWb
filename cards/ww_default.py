@@ -144,7 +144,6 @@ BR_W_UD   = 0.3358   # BR(W → ud̄ + cs̄)
 # ---------------------------------------------------------------------------
 INPUT_DIRS = {
     "nominal":    "output_xsec/ww/nominal",
-    "scale_vars": "output_xsec/ww/scale_vars",
     "BEC":        "output_xsec/ww/BEC",
     "pseudo":     "output_xsec/ww/pseudo",
 }

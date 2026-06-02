@@ -1,10 +1,17 @@
 #!/usr/bin/env python
-"""Entry point for the WW threshold fit — PLACEHOLDER.
+"""Entry point for the WW threshold fit.
 
-Mirrors :mod:`doFit_wbwb` but trims Yukawa-related options. Cannot do
-anything useful until a real WW cross-section generator is plugged into
-:class:`process.ww.generator.WWGenerator` and a corresponding set of
-template files is produced (see ``INPUT_DIRS`` in ``cards/ww_default.py``).
+Runs the production BFS-EFT N^(3/2)LO chain via
+:class:`process.ww.generator.WWGenerator` over the template set declared in
+``cards.ww_default.INPUT_DIRS``; a fail-closed freshness guard
+(:func:`_check_template_freshness`) refuses to fit on templates whose
+fingerprint no longer matches the live card.
+
+Modes (mutually exclusive standalone runs exit early): the default
+m_W/Γ_W fit; ``--shapeOnly`` (float the correlated-lumi nuisance for a
+shape-only σ); ``--theoryLadder``; ``--compareScenarios``;
+``--channelExtrap``. ``--lastecm`` appends the 240 GeV ZH lever to the
+default fit. Mirrors :mod:`doFit_wbwb` but with the WW POI set (no Yukawa).
 """
 
 import argparse
@@ -41,7 +48,6 @@ def dump_fit_metadata(fit, args):
             "scan_max":        card.SCENARIO["scan_max"],
             "scan_step":       card.SCENARIO["scan_step"],
             "total_lumi":      fit.scenario_dict["total_lumi"],
-            "scale_vars":      args.scaleVars,
             "lastecm":         args.lastecm,
             "BECnuisances":    args.BECnuisances,
             "BESnuisances":    args.BESnuisances,
@@ -59,12 +65,11 @@ def dump_fit_metadata(fit, args):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="WW threshold fit (placeholder)")
+    parser = argparse.ArgumentParser(description="WW threshold fit (BFS-EFT chain)")
     parser.add_argument("--pseudo", action="store_true")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--lastecm", action="store_true")
     parser.add_argument("--sameNevts", action="store_true")
-    parser.add_argument("--scaleVars", action="store_true")
     parser.add_argument("--BECnuisances", action="store_true")
     parser.add_argument("--BESnuisances", action="store_true")
     parser.add_argument("--inputDir", default=None)
@@ -224,7 +229,6 @@ def main():
         generator,
         input_dir=args.inputDir,
         asimov=not args.pseudo,
-        read_scale_vars=args.scaleVars,
         mass_scheme=getattr(card, "MASS_SCHEME", "OS"),
         debug=args.debug,
     )

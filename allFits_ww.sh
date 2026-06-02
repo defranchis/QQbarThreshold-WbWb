@@ -2,9 +2,9 @@
 # Full WW diagnostic suite — mirror of allFits_wbwb.sh with the scans
 # WW actually supports. No --scaleVarsScan (WW card has no scale-
 # variation templates), no --truevaluescan / --yukawaThScan /
-# --widthscan / --shiftScan (WbWb-specific). doFit_ww.py also doesn't
-# currently fan scans in parallel — they run sequentially inside each
-# invocation.
+# --widthscan / --shiftScan (WbWb-specific). The requested scans fan
+# out in parallel by default (doFit_ww.py --parallel N, default 6;
+# pass --parallel 1 to force sequential).
 #
 # Pre-req: run `python3 compute_xsec_ww.py` once to populate the
 # nominal + BEC-variation templates in cards/ww_default.py:INPUT_DIRS.

@@ -118,8 +118,8 @@ class FitCore:
     1. ``__init__(card, generator, ...)`` — read the card, build the
        parameter grid, load and smear and morph the input cross-section
        templates. Populates ``param_names``, ``parameters``, ``d_params``,
-       ``xsec_dict``, ``xsec_dict_smeared``, ``morph_dict``, ``_bec_raw``,
-       ``_sw2_raw``, plus card-derived scalars (scales, priors, BES, lumi,
+       ``xsec_dict``, ``xsec_dict_smeared``, ``morph_dict``,
+       ``_nuisance_morph_raw``, plus card-derived scalars (scales, priors, BES, lumi,
        last_ecm). Nuisance active sets (``_active_binned_nuisances``,
        ``_active_global_nuisances``) start empty.
 
@@ -582,6 +582,15 @@ class FitCore:
         return pd.DataFrame({"ecm":  xsec_nom["ecm"],
                              "xsec": xsec_var["xsec"] / xsec_nom["xsec"] - 1})
 
+    def _is_per_bin_name(self, name):
+        """True if ``name`` is a per-bin child nuisance (``<kind>_bin{i}``) of a
+        binned systematic. Unlike :meth:`_is_bin_nuisance`, the correlated parent
+        ``kind`` itself does NOT match: per-bin children are skipped from the
+        global morph (their rows are synthesised sparsely in
+        ``_build_chi2_caches``) while the parent ``kind`` keeps its own row."""
+        return any(name.startswith(f"{k}_bin")
+                   for k in self._systematics_meta["binned"])
+
     def _morph_cross_sections(self):
         # Skip per-bin nuisance expansion names (e.g. ``BEC_bin0``,
         # ``lumi_bin3``) — their morph rows are synthesised sparsely from
@@ -589,11 +598,9 @@ class FitCore:
         # individually here. (Without this filter, ``update()`` after
         # ``add_binned_nuisance(kind)`` would re-enter ``_morph_one`` with
         # a per-bin name and raise on the ``_systematics_meta`` lookup.)
-        binned_kinds = tuple(self._systematics_meta["binned"])
-        def _is_per_bin(n):
-            return any(n.startswith(f"{k}_bin") for k in binned_kinds)
         self.morph_dict = {p: self._morph_one(p)
-                           for p in self.param_names if not _is_per_bin(p)}
+                           for p in self.param_names
+                           if not self._is_per_bin_name(p)}
         # POI cross-term corner rows (only when the card declares CROSS_TERMS).
         for (a, b) in self.parameters.cross_terms:
             self.morph_dict[self.parameters.cross_tag(a, b)] = self._morph_one_cross(a, b)
@@ -748,11 +755,9 @@ class FitCore:
         # in ``morph_dict`` — they share the parent kind's morph, applied
         # sparsely in ``_build_chi2_caches``. Skip them here for the same
         # reason as ``_morph_cross_sections``.
-        binned_kinds = tuple(self._systematics_meta["binned"])
-        def _is_per_bin(n):
-            return any(n.startswith(f"{k}_bin") for k in binned_kinds)
         self.morph_scenario = {p: self.slice_to_scenario(self.morph_dict[p])
-                               for p in self.param_names if not _is_per_bin(p)}
+                               for p in self.param_names
+                               if not self._is_per_bin_name(p)}
         for kind in (*self._systematics_meta["binned"], *self._systematics_meta["global"]):
             if kind in self.morph_dict:
                 self.morph_scenario[kind] = self.slice_to_scenario(self.morph_dict[kind])

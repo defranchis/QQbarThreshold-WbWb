@@ -122,7 +122,7 @@ def beta_ISR(s: float, alpha_em: float | None = None,
     The Skrzypek/Cacciari/Beenakker LEP2 YR convention historically uses
     α(0) (Thomson) since the radiated photon is on-shell. The default
     here is α_Gμ at m_W (the BFS prescription) for consistency with the
-    rest of the BFS chain — pass ``alpha_em=ALPHA_EM_0`` for the
+    rest of the BFS chain — pass ``alpha_em=eft_xsec.ALPHA_EM_0`` for the
     historical α(0) convention.
 
     ``isr_scale_factor`` = ξ rescales the ISR factorisation scale
@@ -262,7 +262,7 @@ def sigma_ISR_convolution(sqrt_s,
 
     ``alpha_em_isr`` selects the α used to build the LL exponent β_e. Default
     is α_Gμ(M_W_BFS_REF) (BFS prescription, line 2514 of arXiv:0707.0773);
-    pass ``ALPHA_EM_0`` for the historical α(0) Thomson convention.  Distinct
+    pass ``eft_xsec.ALPHA_EM_0`` for the historical α(0) Thomson convention.  Distinct
     from any ``alpha_em`` forwarded via ``**sigma_kwargs`` to the partonic σ.
 
     Returns σ_obs in pb. ``sigma_partonic_fn`` must accept array-like ``s``.
@@ -424,7 +424,8 @@ def sigma_ISR_2leg_convolution(sqrt_s,
     Vectorised in ``sqrt_s``.
 
     ``nll=True`` uses the eMELA library (arXiv:1911.12040, DELTA factorisation
-    + ALGMU renormalisation) to replace the per-leg LL+exp weight with the
+    + the ``emela_ren_scheme`` renorm (production default ALPMZ; ALGMU is the
+    scheme-variation diagnostic)) to replace the per-leg LL+exp weight with the
     full NLL electron ePDF.  The per-leg integrand in u-space becomes
     D_NLL(x_i, Q) × |dx/du|_i = CodePdf(11, x_i, omx_i, Q) / x_i × jac_NS_i.
 
@@ -433,8 +434,8 @@ def sigma_ISR_2leg_convolution(sqrt_s,
     CodePdf.  This differs from the analytic default by the full DGLAP sea
     evolution that our β³-truncated formula omits (~+0.8% at threshold).
     Useful for diagnosing the LL truncation error independently of the NLL
-    correction.  Mutually exclusive with ``nll=True``; if both are set,
-    ``nll`` takes precedence.
+    correction.  Mutually exclusive with ``nll=True``; setting both
+    ``isr_nll`` and ``isr_emela_ll`` raises ValueError.
 
     Near x→1 (omx underflows below 1e-15): the analytic limit H_SV / H_SV_NLL
     is substituted (those nodes contribute negligibly to the sum).
@@ -513,7 +514,7 @@ def sigma_ISR_2leg_convolution(sqrt_s,
             # eMELA per-leg integrand in u-space:
             #   per_leg[i] = D(x_i, Q) × |dx/du|_i
             #              = xD(x_i, Q) / x_i × jac_NS_i
-            # nll=True  → CodePdf (NLL DELTA+ALGMU ePDF)
+            # nll=True  → CodePdf (NLL DELTA + emela_ren_scheme ePDF; ALPMZ in prod)
             # emela_ll  → LLPDF(1) (eMELA full DGLAP LL in BETA scheme)
             # Limit x_i → 1 (omx_i → 0): substitute analytic H_SV limit.
             H_sv_em = _H_SV_per_leg(beta, nll=nll, alpha_em=alpha_a)
@@ -557,9 +558,15 @@ def sigma_observed_munuqq(sqrt_s,
                           bfs: BFSCorrections | None = None,
                           br_convention: str = "pdg-constant",
                           # Defaults below are the project's "best calculation"
-                          # — full BFS NLO chain + δ_QCD + Whizard anchor + LL+exp ISR.
-                          # Single-conv is the default ISR scheme (matches 2-leg
-                          # to <0.1% per 2026-05-18 validation, faster 1D quadrature).
+                          # — full BFS NLO chain + δ_QCD + Whizard anchor + ISR.
+                          # With isr_nll=True (production since 2026-05-29) the
+                          # single_conv request auto-upgrades to the 2-leg eMELA
+                          # NLL path; the single-conv LL+exp form is the bare /
+                          # diagnostic / BFS-closure fallback (matches 2-leg to
+                          # <0.1% per 2026-05-18 validation, faster 1D quadrature).
+                          # The multiplicative FKM K_C is OFF by default
+                          # (include_coulomb=False); the BFS Coulomb correction
+                          # is additive in the NLO loops.
                           # alpha_em_isr=None uses module default α_Gμ(M_W_BFS_REF)
                           # per BFS prescription (avoids fictitious m_W-dep in ISR).
                           include_NLO_hard_decay: bool = True,

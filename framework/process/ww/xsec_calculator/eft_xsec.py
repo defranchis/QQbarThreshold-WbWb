@@ -6,14 +6,18 @@ with finite-Γ_W complex-velocity smoothing. Above √s = 170 GeV a
 RACOONWW CC03 calibration spline is used (only the 240 GeV "last_ecm"
 reference point if --lastecm is enabled).
 
-Pipeline (``sigma_partonic_munuqq``):
+Pipeline (``sigma_partonic_munuqq``), production defaults:
 
     σ̂_partonic(ŝ; m_W, Γ_W)
-        = ( BFS N^(3/2)LO Born + Δσ_HSC + Δσ_Coul^NLO + Δσ_decay^EW )
+        = ( BFS N^(3/2)LO Born + Δσ_HSC + Δσ_Coul^NLO + Δσ_decay^EW + NNLO )
           × f_Whizard(δ, Γ_W)        ← BFS sec. 6.2 anchor
-          × δ_QCD(α_s)
-          × K_Coulomb(ŝ; m_W, Γ_W)   ← Fadin-Khoze-Martin + Bardin-Riemann α²
+          × δ_QCD(α_s)               ← routed through BR in pdg-constant mode
           × BR_channel
+
+The multiplicative FKM ``K_Coulomb`` (Fadin-Khoze-Martin) factor is OFF by
+default (``include_coulomb=False``): the BFS Coulomb correction lives
+additively in the NLO loops, so a multiplicative K_C would double-count it.
+It is retained only for diagnostic comparisons against pre-BFS calculations.
 
 Channels (set via ``channel`` arg of :func:`sigma_partonic_munuqq`):
 
@@ -233,9 +237,11 @@ def sigma_WW_partonic(s,
 
     Three regions in absolute √s (m_W independent):
 
-    * ``√s < 150 GeV``  →  σ = 0. Avoids the spurious M_Z pole in the
-      BFS ξ(s)/χ(s) functions; σ is negligible anyway.
-    * ``150 ≤ √s < 170 GeV``  →  BFS LO_EFT N^{3/2}LO Born from
+    * ``√s < 149 GeV``  →  σ = 0. Avoids the spurious M_Z pole in the
+      BFS ξ(s)/χ(s) functions; σ is negligible anyway. A C² quintic ramp
+      (0→1 across [149, 150] GeV) softens the floor so the ISR convolution
+      kernel stays smooth.
+    * ``149 ≤ √s < 170 GeV``  →  BFS LO_EFT N^{3/2}LO Born from
       ``bfs_eft.sigma_BFS_LO_total_WW_pb`` with the (Γ_W^(0)/Γ_W)² BR
       correction; NLO loop chain (HSC + Coulomb_NLO + EW-decay), δ_QCD,
       and the Whizard anchor are applied by default (toggle via the
@@ -428,8 +434,10 @@ def sigma_partonic_munuqq(s,
                           MZ: float = M_Z,
                           alpha_em: float | None = None):
     """
-    Partonic σ(e+e- → μν qq̄) at LO + Coulomb (+ optional BFS NLO/NNLO).
-    Returns σ in pb at partonic CM energy² = s (before ISR convolution).
+    Partonic σ(e+e- → μν qq̄): BFS N^(3/2)LO Born + NLO loops + NNLO +
+    δ_QCD + Whizard anchor (production defaults; the FKM K_C factor is OFF
+    by default — BFS Coulomb is in the NLO loops). Returns σ in pb at
+    partonic CM energy² = s (before ISR convolution).
 
     ``channel`` selects the named final state:
         "inclusive" (default) — μν qq̄, both W charges × (ud̄, cs̄)
@@ -481,8 +489,8 @@ def sigma_partonic_munuqq(s,
                          f"got {br_convention!r}")
 
     # Region-aware σ (handles ISR convolution sampling sub-threshold s_hat):
-    #   √s < 150 GeV  → 0 (avoids spurious M_Z pole in BFS ξ,χ functions)
-    #   150 ≤ √s < 170 → BFS computation
+    #   √s < 149 GeV  → 0 (avoids spurious M_Z pole in BFS ξ,χ functions)
+    #   149 ≤ √s < 170 → BFS computation (C² quintic ramp across [149,150])
     #   √s ≥ 170 GeV  → RACOONWW calibration spline × BR factor
     s_arr = np.asarray(s, dtype=float)
     use_bfs = (s_arr >= _S_BFS_FLOOR) & (s_arr < _S_BFS_UPPER)
@@ -546,7 +554,7 @@ def sigma_partonic_munuqq(s,
     if np.any(use_cal):
         if br_convention == "bfs-eft":
             from framework.process.ww.xsec_calculator.bfs_eft import gamma_W_LO
-            BR_x = (_CHANNEL_MULTIPLICITY[channel] / 27.0) * (gamma_W_LO(mW, alpha_em=alpha_em) / gammaW) ** 2
+            BR_x = (_CHANNEL_MULTIPLICITY[channel] / 27.0) * (gamma_W_LO(mW, MZ=MZ, alpha_em=alpha_em) / gammaW) ** 2
         else:
             BR_x = BR_pdg
         sigma_cal = sigma_WW_partonic(

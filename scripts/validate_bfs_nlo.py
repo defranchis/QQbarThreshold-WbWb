@@ -32,7 +32,7 @@ from framework.process.ww.xsec_calculator.bfs_eft import (
     sigma_LR0_specific_pb,
 )
 from framework.process.ww.xsec_calculator.eft_xsec import (
-    alpha_Gmu, M_T_BFS_REF, M_H_BFS_REF, M_Z_BFS_REF,
+    M_T_BFS_REF, M_H_BFS_REF, M_Z_BFS_REF,
 )
 
 # BFS arXiv:0707.0773 reference EW inputs (m_t = 174.2, M_H = 115 pre-discovery,
@@ -193,12 +193,14 @@ def scenario_F():
             float(sq), mW=mW, gammaW=gW, channel="munuud",
             br_convention="bfs-eft", include_coulomb=False,
             include_NLO_hard_decay=False, apply_delta_QCD=False,
+            include_BFS_NNLO=False,   # BFS Table 4 is fixed-order N^(3/2)LO+NLO
             apply_whizard_anchor=True, isr_scheme="2leg",
             **_BFS_THEORY_KW_PARTONIC) * 1e3
         nlo_mine = sigma_observed_munuqq(
             float(sq), mW=mW, gammaW=gW, channel="munuud",
             br_convention="bfs-eft", include_coulomb=False,
             include_NLO_hard_decay=True, apply_delta_QCD=True,
+            include_BFS_NNLO=False,   # NLO column: no NNLO (cf. plot_bfs_table4)
             alpha_s=0.1199, apply_whizard_anchor=True,
             isr_scheme="2leg",
             **_BFS_THEORY_KW_PARTONIC) * 1e3
@@ -336,15 +338,9 @@ def scenario_K_per_piece_table():
 
     All partonic, BR correction on, no ISR, no δ_QCD, no anchor.
     m_W=80.377, Γ_W=2.09201 (BFS Table 4 inputs).
+
+    Uses numpy + the bfs_eft helpers imported at module top.
     """
-    import numpy as np
-    from framework.process.ww.xsec_calculator.bfs_eft import (
-        sigma_LR0_specific_pb,
-        sigma_BFS_specific_munuud_pb,
-        delta_sigma_NLO_hard_softcoll_specific_pb,
-        delta_sigma_NLO_decay_specific_pb,
-        delta_sigma_Coulomb_NLO_specific_pb,
-    )
     print("\n" + "=" * 72)
     print("Scenario K: per-piece partonic NLO contributions (BFS Table 4 inputs)")
     print("=" * 72)

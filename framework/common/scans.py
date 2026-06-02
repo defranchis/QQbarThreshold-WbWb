@@ -646,11 +646,16 @@ def scan_true_value(fit):
 
     centrals = _centrals(fit, pois)
     pivot_vals = np.array([float(k) for k in results_baseline[pois[0]].keys()]) if pois else np.array([])
+    # Sort the x-axis numerically: the dict keys arrive in lexical listdir order,
+    # which only equals numeric order for fixed-width pivot strings — negatives or
+    # differing decimal widths would draw a zig-zag connecting line.
+    order = np.argsort(pivot_vals)
+    pivot_vals = pivot_vals[order]
     sym_pivot = poi_symbol(fit, pivot)
     for poi in pois:
         disp = fit.card.POI_DISPLAY[poi]
-        errs = _maybe_relative(np.array(list(results_baseline[poi].values())), fit, poi, centrals)
-        errs_coarse = _maybe_relative(np.array(list(results_coarse[poi].values())), fit, poi, centrals)
+        errs = _maybe_relative(np.array(list(results_baseline[poi].values())), fit, poi, centrals)[order]
+        errs_coarse = _maybe_relative(np.array(list(results_coarse[poi].values())), fit, poi, centrals)[order]
         sym = poi_symbol(fit, poi)
         plt.plot(pivot_vals, errs, "b-", label=rf"Uncertainty in ${sym}$", linewidth=2)
         plt.plot(pivot_vals, errs_coarse, "g--",
@@ -785,9 +790,14 @@ def scan_chi2(fit):
                 [profile_chi2([ia_full, ib_full], [va, vb]) for vb in gB]
                 for va in gA
             ])
+            # grid_chi2[i, j] = chi2(gA[i], gB[j]) (axis0=gA, axis1=gB), but
+            # plt.contour(X=gA, Y=gB, Z) needs Z[row=Y=gB, col=X=gA] → pass the
+            # transpose. Both axes are length 51 so matplotlib does not raise on
+            # the un-transposed array; it just reflects the ellipse across the
+            # diagonal and flips the apparent m_W–Γ_W correlation tilt.
             plt.contour(fit.value_from_param(gA, pa),
                         fit.value_from_param(gB, pb),
-                        grid_chi2,
+                        grid_chi2.T,
                         levels=[fit.minuit.fval + 1, fit.minuit.fval + 4],
                         colors=["#377eb8", "#4daf4a"], linewidths=2)
             plt.plot(fit.value_from_param(fit.minuit.values[ia_full], pa),

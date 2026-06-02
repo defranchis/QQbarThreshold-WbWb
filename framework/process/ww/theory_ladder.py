@@ -65,14 +65,12 @@ or import :func:`run_theory_ladder`.
 
 from __future__ import annotations
 
-import copy
 import multiprocessing
 import os
 import shutil
 import types
 from concurrent.futures import ProcessPoolExecutor
 
-import numpy as np
 import uncertainties as unc
 
 from cards import ww_default as card
@@ -97,6 +95,7 @@ HARD_RUNGS = [
     ("+NNLO",  dict(include_NLO_hard_decay=True,  include_BFS_NNLO=True,  apply_delta_QCD=False)),
     ("+dQCD",  dict(include_NLO_hard_decay=True,  include_BFS_NNLO=True,  apply_delta_QCD=True)),
 ]
+HARD_RUNGS_BY_KEY = dict(HARD_RUNGS)
 
 # ISR axis. LL+exp = the analytic β³-truncated single-convolution radiator;
 # NLL = the eMELA 2-leg radiator (forces isr_scheme='2leg' downstream).
@@ -307,9 +306,6 @@ def _build_fit(card_ov, hard_key, isr_key, base, scenario=None):
     return fit
 
 
-HARD_RUNGS_BY_KEY = dict(HARD_RUNGS)
-
-
 # ---------------------------------------------------------------------------
 # ISR scheme variation (phase 1: α-renormalisation scheme + ξ stability)
 # ---------------------------------------------------------------------------
@@ -354,36 +350,11 @@ def _isr_var_dir(base: str, label: str) -> str:
     return os.path.join(base, f"isrvar_{safe}")
 
 
-def _fit_isr_variant(card_ov, label, overrides, base, truth_nom, lumi_corr,
-                     scenario=None):
-    """Fit one ISR-scheme variant against the production truth; return a row."""
-    gen = _make_generator(dict(HARD_RUNGS_BY_KEY[TRUTH_HARD]), overrides,
-                          ORDER_OF[TRUTH_HARD])
-    fit = WWFit(card_ov, gen, input_dir=_isr_var_dir(base, label), asimov=True)
-    _init_scenario(fit, scenario)
-    fit.lumi_uncorr = 0.0
-    fit.lumi_corr = lumi_corr
-    fit.create_scenario(pseudodata=truth_nom)
-    fit.fit_parameters()
-    res = fit.fit_results(printout=False)
-    mass, width = res[0], res[1]
-    truth_mass = fit.d_params["nominal"]["mass"]
-    truth_width = fit.d_params["nominal"]["width"]
-    rho = float(unc.correlation_matrix([mass, width])[0, 1])
-    return {
-        "variant": label,
-        "bias_mW": (mass.n - truth_mass) * 1e3,
-        "bias_gW": (width.n - truth_width) * 1e3,
-        "sig_mW": mass.s * 1e3,
-        "sig_gW": width.s * 1e3,
-        "rho": rho,
-        "valid": bool(fit.minuit.valid),
-    }
-
-
-def _fit_rung(card_ov, hard_key, isr_key, base, truth_nom, lumi_corr, scenario=None):
-    """Fit one rung against the injected truth; return a result row dict."""
-    fit = _build_fit(card_ov, hard_key, isr_key, base, scenario=scenario)
+def _fit_and_row(fit, truth_nom, lumi_corr, extra):
+    """Run the lumi-corr-only Asimov fit (uncorr lumi off, correlated lumi at
+    ``lumi_corr``) on ``fit`` against the injected ``truth_nom`` and return a
+    result row: the caller's identifier keys (``extra``) merged with the common
+    bias/sig/rho/valid fields."""
     fit.lumi_uncorr = 0.0
     fit.lumi_corr = lumi_corr
     fit.create_scenario(pseudodata=truth_nom)
@@ -394,7 +365,7 @@ def _fit_rung(card_ov, hard_key, isr_key, base, truth_nom, lumi_corr, scenario=N
     truth_width = fit.d_params["nominal"]["width"]
     rho = float(unc.correlation_matrix([mass, width])[0, 1])
     return {
-        "hard": hard_key, "isr": isr_key,
+        **extra,
         "bias_mW": (mass.n - truth_mass) * 1e3,
         "bias_gW": (width.n - truth_width) * 1e3,
         "sig_mW": mass.s * 1e3,
@@ -402,6 +373,22 @@ def _fit_rung(card_ov, hard_key, isr_key, base, truth_nom, lumi_corr, scenario=N
         "rho": rho,
         "valid": bool(fit.minuit.valid),
     }
+
+
+def _fit_isr_variant(card_ov, label, overrides, base, truth_nom, lumi_corr,
+                     scenario=None):
+    """Fit one ISR-scheme variant against the production truth; return a row."""
+    gen = _make_generator(dict(HARD_RUNGS_BY_KEY[TRUTH_HARD]), overrides,
+                          ORDER_OF[TRUTH_HARD])
+    fit = WWFit(card_ov, gen, input_dir=_isr_var_dir(base, label), asimov=True)
+    _init_scenario(fit, scenario)
+    return _fit_and_row(fit, truth_nom, lumi_corr, {"variant": label})
+
+
+def _fit_rung(card_ov, hard_key, isr_key, base, truth_nom, lumi_corr, scenario=None):
+    """Fit one rung against the injected truth; return a result row dict."""
+    fit = _build_fit(card_ov, hard_key, isr_key, base, scenario=scenario)
+    return _fit_and_row(fit, truth_nom, lumi_corr, {"hard": hard_key, "isr": isr_key})
 
 
 # ---------------------------------------------------------------------------

@@ -1,16 +1,25 @@
 """Diagnostic plots for the WW threshold-scan calculation.
 
-Two PDF figures written to ``plots/ww_diagnostics/``:
+Five PDF figures written to ``fit_output/ww/diagnostics/``:
 
 * ``xsec_vs_sqrts.pdf`` — σ(√s) at successive BFS Born orders (eq. 17 →
-  17+37 → 17+33+37 → 17+33+37+39) and then with the Coulomb K-factor
-  and LL+exp ISR convolution layered on. Two panels: linear scale
-  155–170 GeV, and ratios relative to the full N^(3/2)LO Born.
+  17+37 → 17+33+37 → 17+33+37+39) and then with the ISR convolution
+  layered on. Two panels: linear scale 155–170 GeV, and ratios relative
+  to the full N^(3/2)LO Born.
 
 * ``sensitivity_vs_sqrts.pdf`` — dσ/dm_W and dσ/dΓ_W vs √s computed by
   central finite difference, both for the partonic cross section (no
-  ISR) and the observed cross section (with LL+exp ISR). All in
-  fb/MeV; both POIs on a single figure with two panels.
+  ISR) and the observed cross section (with ISR). All in fb/MeV; both
+  POIs on a single figure with two panels.
+
+* ``ratios_mW_GammaW.pdf`` — σ_obs lineshape ratios for ±10/±30 MeV
+  shifts of m_W and Γ_W.
+
+* ``azzurri_style_pm1GeV.pdf`` — two-panel Azzurri 2107.04444 Fig. 1
+  style σ_WW with ±1 GeV-equivalent m_W / Γ_W bands.
+
+* ``azzurri_style_overlay.pdf`` — single-panel overlay of those same
+  m_W and Γ_W bands.
 
 Run from the WW_threshold/ directory:
 
@@ -33,7 +42,7 @@ from framework.process.ww.xsec_calculator.bfs_eft import (
 from framework.process.ww.xsec_calculator.eft_xsec import (
     BR_INCLUSIVE_MUNUQQ,
     GAMMA_W_DEFAULT, M_W_DEFAULT,
-    coulomb_K_factor, sigma_partonic_munuqq as _sigma_partonic_munuqq_raw,
+    sigma_partonic_munuqq as _sigma_partonic_munuqq_raw,
     sigma_WW_partonic,
 )
 from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq as _sigma_observed_munuqq_raw
@@ -150,7 +159,6 @@ def plot_xsec_vs_sqrts():
            ("include_NLO_hard_decay", "apply_delta_QCD", "alpha_s",
             "apply_whizard_anchor")},
     )
-    K_C = coulomb_K_factor(s, mW, gW)
     sigma_partonic = sigma_partonic_munuqq(s, mW, gW, channel="inclusive")
     sigma_observed = sigma_observed_munuqq(sqrts, mW=mW, gammaW=gW, channel="inclusive")
 
@@ -269,7 +277,7 @@ def plot_sensitivity_vs_sqrts():
     ax_mW.plot(sqrts, dsig_dmW_part, color="C0", linewidth=1.6,
                linestyle="--", label="partonic (no ISR)")
     ax_mW.plot(sqrts, dsig_dmW_obs, color="C0", linewidth=2.0,
-               label="observed (with LL+exp ISR)")
+               label="observed (with ISR)")
     _draw_scan_window(ax_mW)
     ax_mW.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_mW.axhline(0.0, color="grey", alpha=0.4, linewidth=0.6)
@@ -282,7 +290,7 @@ def plot_sensitivity_vs_sqrts():
     ax_gW.plot(sqrts, dsig_dgW_part, color="C3", linewidth=1.6,
                linestyle="--", label="partonic (no ISR)")
     ax_gW.plot(sqrts, dsig_dgW_obs, color="C3", linewidth=2.0,
-               label="observed (with LL+exp ISR)")
+               label="observed (with ISR)")
     _draw_scan_window(ax_gW)
     ax_gW.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_gW.axhline(0.0, color="grey", alpha=0.4, linewidth=0.6)
@@ -333,7 +341,7 @@ def plot_ratios_vs_mW_GammaW():
     ax_mW.axvline(2 * mW0, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
     ax_mW.set_ylabel(r"$\sigma_{\rm obs}(m_W + \delta m_W) / \sigma_{\rm obs}(m_W)$")
     ax_mW.set_title(r"Lineshape sensitivity to $m_W$ and $\Gamma_W$  "
-                     fr"($m_W = {mW0:.4f}$ GeV, $\Gamma_W = {gW0:.3f}$ GeV, with LL+exp ISR)")
+                     fr"($m_W = {mW0:.4f}$ GeV, $\Gamma_W = {gW0:.3f}$ GeV, with ISR)")
     ax_mW.legend(loc="best", fontsize=9, framealpha=0.9)
     ax_mW.grid(alpha=0.25)
 
@@ -372,7 +380,7 @@ def plot_azzurri_style_pm1GeV():
     breaks down well before ±1 GeV). The vertical red line marks
     Azzurri's claimed Γ_W crossing at √s ≈ 162.3 GeV.
 
-    σ_WW = σ(e+e- → W+W-) with LL+exp ISR, derived from
+    σ_WW = σ(e+e- → W+W-) with ISR, derived from
     σ_observed_munuqq / BR_INCLUSIVE_MUNUQQ (PDG-constant BR convention).
     """
     import matplotlib.pyplot as plt
@@ -416,7 +424,7 @@ def plot_azzurri_style_pm1GeV():
     ax_mW.plot(sqrts, sigma_nom, color="black", linewidth=1.8,
                 label=rf"central: $m_W={mW_paper:.3f}$, $\Gamma_W={gW_paper:.3f}$ GeV")
     ax_mW.plot(sqrts, sigma_mW_p, color="#54278f", linewidth=1.0,
-                linestyle="--", label=rf"$m_W={mW_paper:+.3f} + {eff_d_mW:.1f}$ GeV (extrap.)".replace("+80.385", "80.385"))
+                linestyle="--", label=rf"$m_W={mW_paper:.3f} + {eff_d_mW:.1f}$ GeV (extrap.)")
     ax_mW.plot(sqrts, sigma_mW_m, color="#54278f", linewidth=1.0,
                 linestyle=":",  label=rf"$m_W={mW_paper:.3f} - {eff_d_mW:.1f}$ GeV (extrap.)")
     _draw_scan_window(ax_mW)
@@ -425,7 +433,7 @@ def plot_azzurri_style_pm1GeV():
     ax_mW.text(2 * mW_paper + 0.05, 0.1, r"$2\,m_W$", color="grey",
                 alpha=0.7, fontsize=9, ha="left", va="bottom")
     ax_mW.set_xlabel(r"$\sqrt{s}$ [GeV]")
-    ax_mW.set_ylabel(r"$\sigma_{\rm WW}$ [pb]  (with LL+exp ISR)")
+    ax_mW.set_ylabel(r"$\sigma_{\rm WW}$ [pb]  (with ISR)")
     ax_mW.set_title(rf"$m_W$ variation ($\pm {eff_d_mW:.1f}$ GeV, linear from $\pm 10$ MeV)")
     ax_mW.set_xlim(155, 170)
     ax_mW.legend(loc="upper left", fontsize=9, framealpha=0.9)
@@ -530,7 +538,7 @@ def plot_azzurri_style_overlay():
                 label=r"Azzurri $\Gamma_W$-crossing $\approx 162.3$ GeV")
 
     ax.set_xlabel(r"$\sqrt{s}$ [GeV]")
-    ax.set_ylabel(r"$\sigma_{\rm WW}$ [pb]  (with LL+exp ISR)")
+    ax.set_ylabel(r"$\sigma_{\rm WW}$ [pb]  (with ISR)")
     ax.set_title(rf"$m_W$ and $\Gamma_W$ $\pm {eff_d:.1f}$ GeV bands overlaid "
                  rf"(linear from $\pm 10$ MeV, $\times {int(inflate)}$)")
     ax.set_xlim(155, 170)

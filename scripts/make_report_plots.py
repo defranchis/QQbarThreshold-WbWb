@@ -24,8 +24,6 @@ from framework.process.ww.xsec_calculator.bfs_eft import (
     TABLE_1 as BFS_TABLE_1,                 # paper Table 1 (LO width)
     TABLE_2 as BFS_TABLE_2,                 # paper Table 2 (NLO+QCD width)
     sigma_BFS_specific_munuud_pb,
-    sigma_BFS_LO_total_WW_pb,
-    whizard_anchor_factor,
     delta_sigma_NNLO_C_soft_hard_specific_pb,
     delta_sigma_NNLO_NLO_Coulomb_potential_specific_pb,
     delta_sigma_NNLO_C_decay_specific_pb,

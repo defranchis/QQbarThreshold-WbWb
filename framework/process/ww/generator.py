@@ -15,20 +15,22 @@ Physics chain — defaults are the project's "best calculation":
   • BFS dominant NNLO (arXiv:0807.0102 eq. 49): C×[S+H] + NLO-C + C×decay
     + C×res + C3 — include_BFS_NNLO=True. ~+1 fb at peak (~3 MeV m_W
     impact per BFS sec. 6.4 after ISR convolution).
-  • δ_QCD multiplier 1 + α_s/π + 1.409(α_s/π)² — apply_delta_QCD=True.
-  • Coulomb K-factor resummation (Fadin-Khoze-Martin + Bardin-Riemann α²).
-  • LL+exp ISR (LEP2 YR BETA scheme); single-conv default, 2-leg available.
+  • δ_QCD multiplier 1 + α_s/π + 1.409(α_s/π)² — apply_delta_QCD=True
+    (routed through the hadronic BR in pdg-constant mode).
+  • NLL ISR via eMELA (BCFS arXiv:1911.12040; DELTA factorisation + ALPMZ
+    renorm) — isr_nll=True, the production default since 2026-05-29. The
+    LL+exp BETA radiator (LEP2 YR; single-conv / 2-leg) is retained for
+    BFS-table closure reruns (isr_nll=False). The multiplicative FKM
+    Coulomb K-factor is OFF by default — the BFS Coulomb correction lives
+    additively in the NLO loops above.
   • RACOONWW CC03 spline above √s = 170 GeV (calibration region only;
     threshold-scan grid 157-163 GeV stays in the BFS-EFT region).
 
 Validation: scripts/validate_bfs_nlo.py. Closure to BFS Tables 1+2 at
-4-5 digits (Born); to BFS Table 3+4 at 0.4-1.0 % (NLO + ISR, residual is
-NLL beyond LL+exp — BFS's own 31 MeV systematic). NNLO pieces match
-arXiv:0807.0102 Table 1 to 4 digits via
+4-5 digits (Born); to BFS Table 3+4 at 0.4-1.0 % (NLO + LL+exp ISR — the
+isr_nll=False closure scheme matching BFS's own structure-function
+radiator). NNLO pieces match arXiv:0807.0102 Table 1 to 4 digits via
 scripts/investigations/bfs_nnlo/check_closed_form_pieces.py.
-
-Remaining open work: NLL ISR (eMELA / Skrzypek-Jadach) — see
-project-followup-nll-isr-plan memory.
 
 The ``mass_scale`` / ``width_scale`` parameters are recorded in the
 filename but currently have no effect on the cross section (no
@@ -83,7 +85,7 @@ def partonic_kwargs_from_card(card) -> dict:
         apply_delta_QCD=bool(nlo.get("apply_delta_QCD", True)),
         alpha_s=float(theory.get("alpha_s_MW", ALPHA_S_MW_DEFAULT)),
         apply_whizard_anchor=bool(nlo.get("apply_whizard_anchor", True)),
-        whizard_anchor_source=str(nlo.get("whizard_anchor_source", "grid")),
+        whizard_anchor_source=str(nlo.get("whizard_anchor_source", "morph")),
         coulomb_kc_safe=bool(nlo.get("coulomb_kc_safe", False)),
         decay_uses_full_born=bool(nlo.get("decay_uses_full_born", True)),
         m_t=float(theory.get("m_t", M_T_DEFAULT)),
@@ -153,7 +155,7 @@ def observed_kwargs_from_card(card) -> dict:
         "isr_emela_ll":          bool(nlo.get("isr_emela_ll", False)),
         "isr_emela_pert_order":  str(nlo.get("isr_emela_pert_order", "NLL")),
         "isr_emela_fac_scheme":  str(nlo.get("isr_emela_fac_scheme", "DELTA")),
-        "isr_emela_ren_scheme":  str(nlo.get("isr_emela_ren_scheme", "ALGMU")),
+        "isr_emela_ren_scheme":  str(nlo.get("isr_emela_ren_scheme", "ALPMZ")),
         # isr_scale_factor intentionally NOT read from card — knob remains in
         # WWGenerator + isr.py for legacy / investigation use, but the card
         # default is ξ=1 (see ww_nlo_config.py for rationale).
@@ -179,7 +181,8 @@ def _build_fine_grid() -> np.ndarray:
 
 
 class WWGenerator:
-    """LO + Coulomb + LL-ISR template producer for the WW threshold fit."""
+    """BFS-EFT N^(3/2)LO + NLO/NNLO + Whizard anchor + ISR template producer
+    for the WW threshold fit."""
 
     def __init__(self, *, order: int = 2, channel: str = "inclusive",
                  include_coulomb: bool = True, bfs: BFSCorrections | None = None,
@@ -192,13 +195,13 @@ class WWGenerator:
                  br_convention: str = "pdg-constant",
                  alpha_s: float = ALPHA_S_MW_DEFAULT,
                  apply_whizard_anchor: bool = True,
-                 whizard_anchor_source: str = "grid",
+                 whizard_anchor_source: str = "morph",
                  isr_scheme: str = "single_conv",
                  isr_nll: bool = False,
                  isr_emela_ll: bool = False,
                  isr_emela_pert_order: str = "NLL",
                  isr_emela_fac_scheme: str = "DELTA",
-                 isr_emela_ren_scheme: str = "ALGMU",
+                 isr_emela_ren_scheme: str = "ALPMZ",
                  isr_scale_factor: float = 1.0,
                  alpha_em_isr: float | None = None,
                  coulomb_kc_safe: bool = False,
@@ -418,7 +421,6 @@ class WWGenerator:
         alpha_s_eff = self.alpha_s + float(values.get("alphas", 0.0))
         # ``aem_isr`` is likewise an OFFSET from the nominal ISR coupling
         # α(M_Z); it shifts only the ISR β_e exponent (profiled nuisance).
-        aem_isr_eff = self.alpha_em_isr
         aem_off = float(values.get("aem_isr", 0.0))
         if aem_off and self.alpha_em_isr is None:
             # ISR would fall back to its module-default α, so the offset would be
@@ -427,8 +429,8 @@ class WWGenerator:
             raise ValueError(
                 "aem_isr offset requested but alpha_em_isr is None — set a concrete "
                 "PARAM_INPUTS['alpha_em_isr'] (the variation would be a no-op otherwise).")
-        if self.alpha_em_isr is not None:
-            aem_isr_eff = self.alpha_em_isr + aem_off
+        aem_isr_eff = (None if self.alpha_em_isr is None
+                       else self.alpha_em_isr + aem_off)
 
         ecm_grid = _build_fine_grid() + ecm_shift_MeV * 1e-3
         sigma_obs = sigma_observed_munuqq(

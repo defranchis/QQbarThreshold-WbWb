@@ -7,7 +7,8 @@ under ``WW_threshold/whizard/`` — see ``whizard/README.md`` for the
 end-to-end reproducer recipe.
 
 The grid path defaults to ``../whizard/work/grid/grid.csv`` relative to the
-WW_threshold repo root, but cards can override via ``card.WHIZARD_GRID_PATH``.
+WW_threshold repo root; callers may override the grid path per-call via
+``whizard_sigma(grid_path=...)``.
 """
 
 from pathlib import Path
@@ -18,7 +19,9 @@ from scipy.interpolate import RegularGridInterpolator
 
 
 # WW_threshold/framework/process/ww/xsec_calculator/whizard_grid.py
-#   parents[4] = WW_threshold/  → sibling whizard/ is one level up.
+#   parents[4]        = WW_threshold/      (the repo root)
+#   parents[4].parent = QQbar_threshold/   (the parent of the repo)
+# whizard/ sits one level ABOVE the repo, as a sibling of WW_threshold/.
 _DEFAULT_GRID = (Path(__file__).resolve().parents[4].parent
                  / "whizard" / "work" / "grid" / "grid.csv")
 
