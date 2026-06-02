@@ -122,6 +122,22 @@ else
     echo "[publish] WARN: $ISR_SRC missing — ISR-scheme figure will be stale"
 fi
 
+# Data tables the report cites (text provenance of the results sections, e.g.
+# report/data/scenario_compare.txt referenced in the scenario tables). Mirror
+# the human-readable dumps from the untracked plots/ working areas into the
+# TRACKED report/data/ so the report is self-contained. (.txt only — the .csv
+# machine versions stay in plots/, regenerable.)
+mkdir -p data
+declare -A DATA_FILES=(
+    [../plots/scenario_compare/scenario_compare.txt]=scenario_compare.txt
+    [../plots/theory_ladder/theory_ladder.txt]=theory_ladder.txt
+    [../plots/channel_extrap/channel_extrap.txt]=channel_extrap.txt
+)
+for src in "${!DATA_FILES[@]}"; do
+    if [[ -f "$src" ]]; then cp -p "$src" "data/${DATA_FILES[$src]}"
+    else echo "[publish] WARN: $src missing — report/data table will be stale"; fi
+done
+
 # Build twice so references resolve.
 echo "[publish] building $TEX.pdf"
 pdflatex -interaction=nonstopmode -halt-on-error "$TEX.tex" >/dev/null

@@ -19,6 +19,10 @@ archive
 # and fit_output/ working areas by report/publish.sh. PNG previews and every
 # non-report plot live under plots/ or fit_output/ (both ignored below), so a
 # stray PNG appearing in report/figs/ shows up in `git status` as a reminder.
+# Likewise report/data/ holds the TRACKED text dumps the report cites (e.g.
+# scenario_compare.txt) — mirrored from plots/ by report/publish.sh — so the
+# data behind the results tables travels with the report. Both are tracked by
+# default (no rule needed); only report/*.pdf (the built PDF) is ignored.
 
 # Generated plots + data dumps (untracked; the source scripts ARE tracked).
 # CONVENTION: every producer writes into its OWN plots/<topic>/ subdir — never

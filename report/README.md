@@ -22,6 +22,19 @@ it to `/eos/user/m/mdefranc/www/WW_threshold/report/` so the version at
 matches the source. Run it any time the .tex changes. The destination
 can be overridden via the `EOS_REPORT_DEST` / `EOS_REPORT_URL` env vars.
 
+## Self-contained inputs (tracked)
+
+The report travels with everything it uses, so it is rebuildable from the repo
+without re-running any pipeline:
+
+- `figs/` — exactly the PDF figures the `.tex` embeds (no PNGs, no extras).
+- `data/` — the human-readable text dumps the report cites for its results
+  tables (`scenario_compare.txt`, `theory_ladder.txt`, `channel_extrap.txt`).
+
+Both are **tracked** and kept in sync by `publish.sh`, which mirrors the
+report-used subset from the untracked `plots/` and `fit_output/` working areas
+on every publish. Only the built `ww_bfs_implementation.pdf` is gitignored.
+
 ## Reproducing the validation numbers
 
 Every table in section 3 corresponds to a script in the repo:
