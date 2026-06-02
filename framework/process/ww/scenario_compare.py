@@ -166,7 +166,8 @@ def run_scenario_comparison(*, workers=48, out=None, scheme_var=False):
     """Run, for each scan scenario (shared cached templates): the theory ladder
     (sensitivity + per-rung bias) AND the full-production systematics breakdown,
     then emit one consolidated comparison table + the comparison plots."""
-    out = out or os.path.join("plots", "scenario_compare")
+    out = out or os.path.join("plots", "scenario_compare", "scenario_compare")
+    os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     scenarios = build_scenarios()
 
     results = {}
@@ -176,7 +177,7 @@ def run_scenario_comparison(*, workers=48, out=None, scheme_var=False):
         safe = name.replace(" ", "_").replace("/", "")
         rows, _scheme = run_theory_ladder(
             isr="both", workers=workers, scheme_var=scheme_var,
-            out=os.path.join("plots", f"scenario_{safe}"),
+            out=os.path.join("plots", "scenario_compare", f"scenario_{safe}"),
             base=LADDER_CACHE_DIR, scenario=scn,
         )
         results[name] = rows
@@ -758,7 +759,8 @@ def run_scenario_syst_scans(out=None):
     systematic (``<out>_scan_<syst>.{pdf,png}``). Answers "does the dependence on
     this systematic differ between scan layouts?". Fits run on the existing
     templates (no MC); each scenario gets a fresh full-production fit."""
-    out = out or os.path.join("plots", "scenario_compare")
+    out = out or os.path.join("plots", "scenario_compare", "scenario_compare")
+    os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     scenarios = build_scenarios()
     specs = _sweep_specs()
     data = {s["key"]: dict(axis_label=s["axis_label"],

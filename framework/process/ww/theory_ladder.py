@@ -430,7 +430,7 @@ def run_theory_ladder(*, isr="both", workers=48, out=None, keep=True, base=None,
     # Asimov truth, even when only the LL leg is reported.
     report_keys = ["LL", "NLL"] if isr == "both" else [isr]
     gen_keys = list(dict.fromkeys(report_keys + [TRUTH_ISR]))
-    out = out or os.path.join("plots", "theory_ladder")
+    out = out or os.path.join("plots", "theory_ladder", "theory_ladder")
 
     # Persistent cache by default (templates saved on disk, reused next run);
     # an explicit ``base`` can opt into a throwaway dir + ``keep=False``.

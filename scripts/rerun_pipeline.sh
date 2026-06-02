@@ -2,9 +2,9 @@
 # Full WW re-run pipeline after the parametric-prior card batch. Run on
 # fcc-ironic. Produces the numeric outputs the report/paper tables consume:
 #   - systematics table (SYST_TABLE_PATH)         [light: reads NLL templates]
-#   - channel extrapolation (plots/channel_extrap.*) [light]
-#   - theory ladder (plots/theory_ladder.*)       [heavy: regenerates rung templates]
-#   - scenario comparison (plots/scenario_compare.*) [reuses ladder cache]
+#   - channel extrapolation (plots/channel_extrap/) [light]
+#   - theory ladder (plots/theory_ladder/)        [heavy: regenerates rung templates]
+#   - scenario comparison (plots/scenario_compare/) [reuses ladder cache]
 # Pre-warms the WHIZARD morph grid and uses a gentle worker count to avoid the
 # AFS fork-storm timeout (see memory feedback_afs_grid_contention).
 set +e

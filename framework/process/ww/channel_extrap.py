@@ -104,7 +104,7 @@ def run_channel_extrapolation(out=None):
     """Compute the experimental systematics breakdown for the μνqq̄ channel and
     its inclusive-WW extrapolation (stat × √B at the same machine luminosity;
     1/B more events), and emit a side-by-side comparison table."""
-    out = out or os.path.join("plots", "channel_extrap")
+    out = out or os.path.join("plots", "channel_extrap", "channel_extrap")
     channels = [
         ("munuqq", 1.0),
         ("inclusive WW", BR_INCLUSIVE_MUNUQQ ** 0.5),   # stat × √B (1/B more events)

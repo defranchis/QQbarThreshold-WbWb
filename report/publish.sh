@@ -73,18 +73,19 @@ else
 fi
 
 # Scan-scenario comparison figures: produced by `doFit_ww.py --compareScenarios`
-# (framework/process/ww/scenario_compare.py), output at plots/scenario_compare_*.pdf
+# (framework/process/ww/scenario_compare.py), output under plots/scenario_compare/
 # (gitignored). Mirror the set into figs/ verbatim — the report includes them by
-# their plots/ basenames (layout, ellipses, per-POI syst bars, systematic sweeps).
+# their basenames (layout, ellipses, per-POI syst bars, systematic sweeps).
 mkdir -p figs
 _scen_n=0
-for f in ../plots/scenario_compare_layout.pdf \
-         ../plots/scenario_compare_ellipses.pdf \
-         ../plots/scenario_compare_syst_mW.pdf ../plots/scenario_compare_syst_gW.pdf \
-         ../plots/scenario_compare_scan_*.pdf; do
+for f in ../plots/scenario_compare/scenario_compare_layout.pdf \
+         ../plots/scenario_compare/scenario_compare_ellipses.pdf \
+         ../plots/scenario_compare/scenario_compare_syst_mW.pdf \
+         ../plots/scenario_compare/scenario_compare_syst_gW.pdf \
+         ../plots/scenario_compare/scenario_compare_scan_*.pdf; do
     if [[ -f "$f" ]]; then cp -p "$f" "figs/$(basename "$f")"; _scen_n=$((_scen_n+1)); fi
 done
-[[ $_scen_n -gt 0 ]] || echo "[publish] WARN: no plots/scenario_compare_*.pdf — scenario figs stale"
+[[ $_scen_n -gt 0 ]] || echo "[publish] WARN: no plots/scenario_compare/*.pdf — scenario figs stale"
 
 # Cross-section diagnostic figures (σ-chain vs √s, dσ/dm_W & dσ/dΓ_W sensitivity,
 # lineshape ratios, Azzurri-style overlays): produced by
@@ -112,8 +113,8 @@ fi
 
 # ISR diagnostic figure (3-way scheme comparison): produced by
 # scripts/investigations/nll_isr/plot_isr_comparison.py, output at
-# plots/isr_comparison.pdf (gitignored).
-ISR_SRC="../plots/isr_comparison.pdf"
+# plots/nll_isr/isr_comparison.pdf (gitignored).
+ISR_SRC="../plots/nll_isr/isr_comparison.pdf"
 if [[ -f "$ISR_SRC" ]]; then
     mkdir -p figs
     cp -p "$ISR_SRC" "figs/isr_comparison.pdf"

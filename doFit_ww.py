@@ -105,7 +105,7 @@ def parse_args():
                              "(default 48 = the fcc-ironic core cap; the inner "
                              "per-√s eMELA loop is forced serial so workers map "
                              "1:1 to cores without oversubscription)")
-    parser.add_argument("--ladderOut", default="plots/theory_ladder", metavar="STEM",
+    parser.add_argument("--ladderOut", default="plots/theory_ladder/theory_ladder", metavar="STEM",
                         help="output stem for the ladder table (.txt + .csv)")
     parser.add_argument("--ladderKeep", action="store_true",
                         help="(deprecated no-op) ladder templates are now cached "
