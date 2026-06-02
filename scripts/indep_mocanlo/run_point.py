@@ -38,8 +38,11 @@ from framework.process.ww.indep.parse_xsec import read_point
 _RUN_TYPES = (("1", "born"), ("2", "virt"), ("3", "real"), ("4", "idip"))
 
 
-def _seed_for(channel: str, varpoint: str, ecm: float, base: int) -> int:
-    key = f"{channel}|{varpoint}|{ecm:.4f}".encode()
+def _seed_for(channel: str, ecm: float, base: int) -> int:
+    """Correlated-sampling seed: depends on (channel, ecm) but NOT the varpoint,
+    so nominal and every POI variation at the same √ŝ draw the same MC sequence
+    → the statistical fluctuation cancels in the morph differences."""
+    key = f"{channel}|{ecm:.4f}".encode()
     return base + (zlib.crc32(key) % 1_000_000)
 
 
@@ -63,6 +66,10 @@ def main(argv=None) -> int:
                     default="/afs/cern.ch/work/m/mdefranc/private/FCC/"
                             "QQbar_threshold/mocanlo/grid_gen/results")
     ap.add_argument("--base-seed", type=int, default=1000)
+    ap.add_argument("--decorrelate", action="store_true",
+                    help="A/B diagnostic: include the varpoint in the seed (old "
+                         "behaviour) so varpoints are NOT correlated; tags output "
+                         "'_decorr'. Default is correlated seeds (varpoint-independent).")
     ap.add_argument("--lepton-cut", type=float, default=None,
                     help="fiducial charged-lepton |cosθ|<COS acceptance cut "
                          "(e.g. 0.95); omit for inclusive no-cut")
@@ -84,6 +91,8 @@ def main(argv=None) -> int:
     cut_tag = "" if args.lepton_cut is None else f"_cut{int(round(args.lepton_cut*100))}"
     if args.lepton_pt_min is not None:
         cut_tag += f"pt{int(round(args.lepton_pt_min))}"
+    if args.decorrelate:
+        cut_tag += "_decorr"
     tag = f"{args.channel}_{args.varpoint}_ecm{args.ecm:.4f}_{args.scheme_alpha}{cut_tag}"
     procdir = os.path.join(args.workdir, tag)
     os.makedirs(procdir, exist_ok=True)
@@ -96,7 +105,11 @@ def main(argv=None) -> int:
     write_cards(procdir, block, vp.mW, vp.gW, args.ecm, sm, integ,
                 cos_theta_max=args.lepton_cut, pt_min=args.lepton_pt_min)
 
-    seed0 = _seed_for(args.channel, args.varpoint, args.ecm, args.base_seed)
+    if args.decorrelate:
+        seed0 = args.base_seed + (zlib.crc32(
+            f"{args.channel}|{args.varpoint}|{args.ecm:.4f}".encode()) % 1_000_000)
+    else:
+        seed0 = _seed_for(args.channel, args.ecm, args.base_seed)
     print(f"[{tag}] mW={vp.mW} GW={vp.gW} ecm={args.ecm} seed0={seed0}")
 
     t_start = time.time()

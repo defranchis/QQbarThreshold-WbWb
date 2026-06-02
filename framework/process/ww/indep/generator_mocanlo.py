@@ -31,7 +31,7 @@ from framework.process.ww.indep import isr_beta
 from framework.process.ww.indep.channels import (
     BLOCKS, BLOCKS_BY_KEY, PURE_WW_WEIGHTS,
 )
-from framework.process.ww.indep.varpoints import MW0, GW0, STEP_MW, STEP_GW
+from framework.process.ww.indep.varpoints import MW0, GW0, VARPOINTS
 from framework.process.ww.indep.partonic_grid import (
     load_grids, DEFAULT_RESULTS_DIR, ChannelVarGrid,
 )
@@ -101,22 +101,39 @@ class WWGeneratorMoCaNLO:
         self._cache[ck] = out
         return out
 
+    def _fit_morph(self, sqrt_s: np.ndarray):
+        """Least-squares quadratic+bilinear morph coefficients over all varpoints.
+
+        Fits, per √s,  σ(Δm,Δw) = c0 + c1·Δm + c2·Δw + c3·Δm² + c4·Δw² + c5·ΔmΔw
+        (Δ in MeV) to the assembled line shapes at every varpoint present in the
+        grid.  Over-determined (~20 points, 6 coeffs) ⇒ the per-point MC noise is
+        averaged down and the wide lever arm pins the slopes.  Returns coeffs of
+        shape (6, len(sqrt_s)).  Cached per sqrt_s identity.
+        """
+        ck = ("coeffs", id(sqrt_s))
+        if ck in self._cache:
+            return self._cache[ck]
+        grids = self._load()
+        channels = list(self._weights())
+        rows, rhs = [], []
+        for v in VARPOINTS:
+            if all((ch, v.key) in grids for ch in channels):
+                dm, dw = v.dmW_MeV, v.dgW_MeV
+                rows.append([1.0, dm, dw, dm * dm, dw * dw, dm * dw])
+                rhs.append(self._varpoint_lineshape(v.key, sqrt_s))
+        A = np.asarray(rows)                       # (n_vp, 6)
+        Y = np.asarray(rhs)                        # (n_vp, n_s)
+        coeffs, *_ = np.linalg.lstsq(A, Y, rcond=None)   # (6, n_s)
+        self._cache[ck] = coeffs
+        return coeffs
+
     def _morphed(self, mW: float, gW: float, sqrt_s: np.ndarray) -> np.ndarray:
-        """σ_tot(√s; m_W, Γ_W) [pb] via quadratic+bilinear morph of 6 varpoints."""
-        nom = self._varpoint_lineshape("nominal", sqrt_s)
-        mU = self._varpoint_lineshape("massUp", sqrt_s)
-        mD = self._varpoint_lineshape("massDn", sqrt_s)
-        wU = self._varpoint_lineshape("widthUp", sqrt_s)
-        wD = self._varpoint_lineshape("widthDn", sqrt_s)
-        cr = self._varpoint_lineshape("cross", sqrt_s)
-        a = (mW - MW0) / STEP_MW
-        b = (gW - GW0) / STEP_GW
-        D_m = 0.5 * (mU - mD)
-        D_w = 0.5 * (wU - wD)
-        Q_m = 0.5 * (mU + mD - 2.0 * nom)
-        Q_w = 0.5 * (wU + wD - 2.0 * nom)
-        C = cr - mU - wU + nom
-        return nom + a * D_m + b * D_w + a * a * Q_m + b * b * Q_w + a * b * C
+        """σ_tot(√s; m_W, Γ_W) [pb] via the fitted quad+bilinear morph."""
+        coeffs = self._fit_morph(sqrt_s)
+        dm = (mW - MW0) * 1e3      # MeV
+        dw = (gW - GW0) * 1e3
+        basis = np.array([1.0, dm, dw, dm * dm, dw * dw, dm * dw])
+        return basis @ coeffs
 
     # ------------------------------------------------------------------
     # WWGenerator contract
