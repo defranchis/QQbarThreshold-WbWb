@@ -82,10 +82,11 @@ def _setup_axes(title, ylabel_top, ylabel_bot, *, height=5.5):
 
 
 def _save(fig, name):
+    # PDF only: report/figs/ holds exactly the tracked PDFs the report embeds.
+    # No PNG companion here — PNG previews / non-report plots live under plots/.
     os.makedirs(OUT_DIR, exist_ok=True)
     out_pdf = os.path.join(OUT_DIR, name + ".pdf")
     fig.savefig(out_pdf, bbox_inches="tight")
-    fig.savefig(out_pdf.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
     plt.close(fig)
     print(f"  → {out_pdf}")
 
