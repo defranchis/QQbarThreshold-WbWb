@@ -32,6 +32,9 @@ from framework.process.ww.xsec_calculator.bfs_eft import (
     delta_sigma_NNLO_C_residue_specific_pb,
     delta_sigma_NNLO_triple_Coulomb_specific_pb,
 )
+from framework.process.ww.xsec_calculator.eft_xsec import (
+    M_T_BFS_REF, M_H_BFS_REF, M_Z_BFS_REF,   # paper inputs for the Table-1 closure
+)
 from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "report", "figs")
@@ -159,6 +162,10 @@ def plot_bfs_table4():
         include_coulomb=False,
         apply_whizard_anchor=True,
         isr_scheme="2leg",
+        # Paper EW inputs (the NLO HSC term carries Re c_p,LR^(1,fin)(m_t,M_H));
+        # matches validate_bfs_nlo.py._BFS_THEORY_KW. Slope is small here but
+        # keeps the figure apples-to-paper with the report Table 4 column.
+        m_t=M_T_BFS_REF, M_H=M_H_BFS_REF, MZ=M_Z_BFS_REF,
     )
     born_isr_code = np.asarray(sigma_observed_munuqq(
         sqrts, include_NLO_hard_decay=False,
@@ -210,6 +217,8 @@ def plot_bfs_table4_decay_swap():
         isr_scheme="2leg",
         include_NLO_hard_decay=True,
         apply_delta_QCD=True, alpha_s=0.1199,
+        # Paper EW inputs (see plot_bfs_table4); apples-to-paper with Table 4.
+        m_t=M_T_BFS_REF, M_H=M_H_BFS_REF, MZ=M_Z_BFS_REF,
     )
     nlo_off = np.asarray(sigma_observed_munuqq(
         sqrts, decay_uses_full_born=False, **common)) * 1e3
@@ -289,17 +298,26 @@ def plot_bfs_nnlo_pieces():
 
     # Each closed-form piece: code returns σ_LR-specific in pb; the paper
     # quotes Δσ_LR/4 (helicity-averaged) in fb → factor 1e3 / 4.
+    #
+    # BFS Table 1 was evaluated at the paper's pre-discovery EW inputs
+    # (m_t=174.2, M_H=115, M_Z=91.188); the C×[S+H] piece (eq. 34) carries the
+    # hard matching coefficient Re c_p,LR^(1,fin)(m_W,m_t,M_H,M_Z), so the
+    # closure must use those inputs and NOT the production PDG defaults —
+    # otherwise the m_t/M_H shift fakes a growing residual in C×[S+H]. This
+    # mirrors scripts/investigations/bfs_nnlo/check_closed_form_pieces.py.
+    bfs_kw = dict(mt=M_T_BFS_REF, MH=M_H_BFS_REF, MZ=M_Z_BFS_REF)  # m_t/M_H/M_Z pieces
+    bfs_mz = dict(MZ=M_Z_BFS_REF)                                  # M_Z-only pieces
     pieces_code = {
         "CxSH_fb":     delta_sigma_NNLO_C_soft_hard_specific_pb(
-                          s, mW, gammaW, apply_BR_correction=False) * 1e3 / 4.0,
+                          s, mW, gammaW, apply_BR_correction=False, **bfs_kw) * 1e3 / 4.0,
         "NLO_C_fb":    delta_sigma_NNLO_NLO_Coulomb_potential_specific_pb(
-                          s, mW, gammaW, apply_BR_correction=False) * 1e3 / 4.0,
+                          s, mW, gammaW, apply_BR_correction=False, **bfs_mz) * 1e3 / 4.0,
         "Cxdecay_fb":  delta_sigma_NNLO_C_decay_specific_pb(
-                          s, mW, gammaW, apply_BR_correction=False) * 1e3 / 4.0,
+                          s, mW, gammaW, apply_BR_correction=False, **bfs_kw) * 1e3 / 4.0,
         "Cxres_fb":    delta_sigma_NNLO_C_residue_specific_pb(
-                          s, mW, gammaW, apply_BR_correction=False) * 1e3 / 4.0,
+                          s, mW, gammaW, apply_BR_correction=False, **bfs_mz) * 1e3 / 4.0,
         "C3_fb":       delta_sigma_NNLO_triple_Coulomb_specific_pb(
-                          s, mW, gammaW, apply_BR_correction=False) * 1e3 / 4.0,
+                          s, mW, gammaW, apply_BR_correction=False, **bfs_mz) * 1e3 / 4.0,
     }
     sum_code = sum(pieces_code.values())
 
@@ -353,6 +371,11 @@ def plot_bfs_nnlo_isr():
         apply_delta_QCD=False,
         include_NLO_hard_decay=True,
         isr_scheme="single_conv",
+        # BFS Table 2 was evaluated at the paper's pre-discovery EW inputs;
+        # the NNLO sum carries the m_t/M_H-dependent C×[S+H] piece, so pin
+        # them (production PDG defaults would fake a residual) — mirrors
+        # scripts/investigations/bfs_nnlo/check_isr_table2.py.
+        m_t=M_T_BFS_REF, M_H=M_H_BFS_REF, MZ=M_Z_BFS_REF,
     )
     off = np.asarray(sigma_observed_munuqq(sqrts, include_BFS_NNLO=False, **common))
     on  = np.asarray(sigma_observed_munuqq(sqrts, include_BFS_NNLO=True,  **common))

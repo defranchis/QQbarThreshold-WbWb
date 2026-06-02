@@ -20,6 +20,9 @@ swap in a Whizard-tuned Born and bias the comparison).
 import numpy as np
 
 from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq
+from framework.process.ww.xsec_calculator.eft_xsec import (
+    M_T_BFS_REF, M_H_BFS_REF, M_Z_BFS_REF,
+)
 
 
 # Table 2 of arXiv:0807.0102 (helicity-averaged, fb)
@@ -39,6 +42,10 @@ def _run(mW: float, gammaW: float, sqrt_s):
         apply_delta_QCD=False,    # Table 2 Born/NLO columns are pure EW
         include_NLO_hard_decay=True,
         isr_scheme="single_conv",
+        # Paper inputs (pre-discovery EW): the NNLO C×[S+H] piece depends on
+        # m_t/M_H via Re c_p,LR^(1,fin); production PDG defaults would fake a
+        # residual against the Table-2 column.
+        m_t=M_T_BFS_REF, M_H=M_H_BFS_REF, MZ=M_Z_BFS_REF,
     )
     off = sigma_observed_munuqq(sqrt_s, include_BFS_NNLO=False, **common)
     on  = sigma_observed_munuqq(sqrt_s, include_BFS_NNLO=True,  **common)
