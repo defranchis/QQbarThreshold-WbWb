@@ -1724,8 +1724,8 @@ at the $\sim\!5\,\%$ level over this range, so back-of-envelope chain
 deltas can be summed but the final number for any concrete cleanup
 should still be measured directly.
 
-\paragraph{Cross-check: \arxiv{2107.04444} sensitivity rerun.}
-The Azzurri optimal scenario (\arxiv{2107.04444}, $E_1=157.1\GeV$,
+\paragraph{Cross-check: Azzurri~\cite{Azzurri2021} sensitivity rerun.}
+The Azzurri optimal scenario~\cite{Azzurri2021} ($E_1=157.1\GeV$,
 $E_2=162.3\GeV$, $f=0.40$, $\mathcal{L}=12\,\text{ab}^{-1}$ --- kept at
 that reference's luminosity for a like-for-like comparison) is an
 independent sensitivity benchmark. Run on the same production templates
@@ -1736,7 +1736,7 @@ regime this benchmark sits in), and the paper's YFSWW3 number.
 
 \begin{table}[h]
 \centering
-\caption{Sensitivity cross-check against the \arxiv{2107.04444} Azzurri
+\caption{Sensitivity cross-check against the Azzurri~\cite{Azzurri2021}
 scenario ($\mathcal{L}=12\,\text{ab}^{-1}$, $f=0.40$). Our $\mu\nu q\bar q$
 fit, its all-channel projection ($\sqrt{B_\text{incl}}$ stat scaling), and
 the paper's all-channel YFSWW3 projection. $\rho$ is channel-independent.
@@ -1912,7 +1912,7 @@ entirely outside it and need a separate, non-ladder estimate:
 (i) NLO electroweak corrections of the YFSWW3 class (non-factorisable
 photon exchange and initial--final interference), absent from the
 BFS-LO$_\text{EFT}$ Born --- the structural part of the residual gap to
-the \arxiv{2107.04444} $0.5\MeV$ projection
+the Azzurri~\cite{Azzurri2021} $0.5\MeV$ projection
 (section~\ref{sec:val-chain-cross}); and (ii) higher-order Coulomb,
 i.e.\ the BFS unstable-$W$ Green function $G_C$ versus the dropped FKM
 $K_C$ multiplier (sections~\ref{sec:kcsafe}, \ref{sec:limits}). These set
@@ -2065,13 +2065,13 @@ extension of the ISR scheme study.
 
 \paragraph{FCC-ee input assumptions.}
 The luminosity and beam-energy inputs are taken from the FCC Feasibility
-Study Report Vol.~1 (\arxiv{2505.00272}); Table~\ref{tab:fcc-inputs} lists
+Study Report Vol.~1~\cite{FCCFSR2025}; Table~\ref{tab:fcc-inputs} lists
 the production values with their provenance in that document.
 
 \begin{table}[h]
 \centering
 \caption{FCC-ee WW-threshold input assumptions and their source in the FSR
-Vol.~1 (\arxiv{2505.00272}). The $\sqrt s$-calibration (BEC) numbers are the
+Vol.~1~\cite{FCCFSR2025}. The $\sqrt s$-calibration (BEC) numbers are the
 absolute (fully correlated) and point-to-point (uncorrelated) components on
 the collision energy; the corresponding $\mW$ contributions are half of
 these ($150$/$50\,\text{keV}$, total $\sqrt s$-related $158\,\text{keV}$ vs
@@ -2086,14 +2086,14 @@ $ZH$ ($240\GeV$) integrated lumi & $10.8\,\text{ab}^{-1}$ & \texttt{tab:seqbasel
 Beam energy spread (per beam) & $0.105\,\%$ (SR$+$beamstrahlung) & \texttt{tab:IR\_parameters} ($E_b=80\GeV$) \\
 $\sqrt s$ calibration, absolute (corr.) & $0.3\MeV$ & §Energy calibration \\
 $\sqrt s$ calibration, point-to-point (uncorr.) & $0.1\MeV$ & \texttt{tab:DS-Ecal-errors-final} \\
-BES knowledge (corr./uncorr.) & $0.5\,\%$ / $1\,\%$ & Blondel--Janot (\arxiv{1909.12245}) \\
-Luminosity unc.\ (corr./uncorr.) & $1\!\times\!10^{-4}$ / $2\!\times\!10^{-4}$ & di-photon, per-point scaled (\arxiv{1906.08056}) \\
+BES knowledge (corr./uncorr.) & $0.5\,\%$ / $1\,\%$ & Blondel--Janot~\cite{BlondelJanot} \\
+Luminosity unc.\ (corr./uncorr.) & $1\!\times\!10^{-4}$ / $2\!\times\!10^{-4}$ & di-photon, per-point scaled~\cite{LumiDiphoton} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 The WW value is the FSR machine baseline; an earlier $12\,\text{ab}^{-1}$
-(Azzurri \arxiv{2107.04444} convention) was used before this update. The
+(Azzurri~\cite{Azzurri2021} convention) was used before this update. The
 $\sqrt s$-calibration prior was previously a $1$/$2\MeV$ placeholder and is
 now pinned to the FSR resonant-depolarisation projection ($0.3$/$0.1\MeV$ on
 $\sqrt s$, an order of magnitude tighter).
@@ -2110,7 +2110,7 @@ geometry (\code{doFit\_ww.py --compareScenarios}):
   \item \textbf{Azzurri-like} 2-point: $157\GeV$ plus the
   $\mathrm{d}\sigma/\mathrm{d}\GammaW=0$ (``$\GammaW$-insensitive'') crossing. Computed from
   \emph{our own} templates this falls at $\sqrts=162.4\GeV$ --- close to
-  Azzurri's $162.3\GeV$ (\arxiv{2107.04444}) despite the different
+  Azzurri's $162.3\GeV$~\cite{Azzurri2021} despite the different
   (BFS-EFT vs YFSWW3) chain --- with the $60/40$ low/high luminosity split of
   that reference.
 \end{itemize}
@@ -2587,19 +2587,19 @@ a single authoritative summary.
   generator implementing the same \code{WWGenerator} contract is
   scheduled as the cross-check for publication.
 \item \textbf{Fadin-Khoze-Martin $K_C$ dropped from the default
-  chain (2026-05-26).} The previous default multiplied the FKM 1993/1995
+  chain (2026-05-26).} The previous default multiplied the FKM~\cite{FKM1993,FKM1995}
   $K_C$ factor onto the BFS chain that already contains the leading
   $\alpha/v$ Coulomb correction through eq.~(62), double-counting at
   the $\sim 5\%$ level on $\sigma$ at threshold. A literature audit
-  (Beneke et al.\ \arxiv{1506.06864}, Hoang-Stahlhofen
-  \arxiv{1309.6323}) shows neither BFS nor the
+  (Beneke et al.~\cite{Beneke2015}, Hoang--Stahlhofen~\cite{HoangStahlhofen})
+  shows neither BFS nor the
   PNRQCD tt-threshold groups use a multiplicative $K_C\times\sigma$
   structure: the all-order Coulomb resummation is built into the
   Schr\"odinger Green function $G_C(0,0;E)$ used in the unperturbed
   Hamiltonian, with higher-order Coulomb pieces treated as additive
-  insertions (BFS \arxiv{0807.0102} eq.~9, eq.~49). BFS explicitly
+  insertions (BFS~\cite{BFSnnlo} eq.~9, eq.~49). BFS explicitly
   justify \emph{not} resumming the two-photon $\alpha^2$ piece (BFS
-  \arxiv{0707.0773} lines 1722--1725: ``a few permille''). The
+  \cite{BFSnlo} lines 1722--1725: ``a few permille''). The
   production card now sets \code{NLO_CONFIG["include_coulomb"]=False};
   the K$_C$-safe opt-in knob of Appendix~\ref{sec:kcsafe} is retained
   for diagnostic comparison. A full $G_C$-based refactor (Grade~B)
@@ -3016,7 +3016,7 @@ between the grid $\sqrts$ knots for every variation.}
 the morphing scheme. Top: absolute $\sigma_\text{obs}$ for $\GammaW$
 and $\mW$ variations. Bottom: ratio to nominal, showing the
 $\GammaW$-induced crossing at $\sqrts\simeq161.88\GeV$, consistent with
-the $\sqrts\!\simeq\!162\GeV$ of Azzurri (\arxiv{2107.04444}); the
+the $\sqrts\!\simeq\!162\GeV$ of Azzurri~\cite{Azzurri2021}; the
 $\mW$ variations do not cross, as expected for the $\mW$-independent
 PDG-constant BR factor.}
 \label{fig:mv-azzurri}
@@ -3039,8 +3039,8 @@ for anyone wanting to recover the legacy $K_C$-on chain without the
 leading-$\alpha/v$ double-count.
 
 The Fadin--Khoze--Martin $K_C$ (\code{coulomb_K_factor}
-in \code{eft_xsec.py}; refs:\ Fadin-Khoze-Martin, Phys.\ Lett.\ B 311
-(1993) 311 and FKM-Stirling \cite{FKM1995}) is a LEP-era closed-form
+in \code{eft_xsec.py}; refs:\ Fadin--Khoze--Martin~\cite{FKM1993}
+and FKM-Stirling~\cite{FKM1995}) is a LEP-era closed-form
 multiplicative Coulomb resummation factor that predates the BFS
 unstable-particle EFT formalism by roughly a decade. \emph{Neither BFS
 paper uses it}: BFS treat the Coulomb correction via an
@@ -3052,8 +3052,8 @@ argue \emph{not} to resum the two-photon piece ($\sim$ few permille at
 threshold; \cite{BFSnlo} lines 1722--1725) and add the eq.~(62)
 contribution as an additive correction. The same Green-function
 prescription is used throughout the PNRQCD tt-threshold literature
-(Beneke et al.\ \arxiv{1506.06864}, Hoang-Stahlhofen
-\arxiv{1309.6323}); no published EFT calculation uses a multiplicative
+(Beneke et al.~\cite{Beneke2015}, Hoang--Stahlhofen~\cite{HoangStahlhofen});
+no published EFT calculation uses a multiplicative
 $K_C\times\sigma$ structure. Our framework's $K_C$ multiplier was a
 pragmatic LEP-era engineering shortcut that survived into the BFS
 chain assembly and double-counted the leading $\alpha/v$ Coulomb against
@@ -3363,6 +3363,43 @@ FCC collaboration,
 \emph{Future Circular Collider Feasibility Study Report.
 Volume~1: Physics, Experiments, Detectors},
 \arxiv{2505.00272} (May 2025).
+
+\bibitem{Azzurri2021}
+P.~Azzurri,
+\emph{The W mass and width measurement challenge at FCC-ee},
+Eur.\ Phys.\ J.\ Plus \textbf{136} (2021) 1203,
+\arxiv{2107.04444}.
+
+\bibitem{BlondelJanot}
+A.~Blondel, P.~Janot, J.~Wenninger et al.,
+\emph{Polarization and centre-of-mass energy calibration at FCC-ee},
+\arxiv{1909.12245} (2019).
+
+\bibitem{LumiDiphoton}
+C.M.~Carloni Calame, M.~Chiesa, G.~Montagna, O.~Nicrosini and F.~Piccinini,
+\emph{Electroweak corrections to $e^+e^-\!\to\gamma\gamma$ as a
+luminosity process at FCC-ee},
+Phys.\ Lett.\ B \textbf{798} (2019) 134976,
+\arxiv{1906.08056}.
+
+\bibitem{FKM1993}
+V.S.~Fadin, V.A.~Khoze and A.D.~Martin,
+\emph{On $W^+W^-$ production near threshold},
+Phys.\ Lett.\ B \textbf{311} (1993) 311--316.
+
+\bibitem{Beneke2015}
+M.~Beneke, Y.~Kiyo, P.~Marquard, A.~Penin, J.~Piclum and M.~Steinhauser,
+\emph{Next-to-next-to-next-to-leading order QCD prediction for the
+top anti-top S-wave pair production cross section near threshold in
+$e^+e^-$ annihilation},
+Phys.\ Rev.\ Lett.\ \textbf{115} (2015) 192001,
+\arxiv{1506.06864}.
+
+\bibitem{HoangStahlhofen}
+A.H.~Hoang and M.~Stahlhofen,
+\emph{The top-antitop threshold at the ILC: NNLL QCD uncertainties},
+JHEP \textbf{05} (2014) 121,
+\arxiv{1309.6323}.
 
 \end{thebibliography}
 
