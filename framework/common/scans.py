@@ -803,8 +803,8 @@ def scan_chi2(fit):
             plt.plot(fit.value_from_param(fit.minuit.values[ia_full], pa),
                      fit.value_from_param(fit.minuit.values[ib_full], pb),
                      "k*", label="Best fit value (input)", markersize=10)
-            plt.plot([], [], color="#377eb8", label="68% C.L.")
-            plt.plot([], [], color="#4daf4a", label="95% C.L.")
+            plt.plot([], [], color="#377eb8", label=r"$\Delta\chi^2=1$ ($1\sigma$ 1D proj.)")
+            plt.plot([], [], color="#4daf4a", label=r"$\Delta\chi^2=4$ ($2\sigma$ 1D proj.)")
             plt.xlabel(labels.get(pa, pa))
             plt.ylabel(labels.get(pb, pb))
             plt.title(projection_title(fit.scenario_dict["total_lumi"]), loc="right", fontsize=20)

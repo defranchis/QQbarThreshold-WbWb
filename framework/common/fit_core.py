@@ -646,9 +646,11 @@ class FitCore:
 
         ``lumi_dict`` (optional) gives an explicit per-ECM luminosity
         ``{ecm_str: lumi}`` overriding the default equal split of
-        ``total_lumi`` across ``scan_list``. The keys must be a subset of
-        ``scan_list`` (in the same ecm-string format). ``total_lumi`` and
-        ``same_evts`` are ignored when ``lumi_dict`` is given.
+        ``total_lumi`` across ``scan_list``. The keys must equal
+        ``scan_list`` exactly (same ecm-string format). ``lumi_dict`` and
+        ``same_evts`` are mutually exclusive — passing both raises (the
+        equal-events reweighting would otherwise silently overwrite the
+        explicit per-ECM lumi).
 
         Stores everything in ``self.scenario_dict`` and triggers the
         first ``create_scenario`` build."""
@@ -662,6 +664,11 @@ class FitCore:
                          for e in np.arange(scan_min, scan_max + scan_step / 2, scan_step)]
         elif any(x is not None for x in (scan_min, scan_max, scan_step)):
             raise ValueError("init_scenario: pass scan_list= XOR scan_min=/scan_max=/scan_step=.")
+        if same_evts and lumi_dict is not None:
+            raise ValueError(
+                "init_scenario: same_evts and lumi_dict are mutually exclusive "
+                "(equal-events reweighting would overwrite the explicit lumi_dict)."
+            )
         self._validate_scenario(add_last_ecm)
         self.scenario_dict = {
             "scan_list": scan_list,

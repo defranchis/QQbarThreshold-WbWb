@@ -232,28 +232,48 @@ def _fmt_cell(raw, disp, central, width=12):
     return f"{_display(raw, disp, central):<{width}.1f}"
 
 
+def _emit_rows(card, syst, totals, centrals, cell, total_cell, theory_cell):
+    """Build the syst-table rows once, shared by the text and LaTeX emitters.
+
+    Returns ``(body, total, theory)`` where ``body`` is a list of
+    ``(syst_name, [cell_str, ...])`` in source order, ``total`` is the list of
+    total-row cell strings, and ``theory`` is the theory-row cell strings or
+    ``None`` when the card carries no ``THEORY_UNC``. Row order, the
+    ``next(iter(syst.values()))`` body source, the per-POI column iteration and
+    the ``THEORY_UNC`` gate live here so the two emitters cannot structurally
+    drift; each emitter supplies its own cell formatters, labels and glue."""
+    pois = list(syst.keys())
+    body = []
+    if pois:
+        for s in next(iter(syst.values())):
+            body.append((s, [cell(syst[poi][s], card.POI_DISPLAY[poi], centrals[poi])
+                             for poi in pois]))
+    total = [total_cell(totals[poi], card.POI_DISPLAY[poi], centrals[poi])
+             for poi in pois]
+    theory = getattr(card, "THEORY_UNC", None)
+    theory_cells = (None if theory is None
+                    else [theory_cell(theory.get(poi, 0)) for poi in pois])
+    return body, total, theory_cells
+
+
 def _print_table(card, syst, totals, centrals):
     pois = list(syst.keys())
     sep_len = 12 * (1 + len(pois))
     headers = [f"{poi.capitalize()} [{card.POI_DISPLAY[poi]['unit']}]" for poi in pois]
+    body, total, theory = _emit_rows(
+        card, syst, totals, centrals,
+        _fmt_cell,
+        lambda raw, disp, central: f"{_display(raw, disp, central):<12.1f}",
+        lambda raw: f"{raw:<12.0f}")
     print()
     print(f"{'Systematic':<12} " + " ".join(f"{h:<12}" for h in headers))
     print("-" * sep_len)
-    if pois:
-        for s in next(iter(syst.values())):
-            cells = " ".join(
-                _fmt_cell(syst[poi][s], card.POI_DISPLAY[poi], centrals[poi])
-                for poi in pois)
-            print(f"{s:<12} {cells}")
+    for label, cells in body:
+        print(f"{label:<12} {' '.join(cells)}")
     print("-" * sep_len)
-    total_cells = " ".join(
-        f"{_display(totals[poi], card.POI_DISPLAY[poi], centrals[poi]):<12.1f}"
-        for poi in pois)
-    print(f"{'total exp':<12} {total_cells}")
-    theory = getattr(card, "THEORY_UNC", None)
+    print(f"{'total exp':<12} {' '.join(total)}")
     if theory is not None:
-        theory_cells = " ".join(f"{theory.get(poi, 0):<12.0f}" for poi in pois)
-        print(f"{'theory':<12} {theory_cells}")
+        print(f"{'theory':<12} {' '.join(theory)}")
 
 
 def _write_latex(card, syst, totals, centrals, path):
@@ -262,6 +282,17 @@ def _write_latex(card, syst, totals, centrals, path):
     header_cells = " & ".join(
         f"{poi.capitalize()} Uncertainty ({card.POI_DISPLAY[poi]['unit']})"
         for poi in pois)
+
+    def _latex_cell(raw, disp, central):
+        if not math.isfinite(raw):
+            return "--"
+        return f"{_display(raw, disp, central):.1f}"
+
+    body, total, theory = _emit_rows(
+        card, syst, totals, centrals,
+        _latex_cell,
+        lambda raw, disp, central: f"{_display(raw, disp, central):.1f}",
+        lambda raw: f"{raw:.0f}")
     lines = [
         r"\begin{table}[h!]",
         r"\centering",
@@ -270,26 +301,12 @@ def _write_latex(card, syst, totals, centrals, path):
         f"Systematic & {header_cells} \\\\",
         r"\hline",
     ]
-    def _latex_cell(raw, disp, central):
-        if not math.isfinite(raw):
-            return "--"
-        return f"{_display(raw, disp, central):.1f}"
-
-    if pois:
-        for s in next(iter(syst.values())):
-            row = " & ".join(
-                _latex_cell(syst[poi][s], card.POI_DISPLAY[poi], centrals[poi])
-                for poi in pois)
-            lines.append(f"{s} & {row} \\\\")
+    for label, cells in body:
+        lines.append(f"{label} & {' & '.join(cells)} \\\\")
     lines.append(r"\hline")
-    total_row = " & ".join(
-        f"{_display(totals[poi], card.POI_DISPLAY[poi], centrals[poi]):.1f}"
-        for poi in pois)
-    lines.append(f"total & {total_row} \\\\")
-    theory = getattr(card, "THEORY_UNC", None)
+    lines.append(f"total & {' & '.join(total)} \\\\")
     if theory is not None:
-        theory_row = " & ".join(f"{theory.get(poi, 0):.0f}" for poi in pois)
-        lines.append(f"theory & {theory_row} \\\\")
+        lines.append(f"theory & {' & '.join(theory)} \\\\")
     lines.append(r"\hline")
     lines.append(r"\end{tabular}")
     if len(pois) > 2:
