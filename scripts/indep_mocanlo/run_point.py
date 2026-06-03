@@ -80,8 +80,11 @@ def main(argv=None) -> int:
                     help="fiducial charged-lepton |cosθ|<COS acceptance cut "
                          "(e.g. 0.95); omit for inclusive no-cut")
     ap.add_argument("--lepton-pt-min", type=float, default=None,
-                    help="fiducial charged-lepton p_T>PT GeV cut (e.g. 20); "
-                         "removes the soft γ*→ℓℓ pole in same-flavour channels")
+                    help="fiducial charged-lepton p_T>PT GeV detector-floor cut "
+                         "(e.g. 10)")
+    ap.add_argument("--lepton-mll-min", type=float, default=None,
+                    help="fiducial m_ℓℓ>MLL GeV cut on same-flavour OS pairs "
+                         "(e.g. 10); the physical tool for the γ*→ℓℓ NC pole")
     ap.add_argument("--keep-rundir", action="store_true",
                     help="keep the MoCaNLO run directory (default: keep)")
     args = ap.parse_args(argv)
@@ -97,6 +100,8 @@ def main(argv=None) -> int:
     cut_tag = "" if args.lepton_cut is None else f"_cut{int(round(args.lepton_cut*100))}"
     if args.lepton_pt_min is not None:
         cut_tag += f"pt{int(round(args.lepton_pt_min))}"
+    if args.lepton_mll_min is not None:
+        cut_tag += f"mll{int(round(args.lepton_mll_min))}"
     if args.decorrelate:
         cut_tag += "_decorr"
     tag = f"{args.channel}_{args.varpoint}_ecm{args.ecm:.4f}_{args.scheme_alpha}{cut_tag}"
@@ -111,7 +116,8 @@ def main(argv=None) -> int:
                                 target_rel_precision_pct=args.precision_pct,
                                 time_wall=args.time_wall)
     write_cards(procdir, block, vp.mW, vp.gW, args.ecm, sm, integ,
-                cos_theta_max=args.lepton_cut, pt_min=args.lepton_pt_min)
+                cos_theta_max=args.lepton_cut, pt_min=args.lepton_pt_min,
+                mll_min=args.lepton_mll_min)
 
     if args.decorrelate:
         seed0 = args.base_seed + (zlib.crc32(

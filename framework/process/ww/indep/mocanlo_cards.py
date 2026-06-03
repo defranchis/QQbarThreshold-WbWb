@@ -163,14 +163,26 @@ def _lepton_tokens(outgoing: str) -> list[str]:
     return [tok for tok in outgoing.split() if tok in LEPTON_CODE]
 
 
+#: Same-flavour opposite-sign charged-lepton pairs — the γ*→ℓℓ low-mass NC
+#: pole lives in their invariant mass, so an m_ℓℓ cut is the physical tool.
+_SF_OS_PAIRS = (("e-", "e+"), ("mu-", "mu+"))
+
+
+def _sf_os_pairs(outgoing: str) -> list[tuple[str, str]]:
+    """Same-flavour OS lepton pairs present in a block (e⁻e⁺, μ⁻μ⁺)."""
+    toks = set(_lepton_tokens(outgoing))
+    return [(a, b) for (a, b) in _SF_OS_PAIRS if a in toks and b in toks]
+
+
 def _cut_card(block: ChannelBlock, cos_theta_max: float | None,
-              pt_min: float | None = None) -> str:
-    """cut_card.xml.  With ``cos_theta_max`` set, apply |cosθ_l| < cos_theta_max
-    to every charged lepton (removes forward t-channel single-W); with
-    ``pt_min`` set, also require p_T,l > pt_min GeV (removes the soft γ*→ℓℓ
-    low-mass NC pole in same-flavour channels).  Together they define the
-    fiducial selection.  No cut at all when both are None."""
-    if cos_theta_max is None and pt_min is None:
+              pt_min: float | None = None, mll_min: float | None = None) -> str:
+    """cut_card.xml.  Fiducial selection on the charged leptons:
+    ``cos_theta_max`` → |cosθ_l| < cos_theta_max (removes forward t-channel
+    single-W); ``pt_min`` → p_T,l > pt_min GeV (detector floor); ``mll_min`` →
+    m_ℓℓ > mll_min GeV on every same-flavour OS pair (the physical tool for the
+    γ*→ℓℓ low-mass NC pole — only the same-flavour leptonic blocks have such a
+    pair).  No cut at all when all three are None."""
+    if cos_theta_max is None and pt_min is None and mll_min is None:
         return _CUT_CARD_NOCUT
     cuts = []
     for tok in _lepton_tokens(block.outgoing):
@@ -191,6 +203,18 @@ def _cut_card(block: ChannelBlock, cos_theta_max: float | None,
 \t\t<min_value>{pt_min:.4f}</min_value>
 \t\t<n_required>1</n_required>
 \t</cut>""")
+    if mll_min is not None:
+        for a, b in _sf_os_pairs(block.outgoing):
+            ca, cb = LEPTON_CODE[a], LEPTON_CODE[b]
+            cuts.append(f"""\t<cut type="invariant_mass">
+\t\t<name>{a}{b}_mll_cut</name>
+\t\t<jet_type>{ca} {cb}</jet_type>
+\t\t<jet_tag>0 0</jet_tag>
+\t\t<target>0</target>
+\t\t<action>-1</action>
+\t\t<min_value>{mll_min:.4f}</min_value>
+\t\t<max_value>1000000.0000</max_value>
+\t</cut>""")
     body = "\n".join(cuts)
     return (f'<cuts id="nocut">\n{body}\n</cuts>\n\n'
             f'<recombinations id="nocut">\n</recombinations>\n')
@@ -200,11 +224,13 @@ def write_cards(procdir: str, block: ChannelBlock, mW: float, gW: float,
                 ecm: float, sm: SMInputs = SMInputs(),
                 integ: IntegrationSettings = IntegrationSettings(),
                 cos_theta_max: float | None = None,
-                pt_min: float | None = None) -> str:
+                pt_min: float | None = None,
+                mll_min: float | None = None) -> str:
     """Write the 5 MoCaNLO cards into ``<procdir>/cards/``; return ``procdir``.
 
-    ``cos_theta_max`` (e.g. 0.95) + ``pt_min`` (e.g. 20.0) enable the fiducial
-    charged-lepton cuts; both ``None`` (default) is the inclusive configuration.
+    ``cos_theta_max`` (e.g. 0.95) + ``pt_min`` (e.g. 10.0) + ``mll_min`` (e.g.
+    10.0, same-flavour OS pairs) enable the fiducial charged-lepton cuts; all
+    ``None`` (default) is the inclusive configuration.
     """
     cards_dir = os.path.join(procdir, "cards")
     os.makedirs(cards_dir, exist_ok=True)
@@ -212,7 +238,7 @@ def write_cards(procdir: str, block: ChannelBlock, mW: float, gW: float,
         "proc_card.xml": _proc_card(block),
         "run_card.xml": _run_card(ecm, integ),
         "param_card.xml": _param_card(block, mW, gW, ecm, sm, integ),
-        "cut_card.xml": _cut_card(block, cos_theta_max, pt_min),
+        "cut_card.xml": _cut_card(block, cos_theta_max, pt_min, mll_min),
         "plot_card.xml": _PLOT_CARD,
     }
     for name, content in files.items():
