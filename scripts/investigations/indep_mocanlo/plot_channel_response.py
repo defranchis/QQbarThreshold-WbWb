@@ -86,15 +86,15 @@ def bfs_lineshapes():
             decay_uses_full_born=gen.decay_uses_full_born,
             m_t=gen.m_t, M_H=gen.M_H, MZ=gen.MZ)
 
-    return {"nominal": sig(MW0, GW0), "massUp": sig(MW0 + STEP, GW0),
-            "massDn": sig(MW0 - STEP, GW0), "widthUp": sig(MW0, GW0 + STEP),
-            "widthDn": sig(MW0, GW0 - STEP)}
+    return {"nominal": sig(MW0, GW0), "mp10": sig(MW0 + STEP, GW0),
+            "mm10": sig(MW0 - STEP, GW0), "wp10": sig(MW0, GW0 + STEP),
+            "wm10": sig(MW0, GW0 - STEP)}
 
 
 def main():
     grids = load_grids(scheme_alpha="gf", lepton_cut=None)
     cfg = isr_beta.ISRConfig()
-    vps = ("nominal", "massUp", "massDn", "widthUp", "widthDn")
+    vps = ("nominal", "mp10", "mm10", "wp10", "wm10")
 
     # MoCaNLO per-channel + combined
     mc = {c: {v: mocanlo_channel(grids, c, v, cfg) for v in vps} for c in CHANNELS}
@@ -109,8 +109,8 @@ def main():
     os.makedirs(outdir, exist_ok=True)
 
     for poi, up, dn, fname, is_width in (
-        ("m_W", "massUp", "massDn", "channel_response_mass", False),
-        (r"\Gamma_W", "widthUp", "widthDn", "channel_response_width", True),
+        ("m_W", "mp10", "mm10", "channel_response_mass", False),
+        (r"\Gamma_W", "wp10", "wm10", "channel_response_width", True),
     ):
         fig, ax = plt.subplots(figsize=(7.6, 5.2))
         # per-channel +10 (thin solid)

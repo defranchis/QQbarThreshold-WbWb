@@ -40,7 +40,7 @@ request_memory = 3072
 request_disk   = 2048
 +JobFlavour    = "{flavour}"
 
-arguments = $(channel) $(varpoint) $(ecm) {prec} {events} {scheme} {lepcut}
+arguments = $(channel) $(varpoint) $(ecm) {prec} {events} {scheme} {lepcut} {ptmin}
 output = {logdir}/$(channel)_$(varpoint)_$(ecm){cuttag}.out
 error  = {logdir}/$(channel)_$(varpoint)_$(ecm){cuttag}.err
 log    = {logdir}/$(channel)_$(varpoint)_$(ecm){cuttag}.log
@@ -63,6 +63,8 @@ def main(argv=None) -> int:
                     help="comma list to restrict varpoints (default all 6)")
     ap.add_argument("--lepton-cut", default="none",
                     help="fiducial |cosθ_l|<COS cut (e.g. 0.95) or 'none' (inclusive)")
+    ap.add_argument("--lepton-pt-min", default="none",
+                    help="fiducial charged-lepton p_T>PT GeV cut (e.g. 20) or 'none'")
     ap.add_argument("--name", default=None,
                     help="campaign name (points/sub filename stem); "
                          "default derived from cut")
@@ -70,7 +72,10 @@ def main(argv=None) -> int:
 
     chans = set(args.channels.split(",")) if args.channels else set(BLOCKS_BY_KEY)
     vps = set(args.varpoints.split(",")) if args.varpoints else set(VARPOINTS_BY_KEY)
+    # Mirror run_point.py's result-CSV suffix: _cut<NN>[pt<PT>].
     cuttag = "" if args.lepton_cut == "none" else f"_cut{int(round(float(args.lepton_cut)*100))}"
+    if args.lepton_pt_min != "none":
+        cuttag += f"pt{int(round(float(args.lepton_pt_min)))}"
     stem = args.name or ("pureww" if args.lepton_cut == "none" else f"fid{cuttag}")
 
     os.makedirs(LOGDIR, exist_ok=True)
@@ -91,7 +96,7 @@ def main(argv=None) -> int:
         fh.write(SUB_TEMPLATE.format(
             here=HERE, logdir=LOGDIR, points=points_path, flavour=args.flavour,
             prec=args.precision, events=args.events, scheme=args.scheme,
-            lepcut=args.lepton_cut, cuttag=cuttag))
+            lepcut=args.lepton_cut, ptmin=args.lepton_pt_min, cuttag=cuttag))
 
     print(f"wrote {points_path}  ({n} points; full 6×6×33 grid = {n_points()})")
     print(f"wrote {sub_path}")
