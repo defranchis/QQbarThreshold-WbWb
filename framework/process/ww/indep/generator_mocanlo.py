@@ -28,10 +28,14 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from framework.process.ww.indep import isr_beta
+from framework.process.ww.indep import match_bfs
 from framework.process.ww.indep.channels import (
     BLOCKS, BLOCKS_BY_KEY, PURE_WW_WEIGHTS,
 )
-from framework.process.ww.indep.varpoints import MW0, GW0, VARPOINTS
+from framework.process.ww.indep.mocanlo_cards import SMInputs
+from framework.process.ww.indep.varpoints import (
+    MW0, GW0, VARPOINTS, VARPOINTS_BY_KEY,
+)
 from framework.process.ww.indep.partonic_grid import (
     load_grids, DEFAULT_RESULTS_DIR, ChannelVarGrid,
 )
@@ -64,6 +68,20 @@ class WWGeneratorMoCaNLO:
                                         # "pdg-constant" (divide out BR(m_W,Γ_W);
                                         # mirrors BFS — Γ_W becomes line-shape-only
                                         # WITHOUT discarding the m_W rate handle)
+    # --- EXPLORATORY BFS matching (NOT production; opt-in) ----------------
+    # Add the BFS pieces genuinely missing from MoCaNLO's complete NLO-EW:
+    # δ_NNLO threshold block (production K-factor on the Born) + δ_QCD on
+    # hadronic decay.  Strictly-NLO BFS pieces are NOT added (already in NLO).
+    # See framework.process.ww.indep.match_bfs.
+    match_bfs: bool = False
+    match_bfs_nnlo: bool = True         # add BFS NNLO threshold (Coulomb α²/v² + hard/decay)
+    match_bfs_dqcd: bool = True         # add δ_QCD to hadronic-decay channels
+    alpha_s: float = 0.1199             # α_s(M_W) for δ_QCD (BFS reference)
+    sm: SMInputs = field(default_factory=SMInputs)   # mt/MH/MZ for δ_NNLO
+    # EXPLORATORY: upgrade the ISR convolution from analytic LL+exp to eMELA NLL
+    # (α(M_Z)/ALPMZ/DELTA — the BFS production NLL convention).  Independent of
+    # match_bfs; the O(α) matching subtraction stays analytic-LL (see isr_beta).
+    isr_nll: bool = False
     _grids: dict = field(default=None, repr=False)
     _cache: dict = field(default_factory=dict, repr=False)
 
@@ -100,6 +118,19 @@ class WWGeneratorMoCaNLO:
             return dict(PURE_WW_WEIGHTS)
         return {b.key: b.weight for b in BLOCKS}
 
+    def _isr_cfg(self) -> "isr_beta.ISRConfig":
+        """Resolve the ISR config; ``isr_nll`` upgrades the analytic LL+exp
+        radiator to eMELA NLL in the BFS production convention (α(M_Z)/ALPMZ/
+        DELTA), preserving the user's μ_F / x_min / n_quad knobs."""
+        if self.isr_nll and not self.isr_cfg.nll:
+            return isr_beta.ISRConfig(
+                nll=True, alpha=isr_beta.ALPHA_MZ, ew_scheme="alphaz",
+                mu_F_factor=self.isr_cfg.mu_F_factor, mu_F_abs=self.isr_cfg.mu_F_abs,
+                m_e=self.isr_cfg.m_e, x_min=self.isr_cfg.x_min,
+                n_quad=self.isr_cfg.n_quad,
+                emela_fac_scheme="DELTA", emela_ren_scheme="ALPMZ")
+        return self.isr_cfg
+
     def _varpoint_lineshape(self, varpoint: str, sqrt_s: np.ndarray) -> np.ndarray:
         """Assembled σ_tot(√s) [pb] for one varpoint (cached)."""
         ck = (varpoint, id(sqrt_s))
@@ -107,11 +138,34 @@ class WWGeneratorMoCaNLO:
             return self._cache[ck]
         grids = self._load()
         weights = self._weights()
+
+        # Exploratory BFS matching: δ_NNLO(√ŝ) production K-factor at THIS
+        # varpoint's (m_W, Γ_W), added on MoCaNLO's Born; the morph then carries
+        # its m_W/Γ_W dependence.  δ_QCD is a per-channel decay-side factor.
+        dnnlo_fn = None
+        if self.match_bfs and self.match_bfs_nnlo:
+            vp = VARPOINTS_BY_KEY[varpoint]
+            dnnlo_fn = match_bfs.delta_nnlo_interp(
+                vp.mW, vp.gW, mt=self.sm.mt, MH=self.sm.mH, MZ=self.sm.mZ)
+
+        cfg = self._isr_cfg()
         sigma_tot = np.zeros_like(sqrt_s, dtype=float)
         for key, w in weights.items():
             g: ChannelVarGrid = grids[(key, varpoint)]
-            obs = isr_beta.sigma_observed_matched(
-                sqrt_s, g.nlo_fn(self.smooth), g.born_fn(self.smooth), self.isr_cfg)
+            born = g.born_fn(self.smooth)
+            nlo = g.nlo_fn(self.smooth)
+            if dnnlo_fn is not None:
+                # σ̂_comb = σ̂_NLO + δ_NNLO·σ̂_Born.  The O(α) ISR matching
+                # subtraction (3rd arg) stays MoCaNLO's Born ONLY — the BFS
+                # NNLO term is ISR-naked, MoCaNLO's σ̂_NLO carries the O(α) ISR.
+                def nlo_eff(sh, _nlo=nlo, _born=born, _d=dnnlo_fn):
+                    return _nlo(sh) + _d(sh) * _born(sh)
+            else:
+                nlo_eff = nlo
+            obs = isr_beta.sigma_observed_matched(sqrt_s, nlo_eff, born, cfg)
+            if self.match_bfs and self.match_bfs_dqcd:
+                obs = obs * match_bfs.delta_qcd_channel_factor(
+                    BLOCKS_BY_KEY[key].outgoing, self.alpha_s)
             sigma_tot = sigma_tot + w * obs
         out = sigma_tot * FB_TO_PB           # fb → pb (BFS convention)
         self._cache[ck] = out
@@ -160,7 +214,10 @@ class WWGeneratorMoCaNLO:
 
     def file_name(self, values: dict, *, mass_scale=None, width_scale=None,
                   mass_scheme: str = "OS", indir: str = ".") -> str:
-        return os.path.join(indir, f"WW_{self.order}_{self.file_tag(values)}.txt")
+        # "m" suffix on the order tag keeps BFS-matched templates from
+        # colliding with the pure-MoCaNLO ones (exploratory).
+        tag = f"{self.order}m" if self.match_bfs else f"{self.order}"
+        return os.path.join(indir, f"WW_{tag}_{self.file_tag(values)}.txt")
 
     def do_scan(self, values: dict, *, mass_scale: float = 1.0,
                 width_scale: float = 1.0, mass_scheme: str = "OS",
@@ -179,10 +236,16 @@ class WWGeneratorMoCaNLO:
         os.makedirs(outdir, exist_ok=True)
         path = self.file_name(values, indir=outdir)
         with open(path, "w") as fh:
-            fh.write(f"# generator: WWGeneratorMoCaNLO (independent, BFS-free)\n")
+            tag = ("MoCaNLO+BFS-matched (EXPLORATORY)" if self.match_bfs
+                   else "MoCaNLO (independent, BFS-free)")
+            fh.write(f"# generator: WWGeneratorMoCaNLO — {tag}\n")
             fh.write(f"# scheme_alpha: {self.scheme_alpha}\n")
-            fh.write(f"# isr_scheme: {self.isr_cfg.scheme}  "
-                     f"mu_F_factor: {self.isr_cfg.mu_F_factor}\n")
+            if self.match_bfs:
+                fh.write(f"# match_bfs: nnlo={self.match_bfs_nnlo} "
+                         f"dqcd={self.match_bfs_dqcd} alpha_s={self.alpha_s}\n")
+            _cfg = self._isr_cfg()
+            fh.write(f"# isr: {'eMELA-NLL' if _cfg.nll else _cfg.scheme}  "
+                     f"mu_F_factor: {_cfg.mu_F_factor}\n")
             fh.write(f"# mass: {mW:.4f}  width: {gW:.4f}  units: pb\n")
             for ecm, sig in zip(ecm_grid, sigma):
                 fh.write(f"{ecm:.4f}, {sig:.8f}\n")

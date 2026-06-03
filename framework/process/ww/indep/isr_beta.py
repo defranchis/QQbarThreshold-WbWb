@@ -277,6 +277,13 @@ class ISRConfig:
     m_e           ISR regulator mass.
     x_min         per-leg lower cutoff (x₁x₂ ≥ x_min² stays below WW threshold).
     n_quad        GL nodes per leg.
+    nll           EXPLORATORY: replace the analytic LL+exp per-leg radiator with
+                  eMELA's NLL electron ePDF (DGLAP-evolved).  The O(α) matching
+                  subtraction stays the analytic LL form → leading-log-exact
+                  with a residual O(α) NLL/DELTA-scheme constant (the #1 NLL
+                  refinement: derive the subtraction from eMELA's own O(α)).
+                  Configure with alpha=ALPHA_MZ + emela_ren_scheme="ALPMZ" to
+                  match the BFS production NLL convention.
     """
     scheme: str = "LO_beta"
     alpha: float | None = ALPHA_GMU
@@ -286,6 +293,9 @@ class ISRConfig:
     m_e: float = M_E
     x_min: float = math.sqrt(0.30)
     n_quad: int = 128
+    nll: bool = False
+    emela_fac_scheme: str = "DELTA"
+    emela_ren_scheme: str = "ALPMZ"
 
     def resolved_alpha(self) -> float:
         return self.alpha if self.alpha is not None else alpha_for_scheme(self.ew_scheme)
@@ -302,11 +312,40 @@ class ISRConfig:
 # Two-leg convolution
 # ---------------------------------------------------------------------------
 
+def _per_leg_emela_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
+    """Per-leg eMELA NLL radiator weight in u-space (EXPLORATORY).
+
+    Mirrors ``isr.sigma_ISR_2leg_convolution``'s eMELA handling: the full ePDF
+    xD(x,Q) replaces the analytic norm+NS split.  xD/x · jac_NS is finite at the
+    soft endpoint — the ePDF's (1-x)^(β-1) singularity cancels the jacobian's
+    u^(1/β-1).  At x→1 (omx<1e-15) the analytic NLL soft+virtual limit is used
+    (norm × the BCFS arXiv:1911.12040 exponent correction exp(β_e·(α/π)·λ₁/4)).
+    Imports eMELA lazily so the default LL path keeps no BFS/eMELA dependency.
+    """
+    from framework.process.ww.xsec_calculator import emela_wrapper as _emela
+    from framework.process.ww.xsec_calculator.isr import LAMBDA1_NF0
+    alpha = cfg.resolved_alpha()
+    _emela.initialize(pert_order="NLL", fac_scheme=cfg.emela_fac_scheme,
+                      ren_scheme=cfg.emela_ren_scheme, alpha=alpha)
+    Q = cfg.mu_F(sqrt_s)
+    norm_nll = norm * math.exp(be * (alpha / _PI) * (LAMBDA1_NF0 / 4.0))
+    per_leg = np.empty_like(x_vals)
+    for i in range(len(x_vals)):
+        omx_i = float(one_minus_x[i])
+        if omx_i < 1e-15:
+            per_leg[i] = norm_nll
+        else:
+            x_i = float(x_vals[i])
+            per_leg[i] = _emela.code_pdf(x_i, omx_i, Q) / x_i * float(jac_NS[i])
+    return per_leg
+
+
 def convolve_2leg(sqrt_s, sigma_hat_fn, cfg: ISRConfig = ISRConfig()):
     """σ_obs(s) = ∫∫ D(x₁) D(x₂) σ̂(√(x₁x₂)·√s) dx₁ dx₂  [fb].
 
     ``sigma_hat_fn(sqrt_shat)`` returns σ̂ [fb] for an array of √ŝ [GeV].
-    Vectorised in ``sqrt_s`` (scalar or array).
+    Vectorised in ``sqrt_s`` (scalar or array).  ``cfg.nll`` swaps the analytic
+    LL+exp per-leg radiator for eMELA's NLL ePDF.
     """
     sqrt_s_arr = np.atleast_1d(np.asarray(sqrt_s, dtype=float))
     out = np.zeros_like(sqrt_s_arr)
@@ -315,8 +354,12 @@ def convolve_2leg(sqrt_s, sigma_hat_fn, cfg: ISRConfig = ISRConfig()):
         be, bs, bh = cfg.betas(float(sq))
         norm = _radiator_norm(be, bs)
         u, w, x_vals, one_minus_x, jac_NS = _endpoint_grid(be, cfg.x_min, cfg.n_quad)
-        NS_vals = _radiator_NS(x_vals, bh, one_minus_x=one_minus_x)
-        per_leg = norm + jac_NS * NS_vals            # D(x)·|dx/du| in u-space
+        if cfg.nll:
+            per_leg = _per_leg_emela_nll(cfg, be, norm, x_vals, one_minus_x,
+                                         jac_NS, float(sq))
+        else:
+            NS_vals = _radiator_NS(x_vals, bh, one_minus_x=one_minus_x)
+            per_leg = norm + jac_NS * NS_vals        # D(x)·|dx/du| in u-space
 
         X1, X2 = np.meshgrid(x_vals, x_vals, indexing="ij")
         sqrt_shat = np.sqrt(X1 * X2) * float(sq)
