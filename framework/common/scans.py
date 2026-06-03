@@ -483,6 +483,76 @@ def scan_lumi(fit, *, lo=0, hi=3, points=11):
 
 
 # ---------------------------------------------------------------------------
+# Statistical point-to-point correlation
+# ---------------------------------------------------------------------------
+def scan_stat_correlation(fit, *, lo=0.0, hi=0.99, points=21, outdir=None):
+    """Sweep the global point-to-point statistical correlation ρ between the
+    measured cross sections at different √s from ``lo`` to ``hi``, recording the
+    STAT-ONLY uncertainty on each POI.
+
+    All systematics are switched off (``reinitialise_to_stat``) so the data
+    covariance is purely statistical: ``cov_ij = ρ·σ_i·σ_j`` for i≠j, ``σ_i²``
+    on the diagonal. As ρ→1 the *common* (all-points-together) statistical
+    fluctuation becomes the only poorly-measured mode, while the point-to-point
+    *differences* — i.e. the line **shape**, hence m_W/Γ_W — are pinned ever more
+    tightly (their inverse-covariance weight ∝ 1/(1−ρ)). So σ(m_W) and σ(Γ_W)
+    *decrease* toward 0 as ρ→1: positive statistical correlation between √s
+    points *helps* a shape/slope extraction (the common normalisation cancels).
+    ρ=1 exactly is singular (rank-1, cov = σσᵀ); the default grid stops at
+    ``hi=0.99`` to avoid that degenerate endpoint (``_build_cov`` still caps any
+    ρ passed ≥1 just below 1 as a safety net). The per-point σ_i carries the
+    selection-efficiency 1/√ε inflation — "stat-only" means "no systematics",
+    not "ε = 1".
+
+    Mutates ``fit`` in place (priors → stat-only, ``_stat_corr`` + cov per grid
+    point) and restores it on exit (same save/restore-in-``finally`` pattern as
+    :func:`scan_lumi`; no ``deepcopy``, which the theory generator can't survive).
+    Runs a fresh local Minuit each point (the morph matrix / smeared templates
+    are constant). Saves one figure (all POIs share the MeV unit group) to
+    ``outdir`` (default ``fit.plot_dir``).
+    """
+    grid = np.linspace(lo, hi, points)
+    pois = [p for p in fit.tracked_pois() if fit.is_scannable_poi(p)]
+    start = np.zeros(len(fit.param_names))
+    results = {poi: [] for poi in pois}
+    saved_stat_corr = getattr(fit, "_stat_corr", 0.0)
+    fit.reinitialise_to_stat()
+    try:
+        for rho in grid:
+            fit._stat_corr = float(rho)
+            fit._build_cov()
+            m = run_local_migrad(fit, start)
+            fr = fit.results_from_minuit(m)
+            for poi in pois:
+                results[poi].append(fr[fit._idx[poi]].s)
+    finally:
+        # _stat_corr restored before reinitialise_to_nominal so its cov rebuild
+        # uses the pre-scan correlation (reinitialise_to_nominal calls _build_cov).
+        fit._stat_corr = saved_stat_corr
+        fit.reinitialise_to_nominal()
+
+    outdir = outdir or fit.plot_dir
+    for unit, unit_pois in _pois_by_unit(fit).items():
+        unit_pois = [p for p in unit_pois if p in pois]
+        if not unit_pois:
+            continue
+        plt.figure()
+        for i, poi in enumerate(unit_pois):
+            scale = fit.card.POI_DISPLAY[poi]["scale"]
+            vals = np.array(results[poi]) * scale
+            color, ls = _poi_line(i)
+            sym = poi_symbol(fit, poi)
+            plt.plot(grid, vals, color=color, linestyle=ls,
+                     label=rf"Stat. uncert. in ${sym}$", linewidth=2)
+        plt.legend(loc="upper left")
+        plt.title(projection_title(fit.scenario_dict["total_lumi"]), loc="right", fontsize=20)
+        plt.xlabel(r"Statistical correlation $\rho$ between $\sqrt{s}$ points")
+        plt.ylabel(f"Statistical uncertainty [{unit}]")
+        process_annotation(fit.card, x=0.05, y=0.55, ha="left")
+        save_figure(outdir, _impact_pois_filename("statcorr", unit_pois))
+
+
+# ---------------------------------------------------------------------------
 # Generic 1-D constraint sigma sweep
 # ---------------------------------------------------------------------------
 def scan_constraint(fit, name, grid, *, axis_unit, axis_label, plot_filename_stem):

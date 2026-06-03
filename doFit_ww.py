@@ -48,6 +48,8 @@ def dump_fit_metadata(fit, args):
             "scan_max":        card.SCENARIO["scan_max"],
             "scan_step":       card.SCENARIO["scan_step"],
             "total_lumi":      fit.scenario_dict["total_lumi"],
+            "selection_efficiency": card.SCENARIO.get("selection_efficiency", 1.0),
+            "xsec_syst":       getattr(card, "XSEC_SYST", None),
             "lastecm":         args.lastecm,
             "BECnuisances":    args.BECnuisances,
             "BESnuisances":    args.BESnuisances,
@@ -80,6 +82,11 @@ def parse_args():
     parser.add_argument("--lumiscans", action="store_true")
     parser.add_argument("--alphaSscan", action="store_true")
     parser.add_argument("--chi2scans", action="store_true")
+    parser.add_argument("--statCorrScan", action="store_true",
+                        help="sweep the point-to-point statistical correlation ρ "
+                             "between the measured cross sections at different √s "
+                             "from 0→1 (stat-only — all systematics dropped) and "
+                             "plot σ(m_W)/σ(Γ_W) vs ρ")
     parser.add_argument("--systTable", action="store_true")
     parser.add_argument("--shapeOnly", action="store_true",
                         help="shape-only fit: float the correlated-luminosity "
@@ -252,6 +259,17 @@ def main():
     if args.BESnuisances or args.BESscans or args.systTable or args.shapeOnly:
         fit.add_binned_nuisance("BES")
 
+    # Placeholder cross-section systematics (correlated + uncorrelated across √s,
+    # each a fraction of the per-point stat uncertainty) — the production WW
+    # experimental budget. Declared in card.XSEC_SYST, activated here (mirrors
+    # the binned-nuisance declare-in-card / activate-in-driver split). The
+    # --statCorrScan study drops them internally (stat-only).
+    xsec_syst = getattr(card, "XSEC_SYST", None)
+    if xsec_syst:
+        fit.set_xsec_systematics(
+            corr_frac=xsec_syst.get("corr_frac_of_stat", 0.0),
+            uncorr_frac=xsec_syst.get("uncorr_frac_of_stat", 0.0))
+
     if args.shapeOnly:
         # Shape-only fit: float the correlated luminosity nuisance (≈100% prior →
         # overall normalisation unconstrained) and switch the uncorrelated
@@ -305,6 +323,8 @@ def main():
         scan_jobs.append(lambda: scans.scan_alphas(fit))
     if args.chi2scans:
         scan_jobs.append(lambda: scans.scan_chi2(fit))
+    if args.statCorrScan:
+        scan_jobs.append(lambda: scans.scan_stat_correlation(fit))
 
     if args.parallel > 1 and len(scan_jobs) > 1:
         scans.run_parallel(scan_jobs, max_workers=args.parallel)

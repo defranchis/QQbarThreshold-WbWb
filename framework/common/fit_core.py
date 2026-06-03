@@ -302,6 +302,20 @@ class FitCore:
         self._cross_matrix = None
         self._cov_factor = None
 
+        # Placeholder cross-section systematics (a fully-correlated and a
+        # fully-uncorrelated component across √s, each sized as a fraction of the
+        # per-point statistical uncertainty). OFF until a driver calls
+        # ``set_xsec_systematics`` — mirrors the declare-in-card / activate-in-
+        # driver pattern of the binned nuisances. Added to the data covariance in
+        # ``_build_cov``; the ``*_nom`` values are restored by
+        # ``reinitialise_to_nominal`` between syst-table switch-offs.
+        self.xsec_syst_corr = self._xsec_syst_corr_nom = 0.0
+        self.xsec_syst_uncorr = self._xsec_syst_uncorr_nom = 0.0
+        # Global point-to-point statistical correlation imposed on the measured
+        # cross sections (0 = independent counting). Swept by
+        # ``scans.scan_stat_correlation``; consumed by ``_build_cov``.
+        self._stat_corr = 0.0
+
         # Build templates --------------------------------------------------
         if debug:
             print(f"Input directory: {self.input_dir}")
@@ -753,6 +767,15 @@ class FitCore:
 
         unc_stat = (np.array(self.pseudo_data_scenario) / np.array(list(self.scenario.values()))) ** 0.5
         unc_stat *= self.card.SCENARIO["stat_inflation"]
+        # Selection+reconstruction efficiency ε: the measured (efficiency-
+        # corrected) cross section is reconstructed from N_sel = ε·σ·L selected
+        # events, so its per-point statistical uncertainty grows by 1/√ε. ε
+        # defaults to 1 (no reconstruction modelled, e.g. WbWb).
+        eff = self.card.SCENARIO.get("selection_efficiency", 1.0)
+        if eff <= 0:
+            raise ValueError(
+                f"SCENARIO['selection_efficiency'] must be > 0 (got {eff!r})")
+        unc_stat = unc_stat / eff ** 0.5
         # Optional per-fit statistical-only rescale (default 1.0). Used by the
         # channel extrapolation to represent a sample with a different effective
         # event yield (e.g. inclusive WW = μνqq̄ × 1/B → stat × √B) WITHOUT
@@ -959,7 +982,34 @@ class FitCore:
         Called by ``init_minuit`` but also directly by scans that mutate the
         lumi covariance without needing a fresh ``minuit`` (e.g.
         ``scan_lumi``)."""
-        cov_stat = np.diag(self.unc_pseudodata_scenario ** 2)
+        stat = self.unc_pseudodata_scenario
+        # Statistical covariance. Diagonal variances by default (independent
+        # Poisson counting). When ``_stat_corr`` (ρ) is set — by the ρ-sweep
+        # study ``scans.scan_stat_correlation`` — impose a global point-to-point
+        # correlation on the measured cross sections: cov_ij = ρ·σ_i·σ_j (i≠j).
+        # ρ=1 is exactly rank-1 (singular: cov = σσᵀ), so cap it just below 1 to
+        # keep the Cholesky factorisation well-defined. As ρ→1 only the common
+        # normalisation mode stays uncertain; the shape (m_W/Γ_W) is pinned ever
+        # tighter, so σ_POI→0 (see scans.scan_stat_correlation).
+        rho = getattr(self, "_stat_corr", 0.0)
+        if rho:
+            rho = min(rho, 1.0 - 1.0e-6)
+            cov_stat = np.outer(stat, stat) * rho
+            np.fill_diagonal(cov_stat, stat ** 2)
+        else:
+            cov_stat = np.diag(stat ** 2)
+        # Placeholder cross-section systematics (activated via
+        # ``set_xsec_systematics``): a fully-correlated and a fully-uncorrelated
+        # component across √s, each sized as a fraction of the per-point
+        # statistical uncertainty, added straight to the data covariance.
+        # Toggled per-component by the syst table exactly like the cov-mode lumi
+        # priors (see systematics._turn_off).
+        cov_data = cov_stat
+        if self.xsec_syst_uncorr:
+            cov_data = cov_data + np.diag((self.xsec_syst_uncorr * stat) ** 2)
+        if self.xsec_syst_corr:
+            d = self.xsec_syst_corr * stat
+            cov_data = cov_data + np.outer(d, d)
         if getattr(self.card, "LUMI_UNCORR_SCALES", False):
             L_i = np.array(list(self.scenario.values()), dtype=float)
             lumi_uncorr_ecm = self.lumi_uncorr * np.sqrt(
@@ -972,11 +1022,11 @@ class FitCore:
         self.lumi_uncorr_ecm = lumi_uncorr_ecm
 
         if self.lumi_mode == "nuisance":
-            self.cov = cov_stat
+            self.cov = cov_data
         else:
             cov_lumi_uncorr = np.diag(self.pseudo_data_scenario * lumi_uncorr_ecm) ** 2
             cov_lumi_corr = np.outer(self.pseudo_data_scenario, self.pseudo_data_scenario) * self.lumi_corr ** 2
-            self.cov = cov_lumi_uncorr + cov_lumi_corr + cov_stat
+            self.cov = cov_lumi_uncorr + cov_lumi_corr + cov_data
         # Pre-factor the (constant within migrad) covariance once; chi2 then
         # does a cheap triangular solve per call instead of a fresh LU.
         self._cov_factor = cho_factor(self.cov)
@@ -1185,6 +1235,18 @@ class FitCore:
     def set_global_nuisance_prior(self, kind, *, prior):
         self._nuisance_priors.setdefault(kind, {})["prior"] = prior / self.input_var[kind]
 
+    def set_xsec_systematics(self, *, corr_frac=0.0, uncorr_frac=0.0):
+        """Activate the placeholder cross-section systematics: a fully-correlated
+        and a fully-uncorrelated component across √s, each sized as the given
+        fraction of the per-point statistical uncertainty, added to the data
+        covariance in :meth:`_build_cov`. The fractions are stored as the
+        syst-table "nominal" so ``reinitialise_to_nominal`` restores them after a
+        per-source switch-off. Call after ``init_scenario`` — the covariance is
+        rebuilt on the next ``init_minuit`` / ``_build_cov``. Pass 0 for a
+        component to leave it off."""
+        self.xsec_syst_corr = self._xsec_syst_corr_nom = float(corr_frac)
+        self.xsec_syst_uncorr = self._xsec_syst_uncorr_nom = float(uncorr_frac)
+
     def _expand_per_bin_nuisance(self, kind):
         """Register N + 1 nuisance parameter names for ``kind`` ∈ {BEC, BES}:
         one per-ECM-bin parameter plus a fully-correlated parameter. Stores
@@ -1210,6 +1272,17 @@ class FitCore:
             self._nuisance_priors[kind]["prior"] = OFF
         self.lumi_corr = OFF
         self.lumi_uncorr = OFF
+        # Cov-based cross-section systematics: drop both components (0, not OFF —
+        # they are covariance fractions, not penalised nuisances, so a clean
+        # zero is exact and keeps the stat-only covariance well-conditioned).
+        self.xsec_syst_corr = 0.0
+        self.xsec_syst_uncorr = 0.0
+        # Rebuild the covariance NOW so the cov-based systematics (xsec, and
+        # cov-mode lumi) actually drop. Unlike the penalised nuisances — which
+        # the chi² reads live from the priors — these live only in ``self.cov``,
+        # so a syst-table refit with ``init_minuit=False`` (the parametric stat
+        # branch) would otherwise keep the stale, syst-inflated covariance.
+        self._build_cov()
 
     def reinitialise_to_nominal(self):
         for name, c in self._constraints.items():
@@ -1221,3 +1294,10 @@ class FitCore:
             self.set_global_nuisance_prior(kind, prior=self.card.PRIORS[kind])
         self.lumi_corr = self.card.PRIORS["lumi"]["corr"]
         self.lumi_uncorr = self.card.PRIORS["lumi"]["uncorr"]
+        # Restore the cov-based cross-section systematics to the fractions the
+        # driver activated via set_xsec_systematics (0 if never activated), and
+        # rebuild the covariance so they take effect even for an ``init_minuit=
+        # False`` refit (mirror of reinitialise_to_stat).
+        self.xsec_syst_corr = self._xsec_syst_corr_nom
+        self.xsec_syst_uncorr = self._xsec_syst_uncorr_nom
+        self._build_cov()

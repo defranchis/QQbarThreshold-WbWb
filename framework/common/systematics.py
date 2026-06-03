@@ -38,6 +38,13 @@ def systematic_list(fit):
         active.add(kind)
     active.add("lumi_uncorr")
     active.add("lumi_corr")
+    # Cov-based cross-section systematics (correlated + uncorrelated across √s),
+    # listed only when activated via FitCore.set_xsec_systematics. Ordered under
+    # the "xsec" shorthand in card.SYST_TABLE_ORDER (expands to _uncorr/_corr).
+    if getattr(fit, "xsec_syst_uncorr", 0.0):
+        active.add("xsec_uncorr")
+    if getattr(fit, "xsec_syst_corr", 0.0):
+        active.add("xsec_corr")
 
     ordered = []
     for n in fit.card.SYST_TABLE_ORDER:
@@ -82,6 +89,12 @@ def _turn_off(fit, name):
         return
     if name == "lumi_corr":
         fit.lumi_corr = OFF
+        return
+    if name == "xsec_uncorr":
+        fit.xsec_syst_uncorr = 0.0
+        return
+    if name == "xsec_corr":
+        fit.xsec_syst_corr = 0.0
         return
     raise ValueError(f"Unknown systematic: {name}")
 

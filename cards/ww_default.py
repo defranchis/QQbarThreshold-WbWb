@@ -66,6 +66,10 @@ SCENARIO = {
     "total_lumi":     19.2e6,   # /pb — FCC-ee FSR WW baseline (see README)
     "last_lumi":      10.8e6,   # /pb — ZH 240 GeV, --lastecm only (see README)
     "stat_inflation": 1.0,
+    # Selection+reconstruction efficiency (placeholder): N_sel = ε·σ·L, so the
+    # per-point statistical uncertainty grows by 1/√ε. Replaces the WbWb-style
+    # flat stat_inflation as the WW realism knob. See cards/README.md.
+    "selection_efficiency": 0.8,
     "coarse_scan": {
         "scan_min": 158.0, "scan_max": 162.0, "scan_step": 2.0,
         "lumi_factor": 1.0 / 2**0.5,
@@ -124,7 +128,18 @@ SYSTEMATICS = {
                 "source": {"kind": "smear_shift"}},
 }
 
-SYST_TABLE_ORDER = ["alphas", "aem_isr", "aemEW", "BES", "BEC", "lumi"]
+# Placeholder cross-section systematics (experimental, on the measured σ at each
+# √s): a fully-correlated and a fully-uncorrelated component across √s, each
+# sized as a fraction of the per-point statistical uncertainty. Added straight
+# to the data covariance (FitCore._build_cov), activated by the driver via
+# FitCore.set_xsec_systematics — the declare-in-card / activate-in-driver split
+# of the binned nuisances. Set a fraction to 0 to drop that component.
+XSEC_SYST = {
+    "corr_frac_of_stat":   0.30,
+    "uncorr_frac_of_stat": 0.30,
+}
+
+SYST_TABLE_ORDER = ["alphas", "aem_isr", "aemEW", "BES", "BEC", "lumi", "xsec"]
 
 # ---------------------------------------------------------------------------
 # POI display + axis labels
