@@ -2634,6 +2634,215 @@ the next experimental lever beyond channel multiplicity is the beam-energy
 and luminosity calibration, not the absolute luminosity scale alone.
 
 % ---------------------------------------------------------------
+\section{Independent BFS-free cross-check: MoCaNLO\,+\,Recola NLO-EW}\label{sec:indep}
+% ---------------------------------------------------------------
+
+\emph{Status: preliminary. The inclusive ($\mu\nu qq$-shape) pure-WW pipeline,
+the independent sensitivities, and the ISR-scheme uncertainty are complete; the
+EW-input-scheme uncertainty and the fiducial-acceptance cross-check are running
+on the batch farm and will be folded into a later revision.}
+
+\subsection{Motivation and scope}\label{sec:indep-scope}
+
+The entire chain validated in section~\ref{sec:val} rests on the BFS
+unstable-particle EFT. As an \emph{independent} check of the extracted
+sensitivities --- not a number-by-number reproduction --- we have built a
+completely BFS-free line-shape calculation that shares no code and no
+perturbative input with the EFT chain, plugged into the \emph{same}
+\code{WWGenerator} fit contract (section~\ref{sec:codeorg}). The goal is to
+answer ``does an independent NLO-EW four-fermion calculation give the same
+$\sigma(\mW)$, $\sigma(\GammaW)$ and $\rho$?''. This closes the
+``parallel calculation'' open item flagged for publication.
+
+\subsection{The calculation}\label{sec:indep-calc}
+
+The partonic cross section $\hat\sigma(\sqrt{\hat s})$ for each four-fermion
+final state is computed at NLO~EW with \textbf{MoCaNLO}~\cite{MoCaNLO} (release
+1.0.0) driving \textbf{Recola1}~\cite{Recola1} (1.5.1) and
+\textbf{Collier}~\cite{Collier} (1.2.9) for the one-loop amplitudes, in the
+complex-mass scheme with the full off-shell $e^+e^-\!\to 4f$ matrix element (no
+double-pole approximation), so the on-shell $\mW$ enters as the project POI and
+is converted internally to the pole mass. Two toolchain validations anchor the
+setup: $e^+e^-\!\to t\bar t$ Born agrees with the shipped reference to
+$0.4\,\sigma$, and $e^+e^-\!\to\mu^-\bar\nu_\mu u\bar d$ Born at $\sqrt s=161\GeV$
+($157.4\fb$) matches the WHIZARD grid once the $-27\MeV$ on-shell$\to$pole
+conversion is applied, to $0.07\%$.
+
+\paragraph{Electroweak inputs.} The SM inputs are synchronised to the production
+card --- $M_Z=91.1876\GeV$, $m_t=172.5\GeV$, $M_H=125.25\GeV$,
+$G_F=1.1663787\times10^{-5}\GeV^{-2}$ --- so the independent calculation and the
+BFS chain evaluate at the same electroweak point. In the $G_\mu$ scheme $\mW$ is
+a fixed input and the radiative correction $\Delta r$ is absorbed into the
+$G_F$--$\mW$ relation, so the residual sensitivity of $\hat\sigma$ to $m_t$ is
+strongly screened: regenerating the grid at the older
+$(m_t,M_H)=(174.2,125.0)\GeV$ point shifts the NLO cross section by only
+$-0.0011\%$, far below the per-point Monte-Carlo error. The sensitivities below
+are therefore independent of this input choice at the relevant precision.
+
+Initial-state radiation is supplied by a \emph{decoupled} beta-scheme LL
+radiator implemented independently in Python (\code{framework/process/ww/indep/
+isr\_beta.py}), following the collinear-factorisation construction
+of~\cite{ISRcollinear}, convolved by Gauss--Legendre quadrature with an exact
+$\mathcal O(\alpha)$ matching to the fixed-order NLO-EW result (the matching
+residual is purely $\mathcal O(\alpha^2)$, verified analytically and
+numerically). Keeping the ISR factorised from the partonic generator lets the
+ISR scheme be varied (section~\ref{sec:indep-isr}) without regenerating the
+NLO-EW grid.
+
+\paragraph{Channel set.} The leptonic forward-electron ($t$-channel single-$W$)
+and same-flavour ($\gamma^\ast\!\to\ell\ell$) configurations drive
+small-Gram-determinant instabilities in the one-loop reduction; the inclusive
+``pure-WW'' definition therefore sums the doubly-resonant blocks
+$\sigma_{\rm tot}=12\cdot\ell\nu qq + 4\cdot qqqq + 9\cdot\mu\tau$
+(colour$\times$flavour sum rule $(2N_c+3)^2=81$), using a mixed non-electron
+leptonic representative ($\mu\tau$) for the leptonic shape. The fiducial
+acceptance definition --- $|\cos\theta_\ell|<0.97$, $p_{T,\ell}>10\GeV$, and
+$m_{\ell\ell}>10\GeV$ on same-flavour opposite-sign pairs --- tames the two
+instabilities (the $m_{\ell\ell}$ leg removes the $\gamma^\ast\!\to\ell\ell$
+low-mass pole) and restores the electron and same-flavour channels; it is being
+generated separately as an acceptance cross-check. The angular cut sits inside
+the FCC-ee tracker acceptance (CLD $|\cos\theta|<0.989$, IDEA drift chamber
+$\sim\!0.974$, common $150\,$mrad MDI cone) with a $97.5\%$ $\cos\theta$
+efficiency on signal leptons, so $e$ and $\mu$ share the same fiducial volume.
+
+\subsection{Template grid, de-noising and morphing}\label{sec:indep-grid}
+
+Each $\hat\sigma$ point is integrated to $\sim\!0.2\%$ ($5\times10^5$ accepted
+events) on a grid of $3$ channels $\times$ $20$ $(\mW,\GammaW)$ variation points
+$\times$ $33$ values of $\sqrt{\hat s}\in[156,164]\GeV$ ($1980$ points, on
+HTCondor). Two de-noising levers make the per-point Monte-Carlo error
+sub-dominant to the $\sim\!0.5\%$/$10\MeV$ POI response:
+\begin{itemize}
+  \item \textbf{Correlated seeds}: the nominal and every $(\mW,\GammaW)$
+    variation at a given $\sqrt{\hat s}$ share the Monte-Carlo random sequence,
+    so the statistical fluctuation cancels in the morph \emph{differences}. A
+    dedicated A/B test (correlated vs.\ decorrelated, $\ell\nu qq$) measures a
+    \textbf{$31.9\times$} reduction of the even (curvature$+$noise) part of the
+    $\pm10\MeV$ response, from RMS $0.71\%$ to $0.022\%$.
+  \item \textbf{Wide-lever least-squares morph}: the $20$ variation points
+    ($\mW,\GammaW$ each at $\pm10/\pm20/\pm30/\pm50\MeV$ plus cross points) feed
+    an over-determined quadratic$+$bilinear least-squares fit
+    $[\,1,\Delta m,\Delta w,\Delta m^2,\Delta w^2,\Delta m\,\Delta w\,]$, so the
+    slopes are averaged down rather than taken from a single finite difference.
+\end{itemize}
+The smoothing/morphing structure deliberately mirrors the BFS WHIZARD-grid scheme
+of appendix~\ref{sec:morphval}: a weighted cubic spline in $\sqrt{\hat s}$
+(weights $1/{\rm err}$) on the generator side, then the \emph{same} fit-side
+linear$+$bilinear cross-term morph (\code{CROSS\_TERMS}$=[(\rm mass,width)]$).
+
+\subsection{The $\mW$ and $\GammaW$ response versus BFS}\label{sec:indep-response}
+
+Figure~\ref{fig:indep-response} overlays the independent line-shape response
+$\sigma(\text{POI}\pm10\MeV)/\sigma(\text{nominal})$ on the BFS chain, per channel
+and combined. The $\mW$ response agrees with BFS to $<0.1\%$ across the scan
+(both fall below unity for $+\mW$ as the threshold shifts up). The $\GammaW$
+response, however, \emph{disagrees} with the raw BFS curve --- and this is
+physics, not a discrepancy. The full off-shell rate scales as
+$\sigma(4f)\propto{\rm BR}_1{\rm BR}_2=(\Gamma_{\rm partial}/\GammaW)^2$, so a
+$+\delta\GammaW$ cuts the rate by $\approx-2\,\delta\GammaW/\GammaW\simeq
+-0.96\%/10\MeV$ \emph{before} any line-shape change, whereas BFS runs in
+pdg-constant mode (BR externally fixed) and sees only the line shape. Multiplying
+the BFS curve by $(\GammaW^{0}/\GammaW)^2$ overlays it on MoCaNLO to $\sim\!0.1\%$
+(dotted), demonstrating that the difference is entirely the branching-ratio
+convention.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.49\linewidth]{indep_response_mass}
+\includegraphics[width=0.49\linewidth]{indep_response_width}
+\caption{Independent MoCaNLO line-shape response (ratio to nominal) for
+$\mW\pm10\MeV$ (left) and $\GammaW\pm10\MeV$ (right), per pure-WW channel and
+combined, overlaid with the BFS chain. The $\pm10$ curves mirror at the
+physical-curvature floor (even-part RMS $0.0015\%$ for $\mW$, $0.0067\%$ for
+$\GammaW$, after the correlated-seed de-noising). For $\GammaW$ the
+BR-rescaled BFS curve $\text{BFS}\times(\GammaW^0/\GammaW)^2$ (dotted) overlays
+MoCaNLO, isolating the BR-convention effect.
+Script: \code{scripts/investigations/indep\_mocanlo/plot\_channel\_response.py}.}
+\label{fig:indep-response}
+\end{figure}
+
+\subsection{Independent sensitivity and the branching-ratio convention}\label{sec:indep-fit}
+
+Running the same 2-POI covariance-luminosity Asimov fit as the theory ladder
+(section~\ref{sec:val-theory-ladder}; scan $157$--$163\GeV$ step $1$,
+$19.2\,\text{ab}^{-1}$, \code{scripts/indep\_mocanlo/dofit\_indep.py}) on the
+independent templates gives Table~\ref{tab:indep-br}. The branching-ratio
+treatment is the decisive choice:
+\begin{itemize}
+  \item \textbf{off-shell} (native $\sigma(4f)\propto{\rm BR}^2$): the
+    $\GammaW$ rate handle is active, tightening $\sigma(\GammaW)$ and driving a
+    strong \emph{anti}-correlation $\rho=-0.89$.
+  \item \textbf{pdg-constant} (BFS convention): the BR is divided out
+    analytically by the universal, channel-independent factor
+    $f=(\GammaW/\GammaW^{0})^2(\mW^{0}/\mW)^6$ (since
+    $\Gamma_{\rm partial}\propto\mW^3$), so $\GammaW$ becomes line-shape-only and
+    $\rho$ returns to $+0.61$ --- matching the BFS correlation structure ---
+    \emph{while retaining} the $\mW$ rate handle. The marginal $\sigma(\mW)$
+    actually \emph{tightens} to $0.42\MeV$ purely by de-correlation (the
+    conditional $\sigma(\mW)$ is $\approx0.35\MeV$ in both conventions).
+  \item \textbf{shape-only} (lumi prior opened): floating the overall
+    normalisation also removes the BR handle, but at the cost of the $\mW$ rate
+    information, loosening $\sigma(\mW)$ to $1.14\MeV$. This is the inferior way
+    to fix the BR and is reported only for contrast.
+\end{itemize}
+The shape-only result ($\sigma(\mW)=1.14\MeV$, $\rho=+0.52$) reproduces the BFS
+$\mW$ sensitivity ($\sim\!1.2\MeV$, section~\ref{sec:fitresults}) and correlation
+sign from a fully independent line shape --- an independent confirmation of the
+BFS number. The pdg-constant column is the recommended BFS-comparable headline.
+The absolute values are tighter than the single-channel BFS reference partly
+because the MoCaNLO sum is the full WW rate (more events); a strict absolute
+comparison requires matched channel scope and is deferred to the fiducial study.
+
+\begin{table}[t]
+\centering
+\begin{tabular}{l c c c}
+\hline
+BR treatment (lumi) & $\sigma(\mW)$ [MeV] & $\sigma(\GammaW)$ [MeV] & $\rho$ \\
+\hline
+off-shell, production cov-lumi      & $0.83$ & $0.44$ & $-0.89$ \\
+\textbf{pdg-constant, production}   & $\mathbf{0.42}$ & $\mathbf{0.87}$ & $\mathbf{+0.61}$ \\
+off-shell, shape-only               & $1.14$ & $0.82$ & $+0.52$ \\
+pdg-constant, shape-only            & $1.14$ & $0.80$ & $+0.52$ \\
+\hline
+\end{tabular}
+\caption{Independent MoCaNLO Asimov sensitivities under the three
+branching-ratio conventions (2-POI cov-lumi, $19.2\,\text{ab}^{-1}$). The
+pdg-constant convention (BFS-comparable) fixes the BR analytically and keeps the
+$\mW$ rate handle; shape-only discards it. Script
+\code{scripts/indep\_mocanlo/dofit\_indep.py --br-convention \{off-shell,pdg-constant\} [--shapeOnly]}.}
+\label{tab:indep-br}
+\end{table}
+
+\subsection{ISR-scheme theory uncertainty}\label{sec:indep-isr}
+
+Varying the LL ISR scheme over MoCaNLO's four PDF tags
+(\code{LO\_beta/eta/mixed/collinear}) leaves the \emph{sensitivity}
+scheme-invariant: $\sigma(\mW)=0.82$--$0.83\MeV$ for all four, mirroring the
+scheme-invariance of the BFS Asimov statistics (section~\ref{sec:val-isr-cross}).
+The theory uncertainty is therefore the cross-fit \emph{bias}: injecting the
+reference (\code{LO\_beta}) truth line shape and fitting it with a variant
+scheme's morph (\code{scripts/indep\_mocanlo/crossfit\_scheme.py}), the three
+physical beta-type radiators (\code{beta/eta/mixed}) agree to $<1\MeV$
+($\Delta\mW=0.02$, $0.26\MeV$ shape), while the pure-collinear PDF
+(\code{LO\_collinear}, which drops the soft-resummation structure) is the
+outlier at $2.5\MeV$ (shape-only) / $7.0\MeV$ (under the production lumi). The
+conservative envelope over all four schemes is thus $\sim\!2.5\MeV$ on the shape;
+restricting to the physical beta-type radiators it is $<1\MeV$. This LL-PDF-scheme
+axis is distinct from the EW $\alpha$-renormalisation-scheme axis that dominates
+the BFS ISR systematic (section~\ref{sec:val-isr-scheme}); the MoCaNLO analogue
+of \emph{that} is the EW-input-scheme cross-fit ($\alpha(0)$ vs.\ $\alpha(M_Z)$),
+in progress.
+
+\subsection{What remains}\label{sec:indep-todo}
+
+Two batch campaigns are running and will complete this section: (i) the EW-input
+scheme grids ($\alpha(0)$, $\alpha(M_Z)$) for the dominant theory-uncertainty
+axis via the same cross-fit machinery; (ii) the fiducial-acceptance grid (six
+blocks with $|\cos\theta_\ell|<0.97$, $p_{T,\ell}>10\GeV$, $m_{\ell\ell}>10\GeV$)
+for the acceptance/channel-scope cross-check and a matched absolute comparison to
+BFS.
+
+% ---------------------------------------------------------------
 \section{Limitations and open items}\label{sec:limits}
 % ---------------------------------------------------------------
 
@@ -2728,9 +2937,13 @@ a single authoritative summary.
   was the leading source of residual fit bias under the previous
   ``constant $c$'' treatment; now zero by construction
   (Scenario H, section~\ref{sec:val-loops}).
-\item \textbf{Parallel calculation.} A WHIZARD / Recola / MoCaNLO
-  generator implementing the same \code{WWGenerator} contract is
-  scheduled as the cross-check for publication.
+\item \textbf{Parallel calculation.} An independent BFS-free
+  MoCaNLO${+}$Recola NLO-EW generator implementing the same
+  \code{WWGenerator} contract is now in place; its first results
+  (independent sensitivities, the branching-ratio-convention
+  analysis, and the ISR-scheme uncertainty) are in
+  section~\ref{sec:indep}. The EW-input-scheme uncertainty and the
+  fiducial-acceptance cross-check are still being generated.
 \item \textbf{Fadin-Khoze-Martin $K_C$ dropped from the default
   chain (2026-05-26).} The previous default multiplied the FKM~\cite{FKM1993,FKM1995}
   $K_C$ factor onto the BFS chain that already contains the leading
@@ -3504,6 +3717,27 @@ gstagnit/eMELA implementation:
 M.~Riembau,
 \emph{On the extraction of $\alpha_{\rm em}(m_Z^2)$ at Tera-Z},
 \arxiv{2501.05508}, CERN-TH-2025-005 (2025).
+
+\bibitem{MoCaNLO}
+A.~Denner, D.~Lombardi, S.~Lopez Portillo Chavez, M.~Pellen, G.~Pelliccioli,
+\emph{MoCaNLO: a Monte Carlo integrator for NLO calculations},
+\arxiv{2602.19842} (2026).
+
+\bibitem{Recola1}
+S.~Actis, A.~Denner, L.~Hofer, J.-N.~Lang, A.~Scharf, S.~Uccirati,
+\emph{RECOLA: REcursive Computation of One-Loop Amplitudes},
+Comput.\ Phys.\ Commun.\ \textbf{214} (2017) 140, \arxiv{1605.01090}.
+
+\bibitem{Collier}
+A.~Denner, S.~Dittmaier, L.~Hofer,
+\emph{Collier: a fortran-based Complex One-Loop LIbrary in Extended Regularizations},
+Comput.\ Phys.\ Commun.\ \textbf{212} (2017) 220, \arxiv{1604.06792}.
+
+\bibitem{ISRcollinear}
+V.~Bertone, M.~Cacciari, S.~Frixione, G.~Stagnitto, M.~Zaro, X.~Zhao,
+\emph{Improving methods and predictions at high-energy $e^+e^-$ colliders
+within collinear factorisation},
+JHEP \textbf{10} (2022) 165, \arxiv{2207.03265}.
 
 \bibitem{FCCFSR2025}
 FCC collaboration,

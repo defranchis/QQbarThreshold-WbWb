@@ -122,6 +122,30 @@ else
     echo "[publish] WARN: $ISR_SRC missing — ISR-scheme figure will be stale"
 fi
 
+# Independent MoCaNLO cross-check figures (per-channel line-shape response,
+# off-shell BR convention with the BR-rescaled BFS overlay): produced by
+# scripts/investigations/indep_mocanlo/plot_channel_response.py into
+# plots/indep_mocanlo/ (gitignored). The report embeds them as
+# indep_response_{mass,width}; mirror so the published PDF tracks the live grid.
+INDEP_SRC="../plots/indep_mocanlo"
+if [[ -d "$INDEP_SRC" ]]; then
+    mkdir -p figs
+    declare -A INDEP_FIGS=(
+        [channel_response_mass]=indep_response_mass
+        [channel_response_width]=indep_response_width
+    )
+    for src in "${!INDEP_FIGS[@]}"; do
+        dst=${INDEP_FIGS[$src]}
+        if [[ -f "$INDEP_SRC/$src.pdf" ]]; then
+            cp -p "$INDEP_SRC/$src.pdf" "figs/$dst.pdf"
+        else
+            echo "[publish] WARN: $INDEP_SRC/$src.pdf missing — indep fig stale"
+        fi
+    done
+else
+    echo "[publish] WARN: $INDEP_SRC not found — indep cross-check figs may be stale"
+fi
+
 # Statistical-correlation scan (sigma(m_W)/sigma(Gamma_W) vs the point-to-point
 # stat correlation rho): produced by `doFit_ww.py --statCorrScan`
 # (framework/common/scans.py:scan_stat_correlation) into fit_output/ww/plots/.
