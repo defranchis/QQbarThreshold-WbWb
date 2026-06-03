@@ -75,6 +75,11 @@ def main(argv=None) -> int:
                     choices=list(isr_beta.ISR_SCHEMES))
     ap.add_argument("--mu-F-factor", type=float, default=1.0,
                     help="ISR factorisation scale μ_F / √s")
+    ap.add_argument("--br-convention", default="off-shell",
+                    choices=["off-shell", "pdg-constant"],
+                    help="off-shell = native σ(4f)∝BR²; pdg-constant = divide out "
+                         "BR(m_W,Γ_W) (BFS convention) → Γ_W line-shape-only while "
+                         "KEEPING the m_W rate handle (no shape-only needed)")
     ap.add_argument("--shapeOnly", action="store_true",
                     help="open the lumi prior wide (overall normalisation "
                          "unconstrained) so m_W/Γ_W come from the line-shape "
@@ -86,7 +91,7 @@ def main(argv=None) -> int:
 
     cfg = isr_beta.ISRConfig(scheme=args.isr_scheme, mu_F_factor=args.mu_F_factor)
     gen = WWGeneratorMoCaNLO(scheme_alpha=args.scheme, lepton_cut=args.lepton_cut,
-                             isr_cfg=cfg)
+                             isr_cfg=cfg, br_convention=args.br_convention)
     c = _card_2poi()
     params = Parameters(c.PARAMETERS, cross_terms=c.CROSS_TERMS)
 

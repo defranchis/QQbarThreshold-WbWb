@@ -60,8 +60,24 @@ class WWGeneratorMoCaNLO:
     isr_cfg: isr_beta.ISRConfig = field(default_factory=isr_beta.ISRConfig)
     order: int = 1                      # NLO-EW → filename tag "1"
     smooth: float | None = None         # σ̂ spline smoothing factor (None=auto)
+    br_convention: str = "off-shell"    # "off-shell" (native σ(4f)∝BR²) or
+                                        # "pdg-constant" (divide out BR(m_W,Γ_W);
+                                        # mirrors BFS — Γ_W becomes line-shape-only
+                                        # WITHOUT discarding the m_W rate handle)
     _grids: dict = field(default=None, repr=False)
     _cache: dict = field(default_factory=dict, repr=False)
+
+    def _br_factor(self, mW: float, gW: float) -> float:
+        """Multiplicative factor converting the native off-shell σ(4f) ∝ BR²
+        to the BFS pdg-constant convention (BR held fixed at the reference
+        m_W, Γ_W).  BR ∝ Γ_partial(m_W)/Γ_W with Γ_partial ∝ m_W³, so
+        BR² ∝ m_W⁶/Γ_W²; dividing it out is universal (per-channel partial-width
+        constants cancel).  =1 at the reference point and for 'off-shell'."""
+        if self.br_convention == "off-shell":
+            return 1.0
+        if self.br_convention == "pdg-constant":
+            return (gW / GW0) ** 2 * (MW0 / mW) ** 6
+        raise ValueError(f"unknown br_convention {self.br_convention!r}")
 
     # ------------------------------------------------------------------
     def _load(self):
@@ -158,6 +174,7 @@ class WWGeneratorMoCaNLO:
         sigma = np.zeros_like(ecm_grid)
         if inside.any():
             sigma[inside] = self._morphed(mW, gW, ecm_grid[inside])
+        sigma *= self._br_factor(mW, gW)   # off-shell→pdg-constant if requested
 
         os.makedirs(outdir, exist_ok=True)
         path = self.file_name(values, indir=outdir)
