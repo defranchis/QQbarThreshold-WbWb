@@ -41,7 +41,13 @@ CH_LABEL = {"lnuqq": r"$\ell\nu q\bar q$", "qqqq": r"$q\bar q q\bar q$",
             "mutau": r"$\ell\nu\ell\nu$ ($\mu\tau$)"}
 CH_COLOR = {"lnuqq": "tab:blue", "qqqq": "tab:red", "mutau": "tab:green"}
 
-SQRT_S = np.arange(156.0, 164.001, 0.1)
+# Low edge pinned at 157.0: the partonic σ̂ grid floors at 156 GeV, so for
+# √s ≲ 156.5 the ISR convolution truncates the radiative-return tail (σ̂=0 below
+# the floor) — at √s=156.0 only the x=1 endpoint contributes, producing a
+# spurious turnover.  157.0 is the lowest √s where the grid-based convolution
+# matches the continuous BFS chain (<1e-5).  Extend the σ̂ grid below 156 to go
+# lower.
+SQRT_S = np.arange(157.0, 164.001, 0.1)
 POLY_DEG = 3
 MW0, GW0, STEP = 80.379, 2.085, 0.010   # GeV
 
@@ -158,7 +164,7 @@ def _plot_convention(grids, cfg, bfs, br_convention, outdir):
         plt.close(fig)
 
         print(f"=== [{conv_lbl}] {poi} response +10 MeV (ratio) ===")
-        for s0 in (156.5, 157, 159, 161, 162.5, 164):
+        for s0 in (157, 159, 161, 162.5, 164):
             i = int(np.argmin(abs(SQRT_S - s0)))
             print(f"  √s={s0:6.1f}: MoCaNLO(comb)={comb[up][i]/comb['nominal'][i]:.5f}"
                   f"  BFS={bfs[up][i]/bfs['nominal'][i]:.5f}")
