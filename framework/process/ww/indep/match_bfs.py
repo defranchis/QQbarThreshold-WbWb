@@ -120,10 +120,16 @@ def delta_nnlo_relative(sqrt_shat,
     exactly the BFS NNLO threshold block (eq. 49); dividing by σ_Born makes it a
     production K-factor that multiplies MoCaNLO's own Born.
 
-    Because every common factor (anchor, BR convention, channel multiplicity)
-    is absent/cancels, δ_NNLO is a clean, convention-independent number — its
-    only inputs are (m_W, Γ_W) and the SM masses entering the matching
-    coefficients (mt/MH weakly; the dominant NNLO is Coulomb ∝ α_em, m_W).
+    δ_NNLO is computed with the WHIZARD anchor and the BR correction switched
+    OFF (``apply_whizard_anchor=False``, ``apply_BR_correction=False``) and the
+    channel multiplicity divided out, so they never enter.  This makes δ_NNLO a
+    clean, essentially convention-independent number whose only inputs are
+    (m_W, Γ_W) and the SM masses in the matching coefficients (mt/MH weakly; the
+    dominant NNLO is Coulomb ∝ α_em, m_W).  NB the anchor/BR factors do not
+    cancel *exactly* in the ratio (they are mildly √ŝ-dependent → a ~1% residual
+    if turned on); stripping them at the source is what makes the definition
+    convention-clean.  The ~1% would in any case be only ~1%×δ_NNLO ≈ 2e-3 % on
+    the line shape (≈0.02 MeV on m_W).
 
     ``sqrt_shat`` in GeV (scalar or array).  Returns δ_NNLO (dimensionless).
     Where σ_Born is negligible (deep sub-threshold tail) the ratio is set to 0;

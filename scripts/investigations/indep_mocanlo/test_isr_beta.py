@@ -70,7 +70,9 @@ def main():
     for s, m, b in zip(sqrt_s_grid, mine, bfs):
         print(f"    √s={s:6.2f}  mine={m:10.5f}  bfs={b:10.5f}  "
               f"rel={abs(m-b)/abs(b):.2e}")
-    print(f"    max rel diff = {np.max(np.abs((mine-bfs)/bfs)):.2e}")
+    ll_maxrel = float(np.max(np.abs((mine - bfs) / bfs)))
+    print(f"    max rel diff = {ll_maxrel:.2e}")
+    assert ll_maxrel < 1e-8, f"LL 2-leg port closure regressed: {ll_maxrel:.2e}"
 
     # --- 3. n_quad convergence of the convolution (smooth σ̂) ---
     print("\n[3] convolution n_quad convergence at nominal β (smooth toy σ̂)")
@@ -98,6 +100,34 @@ def main():
         prev = resid / b ** 2
         print(f"    β={b:.5f}  resid={resid:+.5f}  resid/β²={resid/b**2:+.3f}{ratio}")
     print("    (resid/β² → constant ⇒ O(α) ISR double-count cancelled exactly)")
+
+    # --- 5. NLL path: independent-chain eMELA convolution vs the BFS-side
+    #        sigma_ISR_2leg_convolution(nll=True) on IDENTICAL σ̂.  This is the
+    #        ONLY automated guard on _per_leg_emela_nll / the isr_nll production
+    #        knob (was previously only ever reproduced ad-hoc; the 6e-10 figure
+    #        quoted in the report comes from here).  Skips cleanly if eMELA is
+    #        not built in this environment.
+    print("\n[5] NLL eMELA port vs BFS isr.sigma_ISR_2leg_convolution(nll=True)")
+    try:
+        from framework.process.ww.xsec_calculator import emela_wrapper  # noqa: F401
+        cfg_nll = ib.ISRConfig(scheme="LO_beta", alpha=ib.ALPHA_MZ, m_e=M_E,
+                               mu_F_factor=1.0, x_min=X_MIN, n_quad=N_QUAD,
+                               nll=True, emela_fac_scheme="DELTA",
+                               emela_ren_scheme="ALPMZ")
+        mine_nll = ib.convolve_2leg(sqrt_s_grid, toy_hat_fn, cfg_nll)
+        bfs_nll = bfs_isr.sigma_ISR_2leg_convolution(
+            sqrt_s_grid, toy_partonic, mW=80.379, gammaW=2.085,
+            x_min=X_MIN, n_quad=N_QUAD, alpha_em_isr=ib.ALPHA_MZ, nll=True,
+            emela_pert_order="NLL", emela_fac_scheme="DELTA",
+            emela_ren_scheme="ALPMZ", n_jobs=1)
+        for s, m, b in zip(sqrt_s_grid, mine_nll, bfs_nll):
+            print(f"    √s={s:6.2f}  mine={m:10.5f}  bfs={b:10.5f}  "
+                  f"rel={abs(m-b)/abs(b):.2e}")
+        nll_maxrel = float(np.max(np.abs((mine_nll - bfs_nll) / bfs_nll)))
+        print(f"    max rel diff = {nll_maxrel:.2e}  (report claims ~6e-10)")
+        assert nll_maxrel < 1e-6, f"NLL eMELA port closure regressed: {nll_maxrel:.2e}"
+    except ImportError as exc:
+        print(f"    SKIP: eMELA not available in this environment ({exc})")
 
 
 if __name__ == "__main__":

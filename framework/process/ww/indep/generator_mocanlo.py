@@ -25,7 +25,7 @@ from __future__ import annotations
 import hashlib
 import multiprocessing as _mp
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -138,9 +138,19 @@ class WWGeneratorMoCaNLO:
         return {b.key: b.weight for b in BLOCKS}
 
     def _isr_cfg(self) -> "isr_beta.ISRConfig":
-        """Resolve the ISR config; ``isr_nll`` upgrades the analytic LL+exp
-        radiator to eMELA NLL in the BFS production convention (α(M_Z)/ALPMZ/
-        DELTA), preserving the user's μ_F / x_min / n_quad knobs."""
+        """Resolve the ISR config.
+
+        ``isr_nll`` upgrades the analytic LL+exp radiator to eMELA NLL in the BFS
+        production convention (α(M_Z)/ALPMZ/DELTA), preserving the user's μ_F /
+        x_min / n_quad knobs.
+
+        LL path: the radiator AND the O(α) matching subtraction C₁ must use the
+        SAME α that MoCaNLO put into σ̂_NLO's explicit O(α) ISR log — i.e. the
+        grid's EW scheme (``scheme_alpha``).  When the ISR α is left at its module
+        default (α_Gμ), couple it to ``scheme_alpha`` so running an α(0)/α(M_Z)
+        grid does not silently mix α schemes between σ̂_NLO and C₁.  An explicitly
+        pinned non-default ``isr_cfg.alpha`` (advanced ISR-α theory variation) is
+        respected, and an unknown ``scheme_alpha`` leaves the cfg untouched."""
         if self.isr_nll and not self.isr_cfg.nll:
             return isr_beta.ISRConfig(
                 nll=True, alpha=isr_beta.ALPHA_MZ, ew_scheme="alphaz",
@@ -148,11 +158,34 @@ class WWGeneratorMoCaNLO:
                 m_e=self.isr_cfg.m_e, x_min=self.isr_cfg.x_min,
                 n_quad=self.isr_cfg.n_quad,
                 emela_fac_scheme="DELTA", emela_ren_scheme="ALPMZ")
-        return self.isr_cfg
+        cfg = self.isr_cfg
+        try:
+            want = isr_beta.alpha_for_scheme(self.scheme_alpha)
+        except ValueError:
+            want = None
+        left_at_default = (cfg.alpha is not None
+                           and abs(cfg.alpha - isr_beta.ALPHA_GMU) < 1e-12)
+        if want is not None and left_at_default and abs(want - cfg.alpha) > 1e-12:
+            return replace(cfg, alpha=want, ew_scheme=self.scheme_alpha)
+        return cfg
+
+    def _state_key(self) -> tuple:
+        """Fingerprint of every generator field that changes the cached line
+        shape, so toggling a matching/ISR flag on a REUSED instance cannot serve
+        a stale ``_cache`` hit (the dataclass is intentionally not frozen).
+        ``br_convention`` is excluded on purpose: ``_br_factor`` is applied in
+        ``do_scan`` AFTER the cached morph, so it never affects the cached
+        ``_varpoint_lineshape`` / ``_fit_morph`` outputs."""
+        return (
+            self.match_bfs, self.match_bfs_nnlo, self.match_bfs_dqcd,
+            self.alpha_s, (self.sm.mt, self.sm.mH, self.sm.mZ),
+            self.scheme_alpha, self.lepton_cut, self.smooth,
+            isr_beta._cfg_fingerprint(self._isr_cfg()),
+        )
 
     def _varpoint_lineshape(self, varpoint: str, sqrt_s: np.ndarray) -> np.ndarray:
         """Assembled σ_tot(√s) [pb] for one varpoint (cached)."""
-        ck = (varpoint, _grid_key(sqrt_s))
+        ck = (varpoint, self._state_key(), _grid_key(sqrt_s))
         if ck in self._cache:
             return self._cache[ck]
         grids = self._load()
@@ -199,13 +232,22 @@ class WWGeneratorMoCaNLO:
         averaged down and the wide lever arm pins the slopes.  Returns coeffs of
         shape (6, len(sqrt_s)).  Cached per sqrt_s identity.
         """
-        ck = ("coeffs", _grid_key(sqrt_s))
+        ck = ("coeffs", self._state_key(), _grid_key(sqrt_s))
         if ck in self._cache:
             return self._cache[ck]
         grids = self._load()
         channels = list(self._weights())
         vps = [v for v in VARPOINTS
                if all((ch, v.key) in grids for ch in channels)]
+        if len(vps) < 6:
+            missing_ch = sorted({ch for v in VARPOINTS for ch in channels
+                                 if (ch, v.key) not in grids})
+            raise ValueError(
+                f"incomplete σ̂ grid under {self.results_dir!r} "
+                f"(scheme_alpha={self.scheme_alpha!r}, lepton_cut={self.lepton_cut!r}): "
+                f"only {len(vps)} fully-populated varpoint(s), but the 6-coefficient "
+                f"quad+bilinear morph needs ≥6.  Channels with missing varpoints: "
+                f"{missing_ch}.")
         rows = [[1.0, v.dmW_MeV, v.dgW_MeV, v.dmW_MeV ** 2, v.dgW_MeV ** 2,
                  v.dmW_MeV * v.dgW_MeV] for v in vps]
 

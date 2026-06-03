@@ -317,11 +317,29 @@ def _per_leg_emela_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
     """Per-leg eMELA NLL radiator weight in u-space (EXPLORATORY).
 
     Mirrors ``isr.sigma_ISR_2leg_convolution``'s eMELA handling: the full ePDF
-    xD(x,Q) replaces the analytic norm+NS split.  xD/x · jac_NS is finite at the
-    soft endpoint — the ePDF's (1-x)^(β-1) singularity cancels the jacobian's
-    u^(1/β-1).  At x→1 (omx<1e-15) the analytic NLL soft+virtual limit is used
-    (norm × the BCFS arXiv:1911.12040 exponent correction exp(β_e·(α/π)·λ₁/4)).
+    xD(x,Q) replaces the analytic norm+NS split.  ``jac_NS`` here is the FULL,
+    universal |dx/du| = u^(1/β_e−1)/β_e (the name is historical — for the LL path
+    it multiplies only the NS polynomial, but for the NLL ePDF it multiplies the
+    whole xD/x).  xD/x · jac_NS is finite at the soft endpoint — the ePDF's
+    (1-x)^(β-1) singularity cancels the jacobian's u^(1/β-1).  At x→1
+    (omx<1e-15) the analytic NLL soft+virtual limit is used (norm × the BCFS
+    arXiv:1911.12040 exponent correction exp(β_e·(α/π)·λ₁/4)).
     Imports eMELA lazily so the default LL path keeps no BFS/eMELA dependency.
+
+    KNOWN NLL SYSTEMATIC (omx<1e-15 endpoint substitution, shared with the BFS-
+    side isr.py — do NOT change one without the other or the validated machine-
+    precision port closure breaks).  Because u=omx^β_e with β_e≈0.06 (1/β_e≈17),
+    the smallest GL nodes reach omx≈1e-66, so ~30/128 nodes fall below the 1e-15
+    cutoff and carry ~13 % of the per-leg integral weight; there the flat analytic
+    ``norm_nll`` is used instead of ``code_pdf``.  The analytic limit and the
+    DGLAP-evolved ePDF differ by ~0.5 % on those nodes, with a small (~0.08 %)
+    ENERGY SLOPE → an estimated low-MeV m_W systematic on the matched-NLL result.
+    This is engine-self-consistent (and cancels in the LL→NLL ratio if the LL
+    side uses the same substitution), so it does not bias the LL reference, but it
+    should be QUANTIFIED before any production NLL number: push the cutoff far
+    lower (e.g. 1e-300, x floored at 1−omx so code_pdf stays callable) and compare,
+    or carry it as an NLL theory uncertainty.  Not changed here — it is a physics
+    decision touching the production isr.py (report sec:match-todo).
     """
     from framework.process.ww.xsec_calculator import emela_wrapper as _emela
     from framework.process.ww.xsec_calculator.isr import LAMBDA1_NF0

@@ -2947,8 +2947,11 @@ $\delta_\text{QCD}(\alpha_s)=1+\alpha_s/\pi+1.409\,(\alpha_s/\pi)^2\approx1.040$
 hadronic $W$~\cite{BFSnnlo} (section~\ref{sec:dqcd}), is applied per channel as
 $\delta_\text{QCD}^{\,n_\text{had}}$ with $n_\text{had}\in\{0,1,2\}$ the number of
 hadronically decaying $W$'s ($\mu\tau$: $1.000$; $\ell\nu qq$: $1.040$; $qqqq$:
-$1.082$). Summed over the pure-WW channel weights this is a flat $+5.43\%$ on the
-rate ($\approx\langle n_\text{had}\rangle\times4.0\%$), entirely on the decay side and
+$1.082$). Averaged over the WW cross section ($\sigma$-weighted --- the colour factor
+$N_c$ per quark line boosts the hadronic share, so the effective
+$\langle n_\text{had}\rangle\approx1.36$, not the bare channel-multiplicity $0.8$)
+this is a flat $+5.43\%$ on the rate ($\approx\langle n_\text{had}\rangle\times4.0\%$),
+entirely on the decay side and
 orthogonal to the production correction. Unlike the BFS chain, MoCaNLO has no
 reference $\alpha_s$ to divide out, so the \emph{full} factor is applied.
 
@@ -2991,12 +2994,20 @@ caveat). The construction passes its structural and numerical tests:
     $\delta_\text{NNLO}\sim0.1$--$0.2\%\ll$ the NLO correction.
   \item \textbf{NLL port.} The independent-chain NLL convolution reproduces the
     validated BFS-side eMELA-NLL convolution on identical $\hat\sigma$, to
-    $6\times10^{-10}$ (machine precision).
+    $6\times10^{-10}$ --- a residual that is \emph{entirely} the
+    $8^\text{th}$-significant-figure electron-mass constant difference between the two
+    (deliberately code-independent) modules; with a common $m_e$ the closure drops to
+    the $\sim\!10^{-15}$ round-off floor. Guarded by
+    \code{scripts/investigations/indep\_mocanlo/test\_isr\_beta.py} (check~[5]).
 \end{itemize}
-The matched corrections are small and smooth: $\delta_\text{NNLO}$ rises from
-$\approx0$ near threshold to $+0.21\%$ at $163\GeV$, and the LL$\to$NLL ISR upgrade
-shifts the rate by $+0.26\%$ ($161\GeV$) to $+0.59\%$ ($159\GeV$), the same with or
-without the BFS matching (the NLL upgrade is orthogonal to it).
+The matched corrections are small and smooth: the \emph{partonic}
+$\delta_\text{NNLO}(\hat s)$ $K$-factor of equation~\eqref{eq:match-dnnlo} rises from
+$\approx0$ near threshold to $+0.21\%$ at $163\GeV$ (after the ISR convolution this
+dilutes to $+0.12\%$ on the \emph{observed} line shape --- the curve plotted in
+figure~\ref{fig:match-lineshape}), and the LL$\to$NLL ISR upgrade shifts the rate by
+$+0.26\%$ ($161\GeV$) to $+0.59\%$ ($159\GeV$) (the smoothed figure shows
+$\sim\!+0.3$--$0.45\%$ across the window), the same with or without the BFS matching
+(the NLL upgrade is orthogonal to it).
 
 \begin{table}[t]
 \centering
@@ -3009,7 +3020,7 @@ NLO premise, $\mW$ slope ($160$--$162.5$) & $-3.2\%$ mean, $\pm1$--$3\%$ peak & 
 Double counting & cancels by construction & pass \\
 NLL port vs.\ BFS eMELA, identical $\hat\sigma$ & $6\times10^{-10}$ & pass \\
 \hline
-$\delta_\text{NNLO}$ size ($157\!\to\!163\GeV$) & $0 \to +0.21\%$ & --- \\
+$\delta_\text{NNLO}$ size, partonic $K$-factor ($157\!\to\!163\GeV$) & $0 \to +0.21\%$ & --- \\
 NLL/LL ISR shift & $+0.26$ to $+0.59\%$ & --- \\
 $\delta_\text{QCD}$, per channel ($\mu\tau/\ell\nu qq/qqqq$) & $1.000/1.040/1.082$ & --- \\
 \hline
@@ -3037,7 +3048,9 @@ the \emph{unmatched-LL} reference morph, so the best-fit shift is the $\mW$/$\Ga
 bias from omitting that piece (equivalently, the size of the correction the matching
 supplies). The self-fit closes at $0.00\MeV$ and the reference sensitivities
 reproduce the independent fit of Table~\ref{tab:indep-br}
-($\sigma(\mW)=0.44\MeV$ pdg-constant, $0.90\MeV$ off-shell, at $m_t=174.2\GeV$),
+($\sigma(\mW)=0.44\MeV$ pdg-constant, $0.90\MeV$ off-shell, on the interim
+$m_t=174.2\GeV$ grid --- slightly above the production-grid $0.42/0.83\MeV$ of
+table~\ref{tab:indep-br}, an $m_t$/grid difference rather than an inconsistency),
 validating the machinery. Table~\ref{tab:match-pull} gives the decomposed pulls.
 
 In \emph{shape-only} mode --- which isolates the line-shape bias and is
@@ -3094,8 +3107,10 @@ Script \code{scripts/investigations/bfs\_match/matched\_pull.py}.}
 \end{table}
 
 Figure~\ref{fig:match-lineshape} shows the corresponding line-shape corrections
-across the scan: the smooth, energy-rising $\delta_\text{NNLO}$ ($0\to+0.12\%$), the
-NLL ISR shift ($\sim\!+0.3$--$0.45\%$), and the flat $+5.4\%$ $\delta_\text{QCD}$
+across the scan, as ratios on the \emph{observed} (ISR-convolved) line shape: the
+smooth, energy-rising $\delta_\text{NNLO}$ ($0\to+0.12\%$ observed --- the $+0.21\%$
+partonic $K$-factor diluted by the radiator), the NLL ISR shift
+($\sim\!+0.3$--$0.45\%$), and the flat $+5.4\%$ $\delta_\text{QCD}$
 normalisation (annotated). Because $\delta_\text{NNLO}$ rides the \emph{same} LL
 radiator as the reference, the partonic Monte-Carlo scatter cancels exactly in its
 ratio; the NLL$/$LL ratio uses two different radiators so it does not, and the
@@ -3107,7 +3122,8 @@ pull of Table~\ref{tab:match-pull}, robust to this scatter).
 \includegraphics[width=0.72\linewidth]{indep_match_lineshape}
 \caption{Line-shape corrections added by the BFS-on-MoCaNLO matching, as a ratio
 to the unmatched-LL line shape at nominal $(\mW,\GammaW)$ (the BR factor cancels, so
-this is convention-independent). $\delta_\text{NNLO}$ (BFS NNLO block) is smooth and
+this is convention-independent). $\delta_\text{NNLO}$ (BFS NNLO block, shown here as
+the ISR-convolved \emph{observed} ratio, $0\to+0.12\%$) is smooth and
 energy-rising; the NLL ISR upgrade adds $\sim\!+0.3$--$0.45\%$; their sum is the
 matched shape. $\delta_\text{QCD}$ is a flat $+5.4\%$ decay normalisation
 (shape-neutral, annotated). NLL$/$LL is smoothed in $\sqrt{s}$ (see text).
@@ -3125,10 +3141,23 @@ Script \code{scripts/investigations/bfs\_match/plot\_match\_lineshape.py}.}
   \item \textbf{$\mathcal O(\alpha)$-exact NLL matching.} Rebuild $C_1$ from the
     eMELA $\mathcal O(\alpha)$ ePDF (the analytic DELTA-scheme coefficient) to remove
     the residual NLL/scheme $\mathcal O(\alpha)$ term of section~\ref{sec:match-nll}.
-  \item \textbf{$\delta_\text{QCD}$ bookkeeping.} Trace how MoCaNLO normalises the
-    hadronic branching ratio against the input $\GammaW$ to confirm the per-channel
-    $\delta_\text{QCD}^{\,n_\text{had}}$ factor is applied without residual
-    double-correction.
+    Its impact has been bounded: toggling the $C_1$ scheme $\alpha$ at fixed NLL
+    radiator moves $\mW$ by only $\lesssim0.1\MeV$, so this is a precision refinement,
+    not a leading correction.
+  \item \textbf{NLL soft-endpoint substitution.} The eMELA-NLL per-leg integrand uses
+    the analytic soft$+$virtual limit below $1-x<10^{-15}$; with $\beta_e\approx0.06$
+    this branch is reached by $\approx13\%$ of the quadrature weight, where the
+    analytic limit and the DGLAP-evolved ePDF differ by $\sim0.5\%$ with a $\sim0.08\%$
+    energy slope (an estimated low-MeV $\mW$ effect). It is engine-self-consistent and
+    shared with the BFS-side convolution (so it does not break the port closure), but
+    should be quantified --- push the cutoff far lower, or carry it as an NLL theory
+    uncertainty --- before any production NLL number.
+  \item \textbf{$\delta_\text{QCD}$ bookkeeping (resolved).} Confirmed: MoCaNLO takes
+    the physical (QCD-corrected) $\GammaW$ as an external input while its $W\!\to q\bar
+    q$ matrix element runs at QCD order zero, so its hadronic branching ratio
+    $\Gamma_\text{had}^\text{EW}/\GammaW^\text{phys}$ is short by exactly
+    $\delta_\text{QCD}$ and the per-channel $\delta_\text{QCD}^{\,n_\text{had}}$ factor
+    restores it with no residual double-correction.
 \end{enumerate}
 
 % ---------------------------------------------------------------
