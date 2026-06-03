@@ -3144,14 +3144,15 @@ Script \code{scripts/investigations/bfs\_match/plot\_match\_lineshape.py}.}
     Its impact has been bounded: toggling the $C_1$ scheme $\alpha$ at fixed NLL
     radiator moves $\mW$ by only $\lesssim0.1\MeV$, so this is a precision refinement,
     not a leading correction.
-  \item \textbf{NLL soft-endpoint substitution.} The eMELA-NLL per-leg integrand uses
-    the analytic soft$+$virtual limit below $1-x<10^{-15}$; with $\beta_e\approx0.06$
-    this branch is reached by $\approx13\%$ of the quadrature weight, where the
-    analytic limit and the DGLAP-evolved ePDF differ by $\sim0.5\%$ with a $\sim0.08\%$
-    energy slope (an estimated low-MeV $\mW$ effect). It is engine-self-consistent and
-    shared with the BFS-side convolution (so it does not break the port closure), but
-    should be quantified --- push the cutoff far lower, or carry it as an NLL theory
-    uncertainty --- before any production NLL number.
+  \item \textbf{NLL soft-endpoint substitution (resolved).} The eMELA-NLL per-leg
+    integrand uses the analytic soft$+$virtual limit below $1-x<10^{-15}$ ($\approx13\%$
+    of the quadrature weight). Quantified: as $x\!\to\!1$ the integrand must approach
+    that exact constant, and \code{code\_pdf} agrees to $\sim0.2\%$ where its numerics
+    are valid (omx\,$\approx\!10^{-7}$--$10^{-9}$) but then \emph{diverges} to $+6\%$ at
+    omx\,$\approx\!10^{-66}$ (where $x$ underflows to $1.0$). The analytic limit is
+    therefore the trusted value and the cutoff \emph{shields} the result from eMELA's
+    $x\!\to\!1$ grid-edge artifact; lowering it would \emph{import} a $+0.53\%$ shift
+    (shape-only $\Delta\mW=-0.11\MeV$, wrong sign). The cutoff is correct as-is.
   \item \textbf{$\delta_\text{QCD}$ bookkeeping (resolved).} Confirmed: MoCaNLO takes
     the physical (QCD-corrected) $\GammaW$ as an external input while its $W\!\to q\bar
     q$ matrix element runs at QCD order zero, so its hadronic branching ratio

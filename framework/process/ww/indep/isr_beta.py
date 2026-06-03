@@ -67,6 +67,8 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
+import pickle
 from dataclasses import dataclass
 
 import numpy as np
@@ -331,15 +333,20 @@ def _per_leg_emela_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
     precision port closure breaks).  Because u=omx^β_e with β_e≈0.06 (1/β_e≈17),
     the smallest GL nodes reach omx≈1e-66, so ~30/128 nodes fall below the 1e-15
     cutoff and carry ~13 % of the per-leg integral weight; there the flat analytic
-    ``norm_nll`` is used instead of ``code_pdf``.  The analytic limit and the
-    DGLAP-evolved ePDF differ by ~0.5 % on those nodes, with a small (~0.08 %)
-    ENERGY SLOPE → an estimated low-MeV m_W systematic on the matched-NLL result.
-    This is engine-self-consistent (and cancels in the LL→NLL ratio if the LL
-    side uses the same substitution), so it does not bias the LL reference, but it
-    should be QUANTIFIED before any production NLL number: push the cutoff far
-    lower (e.g. 1e-300, x floored at 1−omx so code_pdf stays callable) and compare,
-    or carry it as an NLL theory uncertainty.  Not changed here — it is a physics
-    decision touching the production isr.py (report sec:match-todo).
+    ``norm_nll`` is used instead of ``code_pdf``.
+
+    QUANTIFIED 2026-06-03 — the cutoff is CORRECT, do NOT lower it.  As x→1 the
+    integrand MUST approach the exact soft+virtual constant ``norm_nll``; eMELA's
+    ``code_pdf`` agrees with it to ~0.2 % where its numerics are valid (omx≈1e-7
+    to 1e-9) but then DIVERGES monotonically away, reaching code/analytic≈+6 % at
+    omx≈1e-66 (the divergence sets in exactly where x underflows to 1.0).  So the
+    analytic ``norm_nll`` is the trusted endpoint value and the 1e-15 cutoff
+    shields the result from eMELA's x→1 grid-edge artifact.  LOWERING the cutoff
+    (calling code_pdf on the soft nodes) would IMPORT that artifact: +0.53 % on
+    the line shape, a shape-only m_W bias of only −0.11 MeV (lumi-weighted) but in
+    the WRONG direction.  Net: the cutoff avoids a ~0.1 MeV error; it is not a
+    systematic on the current result.  (Same substitution lives in the production
+    isr.py — keep them in sync.)  scripts/investigations/bfs_match/ analysis.
     """
     from framework.process.ww.xsec_calculator import emela_wrapper as _emela
     from framework.process.ww.xsec_calculator.isr import LAMBDA1_NF0
@@ -366,6 +373,20 @@ def _per_leg_emela_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
 #: einsum still run per call.  Keyed by (grid-content, cfg-fingerprint).
 _RADIATOR_CACHE: dict = {}
 
+#: DISK persistence of the eMELA-NLL radiator setup.  eMELA's ``code_pdf`` is
+#: ~22 ms/call (it re-evolves DGLAP per query) and a morph build issues ~19k
+#: queries → ~400 s, ALL of it σ̂-independent.  We persist the (x_vals, w, per_leg)
+#: setups so the build is a one-off *across processes/sessions*: the next fit,
+#: cross-fit, fork-pool worker or condor job loads them in ms instead of
+#: rebuilding.  EXACT (the cached arrays are byte-identical to a fresh build) and
+#: gated to the NLL path ONLY — the analytic LL path is fast and never touches
+#: disk, so the production-default line shape is unaffected.  Bump
+#: ``_RADIATOR_DISK_VERSION`` if the NLL radiator math (``_per_leg_emela_nll`` /
+#: the eMELA library / the scheme conventions) changes, or clear the cache dir.
+#: Location: ``$WW_ISR_RADIATOR_CACHE`` (default ~/.cache/ww_isr_radiator);
+#: set it empty to disable disk caching.
+_RADIATOR_DISK_VERSION = 1
+
 
 def _cfg_fingerprint(cfg: ISRConfig) -> tuple:
     return (cfg.scheme, cfg.resolved_alpha(), cfg.mu_F_factor, cfg.mu_F_abs,
@@ -373,13 +394,41 @@ def _cfg_fingerprint(cfg: ISRConfig) -> tuple:
             cfg.emela_fac_scheme, cfg.emela_ren_scheme)
 
 
+def _radiator_cache_dir() -> str:
+    return os.environ.get(
+        "WW_ISR_RADIATOR_CACHE",
+        os.path.join(os.path.expanduser("~"), ".cache", "ww_isr_radiator"))
+
+
+def _radiator_disk_path(key) -> str | None:
+    """File for a (√s-grid, cfg) radiator setup, or None if disk caching is off."""
+    cache_dir = _radiator_cache_dir()
+    if not cache_dir:
+        return None
+    h = hashlib.sha1(repr((_RADIATOR_DISK_VERSION, key)).encode()).hexdigest()
+    return os.path.join(cache_dir, f"rad_{h}.pkl")
+
+
 def _radiator_setup(sqrt_s_arr: np.ndarray, cfg: ISRConfig):
-    """List of (x_vals, w, per_leg) per √s — σ̂-independent, cached."""
+    """List of (x_vals, w, per_leg) per √s — σ̂-independent, cached (in-memory +,
+    for the eMELA-NLL path, on disk; see ``_RADIATOR_CACHE`` / ``_radiator_disk_path``)."""
     a = np.ascontiguousarray(sqrt_s_arr, dtype=float)
     key = ((a.shape, hashlib.sha1(a.tobytes()).hexdigest()), _cfg_fingerprint(cfg))
     cached = _RADIATOR_CACHE.get(key)
     if cached is not None:
         return cached
+
+    # Disk cache: worthwhile only for the expensive eMELA-NLL path.
+    disk = _radiator_disk_path(key) if cfg.nll else None
+    if disk is not None and os.path.exists(disk):
+        try:
+            with open(disk, "rb") as fh:
+                setups = pickle.load(fh)
+            _RADIATOR_CACHE[key] = setups
+            return setups
+        except Exception:
+            pass     # corrupt/partial/incompatible → fall through and rebuild
+
     setups = []
     for sq in a:
         be, bs, bh = cfg.betas(float(sq))
@@ -393,6 +442,18 @@ def _radiator_setup(sqrt_s_arr: np.ndarray, cfg: ISRConfig):
             per_leg = norm + jac_NS * NS_vals        # D(x)·|dx/du| in u-space
         setups.append((x_vals, w, per_leg))
     _RADIATOR_CACHE[key] = setups
+
+    if disk is not None:
+        # Best-effort, atomic (tmp + os.replace) so concurrent fork-pool/condor
+        # writers never leave a partial file; caching must NEVER break the calc.
+        try:
+            os.makedirs(_radiator_cache_dir(), exist_ok=True)
+            tmp = f"{disk}.tmp{os.getpid()}"
+            with open(tmp, "wb") as fh:
+                pickle.dump(setups, fh, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(tmp, disk)
+        except Exception:
+            pass
     return setups
 
 

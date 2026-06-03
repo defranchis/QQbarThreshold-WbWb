@@ -243,3 +243,23 @@ Scope: ONLY framework/process/ww/indep/ + report + test (production BFS chain un
   <0.1 MeV. Compiles 67pp clean; **republished to EOS**.
 DEFERRED (needs user/physics decision, documented not changed): nll-port-2 numeric cutoff change (touches
 production isr.py); the headline pull regen on the 172.5 grid (grids still landing).
+
+---
+## FOLLOW-UP (2026-06-03): nll-port-2 quantified + eMELA bottleneck + disk cache
+- **nll-port-2 RESOLVED.** Soft-endpoint cutoff (omx<1e-15, ~13% of per-leg weight): code_pdf vs the
+  exact analytic soft limit norm_nll — agree ~0.2% at omx≈1e-7..1e-9 (eMELA's valid regime) then code_pdf
+  DIVERGES to +6% at omx≈1e-66 (where x underflows to 1.0). So norm_nll is the trusted endpoint value and
+  the cutoff SHIELDS the result from eMELA's x→1 artifact. Lowering it imports +0.53% on the line shape →
+  shape-only m_W bias only −0.11 MeV (lumi-wtd) and WRONG sign. Verdict: **cutoff is correct, do NOT lower
+  it**; the ~0.1 MeV is an error AVOIDED, not a systematic. Report sec:match-todo + isr_beta docstring updated.
+- **eMELA bottleneck (Q3) MEASURED.** initialize = 14ms once (idempotent no-op after). code_pdf = **~22 ms/call**
+  (re-evolves DGLAP per query; same cost fixed/varying Q → no internal caching). A morph build ≈ 19k calls
+  ≈ 400 s — that is essentially the whole NLL build time.
+- **Speed (Q2).** analytic NLL ≈ µs/eval (×10³–10⁴ faster than raw eMELA), but ≈ a precomputed-grid eMELA.
+  Speed alone doesn't favor analytic; analytic's wins are endpoint-exactness + no eMELA dependency.
+- **SHIPPED: disk-persistent radiator cache** (isr_beta.py). per-leg setup (σ̂-independent) persisted by
+  (√s-grid, cfg) under $WW_ISR_RADIATOR_CACHE (default ~/.cache/ww_isr_radiator); NLL-only, atomic writes
+  (fork/condor-safe), versioned (_RADIATOR_DISK_VERSION). Verified: cold 7.0s → warm (fresh process) 0.001s,
+  byte-identical (same sha1); LL path writes nothing (production default untouched); test_isr_beta passes.
+  → the ~400s NLL build is now once-ever; future fits/cross-fits/172.5-pull load in ms.
+- Analytic-NLL literature research (Q1): deep-research workflow wf_cd6722d4-04e running (verdict pending).
