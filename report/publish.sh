@@ -122,6 +122,17 @@ else
     echo "[publish] WARN: $ISR_SRC missing — ISR-scheme figure will be stale"
 fi
 
+# Statistical-correlation scan (sigma(m_W)/sigma(Gamma_W) vs the point-to-point
+# stat correlation rho): produced by `doFit_ww.py --statCorrScan`
+# (framework/common/scans.py:scan_stat_correlation) into fit_output/ww/plots/.
+STATCORR_SRC="../fit_output/ww/plots/uncert_mass_width_vs_statcorr.pdf"
+if [[ -f "$STATCORR_SRC" ]]; then
+    mkdir -p figs
+    cp -p "$STATCORR_SRC" "figs/uncert_mass_width_vs_statcorr.pdf"
+else
+    echo "[publish] WARN: $STATCORR_SRC missing — stat-correlation figure will be stale"
+fi
+
 # Data tables the report cites (text provenance of the results sections, e.g.
 # report/data/scenario_compare.txt referenced in the scenario tables). Mirror
 # the human-readable dumps from the untracked plots/ working areas into the
