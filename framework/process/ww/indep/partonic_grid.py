@@ -22,8 +22,8 @@ import numpy as np
 from scipy.interpolate import UnivariateSpline
 
 
-DEFAULT_RESULTS_DIR = ("/afs/cern.ch/work/m/mdefranc/private/FCC/"
-                       "QQbar_threshold/mocanlo/grid_gen/results")
+DEFAULT_RESULTS_DIR = ("/eos/user/m/mdefranc/FCC/QQbar_threshold/"
+                       "grid_gen/results")
 
 
 def _read_csv(path: str) -> dict:

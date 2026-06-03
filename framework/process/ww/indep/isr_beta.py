@@ -69,6 +69,7 @@ import hashlib
 import math
 import os
 import pickle
+import socket
 from dataclasses import dataclass
 
 import numpy as np
@@ -400,12 +401,34 @@ def _radiator_cache_dir() -> str:
         os.path.join(os.path.expanduser("~"), ".cache", "ww_isr_radiator"))
 
 
+_EMELA_LIB_TAG: str | None = None
+
+
+def _emela_lib_tag() -> str:
+    """Content fingerprint of the eMELA shared library, folded into the NLL disk
+    key so a rebuilt/updated eMELA AUTO-invalidates stale cache files (otherwise a
+    silent eMELA change would keep serving old radiators).  Computed once per
+    process; falls back to a constant if eMELA isn't locatable."""
+    global _EMELA_LIB_TAG
+    if _EMELA_LIB_TAG is None:
+        try:
+            from framework.process.ww.xsec_calculator import emela_wrapper as _e
+            with open(_e._LIB_PATH, "rb") as fh:
+                _EMELA_LIB_TAG = hashlib.sha1(fh.read()).hexdigest()[:16]
+        except Exception:
+            _EMELA_LIB_TAG = "noemela"
+    return _EMELA_LIB_TAG
+
+
 def _radiator_disk_path(key) -> str | None:
-    """File for a (√s-grid, cfg) radiator setup, or None if disk caching is off."""
+    """File for a (√s-grid, cfg) radiator setup, or None if disk caching is off.
+    The key also carries the eMELA library content hash so an eMELA rebuild
+    invalidates stale entries without a manual ``_RADIATOR_DISK_VERSION`` bump."""
     cache_dir = _radiator_cache_dir()
     if not cache_dir:
         return None
-    h = hashlib.sha1(repr((_RADIATOR_DISK_VERSION, key)).encode()).hexdigest()
+    h = hashlib.sha1(repr(
+        (_RADIATOR_DISK_VERSION, _emela_lib_tag(), key)).encode()).hexdigest()
     return os.path.join(cache_dir, f"rad_{h}.pkl")
 
 
@@ -448,7 +471,11 @@ def _radiator_setup(sqrt_s_arr: np.ndarray, cfg: ISRConfig):
         # writers never leave a partial file; caching must NEVER break the calc.
         try:
             os.makedirs(_radiator_cache_dir(), exist_ok=True)
-            tmp = f"{disk}.tmp{os.getpid()}"
+            # NODE-unique tmp: PID is not unique across nodes, so two condor jobs
+            # on different machines could otherwise collide on the same shared-AFS
+            # tmp file.  host+pid+random makes the tmp collision-proof.
+            tok = f"{socket.gethostname()}.{os.getpid()}.{os.urandom(4).hex()}"
+            tmp = f"{disk}.tmp.{tok}"
             with open(tmp, "wb") as fh:
                 pickle.dump(setups, fh, protocol=pickle.HIGHEST_PROTOCOL)
             os.replace(tmp, disk)

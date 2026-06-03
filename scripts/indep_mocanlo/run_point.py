@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -65,12 +66,14 @@ def main(argv=None) -> int:
     ap.add_argument("--events", type=int, default=200000,
                     help="n_target_accepted_events per run")
     ap.add_argument("--time-wall", default="0-02:00", help="per-run wall cap D-HH:MM")
-    ap.add_argument("--workdir",
-                    default="/afs/cern.ch/work/m/mdefranc/private/FCC/"
-                            "QQbar_threshold/mocanlo/grid_gen/work")
+    ap.add_argument("--workdir", default=None,
+                    help="MoCaNLO scratch dir (default: NODE-LOCAL "
+                         "$_CONDOR_SCRATCH_DIR/$TMPDIR/tmp — never shared AFS/EOS; "
+                         "deleted after the run unless --keep-rundir)")
     ap.add_argument("--outdir",
-                    default="/afs/cern.ch/work/m/mdefranc/private/FCC/"
-                            "QQbar_threshold/mocanlo/grid_gen/results")
+                    default="/eos/user/m/mdefranc/FCC/QQbar_threshold/"
+                            "grid_gen/results",
+                    help="result CSV dir (default: EOS — small, append-only)")
     ap.add_argument("--base-seed", type=int, default=1000)
     ap.add_argument("--decorrelate", action="store_true",
                     help="A/B diagnostic: include the varpoint in the seed (old "
@@ -86,7 +89,8 @@ def main(argv=None) -> int:
                     help="fiducial m_ℓℓ>MLL GeV cut on same-flavour OS pairs "
                          "(e.g. 10); the physical tool for the γ*→ℓℓ NC pole")
     ap.add_argument("--keep-rundir", action="store_true",
-                    help="keep the MoCaNLO run directory (default: keep)")
+                    help="keep the MoCaNLO scratch dir (default: DELETE it after "
+                         "writing the result CSV — only results/*.csv is needed)")
     args = ap.parse_args(argv)
 
     mocanlo_bin = os.environ.get("MOCANLO_BIN")
@@ -105,7 +109,12 @@ def main(argv=None) -> int:
     if args.decorrelate:
         cut_tag += "_decorr"
     tag = f"{args.channel}_{args.varpoint}_ecm{args.ecm:.4f}_{args.scheme_alpha}{cut_tag}"
-    procdir = os.path.join(args.workdir, tag)
+    # Node-local scratch by default (NOT shared AFS/EOS): MoCaNLO does heavy
+    # many-small-file random I/O, which only belongs on fast local disk and must
+    # never accumulate on AFS (it filled the work volume) or thrash EOS.
+    workdir = (args.workdir or os.environ.get("_CONDOR_SCRATCH_DIR")
+               or os.environ.get("TMPDIR") or "/tmp")
+    procdir = os.path.join(workdir, tag)
     os.makedirs(procdir, exist_ok=True)
     os.makedirs(args.outdir, exist_ok=True)
 
@@ -157,6 +166,11 @@ def main(argv=None) -> int:
     print(f"  σ̂_Born = {res['sigma_born']:.6f} ± {res['err_born']:.6f} fb")
     print(f"  σ̂_NLO  = {res['sigma_nlo']:.6f} ± {res['err_nlo']:.6f} fb")
     print(f"  wrote {out_csv}")
+
+    # Drop the (node-local) scratch now that the result CSV is safely written —
+    # only results/*.csv is consumed downstream (partonic_grid.load_grids).
+    if not args.keep_rundir:
+        shutil.rmtree(procdir, ignore_errors=True)
     return 0
 
 
