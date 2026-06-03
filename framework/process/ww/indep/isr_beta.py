@@ -65,6 +65,7 @@ MoCaNLO partonic grid.
 
 from __future__ import annotations
 
+import hashlib
 import math
 from dataclasses import dataclass
 
@@ -340,17 +341,29 @@ def _per_leg_emela_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
     return per_leg
 
 
-def convolve_2leg(sqrt_s, sigma_hat_fn, cfg: ISRConfig = ISRConfig()):
-    """σ_obs(s) = ∫∫ D(x₁) D(x₂) σ̂(√(x₁x₂)·√s) dx₁ dx₂  [fb].
+#: Per-leg radiator setup cache.  The radiator weight D(x)·|dx/du| depends ONLY
+#: on (√s, cfg) — NOT on σ̂ — yet a morph build calls convolve_2leg ~60× (every
+#: varpoint × channel) with the same √s grid and cfg.  Caching the setup turns
+#: the (expensive, eMELA-NLL) per-leg build into a one-off; the σ̂ mesh eval +
+#: einsum still run per call.  Keyed by (grid-content, cfg-fingerprint).
+_RADIATOR_CACHE: dict = {}
 
-    ``sigma_hat_fn(sqrt_shat)`` returns σ̂ [fb] for an array of √ŝ [GeV].
-    Vectorised in ``sqrt_s`` (scalar or array).  ``cfg.nll`` swaps the analytic
-    LL+exp per-leg radiator for eMELA's NLL ePDF.
-    """
-    sqrt_s_arr = np.atleast_1d(np.asarray(sqrt_s, dtype=float))
-    out = np.zeros_like(sqrt_s_arr)
 
-    for idx, sq in enumerate(sqrt_s_arr):
+def _cfg_fingerprint(cfg: ISRConfig) -> tuple:
+    return (cfg.scheme, cfg.resolved_alpha(), cfg.mu_F_factor, cfg.mu_F_abs,
+            cfg.m_e, round(cfg.x_min, 12), cfg.n_quad, cfg.nll,
+            cfg.emela_fac_scheme, cfg.emela_ren_scheme)
+
+
+def _radiator_setup(sqrt_s_arr: np.ndarray, cfg: ISRConfig):
+    """List of (x_vals, w, per_leg) per √s — σ̂-independent, cached."""
+    a = np.ascontiguousarray(sqrt_s_arr, dtype=float)
+    key = ((a.shape, hashlib.sha1(a.tobytes()).hexdigest()), _cfg_fingerprint(cfg))
+    cached = _RADIATOR_CACHE.get(key)
+    if cached is not None:
+        return cached
+    setups = []
+    for sq in a:
         be, bs, bh = cfg.betas(float(sq))
         norm = _radiator_norm(be, bs)
         u, w, x_vals, one_minus_x, jac_NS = _endpoint_grid(be, cfg.x_min, cfg.n_quad)
@@ -360,7 +373,25 @@ def convolve_2leg(sqrt_s, sigma_hat_fn, cfg: ISRConfig = ISRConfig()):
         else:
             NS_vals = _radiator_NS(x_vals, bh, one_minus_x=one_minus_x)
             per_leg = norm + jac_NS * NS_vals        # D(x)·|dx/du| in u-space
+        setups.append((x_vals, w, per_leg))
+    _RADIATOR_CACHE[key] = setups
+    return setups
 
+
+def convolve_2leg(sqrt_s, sigma_hat_fn, cfg: ISRConfig = ISRConfig()):
+    """σ_obs(s) = ∫∫ D(x₁) D(x₂) σ̂(√(x₁x₂)·√s) dx₁ dx₂  [fb].
+
+    ``sigma_hat_fn(sqrt_shat)`` returns σ̂ [fb] for an array of √ŝ [GeV].
+    Vectorised in ``sqrt_s`` (scalar or array).  ``cfg.nll`` swaps the analytic
+    LL+exp per-leg radiator for eMELA's NLL ePDF.  The σ̂-independent radiator is
+    cached across calls (see ``_radiator_setup``).
+    """
+    sqrt_s_arr = np.atleast_1d(np.asarray(sqrt_s, dtype=float))
+    out = np.zeros_like(sqrt_s_arr)
+    setups = _radiator_setup(sqrt_s_arr, cfg)
+
+    for idx, sq in enumerate(sqrt_s_arr):
+        x_vals, w, per_leg = setups[idx]
         X1, X2 = np.meshgrid(x_vals, x_vals, indexing="ij")
         sqrt_shat = np.sqrt(X1 * X2) * float(sq)
         sigma_hat = np.asarray(sigma_hat_fn(sqrt_shat.ravel()),

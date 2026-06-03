@@ -2846,13 +2846,13 @@ BFS.
 \section{Matching BFS higher-order corrections onto MoCaNLO (work in progress)}\label{sec:match}
 % ---------------------------------------------------------------
 
-\emph{Status: work in progress / exploratory. The construction and both the LL
-and NLL implementations are in place and have passed the structural and numerical
-cross-checks reported below; the matched Asimov $\mW$/$\GammaW$ pull and an
-$\mathcal O(\alpha)$-exact NLL matching subtraction are still outstanding. None of
-this is wired into the production fit --- it lives behind opt-in flags in
-\code{framework/process/ww/indep/} (\code{match\_bfs}, \code{isr\_nll}; module
-\code{match\_bfs.py}).}
+\emph{Status: work in progress / exploratory. The construction, both the LL and
+NLL implementations, the validation cross-checks, and the matched Asimov pull
+(section~\ref{sec:match-pull}) are all in place; what remains is to regenerate the
+pull on the production $m_t=172.5\GeV$ grid and to make the NLL matching
+$\mathcal O(\alpha)$-exact. None of this is wired into the production fit --- it
+lives behind opt-in flags in \code{framework/process/ww/indep/} (\code{match\_bfs},
+\code{isr\_nll}; module \code{match\_bfs.py}).}
 
 \subsection{Principle: what MoCaNLO is missing}\label{sec:match-principle}
 
@@ -3029,12 +3029,99 @@ $172.5\GeV$. All numbers above are engine-self-consistent at $174.2\GeV$ and the
 screening of section~\ref{sec:indep-calc}), but any production matched result must be
 regenerated on a $172.5\GeV$ grid.
 
+\subsection{Matched Asimov pull}\label{sec:match-pull}
+
+The cross-fit of section~\ref{sec:val-isr-cross} quantifies the impact: inject the
+nominal line shape of each matched/NLL variant as Asimov pseudodata and fit it with
+the \emph{unmatched-LL} reference morph, so the best-fit shift is the $\mW$/$\GammaW$
+bias from omitting that piece (equivalently, the size of the correction the matching
+supplies). The self-fit closes at $0.00\MeV$ and the reference sensitivities
+reproduce the independent fit of Table~\ref{tab:indep-br}
+($\sigma(\mW)=0.44\MeV$ pdg-constant, $0.90\MeV$ off-shell, at $m_t=174.2\GeV$),
+validating the machinery. Table~\ref{tab:match-pull} gives the decomposed pulls.
+
+In \emph{shape-only} mode --- which isolates the line-shape bias and is
+convention-robust --- the picture is clean:
+\begin{itemize}
+  \item the BFS \textbf{NNLO} block shifts $\mW$ by $\mathbf{+1.6\MeV}$, identical
+    in both BR conventions, landing on the BFS theory-ladder NNLO step of
+    $\sim\!2.3\MeV$ (section~\ref{sec:val-theory-ladder}) --- an independent
+    confirmation, from a fully different line shape, that the NNLO threshold
+    correction matters at the few-MeV level;
+  \item the LL$\to$\textbf{NLL} ISR upgrade shifts $\mW$ by $\mathbf{-3.7\MeV}$, a
+    genuine and non-negligible effect that reinforces the necessity of NLL ISR;
+  \item $\delta_\text{QCD}$ is shape-neutral ($0.0\MeV$): a flat $+5.4\%$
+    normalisation carries no line-shape information;
+  \item the pieces combine almost linearly (matched\,$+$\,NLL: $-2.0\MeV$), and the
+    fitted \emph{uncertainty} is unchanged --- the matching moves the central value,
+    not the sensitivity.
+\end{itemize}
+
+The \emph{production cov-lumi} mode tells the complementary story about the
+\emph{rate}: there $\delta_\text{QCD}$'s flat $+5.4\%$ normalisation, omitted from
+the templates but constrained by the luminosity covariance, forces a large
+compensating shift --- $-50\MeV$ (off-shell) to $-106\MeV$ (pdg-constant) on $\mW$.
+This is not a physical ``matching shifts $\mW$ by $100\MeV$'' statement but the
+rate-constrained fit's hypersensitivity to the absolute normalisation; it makes
+quantitative the requirement that $\delta_\text{QCD}$ --- and the absolute
+cross-section normalisation generally --- \emph{must} enter the templates for any
+rate-based $\mW$ extraction, which is exactly what the matching provides. The NNLO
+shape pull is the convention-robust headline; the cov-lumi normalisation
+sensitivity is a caveat on the rate handle, not a property of the NNLO physics.
+
+\begin{table}[t]
+\centering
+\begin{tabular}{l r r r r}
+\hline
+ & \multicolumn{2}{c}{shape-only} & \multicolumn{2}{c}{cov-lumi (off\,/\,pdg)} \\
+piece added & $\Delta\mW$ & $\Delta\GammaW$ & $\Delta\mW$ & $\Delta\GammaW$ \\
+\hline
+$\delta_\text{NNLO}$   & $+1.6$ & $-2.2$ & $+2.1\,/\,{-1.7}$  & $-1.8\,/\,{-2.9}$ \\
+$\delta_\text{QCD}$    & $0.0$  & $0.0$  & $-49.8\,/\,{-106}$ & $-37.6\,/\,{-20.3}$ \\
+NLL ISR                & $-3.7$ & $-0.2$ & $-5.4\,/\,{-6.9}$  & $-1.3\,/\,{-1.0}$ \\
+matched$+$NLL (all)    & $-2.0$ & $-2.4$ & $-53\,/\,{-115}$   & $-41\,/\,{-24}$ \\
+\hline
+\end{tabular}
+\caption{Matched Asimov pull: $\mW$/$\GammaW$ shift [MeV] from injecting each
+matched/NLL variant as Asimov truth and fitting with the unmatched-LL morph
+(on the interim $m_t=174.2\GeV$ grid). The cov-lumi entries are
+off-shell\,/\,pdg-constant. The shape-only columns are the convention-robust
+line-shape pulls; the large cov-lumi $\delta_\text{QCD}$ entries are the rate-fit's
+sensitivity to the flat $+5.4\%$ normalisation, not an NNLO effect (see text). The
+self-fit bias is $0.00$ in all modes.
+Script \code{scripts/investigations/bfs\_match/matched\_pull.py}.}
+\label{tab:match-pull}
+\end{table}
+
+Figure~\ref{fig:match-lineshape} shows the corresponding line-shape corrections
+across the scan: the smooth, energy-rising $\delta_\text{NNLO}$ ($0\to+0.12\%$), the
+NLL ISR shift ($\sim\!+0.3$--$0.45\%$), and the flat $+5.4\%$ $\delta_\text{QCD}$
+normalisation (annotated). Because $\delta_\text{NNLO}$ rides the \emph{same} LL
+radiator as the reference, the partonic Monte-Carlo scatter cancels exactly in its
+ratio; the NLL$/$LL ratio uses two different radiators so it does not, and the
+displayed NLL curve is smoothed in $\sqrt{s}$ (the quantitative result is the fit
+pull of Table~\ref{tab:match-pull}, robust to this scatter).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.72\linewidth]{indep_match_lineshape}
+\caption{Line-shape corrections added by the BFS-on-MoCaNLO matching, as a ratio
+to the unmatched-LL line shape at nominal $(\mW,\GammaW)$ (the BR factor cancels, so
+this is convention-independent). $\delta_\text{NNLO}$ (BFS NNLO block) is smooth and
+energy-rising; the NLL ISR upgrade adds $\sim\!+0.3$--$0.45\%$; their sum is the
+matched shape. $\delta_\text{QCD}$ is a flat $+5.4\%$ decay normalisation
+(shape-neutral, annotated). NLL$/$LL is smoothed in $\sqrt{s}$ (see text).
+Script \code{scripts/investigations/bfs\_match/plot\_match\_lineshape.py}.}
+\label{fig:match-lineshape}
+\end{figure}
+
 \subsection{Open items}\label{sec:match-todo}
 
 \begin{enumerate}
-  \item \textbf{Matched Asimov pull.} The decisive number --- how many MeV the LL-
-    and NLL-matching shift the fitted $\mW$ and $\GammaW$ --- requires the full
-    morph$\to$fit on a $172.5\GeV$ correlated-seed grid (running).
+  \item \textbf{Matched Asimov pull on the production grid.} The shape-only pull is
+    measured (Table~\ref{tab:match-pull}: $\delta_\text{NNLO}\,{+}1.6\MeV$, NLL ISR
+    $-3.7\MeV$) on the interim $m_t=174.2\GeV$ grid; regenerate it on the production
+    $172.5\GeV$ correlated-seed grid for the headline number.
   \item \textbf{$\mathcal O(\alpha)$-exact NLL matching.} Rebuild $C_1$ from the
     eMELA $\mathcal O(\alpha)$ ePDF (the analytic DELTA-scheme coefficient) to remove
     the residual NLL/scheme $\mathcal O(\alpha)$ term of section~\ref{sec:match-nll}.

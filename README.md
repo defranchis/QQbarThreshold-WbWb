@@ -625,6 +625,17 @@ Shipped 2026-05-29:
   (`scripts/investigations/bilinear_morph/`). Opt-in; WbWb recovers
   pure-linear behaviour by leaving `CROSS_TERMS` undefined.
 
-A parallel implementation on established generators (WHIZARD / Recola /
-MoCaNLO), as a second `*Generator` slotting into the same `do_scan` /
-`file_name` contract, is planned for publication-level cross-validation.
+A **parallel, BFS-free implementation** (MoCaNLO+Recola NLO-EW ⊗ decoupled
+beta-scheme / eMELA ISR) lives in `framework/process/ww/indep/`, slotting into
+the same `do_scan` / `file_name` contract as a second `WWGeneratorMoCaNLO` for
+publication-level cross-validation — independent σ(m_W) / σ(Γ_W) / ρ (report
+section "Independent BFS-free cross-check").
+
+An **exploratory matching layer** (`indep/match_bfs.py`; opt-in `match_bfs` /
+`isr_nll` flags, default off) grafts onto it the only BFS pieces genuinely
+missing from a complete NLO-EW calculation — the dominant NNLO threshold block
+(as a relative K-factor) and δ_QCD on hadronic decay — plus an eMELA NLL ISR
+option, all combined at the partonic level ahead of a single ISR convolution
+(the O(α) ISR matching subtraction stays keyed to MoCaNLO's Born). Asimov pull:
+δ_NNLO ≈ +1.6 MeV, NLL ≈ −3.7 MeV on m_W (report section "Matching BFS
+higher-order corrections onto MoCaNLO"). Not wired into the production fit.

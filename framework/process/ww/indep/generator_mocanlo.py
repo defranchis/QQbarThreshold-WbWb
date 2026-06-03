@@ -22,6 +22,8 @@ points above ECM_MAX (no σ̂ there to convolve).
 
 from __future__ import annotations
 
+import hashlib
+import multiprocessing as _mp
 import os
 from dataclasses import dataclass, field
 
@@ -53,6 +55,23 @@ def _build_fine_grid() -> np.ndarray:
     n = int(round((ECM_FINE_MAX - ECM_FINE_MIN) / ECM_FINE_STEP)) + 1
     g = ECM_FINE_MIN + ECM_FINE_STEP * np.arange(n)
     return np.concatenate([g, [ECM_LAST]])
+
+
+def _grid_key(sqrt_s) -> tuple:
+    """Content-based cache key for a √s grid (NOT id(): a freshly-built grid
+    array reuses no cache slot, and a GC'd id can be reused → stale hit)."""
+    a = np.ascontiguousarray(sqrt_s, dtype=float)
+    return (a.shape, hashlib.sha1(a.tobytes()).hexdigest())
+
+
+# Fork-pool morph build: the parent sets these globals, children inherit them
+# via copy-on-write (no pickling of the generator / its splines).
+_MORPH_GEN = None
+_MORPH_SQRTS = None
+
+
+def _morph_worker(vkey: str) -> np.ndarray:
+    return _MORPH_GEN._varpoint_lineshape(vkey, _MORPH_SQRTS)
 
 
 @dataclass
@@ -133,7 +152,7 @@ class WWGeneratorMoCaNLO:
 
     def _varpoint_lineshape(self, varpoint: str, sqrt_s: np.ndarray) -> np.ndarray:
         """Assembled σ_tot(√s) [pb] for one varpoint (cached)."""
-        ck = (varpoint, id(sqrt_s))
+        ck = (varpoint, _grid_key(sqrt_s))
         if ck in self._cache:
             return self._cache[ck]
         grids = self._load()
@@ -180,17 +199,31 @@ class WWGeneratorMoCaNLO:
         averaged down and the wide lever arm pins the slopes.  Returns coeffs of
         shape (6, len(sqrt_s)).  Cached per sqrt_s identity.
         """
-        ck = ("coeffs", id(sqrt_s))
+        ck = ("coeffs", _grid_key(sqrt_s))
         if ck in self._cache:
             return self._cache[ck]
         grids = self._load()
         channels = list(self._weights())
-        rows, rhs = [], []
-        for v in VARPOINTS:
-            if all((ch, v.key) in grids for ch in channels):
-                dm, dw = v.dmW_MeV, v.dgW_MeV
-                rows.append([1.0, dm, dw, dm * dm, dw * dw, dm * dw])
-                rhs.append(self._varpoint_lineshape(v.key, sqrt_s))
+        vps = [v for v in VARPOINTS
+               if all((ch, v.key) in grids for ch in channels)]
+        rows = [[1.0, v.dmW_MeV, v.dgW_MeV, v.dmW_MeV ** 2, v.dgW_MeV ** 2,
+                 v.dmW_MeV * v.dgW_MeV] for v in vps]
+
+        # The per-varpoint line shapes are independent ISR convolutions — the
+        # build's bottleneck (esp. eMELA NLL).  Fan them out over a fork pool
+        # when WW_INDEP_NJOBS>1 (default serial; grids are loaded in the parent
+        # above so children inherit them via COW, no AFS re-read).
+        njobs = int(os.environ.get("WW_INDEP_NJOBS", "1"))
+        if njobs > 1 and len(vps) > 1:
+            global _MORPH_GEN, _MORPH_SQRTS
+            _MORPH_GEN, _MORPH_SQRTS = self, sqrt_s
+            ctx = _mp.get_context("fork")
+            with ctx.Pool(min(njobs, len(vps))) as pool:
+                rhs = pool.map(_morph_worker, [v.key for v in vps])
+            _MORPH_GEN = _MORPH_SQRTS = None
+        else:
+            rhs = [self._varpoint_lineshape(v.key, sqrt_s) for v in vps]
+
         A = np.asarray(rows)                       # (n_vp, 6)
         Y = np.asarray(rhs)                        # (n_vp, n_s)
         coeffs, *_ = np.linalg.lstsq(A, Y, rcond=None)   # (6, n_s)
