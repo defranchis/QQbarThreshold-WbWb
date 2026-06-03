@@ -2843,6 +2843,208 @@ for the acceptance/channel-scope cross-check and a matched absolute comparison t
 BFS.
 
 % ---------------------------------------------------------------
+\section{Matching BFS higher-order corrections onto MoCaNLO (work in progress)}\label{sec:match}
+% ---------------------------------------------------------------
+
+\emph{Status: work in progress / exploratory. The construction and both the LL
+and NLL implementations are in place and have passed the structural and numerical
+cross-checks reported below; the matched Asimov $\mW$/$\GammaW$ pull and an
+$\mathcal O(\alpha)$-exact NLL matching subtraction are still outstanding. None of
+this is wired into the production fit --- it lives behind opt-in flags in
+\code{framework/process/ww/indep/} (\code{match\_bfs}, \code{isr\_nll}; module
+\code{match\_bfs.py}).}
+
+\subsection{Principle: what MoCaNLO is missing}\label{sec:match-principle}
+
+The independent MoCaNLO line shape (section~\ref{sec:indep}) and the BFS chain
+(section~\ref{sec:val}) are complementary in a way that invites a controlled
+combination. MoCaNLO is a \emph{complete, exact} fixed-order NLO-EW calculation of
+the full off-shell $e^+e^-\!\to 4f$ process: at $\mathcal O(\alpha)$ it already
+contains every threshold effect --- the $\mathcal O(\alpha)$ Coulomb singularity in
+the one-loop virtual ($\sim\!\alpha\pi/2\beta$, the
+threshold enhancement of~\cite{FKM1993,FKM1995}), the soft and collinear photons,
+the non-factorisable production--decay interference, and the $\mathcal O(\alpha)$
+electroweak decay correction --- and it computes them \emph{without} the threshold
+($v$-)expansion that BFS performs. The BFS chain, by contrast, is a threshold
+expansion carried to $\mathcal O(\alpha^2)$: it supplies genuine higher-order pieces
+that lie beyond a fixed-order NLO calculation.
+
+This dictates precisely which BFS pieces may be added to MoCaNLO without double
+counting. Organising both as a double expansion in the electroweak coupling
+$\alpha$ and the threshold velocity $v\simeq\beta$:
+\begin{itemize}
+  \item every \emph{strictly} NLO BFS piece --- the hard matching coefficient
+    $c_{p,LR}^{(1,\mathrm{fin})}$, the electroweak decay correction, and the
+    $\mathcal O(\alpha)$ Coulomb term --- is $\mathcal O(\alpha)$ and is therefore
+    \emph{already inside} MoCaNLO's NLO (and more accurately, being un-expanded).
+    Adding any of these would double count;
+  \item only the \emph{genuinely higher-order} or \emph{orthogonal} pieces can be
+    added: (i) the BFS dominant NNLO threshold block --- the
+    $\mathcal O(\alpha^2/v^2)$ Coulomb terms plus the NNLO hard and decay
+    corrections~\cite{BFSnnlo} --- which has no overlap with the
+    $\mathcal O(\alpha)$ content of MoCaNLO; and (ii) $\delta_\text{QCD}$, the QCD
+    correction to hadronic $W$ decay, which is entirely absent from MoCaNLO (its
+    matrix element runs at QCD order zero, electroweak only).
+\end{itemize}
+This is the standard additive-matching prescription used at the top-quark
+threshold~\cite{Beneke2015,HoangStahlhofen} --- a complete fixed-order result plus
+the higher-order threshold remainder, with the lower-order content of the remainder
+subtracted; here the subtraction is automatic, as shown next.
+
+\subsection{The additive construction}\label{sec:match-construction}
+
+The two corrections are applied at the \emph{partonic} level, ahead of a
+\emph{single} ISR convolution, so that initial-state radiation dresses the combined
+cross section exactly once. Per channel,
+\begin{align}
+  \hat\sigma_\text{comb}(\hat s) &= \hat\sigma^\text{NLO}_\text{MoCaNLO}(\hat s)
+     + \delta_\text{NNLO}(\hat s)\,\hat\sigma^\text{Born}_\text{MoCaNLO}(\hat s),
+     \label{eq:match-comb}\\
+  \sigma_\text{obs}(s) &= \iint\! D\,D\,\hat\sigma_\text{comb}(x_1 x_2 s)
+     \;-\; C_1\!\big[\hat\sigma^\text{Born}_\text{MoCaNLO}\big](s),
+     \label{eq:match-obs}
+\end{align}
+with $D$ the (LL or NLL) electron radiator and $C_1$ the $\mathcal O(\alpha)$ ISR
+matching subtraction of section~\ref{sec:indep-calc}. The decisive bookkeeping point
+is the \emph{asymmetry} of the subtraction: MoCaNLO's $\hat\sigma^\text{NLO}$ carries
+the explicit $\mathcal O(\alpha)$ initial-state collinear logarithm (it is generated
+with \code{pdf\_set=none}, mass-regularised), so it must be matched; the BFS-derived
+term $\delta_\text{NNLO}\hat\sigma^\text{Born}$ is ISR-naked (BFS supplies ISR by a
+separate convolution), so it must \emph{not}. Equation~\eqref{eq:match-obs} realises
+this automatically by keying $C_1$ to MoCaNLO's Born alone --- the NNLO term rides
+through the convolution unsubtracted, as required.
+
+The NNLO correction enters as a \emph{relative} production $K$-factor,
+\begin{equation}
+  \delta_\text{NNLO}(\hat s) = \frac{\sigma^\text{NNLO}_\text{BFS}(\hat s)
+     - \sigma^\text{NLO}_\text{BFS}(\hat s)}{\sigma^\text{Born}_\text{BFS}(\hat s)},
+  \label{eq:match-dnnlo}
+\end{equation}
+evaluated from the total $e^+e^-\!\to W^+W^-$ cross section of the BFS chain (BR
+stripped, WHIZARD anchor off) with the three terms differing \emph{only} by the
+active correction blocks. The relative form is deliberate: any common multiplicative
+factor --- the WHIZARD anchor (section~\ref{sec:anchor}), the branching-ratio
+convention --- cancels in the ratio, so $\delta_\text{NNLO}$ is a clean,
+convention-independent number that transplants onto MoCaNLO's own Born. Because
+$\sigma^\text{NNLO}_\text{BFS}-\sigma^\text{NLO}_\text{BFS}$ is, by the additive
+structure of the chain (section~\ref{sec:nnlo}), \emph{exactly} the NNLO block --- the
+NLO loops appear in both terms and cancel --- $\delta_\text{NNLO}$ contains no
+$\mathcal O(\alpha)$ piece. The protection against double-counting MoCaNLO's NLO is
+thus structural, not numerical.
+
+\paragraph{Channel scope.} The dominant NNLO terms --- the
+$\mathcal O(\alpha^2/v^2)$ Coulomb ladder and the NNLO hard production --- correct the
+$e^+e^-\!\to W^+W^-$ amplitude \emph{before} the $W$'s decay and are therefore blind
+to the final state: $\delta_\text{NNLO}$ multiplies every WW channel identically. The
+single channel-dependent NNLO term is the Coulomb$\times$decay piece; its
+leptonic-versus-hadronic spread is
+$\text{Coulomb}\times(\delta^\text{EW}_{\text{decay},h}-\delta^\text{EW}_{\text{decay},\ell})
+\sim 2\times10^{-5}$, three orders of magnitude below the $0.25\MeV$ target, so the
+universal treatment is justified.
+
+\paragraph{$\delta_\text{QCD}$.} The QCD correction to hadronic $W$ decay,
+$\delta_\text{QCD}(\alpha_s)=1+\alpha_s/\pi+1.409\,(\alpha_s/\pi)^2\approx1.040$ per
+hadronic $W$~\cite{BFSnnlo} (section~\ref{sec:dqcd}), is applied per channel as
+$\delta_\text{QCD}^{\,n_\text{had}}$ with $n_\text{had}\in\{0,1,2\}$ the number of
+hadronically decaying $W$'s ($\mu\tau$: $1.000$; $\ell\nu qq$: $1.040$; $qqqq$:
+$1.082$). Summed over the pure-WW channel weights this is a flat $+5.43\%$ on the
+rate ($\approx\langle n_\text{had}\rangle\times4.0\%$), entirely on the decay side and
+orthogonal to the production correction. Unlike the BFS chain, MoCaNLO has no
+reference $\alpha_s$ to divide out, so the \emph{full} factor is applied.
+
+\subsection{NLL ISR via eMELA}\label{sec:match-nll}
+
+The same construction supports an NLL initial-state radiator. The analytic LL$+$exp
+radiator of the independent chain (section~\ref{sec:indep-calc}) is replaced, per
+leg, by the eMELA NLL electron PDF~\cite{eMELA2019} (DELTA factorisation,
+$\alpha(M_Z)$ renormalisation --- the production convention of
+section~\ref{sec:val-isr-scheme}), keeping the matching subtraction of
+equation~\eqref{eq:match-obs}. The port reuses the validated endpoint substitution of
+the independent chain: the per-leg $\beta_e$ at $\mu_F=\sqrt{\hat s}$ and the LL
+soft$+$virtual normalisation coincide \emph{identically} with those of the BFS-side
+eMELA convolution (section~\ref{sec:isr}), so the radiator is exact (verified below).
+The one approximation is that $C_1$ is retained in its analytic-LL form rather than
+rebuilt from eMELA's own $\mathcal O(\alpha)$, leaving a residual $\mathcal O(\alpha)$
+NLL/DELTA-scheme constant (estimated $\lesssim0.1$--$0.3\%$); making the NLL matching
+$\mathcal O(\alpha)$-exact is the leading refinement (section~\ref{sec:match-todo}).
+
+\subsection{Cross-checks}\label{sec:match-val}
+
+Table~\ref{tab:match-val} collects the checks performed so far, all on the rich
+correlated-seed grid of section~\ref{sec:indep-grid} (at $m_t=174.2\GeV$; see the
+caveat). The construction passes its structural and numerical tests:
+\begin{itemize}
+  \item \textbf{NLO-content premise (shape).} The MoCaNLO-NLO and BFS-NLO observed
+    line shapes, normalised at $161\GeV$, agree to $<0.1\%$ across $160.5$--$162\GeV$
+    where the $\mW$ sensitivity peaks, diverging to $2$--$4\%$ only in the deep
+    sub-threshold tail where the BFS threshold expansion is expected to degrade ---
+    so MoCaNLO does contain the BFS NLO content where it matters.
+  \item \textbf{NLO-content premise (sensitivity).} The relative $\mW$ slope
+    $\mathrm d\ln\sigma/\mathrm d\mW$ --- the quantity that drives $\sigma(\mW)$ ---
+    agrees between the two NLO calculations to $\pm1$--$3\%$ at the peak and
+    $-3.2\%$ averaged over $160$--$162.5\GeV$. This residual is the genuine
+    full-off-shell-versus-threshold-expansion difference; it feeds the matched result
+    only as $3\%\times\delta_\text{NNLO}\approx6\times10^{-3}\%$.
+  \item \textbf{No double counting.} Guaranteed by the construction of
+    $\delta_\text{NNLO}$, equation~\eqref{eq:match-dnnlo} (the NLO loops cancel in the
+    numerator), and consistent with the size hierarchy
+    $\delta_\text{NNLO}\sim0.1$--$0.2\%\ll$ the NLO correction.
+  \item \textbf{NLL port.} The independent-chain NLL convolution reproduces the
+    validated BFS-side eMELA-NLL convolution on identical $\hat\sigma$, to
+    $6\times10^{-10}$ (machine precision).
+\end{itemize}
+The matched corrections are small and smooth: $\delta_\text{NNLO}$ rises from
+$\approx0$ near threshold to $+0.21\%$ at $163\GeV$, and the LL$\to$NLL ISR upgrade
+shifts the rate by $+0.26\%$ ($161\GeV$) to $+0.59\%$ ($159\GeV$), the same with or
+without the BFS matching (the NLL upgrade is orthogonal to it).
+
+\begin{table}[t]
+\centering
+\begin{tabular}{l l l}
+\hline
+Check & Result & Verdict \\
+\hline
+NLO premise, line shape (norm.\ @161) & $<0.1\%$ at $160.5$--$162\GeV$ & pass \\
+NLO premise, $\mW$ slope ($160$--$162.5$) & $-3.2\%$ mean, $\pm1$--$3\%$ peak & pass \\
+Double counting & cancels by construction & pass \\
+NLL port vs.\ BFS eMELA, identical $\hat\sigma$ & $6\times10^{-10}$ & pass \\
+\hline
+$\delta_\text{NNLO}$ size ($157\!\to\!163\GeV$) & $0 \to +0.21\%$ & --- \\
+NLL/LL ISR shift & $+0.26$ to $+0.59\%$ & --- \\
+$\delta_\text{QCD}$, per channel ($\mu\tau/\ell\nu qq/qqqq$) & $1.000/1.040/1.082$ & --- \\
+\hline
+\end{tabular}
+\caption{Cross-checks of the BFS-on-MoCaNLO matching (work in progress), on the
+rich correlated-seed grid ($m_t=174.2\GeV$). The two ``NLO premise'' rows test that
+MoCaNLO's NLO already contains the BFS NLO content (shape and sensitivity), so that
+only the NNLO remainder need be added; the lower block lists the size of the added
+corrections.}
+\label{tab:match-val}
+\end{table}
+
+\paragraph{$m_t$ caveat.} The only correlated-seed grid presently available was
+generated at $m_t=174.2\GeV$ (the BFS-table reference), not the production
+$172.5\GeV$. All numbers above are engine-self-consistent at $174.2\GeV$ and the
+\emph{conclusions} are $m_t$-independent at this precision (cf.\ the $-0.0011\%$
+screening of section~\ref{sec:indep-calc}), but any production matched result must be
+regenerated on a $172.5\GeV$ grid.
+
+\subsection{Open items}\label{sec:match-todo}
+
+\begin{enumerate}
+  \item \textbf{Matched Asimov pull.} The decisive number --- how many MeV the LL-
+    and NLL-matching shift the fitted $\mW$ and $\GammaW$ --- requires the full
+    morph$\to$fit on a $172.5\GeV$ correlated-seed grid (running).
+  \item \textbf{$\mathcal O(\alpha)$-exact NLL matching.} Rebuild $C_1$ from the
+    eMELA $\mathcal O(\alpha)$ ePDF (the analytic DELTA-scheme coefficient) to remove
+    the residual NLL/scheme $\mathcal O(\alpha)$ term of section~\ref{sec:match-nll}.
+  \item \textbf{$\delta_\text{QCD}$ bookkeeping.} Trace how MoCaNLO normalises the
+    hadronic branching ratio against the input $\GammaW$ to confirm the per-channel
+    $\delta_\text{QCD}^{\,n_\text{had}}$ factor is applied without residual
+    double-correction.
+\end{enumerate}
+
+% ---------------------------------------------------------------
 \section{Limitations and open items}\label{sec:limits}
 % ---------------------------------------------------------------
 
