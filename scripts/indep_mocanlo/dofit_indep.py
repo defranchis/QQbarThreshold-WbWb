@@ -4,8 +4,11 @@
 Generates the morph template set with :class:`WWGeneratorMoCaNLO` (MoCaNLO
 NLO-EW partonic σ̂ ⊗ decoupled beta-scheme ISR — no BFS code or numbers) and
 runs the SAME 2-POI cov-lumi Asimov fit as the BFS theory ladder, so the
-resulting sensitivities are directly comparable to the BFS Asimov headline
-(σ_mW ≈ 1.2 MeV) while being computed from a fully independent line shape.
+resulting sensitivities are directly comparable to the BFS Asimov column
+(both read the same card scenario, incl. the selection efficiency ε that
+inflates the per-point stat by 1/√ε) while being computed from a fully
+independent line shape. The placeholder cross-section systematics
+(card.XSEC_SYST) are NOT activated here — this stays a clean line-shape fit.
 
 This is the STEP-4 entry point of the independent cross-check: it answers
 "what σ(m_W)/σ(Γ_W)/ρ does the independent calculation give?", not
@@ -86,6 +89,10 @@ def main(argv=None) -> int:
                          "SHAPE only — removes the off-shell BR²(Γ_W) rate "
                          "handle, giving the apples-to-apples comparison with "
                          "the BFS pdg-constant ρ sign.")
+    ap.add_argument("--statCorrScan", action="store_true",
+                    help="after the fit, sweep the point-to-point statistical "
+                         "correlation ρ (0→1, stat-only) and save σ(m_W)/σ(Γ_W) "
+                         "vs ρ to --outdir")
     ap.add_argument("--outdir", default=DEFAULT_OUTDIR)
     args = ap.parse_args(argv)
 
@@ -125,6 +132,11 @@ def main(argv=None) -> int:
     print(f"[indep] σ(Γ_W)  = {width.s * 1e3:6.2f} MeV")
     print(f"[indep] ρ(m,Γ)  = {rho:+.3f}")
     print("=" * 64)
+
+    if args.statCorrScan:
+        from framework.common import scans
+        print(f"[indep] ρ-scan (stat-only): σ(m_W)/σ(Γ_W) vs stat correlation → {args.outdir}")
+        scans.scan_stat_correlation(fit, outdir=args.outdir)
     return 0
 
 

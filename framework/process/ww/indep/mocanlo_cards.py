@@ -22,14 +22,17 @@ from framework.process.ww.indep.channels import ChannelBlock
 
 @dataclass(frozen=True)
 class SMInputs:
-    """Fixed SM inputs (validated card values)."""
-    mZ: float = 91.188
+    """Fixed SM inputs, synced to the WW production card
+    (cards/ww_default.py PARAM_INPUTS) so the independent calc and the BFS
+    chain share m_t / M_H / M_Z / G_F. NB the ISR β_e α is a separate, fit-time
+    knob (isr_beta), intentionally α_Gμ and NOT set here."""
+    mZ: float = 91.1876               # card M_Z
     gZ: float = 2.4952
-    mt: float = 174.2
+    mt: float = 172.5                 # card m_t (OS pole)
     gTop: float = 1.3448
-    mH: float = 125.0
+    mH: float = 125.25                # card M_H
     gH: float = 4.07e-3
-    fermi_constant: float = 1.16637e-5
+    fermi_constant: float = 1.1663787e-5   # card G_F
     scheme_alpha: str = "gf"          # gf | alpha0 | alphaz | alphamsbar
     mu_ref: float = 80.379            # renorm / fact / IR scale [GeV]
     n_loops: int = 2

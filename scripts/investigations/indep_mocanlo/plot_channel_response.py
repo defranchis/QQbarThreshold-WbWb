@@ -57,12 +57,24 @@ def _poly_fn(ecm, sigma, err, lo, hi):
     return fn
 
 
-def mocanlo_channel(grids, channel, varpoint, cfg):
+#: (m_W, Γ_W) [GeV] for each ±10 MeV varpoint, for the pdg-constant BR factor.
+VP_VALS = {"nominal": (MW0, GW0), "mp10": (MW0 + STEP, GW0),
+           "mm10": (MW0 - STEP, GW0), "wp10": (MW0, GW0 + STEP),
+           "wm10": (MW0, GW0 - STEP)}
+
+
+def mocanlo_channel(grids, channel, varpoint, cfg, br_convention="off-shell"):
     g = grids[(channel, varpoint)]
     lo, hi = g.ecm[0], g.ecm[-1]
-    return isr_beta.sigma_observed_matched(
+    obs = isr_beta.sigma_observed_matched(
         SQRT_S, _poly_fn(g.ecm, g.sigma_nlo, g.err_nlo, lo, hi),
         _poly_fn(g.ecm, g.sigma_born, g.err_born, lo, hi), cfg)
+    if br_convention == "pdg-constant":
+        # divide out the off-shell BR² = (Γ_partial(m_W)/Γ_W)² ∝ m_W⁶/Γ_W²
+        # (same universal factor as WWGeneratorMoCaNLO._br_factor)
+        mW, gW = VP_VALS[varpoint]
+        obs = obs * (gW / GW0) ** 2 * (MW0 / mW) ** 6
+    return obs
 
 
 def bfs_lineshapes():
@@ -91,44 +103,44 @@ def bfs_lineshapes():
             "wm10": sig(MW0, GW0 - STEP)}
 
 
-def main():
-    grids = load_grids(scheme_alpha="gf", lepton_cut=None)
-    cfg = isr_beta.ISRConfig()
+def _plot_convention(grids, cfg, bfs, br_convention, outdir):
+    """Produce the mass + width response figures for one BR convention.
+
+    off-shell    : native σ(4f)∝BR²; BFS is line-shape-only so the Γ_W curves
+                   differ — BFS×(Γ₀/Γ)² (dotted) is overlaid to show the BR effect.
+    pdg-constant : MoCaNLO BR divided out → both calcs are BR-fixed, so the
+                   MoCaNLO and BFS curves should now overlay for BOTH POIs.
+    """
     vps = ("nominal", "mp10", "mm10", "wp10", "wm10")
-
-    # MoCaNLO per-channel + combined
-    mc = {c: {v: mocanlo_channel(grids, c, v, cfg) for v in vps} for c in CHANNELS}
+    mc = {c: {v: mocanlo_channel(grids, c, v, cfg, br_convention) for v in vps}
+          for c in CHANNELS}
     comb = {v: sum(PURE_WW_WEIGHTS[c] * mc[c][v] for c in CHANNELS) for v in vps}
-    bfs = bfs_lineshapes()
-
-    # BR factor for the BFS Γ_W curves (Γ_tot/(Γ_tot ± δΓ))²
     br_up = (GW0 / (GW0 + STEP)) ** 2
     br_dn = (GW0 / (GW0 - STEP)) ** 2
-
-    outdir = os.path.join(_REPO, "plots", "indep_mocanlo")
-    os.makedirs(outdir, exist_ok=True)
+    pdg = br_convention == "pdg-constant"
+    sfx = "_pdgconst" if pdg else ""
+    conv_lbl = "pdg-constant BR" if pdg else "off-shell"
 
     for poi, up, dn, fname, is_width in (
         ("m_W", "mp10", "mm10", "channel_response_mass", False),
         (r"\Gamma_W", "wp10", "wm10", "channel_response_width", True),
     ):
         fig, ax = plt.subplots(figsize=(7.6, 5.2))
-        # per-channel +10 (thin solid)
         for c in CHANNELS:
             ax.plot(SQRT_S, mc[c][up] / mc[c]["nominal"], color=CH_COLOR[c],
                     lw=1.2, alpha=0.85, label=f"{CH_LABEL[c]} +10")
-        # combined ±10 (black)
         ax.plot(SQRT_S, comb[up] / comb["nominal"], color="black", lw=2.6,
                 label="combined +10")
         ax.plot(SQRT_S, comb[dn] / comb["nominal"], color="black", lw=2.6,
                 ls="--", label="combined −10")
-        # BFS ±10 (magenta)
         ax.plot(SQRT_S, bfs[up] / bfs["nominal"], color="magenta", lw=2.2,
                 label="BFS +10")
         ax.plot(SQRT_S, bfs[dn] / bfs["nominal"], color="magenta", lw=2.2,
                 ls="--", label="BFS −10")
-        if is_width:
-            # BFS × BR factor → restores the BR effect MoCaNLO has, BFS lacks
+        # In off-shell mode the BFS Γ_W curve lacks the BR rate effect; overlay
+        # BFS×(Γ₀/Γ)² to show it. In pdg-constant mode MoCaNLO is itself BR-fixed,
+        # so MoCaNLO and raw BFS should already coincide — no ×BR curve needed.
+        if is_width and not pdg:
             ax.plot(SQRT_S, bfs[up] / bfs["nominal"] * br_up, color="darkcyan",
                     lw=1.8, ls=":", label=r"BFS +10 $\times\,(\Gamma_0/\Gamma)^2$")
             ax.plot(SQRT_S, bfs[dn] / bfs["nominal"] * br_dn, color="darkcyan",
@@ -136,23 +148,31 @@ def main():
         ax.axhline(1.0, color="0.7", lw=0.8, ls=":")
         ax.set_xlabel(r"$\sqrt{s}$ [GeV]")
         ax.set_ylabel(rf"$\sigma({poi}\pm10\,$MeV$)\,/\,\sigma$(nominal)")
-        ax.set_title(rf"Independent WW vs BFS: ${poi}$ response of the line shape")
+        ax.set_title(rf"Independent WW vs BFS ({conv_lbl}): "
+                     rf"${poi}$ response of the line shape")
         ax.legend(frameon=False, fontsize=8, ncol=2, loc="best")
         ax.grid(alpha=0.25)
         fig.tight_layout()
         for ext in ("pdf", "png"):
-            fig.savefig(os.path.join(outdir, f"{fname}.{ext}"), dpi=140)
+            fig.savefig(os.path.join(outdir, f"{fname}{sfx}.{ext}"), dpi=140)
         plt.close(fig)
 
-        print(f"=== {poi} response +10 MeV (ratio) ===")
+        print(f"=== [{conv_lbl}] {poi} response +10 MeV (ratio) ===")
         for s0 in (159, 161, 162.5, 164):
             i = int(np.argmin(abs(SQRT_S - s0)))
-            extra = (f"  BFS×BR={bfs[up][i]/bfs['nominal'][i]*br_up:.5f}"
-                     if is_width else "")
             print(f"  √s={s0:6.1f}: MoCaNLO(comb)={comb[up][i]/comb['nominal'][i]:.5f}"
-                  f"  BFS={bfs[up][i]/bfs['nominal'][i]:.5f}{extra}")
+                  f"  BFS={bfs[up][i]/bfs['nominal'][i]:.5f}")
 
-    print(f"\nwrote {outdir}/channel_response_{{mass,width}}.{{pdf,png}}")
+
+def main():
+    grids = load_grids(scheme_alpha="gf", lepton_cut=None)
+    cfg = isr_beta.ISRConfig()
+    bfs = bfs_lineshapes()
+    outdir = os.path.join(_REPO, "plots", "indep_mocanlo")
+    os.makedirs(outdir, exist_ok=True)
+    for br_convention in ("off-shell", "pdg-constant"):
+        _plot_convention(grids, cfg, bfs, br_convention, outdir)
+    print(f"\nwrote {outdir}/channel_response_{{mass,width}}{{,_pdgconst}}.{{pdf,png}}")
 
 
 if __name__ == "__main__":
