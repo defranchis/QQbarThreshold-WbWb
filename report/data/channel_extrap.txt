@@ -10,28 +10,30 @@ scan. THEORY uncertainties are channel-specific and NOT extrapolated.
 σ(m_W)  [MeV]
 source               munuqq     inclusive WW  stat-scaling
 ----------------------------------------------------------
-stat                   0.85             0.32  ×       2.64
-alphas                 0.08             0.08              
+stat                   0.95             0.36  ×       2.64
+alphas                 0.08             0.07              
 aem_isr                0.01             0.00              
 aemEW                  0.03             0.03              
-BES                    0.01             0.02              
+BES                    0.01             0.00              
 BEC                    0.19             0.18              
 lumi                   0.37             0.36              
-total exp              1.23             0.60              
+xsec                      —                —              
+total exp              1.36             0.64              
 ----------------------------------------------------------
 
 ----------------------------------------------------------
 σ(\Gamma_W)  [MeV]
 source               munuqq     inclusive WW  stat-scaling
 ----------------------------------------------------------
-stat                   1.82             0.69  ×       2.64
-alphas                 0.01             0.05              
+stat                   2.03             0.77  ×       2.64
+alphas                 0.01             0.00              
 aem_isr                0.00             0.00              
 aemEW                  0.00             0.00              
-BES                    0.02             0.03              
+BES                    0.03             0.02              
 BEC                    0.06             0.06              
 lumi                   0.48             0.47              
-total exp              2.51             1.05              
+xsec                      —                —              
+total exp              2.79             1.15              
 ----------------------------------------------------------
 
 Expected stat improvement √(1/B) = 2.64 (if a row scales by this, it is stat-like; if it stays flat,

@@ -9,20 +9,20 @@ the 'free-lumi' σ (rate floated) is shown in parentheses for reference.
 scenario       pts              σ_mW             σ_ΓW       ρ   points
                                [MeV]            [MeV]        
 ----------------------------------------------------------------------
-7pt baseline     7      1.18 ( 4.22)     2.46 ( 2.49)   +0.66   157–163, 1.0 GeV step (equal split)
-3pt FCC base     3      1.21 ( 4.13)     2.34 ( 2.54)   +0.61   157, 160, 163 (equal split)
-Azzurri-like     2    1.20 (2104.47)    2.04 (360.93)   +0.40   157 (60%) + 162.4 (40%) [Γ_W-insensitive crossing]
+7pt baseline     7      1.31 ( 4.71)     2.76 ( 2.78)   +0.66   157–163, 1.0 GeV step (equal split)
+3pt FCC base     3      1.35 ( 4.62)     2.61 ( 2.84)   +0.61   157, 160, 163 (equal split)
+Azzurri-like     2    1.33 (2146.21)    2.28 (368.09)   +0.41   157 (60%) + 162.4 (40%) [Γ_W-insensitive crossing]
 ----------------------------------------------------------------------
 
 (b) THEORY LADDER  Δm_W vs production truth [MeV], realistic corr-lumi prior
 -----------------------------------------------------------
 scenario       ISR         LO      +NLO     +NNLO     +dQCD
 -----------------------------------------------------------
-7pt baseline   LL     -97.706    -9.960    -6.537    -6.537
-7pt baseline   NLL    -91.118    -3.422    +0.000    +0.000
+7pt baseline   LL     -97.744    -9.969    -6.543    -6.543
+7pt baseline   NLL    -91.151    -3.425    +0.000    +0.000
 -----------------------------------------------------------
-3pt FCC base   LL    -105.718   -11.678    -7.235    -7.235
-3pt FCC base   NLL    -98.569    -4.458    +0.000    +0.000
+3pt FCC base   LL    -105.783   -11.694    -7.244    -7.244
+3pt FCC base   NLL    -98.625    -4.464    +0.000    +0.000
 -----------------------------------------------------------
 Azzurri-like   LL    -106.782   -11.948    -7.753    -7.753
 Azzurri-like   NLL    -98.879    -4.161    +0.000    +0.000
@@ -34,25 +34,29 @@ Azzurri-like   NLL    -98.879    -4.161    +0.000    +0.000
 σ(m_W)  [MeV]
 source       7pt baseline   3pt FCC base   Azzurri-like
 -------------------------------------------------------
-stat                 0.85           0.92           1.06
+stat                 0.95           1.03           1.18
 alphas               0.08           0.09           0.09
 aem_isr              0.01           0.01           0.01
-BES                  0.01           0.02           0.00
+aemEW                0.03           0.03           0.03
+BES                  0.01           0.01           0.00
 BEC                  0.19           0.20           0.20
 lumi                 0.37           0.41           0.41
-total exp            1.23           1.27           1.25
+xsec                    —              —              —
+total exp            1.36           1.40           1.38
 -------------------------------------------------------
 -------------------------------------------------------
 σ(\Gamma_W)  [MeV]
 source       7pt baseline   3pt FCC base   Azzurri-like
 -------------------------------------------------------
-stat                 1.82           1.83           1.85
+stat                 2.03           2.05           2.07
 alphas               0.01           0.02           0.02
 aem_isr              0.00           0.00           0.00
-BES                  0.02           0.03           0.01
+aemEW                0.00           0.01           0.01
+BES                  0.03           0.02           0.01
 BEC                  0.06           0.08           0.07
 lumi                 0.48           0.49           0.33
-total exp            2.51           2.39           2.07
+xsec                    —              —              —
+total exp            2.79           2.66           2.30
 -------------------------------------------------------
 
 (d) UNCERTAINTY & CORRELATION STABILITY across the ladder
@@ -60,17 +64,17 @@ total exp            2.51           2.39           2.07
 -----------------------------------------------------------------------
 scenario       quantity          LO     +NLO    +NNLO    +dQCD   spread
 -----------------------------------------------------------------------
-7pt baseline   σ_mW [MeV]      1.18     1.18     1.18     1.18     0.00
-7pt baseline   σ_ΓW [MeV]      2.44     2.46     2.46     2.46     0.02
+7pt baseline   σ_mW [MeV]      1.31     1.31     1.31     1.31     0.00
+7pt baseline   σ_ΓW [MeV]      2.73     2.75     2.76     2.76     0.03
 7pt baseline   ρ              +0.63    +0.66    +0.66    +0.66     0.03
 -----------------------------------------------------------------------
-3pt FCC base   σ_mW [MeV]      1.21     1.21     1.21     1.21     0.00
-3pt FCC base   σ_ΓW [MeV]      2.32     2.33     2.34     2.34     0.02
-3pt FCC base   ρ              +0.57    +0.60    +0.61    +0.61     0.04
+3pt FCC base   σ_mW [MeV]      1.34     1.34     1.35     1.35     0.00
+3pt FCC base   σ_ΓW [MeV]      2.59     2.61     2.61     2.61     0.02
+3pt FCC base   ρ              +0.57    +0.61    +0.61    +0.61     0.04
 -----------------------------------------------------------------------
-Azzurri-like   σ_mW [MeV]      1.21     1.20     1.20     1.20     0.01
-Azzurri-like   σ_ΓW [MeV]      2.03     2.04     2.04     2.04     0.01
-Azzurri-like   ρ              +0.38    +0.40    +0.40    +0.40     0.03
+Azzurri-like   σ_mW [MeV]      1.34     1.33     1.33     1.33     0.01
+Azzurri-like   σ_ΓW [MeV]      2.27     2.28     2.28     2.28     0.01
+Azzurri-like   ρ              +0.38    +0.40    +0.41    +0.41     0.03
 -----------------------------------------------------------------------
 
 Notes:
@@ -78,11 +82,11 @@ Notes:
     grid); only which points enter the fit changes.
   • The Azzurri-like upper point is OUR dσ/dΓ_W=0 crossing
     (snapped to the 0.1-GeV grid), not Azzurri's 162.3 GeV.
-  • The Azzurri-like layout reduces ρ (here +0.19 vs +0.51 for
-    the 7-point) — the upper point carries little Γ_W info, partly
-    decorrelating the POIs — but NOT to ρ≈0: the corr-lumi-only
-    constraint leaves a residual (Azzurri's ρ≈0 uses a different
-    setup). It also gives the tightest σ_ΓW.
+  • The Azzurri-like layout reduces ρ relative to the 7-point
+    (see panel (a) for the live values) — the upper point carries
+    little Γ_W info, partly decorrelating the POIs — but NOT to
+    ρ≈0: the corr-lumi-only constraint leaves a residual (Azzurri's
+    ρ≈0 uses a different setup). It also gives the tightest σ_ΓW.
   • The 'free-lumi' σ is meaningless for the 2-point Azzurri-like
     scenario (huge values): 2 points cannot constrain 2 POIs PLUS
     a floating normalisation — read its 'prior' (realistic) column.
