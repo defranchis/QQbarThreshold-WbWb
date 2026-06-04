@@ -49,9 +49,12 @@ from __future__ import annotations
 
 import concurrent.futures
 import functools
+import hashlib
 import math
 import multiprocessing
 import os
+import pickle
+import socket
 
 import numpy as np
 from scipy.special import gamma as gamma_fn
@@ -373,6 +376,332 @@ def _H_SV_per_leg(beta: float, nll: bool = False,
     return ll_factor * np.exp(nll_exp)
 
 
+# ---------------------------------------------------------------------------
+# eMELA per-leg radiator cache (NLL ``code_pdf`` + eMELA-LL ``ll_pdf``)
+# ---------------------------------------------------------------------------
+#
+# The per-leg eMELA radiator built inside ``sigma_ISR_2leg_convolution`` —
+# ``per_leg[i] = xD(x_i, Q)/x_i · |dx/du|_i`` (plus the analytic H_SV endpoint)
+# — depends ONLY on (√s, ISR-cfg), NOT on σ̂ (mW, Γ_W, the partonic function).
+# Yet eMELA's ``code_pdf``/``ll_pdf`` re-evolve DGLAP per query (~22 ms/call), and
+# a morph/template build calls the convolution dozens of times over the SAME √s
+# grid + ISR cfg with only σ̂ changing.  Caching the σ̂-independent radiator turns
+# that O(n_quad) eMELA build into a one-off.  Two layers, mirroring the
+# independent-chain ``indep/isr_beta.py``:
+#
+#   L1 in-memory ``_RADIATOR_CACHE``  — kills the rebuild across σ̂-variation calls
+#       within a process (the dominant fit/morph win; zero disk footprint).
+#   L2 disk ``rad_bfs_*.pkl``         — shares the build across processes/sessions
+#       (fork-pool workers, condor jobs, repeat fits).  EXACT: the cached float64
+#       arrays are byte-identical to a fresh build.  Gated to the eMELA paths
+#       ONLY (NLL ``code_pdf`` and eMELA-LL ``ll_pdf``) — the analytic LL+exp
+#       branch is a fast closed form and never touches the cache.
+#
+# Unlike the indep chain we do NOT auto-warm before the fork pool: here the fork
+# pool parallelises the per-√s loop, i.e. the eMELA build *is* the parallelised
+# work, so a serial parent warm-up would defeat it.  Instead the disk cache +
+# explicit ``prewarm`` give the cross-process win, and the in-memory cache gives
+# the within-process one.  Bump ``_RADIATOR_DISK_VERSION`` if the radiator math /
+# eMELA conventions change (the eMELA .so content hash is folded in already).
+_RADIATOR_CACHE: dict = {}
+_RADIATOR_DISK_VERSION = 1
+_EMELA_LIB_TAG: str | None = None
+
+
+def _emela_lib_tag() -> str:
+    """Content fingerprint of the eMELA shared library, folded into the disk key
+    so a rebuilt/updated eMELA AUTO-invalidates stale cache files.  Computed once
+    per process; falls back to a constant if eMELA isn't locatable."""
+    global _EMELA_LIB_TAG
+    if _EMELA_LIB_TAG is None:
+        try:
+            from . import emela_wrapper as _e
+            with open(_e._LIB_PATH, "rb") as fh:
+                _EMELA_LIB_TAG = hashlib.sha1(fh.read()).hexdigest()[:16]
+        except Exception:
+            _EMELA_LIB_TAG = "noemela"
+    return _EMELA_LIB_TAG
+
+
+def _radiator_cache_dir() -> str:
+    """Disk-cache directory (``$WW_ISR_RADIATOR_CACHE``; default
+    ``~/.cache/ww_isr_radiator`` — shared with the indep chain, the file prefix
+    keeps the two namespaces distinct).  Empty string disables disk caching.
+    Point it at EOS/tmp to keep the AFS work volume clean."""
+    return os.environ.get(
+        "WW_ISR_RADIATOR_CACHE",
+        os.path.join(os.path.expanduser("~"), ".cache", "ww_isr_radiator"))
+
+
+def _resolve_isr_alpha(alpha_em_isr: float | None) -> float:
+    """The α actually used in β_e / H_SV / eMELA init — resolves the module
+    default so ``None`` and an explicit α_Gμ(M_W_BFS_REF) map to one cache key
+    (they produce identical radiators)."""
+    return alpha_em_isr if alpha_em_isr is not None else _DEFAULT_ISR_ALPHA
+
+
+def _isr_radiator_fingerprint(*, alpha_a: float, isr_scale_factor: float,
+                              x_min: float, n_quad: int, nll: bool, emela_ll: bool,
+                              emela_pert_order: str, emela_fac_scheme: str,
+                              emela_ren_scheme: str) -> tuple:
+    """The (σ̂-independent) cfg fingerprint of an eMELA radiator — everything the
+    per-leg weight depends on EXCEPT √s.  ``M_E`` is folded in since β_e uses it."""
+    return (alpha_a, isr_scale_factor, round(x_min, 12), n_quad, M_E,
+            bool(nll), bool(emela_ll),
+            emela_pert_order, emela_fac_scheme, emela_ren_scheme)
+
+
+def _radiator_disk_path(sq: float, fp: tuple) -> str | None:
+    """File for one (√s, cfg) eMELA radiator, or None if disk caching is off.
+    Keyed per-√s (not per-grid) because the fork pool splits the √s loop across
+    workers and successive calls reuse individual √s points — per-√s keys let all
+    of them share.  The eMELA .so hash + version are folded in for auto-invalidation."""
+    cache_dir = _radiator_cache_dir()
+    if not cache_dir:
+        return None
+    h = hashlib.sha1(repr(
+        (_RADIATOR_DISK_VERSION, "bfs2leg", _emela_lib_tag(), float(sq), fp)
+    ).encode()).hexdigest()
+    return os.path.join(cache_dir, f"rad_bfs_{h}.pkl")
+
+
+def _build_emela_radiator(sq: float, *, alpha_a: float, isr_scale_factor: float,
+                          x_min: float, n_quad: int, nll: bool,
+                          emela_pert_order: str, emela_fac_scheme: str,
+                          emela_ren_scheme: str):
+    """Build ONE (√s, cfg) per-leg eMELA radiator → (x_vals, w, per_leg).
+
+    Byte-identical to the inline build that used to live in
+    ``sigma_ISR_2leg_convolution``: same β_e, same u-substitution grid, same
+    ``code_pdf``(nll) / ``ll_pdf``(eMELA-LL) per-node loop and the same analytic
+    ``_H_SV_per_leg`` substitution for omx < 1e-15.  Self-initialises eMELA so it
+    is safe to call from ``prewarm`` standalone (``initialize`` is a no-op when
+    the args already match)."""
+    from . import emela_wrapper as _emela
+    _emela.initialize(pert_order=emela_pert_order, fac_scheme=emela_fac_scheme,
+                      ren_scheme=emela_ren_scheme, alpha=alpha_a)
+    s = float(sq) * float(sq)
+    beta = beta_ISR(s, alpha_em=alpha_a, isr_scale_factor=isr_scale_factor)
+    u, w, x_vals, one_minus_x, jac_NS = _endpoint_substitution(
+        beta / 2.0, x_min, n_quad)
+    H_sv_em = _H_SV_per_leg(beta, nll=nll, alpha_em=alpha_a)
+    Q = float(sq) * isr_scale_factor
+    per_leg = np.empty_like(x_vals)
+    for i in range(len(x_vals)):
+        omx_i = float(one_minus_x[i])
+        if omx_i < 1e-15:
+            per_leg[i] = H_sv_em
+        else:
+            x_i = float(x_vals[i])
+            xD = (_emela.code_pdf(x_i, omx_i, Q) if nll
+                  else _emela.ll_pdf(1, x_i, omx_i, Q))
+            per_leg[i] = xD / x_i * float(jac_NS[i])
+    return x_vals, w, per_leg
+
+
+def _emela_radiator_setup(sq: float, *, alpha_em_isr: float | None,
+                          isr_scale_factor: float, x_min: float, n_quad: int,
+                          nll: bool, emela_ll: bool, emela_pert_order: str,
+                          emela_fac_scheme: str, emela_ren_scheme: str):
+    """Cached (in-memory + disk) per-leg eMELA radiator for one √s → (x_vals, w,
+    per_leg).  ``nll`` selects ``code_pdf`` (NLL), otherwise ``ll_pdf`` (eMELA-LL);
+    exactly one of nll/emela_ll is True on this path."""
+    alpha_a = _resolve_isr_alpha(alpha_em_isr)
+    fp = _isr_radiator_fingerprint(
+        alpha_a=alpha_a, isr_scale_factor=isr_scale_factor, x_min=x_min,
+        n_quad=n_quad, nll=nll, emela_ll=emela_ll,
+        emela_pert_order=emela_pert_order, emela_fac_scheme=emela_fac_scheme,
+        emela_ren_scheme=emela_ren_scheme)
+    key = (float(sq), fp)
+    cached = _RADIATOR_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    disk = _radiator_disk_path(sq, fp)
+    if disk is not None and os.path.exists(disk):
+        try:
+            with open(disk, "rb") as fh:
+                setup = pickle.load(fh)
+            _RADIATOR_CACHE[key] = setup
+            return setup
+        except Exception:
+            pass     # corrupt/partial/incompatible → fall through and rebuild
+
+    setup = _build_emela_radiator(
+        sq, alpha_a=alpha_a, isr_scale_factor=isr_scale_factor, x_min=x_min,
+        n_quad=n_quad, nll=nll, emela_pert_order=emela_pert_order,
+        emela_fac_scheme=emela_fac_scheme, emela_ren_scheme=emela_ren_scheme)
+    _RADIATOR_CACHE[key] = setup
+
+    if disk is not None:
+        # Best-effort, atomic (node-unique tmp + os.replace) so concurrent
+        # fork-pool/condor writers never leave a partial file; caching must
+        # NEVER break the calc.
+        try:
+            os.makedirs(_radiator_cache_dir(), exist_ok=True)
+            tok = f"{socket.gethostname()}.{os.getpid()}.{os.urandom(4).hex()}"
+            tmp = f"{disk}.tmp.{tok}"
+            with open(tmp, "wb") as fh:
+                pickle.dump(setup, fh, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(tmp, disk)
+        except Exception:
+            pass
+    return setup
+
+
+# ---------------------------------------------------------------------------
+# prewarm — pre-build the eMELA radiator disk cache for a campaign
+# ---------------------------------------------------------------------------
+
+def _coerce_grid_list(grids) -> list[np.ndarray]:
+    """Accept either a single √s grid (1-D array-like of scalars) or a sequence
+    of such grids, and return a list of contiguous float arrays."""
+    if isinstance(grids, np.ndarray):
+        return [np.ascontiguousarray(grids, dtype=float)]
+    grids = list(grids)
+    if not grids:
+        return []
+    if np.ndim(grids[0]) == 0:                      # sequence of scalars → one grid
+        return [np.ascontiguousarray(grids, dtype=float)]
+    return [np.ascontiguousarray(g, dtype=float) for g in grids]
+
+
+#: Radiator-cfg defaults — match ``sigma_observed_munuqq``'s production 2-leg
+#: call (z_min=0.30 → x_min=√0.30, n_quad auto-mapped to 128, NLL DELTA/ALPMZ).
+_RADIATOR_CFG_DEFAULTS = dict(
+    alpha_em_isr=None, isr_scale_factor=1.0, x_min=_X_MIN_2LEG_DEFAULT,
+    n_quad=128, nll=True, emela_ll=False, emela_pert_order="NLL",
+    emela_fac_scheme="DELTA", emela_ren_scheme="ALPMZ")
+
+
+def radiator_cfg(**overrides) -> dict:
+    """Canonical eMELA radiator cfg dict for ``prewarm`` — production defaults
+    (NLL DELTA/ALPMZ, x_min=√0.30, n_quad=128) with any field overridden.  Pass
+    the SAME ISR knobs the fit uses (``x_min``, ``n_quad``, ``isr_scale_factor``,
+    ``emela_*``) or the prewarmed files won't match the fit's lookups."""
+    cfg = dict(_RADIATOR_CFG_DEFAULTS)
+    cfg.update(overrides)
+    return cfg
+
+
+def _prewarm_build_one(sq_cfg):
+    """Worker: ensure the radiator disk file for one (√s, cfg) exists.  Returns
+    (status, path) with status ∈ {'built','exists','no-disk'}.  Idempotent — an
+    existing file is left untouched (not even re-read)."""
+    sq, cfg = sq_cfg
+    alpha_a = _resolve_isr_alpha(cfg["alpha_em_isr"])
+    fp = _isr_radiator_fingerprint(
+        alpha_a=alpha_a, isr_scale_factor=cfg["isr_scale_factor"],
+        x_min=cfg["x_min"], n_quad=cfg["n_quad"], nll=cfg["nll"],
+        emela_ll=cfg["emela_ll"], emela_pert_order=cfg["emela_pert_order"],
+        emela_fac_scheme=cfg["emela_fac_scheme"],
+        emela_ren_scheme=cfg["emela_ren_scheme"])
+    path = _radiator_disk_path(sq, fp)
+    if path is None:
+        return ("no-disk", None)
+    if os.path.exists(path):
+        return ("exists", path)
+    _emela_radiator_setup(sq, **cfg)        # builds via eMELA + atomically writes
+    return ("built", path)
+
+
+def prewarm(sqrt_s_grids, cfgs, *, n_workers: int = 1, verbose: bool = True):
+    """Pre-build the eMELA-radiator **disk** cache for a whole campaign up front,
+    so a subsequent parallel fan-out (theory variations, scenario fits,
+    cross-fits, condor jobs across nodes, the internal √s fork pool) only ever
+    *reads* the cache — never races to rebuild it.
+
+    Why this and not a lock: the radiator is σ̂-independent and its disk cache
+    lives on shared AFS visible to every condor node, but AFS has no reliable
+    cross-node file lock.  N cold jobs would each redo the full eMELA build and
+    atomically over-write the same ``rad_bfs_*.pkl``.  The write is safe; the
+    redundant *compute* is the waste.  Build once, here, before the fan-out.
+
+    ``cfgs`` is one radiator-cfg dict (see :func:`radiator_cfg`) or a list of
+    them — typically the production NLL cfg plus any ξ scale-variation / scheme
+    diagnostics.  Only the eMELA paths (NLL ``code_pdf`` or eMELA-LL ``ll_pdf``)
+    disk-cache; an analytic-LL cfg (``nll=False, emela_ll=False``) is counted as
+    ``skipped_analytic``.  One file is one (√s, cfg); the radiator is
+    σ̂-independent so the whole partonic ladder (LO/NLO/NNLO/δ_QCD) collapses to
+    the same files.
+
+    Returns a report dict (``built``/``exists``/``skipped_analytic``/``no_disk``
+    counts, ``n_unique``, ``files`` list of (status, path), ``cache_dir``).
+    Idempotent/resumable — a re-run only builds what is still missing; it must
+    COMPLETE before the fan-out launches.  For a campaign on fcc-ironic use
+    ``n_workers≈8-16`` (node cap 48).
+    """
+    grids = _coerce_grid_list(sqrt_s_grids)
+    cfgs = [cfgs] if isinstance(cfgs, dict) else list(cfgs)
+    cfgs = [radiator_cfg(**c) for c in cfgs]    # fill defaults / validate keys
+
+    work: dict[str, tuple] = {}
+    skipped_analytic = 0
+    no_disk = 0
+    n_sq = sum(len(g) for g in grids)
+    for cfg in cfgs:
+        if not (cfg["nll"] or cfg["emela_ll"]):
+            skipped_analytic += n_sq            # analytic LL+exp never disk-caches
+            continue
+        alpha_a = _resolve_isr_alpha(cfg["alpha_em_isr"])
+        fp = _isr_radiator_fingerprint(
+            alpha_a=alpha_a, isr_scale_factor=cfg["isr_scale_factor"],
+            x_min=cfg["x_min"], n_quad=cfg["n_quad"], nll=cfg["nll"],
+            emela_ll=cfg["emela_ll"], emela_pert_order=cfg["emela_pert_order"],
+            emela_fac_scheme=cfg["emela_fac_scheme"],
+            emela_ren_scheme=cfg["emela_ren_scheme"])
+        disabled = False
+        for grid in grids:
+            for sq in grid:
+                path = _radiator_disk_path(float(sq), fp)
+                if path is None:
+                    no_disk += n_sq
+                    disabled = True
+                    break
+                work.setdefault(path, (float(sq), cfg))
+            if disabled:
+                break
+
+    existing = [p for p in work if os.path.exists(p)]
+    to_build = [(p, sc) for p, sc in work.items() if p not in existing]
+
+    if verbose:
+        print(f"[prewarm] {len(work)} unique (√s,cfg) file(s): "
+              f"{len(existing)} already cached, {len(to_build)} to build "
+              f"(skipped_analytic={skipped_analytic}); "
+              f"cache={_radiator_cache_dir()!r}")
+
+    files = [("exists", p) for p in existing]
+    if to_build:
+        import time as _time
+        t0 = _time.time()
+        items = [sc for _p, sc in to_build]
+        if n_workers > 1 and len(items) > 1:
+            ctx = multiprocessing.get_context("fork")
+            with ctx.Pool(min(n_workers, len(items))) as pool:
+                results = pool.map(_prewarm_build_one, items)
+        else:
+            results = [_prewarm_build_one(sc) for sc in items]
+        files.extend(results)
+        if verbose:
+            print(f"[prewarm] built {len(items)} file(s) in {_time.time()-t0:.1f}s")
+
+    report = {
+        "built": sum(1 for s, _ in files if s == "built"),
+        "exists": sum(1 for s, _ in files if s == "exists"),
+        "skipped_analytic": skipped_analytic,
+        "no_disk": no_disk,
+        "n_unique": len(work),
+        "files": files,
+        "cache_dir": _radiator_cache_dir(),
+    }
+    if verbose:
+        print(f"[prewarm] done: built={report['built']} exists={report['exists']} "
+              f"skipped_analytic={report['skipped_analytic']} "
+              f"no_disk={report['no_disk']}")
+    return report
+
+
 def sigma_ISR_2leg_convolution(sqrt_s,
                                sigma_partonic_fn,
                                mW: float = M_W_DEFAULT,
@@ -497,45 +826,37 @@ def sigma_ISR_2leg_convolution(sqrt_s,
 
     for idx, sq in enumerate(sqrt_s_arr):
         s = sq * sq
-        beta = beta_ISR(s, alpha_em=alpha_em_isr,
-                        isr_scale_factor=isr_scale_factor)
 
-        u, w, x_vals, one_minus_x, jac_NS = _endpoint_substitution(
-            beta / 2.0, x_min, n_quad)
-        NS_vals = _Gee_per_leg_NS(x_vals, beta, one_minus_x=one_minus_x)
+        if _use_emela:
+            # σ̂-independent per-leg eMELA radiator, cached in-memory + on disk
+            # (see _emela_radiator_setup).  per_leg[i] = xD(x_i,Q)/x_i·|dx/du|_i
+            # via code_pdf (nll) / ll_pdf (eMELA-LL), with the analytic H_SV
+            # limit for omx_i < 1e-15.  Built once per (√s, ISR-cfg) and reused
+            # across every σ̂ variation of the morph/fit.
+            x_vals, w, per_leg = _emela_radiator_setup(
+                float(sq), alpha_em_isr=alpha_em_isr,
+                isr_scale_factor=isr_scale_factor, x_min=x_min, n_quad=n_quad,
+                nll=nll, emela_ll=emela_ll, emela_pert_order=emela_pert_order,
+                emela_fac_scheme=emela_fac_scheme,
+                emela_ren_scheme=emela_ren_scheme)
+        else:
+            # Analytic LL+exp per-leg radiator (fast closed form; not cached).
+            # Per-leg integrand (1D) = singular H_sv (already u-measure) +
+            # non-singular jac_NS · NS. The 2-leg double integral factorises:
+            #   ∫∫ (S₁+NS₁)(S₂+NS₂) σ̂  =  ∫dw·∫dw  (per_leg_w · per_leg_w · σ̂)
+            beta = beta_ISR(s, alpha_em=alpha_em_isr,
+                            isr_scale_factor=isr_scale_factor)
+            u, w, x_vals, one_minus_x, jac_NS = _endpoint_substitution(
+                beta / 2.0, x_min, n_quad)
+            NS_vals = _Gee_per_leg_NS(x_vals, beta, one_minus_x=one_minus_x)
+            per_leg = _H_SV_per_leg(beta) + jac_NS * NS_vals
 
+        weight = w * per_leg
         X1, X2 = np.meshgrid(x_vals, x_vals, indexing="ij")
         sigma_hat = np.asarray(
             sigma_partonic_fn((X1 * X2 * s).ravel(), mW, gammaW, **sigma_kwargs),
             dtype=float,
         ).reshape(X1.shape)
-
-        if _use_emela:
-            # eMELA per-leg integrand in u-space:
-            #   per_leg[i] = D(x_i, Q) × |dx/du|_i
-            #              = xD(x_i, Q) / x_i × jac_NS_i
-            # nll=True  → CodePdf (NLL DELTA + emela_ren_scheme ePDF; ALPMZ in prod)
-            # emela_ll  → LLPDF(1) (eMELA full DGLAP LL in BETA scheme)
-            # Limit x_i → 1 (omx_i → 0): substitute analytic H_SV limit.
-            H_sv_em = _H_SV_per_leg(beta, nll=nll, alpha_em=alpha_a)
-            per_leg_em = np.empty_like(x_vals)
-            Q = float(sq) * isr_scale_factor
-            for i in range(len(x_vals)):
-                omx_i = float(one_minus_x[i])
-                if omx_i < 1e-15:
-                    per_leg_em[i] = H_sv_em
-                else:
-                    x_i = float(x_vals[i])
-                    xD = (_emela.code_pdf(x_i, omx_i, Q) if nll
-                          else _emela.ll_pdf(1, x_i, omx_i, Q))
-                    per_leg_em[i] = xD / x_i * float(jac_NS[i])
-            weight = w * per_leg_em
-        else:
-            # Per-leg integrand (1D) = singular H_sv (already u-measure) +
-            # non-singular jac_NS · NS. The 2-leg double integral factorises:
-            #   ∫∫ (S₁+NS₁)(S₂+NS₂) σ̂  =  ∫dw·∫dw  (per_leg_w · per_leg_w · σ̂)
-            per_leg = _H_SV_per_leg(beta) + jac_NS * NS_vals
-            weight = w * per_leg
 
         out[idx] = np.einsum("i,j,ij->", weight, weight, sigma_hat)
 

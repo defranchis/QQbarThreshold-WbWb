@@ -45,6 +45,8 @@ plots/
 *.bbl
 *.blg
 *.synctex.gz
+*.fls
+*.fdb_latexmk
 report/*.pdf
 paper/*.pdf
 bin
@@ -75,6 +77,11 @@ condor/ww_templates/*.sub
 # lives outside the repo in ../mocanlo/grid_gen/ (like the whizard grids).
 scripts/indep_mocanlo/*.sub
 scripts/indep_mocanlo/points_*.txt
+
+# Precomputed eMELA-NLL ISR radiator grids (binary npz + lhagrid1 text set).
+# Generated on AFS by scripts/investigations/isr_prewarm_lhapdf/build_production_grid.py
+# (tracked); the grid artifact itself is reproducible and stays untracked.
+framework/process/ww/indep/grids/
 
 # Kerberos credential cache files (binary, per-user, not portable).
 # CERN tooling occasionally drops them in the cwd as <user>.cc.

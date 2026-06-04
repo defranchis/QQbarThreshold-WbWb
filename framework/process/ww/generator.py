@@ -39,7 +39,9 @@ renormalisation scale to vary at this order).
 
 from __future__ import annotations
 
+import copy
 import os
+import types
 
 import numpy as np
 
@@ -242,6 +244,25 @@ class WWGenerator:
         self.MZ = MZ
         self.alpha_em = alpha_em
         self.card = card
+
+    def __deepcopy__(self, memo):
+        """Deep-copy the generator while *sharing* any module-valued attribute
+        (notably ``self.card``, the steering-card module) rather than copying it:
+        ``copy.deepcopy`` raises ``cannot pickle 'module' object`` on a module.
+
+        This is what makes ``copy.deepcopy(fit)`` work — the fit holds a
+        reference to its generator, so the scans' ``deepcopy(fit)``
+        (``scans.scan_beam_resolution``) recurses into the generator and used to
+        die here on ``self.card``.  Mirrors ``FitCore.__deepcopy__`` (which
+        shares its own top-level ``card`` the same way); a module is stateless
+        config from our POV, so sharing the reference is correct and cheaper."""
+        cls = self.__class__
+        clone = cls.__new__(cls)
+        memo[id(self)] = clone
+        for k, v in self.__dict__.items():
+            clone.__dict__[k] = v if isinstance(v, types.ModuleType) \
+                else copy.deepcopy(v, memo)
+        return clone
 
     @classmethod
     def from_card(cls, card, *, bfs: BFSCorrections | None = None):
