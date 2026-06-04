@@ -50,11 +50,13 @@ from __future__ import annotations
 import concurrent.futures
 import functools
 import hashlib
+import glob
 import math
 import multiprocessing
 import os
 import pickle
 import socket
+import time
 
 import numpy as np
 from scipy.special import gamma as gamma_fn
@@ -445,9 +447,13 @@ def _isr_radiator_fingerprint(*, alpha_a: float, isr_scale_factor: float,
                               emela_pert_order: str, emela_fac_scheme: str,
                               emela_ren_scheme: str) -> tuple:
     """The (σ̂-independent) cfg fingerprint of an eMELA radiator — everything the
-    per-leg weight depends on EXCEPT √s.  ``M_E`` is folded in since β_e uses it."""
-    return (alpha_a, isr_scale_factor, round(x_min, 12), n_quad, M_E,
-            bool(nll), bool(emela_ll),
+    per-leg weight depends on EXCEPT √s.  ``M_E`` is folded in since β_e uses it.
+    Continuous fields are rounded (well below any physical resolution) so a value
+    reaching the key by two different float paths — e.g. α_Gμ(M_W_BFS_REF) resolved
+    vs. passed as a literal — hashes identically and a prewarmed entry is HIT, not
+    silently rebuilt (the scheme α's differ at the 1e-4 level, so no collision)."""
+    return (round(alpha_a, 15), round(isr_scale_factor, 12), round(x_min, 12),
+            n_quad, M_E, bool(nll), bool(emela_ll),
             emela_pert_order, emela_fac_scheme, emela_ren_scheme)
 
 
@@ -584,6 +590,27 @@ def radiator_cfg(**overrides) -> dict:
     return cfg
 
 
+def _sweep_stale_tmp(cache_dir, max_age_s: float = 6 * 3600):
+    """Best-effort removal of orphaned ``rad_bfs_*.pkl.tmp.*`` files left behind
+    when a writer is hard-killed (SIGKILL/OOM/condor eviction) between
+    ``open(tmp)`` and ``os.replace``.  The tmp name is host+pid+random unique and
+    is never the live ``.pkl``, so a stale one is harmless — just litter; this
+    keeps the shared cache dir tidy.  Only removes tmps older than ``max_age_s``
+    so an in-flight concurrent write is never touched."""
+    if not cache_dir:
+        return
+    try:
+        now = time.time()
+        for p in glob.glob(os.path.join(cache_dir, "rad_bfs_*.pkl.tmp.*")):
+            try:
+                if now - os.path.getmtime(p) > max_age_s:
+                    os.remove(p)
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
 def _prewarm_build_one(sq_cfg):
     """Worker: ensure the radiator disk file for one (√s, cfg) exists.  Returns
     (status, path) with status ∈ {'built','exists','no-disk'}.  Idempotent — an
@@ -634,6 +661,7 @@ def prewarm(sqrt_s_grids, cfgs, *, n_workers: int = 1, verbose: bool = True):
     grids = _coerce_grid_list(sqrt_s_grids)
     cfgs = [cfgs] if isinstance(cfgs, dict) else list(cfgs)
     cfgs = [radiator_cfg(**c) for c in cfgs]    # fill defaults / validate keys
+    _sweep_stale_tmp(_radiator_cache_dir())     # clear orphaned *.tmp from prior kills
 
     work: dict[str, tuple] = {}
     skipped_analytic = 0
@@ -782,7 +810,8 @@ def sigma_ISR_2leg_convolution(sqrt_s,
     callers.
     """
     if n_jobs is None:
-        n_jobs = int(os.environ.get("WW_ISR_NJOBS", "6"))
+        _nj = os.environ.get("WW_ISR_NJOBS", "").strip()
+        n_jobs = int(_nj) if _nj else 6        # tolerate a set-but-empty env var
     if nll and emela_ll:
         raise ValueError(
             "sigma_ISR_2leg_convolution: nll=True and emela_ll=True are "

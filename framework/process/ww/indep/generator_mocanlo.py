@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 import multiprocessing as _mp
 import os
+import warnings
 from dataclasses import dataclass, field, replace
 
 import numpy as np
@@ -152,6 +153,18 @@ class WWGeneratorMoCaNLO:
         pinned non-default ``isr_cfg.alpha`` (advanced ISR-α theory variation) is
         respected, and an unknown ``scheme_alpha`` leaves the cfg untouched."""
         if self.isr_nll and not self.isr_cfg.nll:
+            # The eMELA NLL radiator is built in the BFS production convention
+            # (α(M_Z)/ALPMZ/DELTA) and REPLACES the analytic LL radiator, so the LL
+            # `scheme` knob (LO_beta/eta/mixed) does not propagate.  The C₁ matching
+            # subtraction is kept in its analytic-LL form at α(M_Z), leaving the
+            # documented ≲0.1–0.3% O(α) NLL/DELTA-scheme residual (report
+            # sec:match-nll).  Warn if a non-default LL scheme is being overridden,
+            # so the drop is not silent.
+            if self.isr_cfg.scheme != "LO_beta":
+                warnings.warn(
+                    f"isr_nll=True replaces the analytic-LL radiator with eMELA NLL "
+                    f"(DELTA/ALPMZ): requested isr_cfg.scheme={self.isr_cfg.scheme!r} "
+                    f"is ignored on the NLL path.", stacklevel=2)
             return isr_beta.ISRConfig(
                 nll=True, alpha=isr_beta.ALPHA_MZ, ew_scheme="alphaz",
                 mu_F_factor=self.isr_cfg.mu_F_factor, mu_F_abs=self.isr_cfg.mu_F_abs,
@@ -197,8 +210,19 @@ class WWGeneratorMoCaNLO:
         dnnlo_fn = None
         if self.match_bfs and self.match_bfs_nnlo:
             vp = VARPOINTS_BY_KEY[varpoint]
+            # Couple δ_NNLO's α_em to the grid's EW scheme for explicit non-Gμ
+            # variations; keep None (→ α_Gμ(m_W), the validated default) for the
+            # default 'gf' scheme so production numerics are byte-unchanged.  δ_NNLO
+            # is a ratio (σ_NNLO−σ_NLO)/σ_Born, so the scheme effect is tiny anyway.
+            aem = None
+            if (self.scheme_alpha or "").strip().lower() not in ("", "gf", "gmu"):
+                try:
+                    aem = isr_beta.alpha_for_scheme(self.scheme_alpha)
+                except ValueError:
+                    aem = None
             dnnlo_fn = match_bfs.delta_nnlo_interp(
-                vp.mW, vp.gW, mt=self.sm.mt, MH=self.sm.mH, MZ=self.sm.mZ)
+                vp.mW, vp.gW, mt=self.sm.mt, MH=self.sm.mH, MZ=self.sm.mZ,
+                alpha_em=aem)
 
         cfg = self._isr_cfg()
         sigma_tot = np.zeros_like(sqrt_s, dtype=float)
@@ -265,7 +289,8 @@ class WWGeneratorMoCaNLO:
         # build's bottleneck (esp. eMELA NLL).  Fan them out over a fork pool
         # when WW_INDEP_NJOBS>1 (default serial; grids + the prewarmed radiator
         # are in the parent above, so children inherit them via COW, no rebuild).
-        njobs = int(os.environ.get("WW_INDEP_NJOBS", "1"))
+        _nj = os.environ.get("WW_INDEP_NJOBS", "").strip()
+        njobs = int(_nj) if _nj else 1         # tolerate a set-but-empty env var
         if njobs > 1 and len(vps) > 1:
             global _MORPH_GEN, _MORPH_SQRTS
             _MORPH_GEN, _MORPH_SQRTS = self, sqrt_s

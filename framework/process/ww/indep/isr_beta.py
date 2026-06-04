@@ -65,11 +65,13 @@ MoCaNLO partonic grid.
 
 from __future__ import annotations
 
+import glob
 import hashlib
 import math
 import os
 import pickle
 import socket
+import time
 from dataclasses import dataclass
 
 import numpy as np
@@ -420,13 +422,26 @@ _RADIATOR_DISK_VERSION = 1
 
 
 def _cfg_fingerprint(cfg: ISRConfig) -> tuple:
-    base = (cfg.scheme, cfg.resolved_alpha(), cfg.mu_F_factor, cfg.mu_F_abs,
-            cfg.m_e, round(cfg.x_min, 12), cfg.n_quad, cfg.nll,
-            cfg.emela_fac_scheme, cfg.emela_ren_scheme)
+    # Continuous fields rounded well below physical resolution so a value reaching
+    # the key by two different float paths hashes identically (cache HIT, not a
+    # silent rebuild that defeats prewarm); scheme α's differ at 1e-4 → no collision.
+    base = (cfg.scheme, round(cfg.resolved_alpha(), 15), round(cfg.mu_F_factor, 12),
+            round(cfg.mu_F_abs, 12), cfg.m_e, round(cfg.x_min, 12), cfg.n_quad,
+            cfg.nll, cfg.emela_fac_scheme, cfg.emela_ren_scheme)
     # Append the grid tag ONLY when the LHAPDF-grid path is active, so the
     # direct-eMELA fingerprint (and its validated production cache) is unchanged.
     grid = getattr(cfg, "emela_grid", "")
-    return base if not grid else base + ("grid:" + grid,)
+    if not grid:
+        return base
+    # Fold the grid file's identity (mtime_ns + size) into the key so a same-path
+    # rebuild invalidates the in-memory radiator, mirroring isr_emela_grid.load_grid
+    # (which keys on the same stat fields).  Without this an L1 hit serves a
+    # radiator built from the OLD grid contents after an in-process regeneration.
+    try:
+        st = os.stat(grid)
+        return base + ("grid:" + grid, st.st_mtime_ns, st.st_size)
+    except OSError:
+        return base + ("grid:" + grid,)
 
 
 def _radiator_key(sqrt_s_arr: np.ndarray, cfg: ISRConfig):
@@ -641,6 +656,29 @@ def _coerce_grid_list(grids) -> list[np.ndarray]:
     return [np.ascontiguousarray(g, dtype=float) for g in grids]
 
 
+def _sweep_stale_tmp(cache_dir, max_age_s: float = 6 * 3600):
+    """Best-effort removal of orphaned ``rad_*.pkl.tmp.*`` files left behind when a
+    writer is hard-killed between ``open(tmp)`` and ``os.replace``.  The tmp name is
+    host+pid+random unique and is never the live ``.pkl``, so a stale one is
+    harmless litter; this keeps the shared cache dir tidy.  Only tmps older than
+    ``max_age_s`` are removed, so an in-flight concurrent write is never touched.
+    Skips ``rad_bfs_*`` (owned by the BFS chain, which sweeps its own)."""
+    if not cache_dir:
+        return
+    try:
+        now = time.time()
+        for p in glob.glob(os.path.join(cache_dir, "rad_*.pkl.tmp.*")):
+            if os.path.basename(p).startswith("rad_bfs_"):
+                continue
+            try:
+                if now - os.path.getmtime(p) > max_age_s:
+                    os.remove(p)
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
 def _prewarm_build_one(grid_cfg):
     """Worker: ensure the radiator disk file for one (√s-grid, cfg) exists.
 
@@ -714,6 +752,7 @@ def prewarm(sqrt_s_grids, cfgs, *, n_workers: int = 1, verbose: bool = True):
     """
     grids = _coerce_grid_list(sqrt_s_grids)
     cfgs = [cfgs] if isinstance(cfgs, ISRConfig) else list(cfgs)
+    _sweep_stale_tmp(_radiator_cache_dir())     # clear orphaned *.tmp from prior kills
 
     # De-duplicate by disk path: distinct (grid, cfg) that map to the same file
     # (they can't, by construction, but a caller may pass duplicates) build once.

@@ -30,6 +30,7 @@ lhapdf dependency on worker nodes).
 """
 from __future__ import annotations
 
+import ast
 import math
 import os
 
@@ -126,8 +127,10 @@ class EmelaGrid:
         d = np.load(path, allow_pickle=False)
         meta = {}
         try:
-            meta = eval(str(d["meta"]))            # our own repr, trusted
-        except Exception:
+            # literal_eval, NOT eval: the npz is loaded allow_pickle=False to avoid
+            # executing file content; eval() would reintroduce arbitrary-code-exec.
+            meta = ast.literal_eval(str(d["meta"]))
+        except (ValueError, SyntaxError):
             pass
         return cls(d["omx"], d["q"], d["table"], meta)
 
@@ -236,6 +239,11 @@ def write_lhapdf_set(setdir: str, grid: EmelaGrid, setname: str | None = None):
     x = (1.0 - grid.omx)[::-1]               # ascending x
     q = grid.q
     tab = grid.table[::-1, :]                # match x order; [i_x, i_q] = x·D
+    # The densest endpoint omx knots (omx ≲ few ulp of 1) collapse under x=1−omx to
+    # duplicate float64 values; lhagrid1 requires STRICTLY ascending x, so drop the
+    # non-increasing nodes (keep the first occurrence) before writing x and tab.
+    keep = np.concatenate(([True], np.diff(x) > 0.0))
+    x, tab = x[keep], tab[keep, :]
     xmin, xmax = float(x.min()), float(x.max())
     qmin, qmax = float(q.min()), float(q.max())
 
