@@ -251,10 +251,20 @@ class WWGeneratorMoCaNLO:
         rows = [[1.0, v.dmW_MeV, v.dgW_MeV, v.dmW_MeV ** 2, v.dgW_MeV ** 2,
                  v.dmW_MeV * v.dgW_MeV] for v in vps]
 
+        # PREWARM the radiator ONCE in the parent (default).  D(x)·|dx/du| is
+        # σ̂-independent, so all ~20 varpoints want the SAME radiator; building it
+        # here means the fork pool below inherits it via COW (and the serial path
+        # reuses it) instead of every child re-running the eMELA-NLL build — the
+        # morph bottleneck.  Cheap no-op for the analytic LL path; for direct-NLL
+        # it also writes the cross-process disk cache so sibling condor/forkserver
+        # jobs load it in ms.  (The LHAPDF-grid path is already fast interpolation.)
+        isr_beta._radiator_setup(np.atleast_1d(np.asarray(sqrt_s, dtype=float)),
+                                 self._isr_cfg())
+
         # The per-varpoint line shapes are independent ISR convolutions — the
         # build's bottleneck (esp. eMELA NLL).  Fan them out over a fork pool
-        # when WW_INDEP_NJOBS>1 (default serial; grids are loaded in the parent
-        # above so children inherit them via COW, no AFS re-read).
+        # when WW_INDEP_NJOBS>1 (default serial; grids + the prewarmed radiator
+        # are in the parent above, so children inherit them via COW, no rebuild).
         njobs = int(os.environ.get("WW_INDEP_NJOBS", "1"))
         if njobs > 1 and len(vps) > 1:
             global _MORPH_GEN, _MORPH_SQRTS

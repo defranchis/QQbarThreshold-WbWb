@@ -300,6 +300,12 @@ class ISRConfig:
     nll: bool = False
     emela_fac_scheme: str = "DELTA"
     emela_ren_scheme: str = "ALPMZ"
+    #: EXPLORATORY (LHAPDF approach): path to a precomputed eMELA grid (.npz from
+    #: isr_emela_grid.build_and_write).  When set AND nll=True, the per-leg NLL
+    #: radiator interpolates x·D from the grid instead of calling eMELA's DGLAP
+    #: solver per node — √s/μ_F/quadrature-independent, no eMELA runtime dep.  The
+    #: analytic norm_nll endpoint (omx<1e-15) is unchanged.  "" = direct eMELA.
+    emela_grid: str = ""
 
     def resolved_alpha(self) -> float:
         return self.alpha if self.alpha is not None else alpha_for_scheme(self.ew_scheme)
@@ -367,6 +373,30 @@ def _per_leg_emela_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
     return per_leg
 
 
+def _per_leg_grid_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
+    """Per-leg NLL radiator weight via the LHAPDF-style precomputed grid
+    (EXPLORATORY; cfg.emela_grid set).  Numerically the same construction as
+    ``_per_leg_emela_nll`` — same analytic ``norm_nll`` soft+virtual endpoint for
+    omx<1e-15, same xD/x·|dx/du| in the mid region — except x·D comes from
+    ``isr_emela_grid`` interpolation instead of a per-node eMELA DGLAP call.  The
+    whole mid region is evaluated in ONE vectorised spline call.  Keep this in
+    lockstep with ``_per_leg_emela_nll`` (endpoint cutoff, norm_nll formula)."""
+    from framework.process.ww.indep import isr_emela_grid as _grid
+    from framework.process.ww.xsec_calculator.isr import LAMBDA1_NF0
+    alpha = cfg.resolved_alpha()
+    grid = _grid.load_grid(cfg.emela_grid)
+    Q = cfg.mu_F(sqrt_s)
+    norm_nll = norm * math.exp(be * (alpha / _PI) * (LAMBDA1_NF0 / 4.0))
+    per_leg = np.empty_like(x_vals)
+    soft = one_minus_x < _grid.OMX_FLOOR
+    per_leg[soft] = norm_nll
+    nz = ~soft
+    if np.any(nz):
+        xD = grid.xfxQ(x_vals[nz], one_minus_x[nz], Q)
+        per_leg[nz] = xD / x_vals[nz] * jac_NS[nz]
+    return per_leg
+
+
 #: Per-leg radiator setup cache.  The radiator weight D(x)·|dx/du| depends ONLY
 #: on (√s, cfg) — NOT on σ̂ — yet a morph build calls convolve_2leg ~60× (every
 #: varpoint × channel) with the same √s grid and cfg.  Caching the setup turns
@@ -390,9 +420,21 @@ _RADIATOR_DISK_VERSION = 1
 
 
 def _cfg_fingerprint(cfg: ISRConfig) -> tuple:
-    return (cfg.scheme, cfg.resolved_alpha(), cfg.mu_F_factor, cfg.mu_F_abs,
+    base = (cfg.scheme, cfg.resolved_alpha(), cfg.mu_F_factor, cfg.mu_F_abs,
             cfg.m_e, round(cfg.x_min, 12), cfg.n_quad, cfg.nll,
             cfg.emela_fac_scheme, cfg.emela_ren_scheme)
+    # Append the grid tag ONLY when the LHAPDF-grid path is active, so the
+    # direct-eMELA fingerprint (and its validated production cache) is unchanged.
+    grid = getattr(cfg, "emela_grid", "")
+    return base if not grid else base + ("grid:" + grid,)
+
+
+def _radiator_key(sqrt_s_arr: np.ndarray, cfg: ISRConfig):
+    """(√s-grid identity, cfg fingerprint) — the shared in-memory + disk cache
+    key.  Used by both ``_radiator_setup`` (read/write) and ``prewarm`` (build)
+    so the two never disagree on what a given (grid, cfg) maps to."""
+    a = np.ascontiguousarray(sqrt_s_arr, dtype=float)
+    return ((a.shape, hashlib.sha1(a.tobytes()).hexdigest()), _cfg_fingerprint(cfg))
 
 
 def _radiator_cache_dir() -> str:
@@ -436,13 +478,16 @@ def _radiator_setup(sqrt_s_arr: np.ndarray, cfg: ISRConfig):
     """List of (x_vals, w, per_leg) per √s — σ̂-independent, cached (in-memory +,
     for the eMELA-NLL path, on disk; see ``_RADIATOR_CACHE`` / ``_radiator_disk_path``)."""
     a = np.ascontiguousarray(sqrt_s_arr, dtype=float)
-    key = ((a.shape, hashlib.sha1(a.tobytes()).hexdigest()), _cfg_fingerprint(cfg))
+    key = _radiator_key(a, cfg)
     cached = _RADIATOR_CACHE.get(key)
     if cached is not None:
         return cached
 
-    # Disk cache: worthwhile only for the expensive eMELA-NLL path.
-    disk = _radiator_disk_path(key) if cfg.nll else None
+    # Disk cache: worthwhile only for the expensive direct-eMELA NLL path.  The
+    # LHAPDF-grid path is already a fast table interpolation and its result
+    # depends on the grid FILE contents (not fingerprinted), so it is NOT
+    # disk-persisted — in-memory caching only, no staleness risk.
+    disk = _radiator_disk_path(key) if (cfg.nll and not cfg.emela_grid) else None
     if disk is not None and os.path.exists(disk):
         try:
             with open(disk, "rb") as fh:
@@ -457,7 +502,10 @@ def _radiator_setup(sqrt_s_arr: np.ndarray, cfg: ISRConfig):
         be, bs, bh = cfg.betas(float(sq))
         norm = _radiator_norm(be, bs)
         u, w, x_vals, one_minus_x, jac_NS = _endpoint_grid(be, cfg.x_min, cfg.n_quad)
-        if cfg.nll:
+        if cfg.nll and cfg.emela_grid:
+            per_leg = _per_leg_grid_nll(cfg, be, norm, x_vals, one_minus_x,
+                                        jac_NS, float(sq))
+        elif cfg.nll:
             per_leg = _per_leg_emela_nll(cfg, be, norm, x_vals, one_minus_x,
                                          jac_NS, float(sq))
         else:
@@ -574,3 +622,164 @@ def sigma_observed_matched(sqrt_s, sigma_nlo_fn, sigma_born_fn,
     conv = convolve_2leg(sqrt_s, sigma_nlo_fn, cfg)
     sub = oalpha_isr_subtraction(sqrt_s, sigma_born_fn, cfg)
     return conv - sub
+
+
+# ---------------------------------------------------------------------------
+# Campaign prewarm — populate the NLL radiator disk cache before fanning out
+# ---------------------------------------------------------------------------
+
+def _coerce_grid_list(grids) -> list[np.ndarray]:
+    """Accept either a single √s grid (1-D array-like of scalars) or a sequence
+    of such grids, and return a list of contiguous float arrays."""
+    if isinstance(grids, np.ndarray):
+        return [np.ascontiguousarray(grids, dtype=float)]
+    grids = list(grids)
+    if not grids:
+        return []
+    if np.ndim(grids[0]) == 0:                      # sequence of scalars → one grid
+        return [np.ascontiguousarray(grids, dtype=float)]
+    return [np.ascontiguousarray(g, dtype=float) for g in grids]
+
+
+def _prewarm_build_one(grid_cfg):
+    """Worker: ensure the radiator disk file for one (√s-grid, cfg) exists.
+
+    Returns (status, disk_path) with status ∈ {'built','exists','no-disk'} — same
+    (status, path) order as the ``existing`` list in ``prewarm`` so the two merge
+    into one homogeneous ``files`` list.  Idempotent — an existing file is left
+    untouched (not even re-read), so a re-run / resume only pays for what is
+    still missing."""
+    grid, cfg = grid_cfg
+    a = np.ascontiguousarray(grid, dtype=float)
+    path = _radiator_disk_path(_radiator_key(a, cfg))
+    if path is None:
+        return ("no-disk", None)
+    if os.path.exists(path):
+        return ("exists", path)
+    _radiator_setup(a, cfg)        # builds via eMELA + atomically writes `path`
+    return ("built", path)
+
+
+def prewarm(sqrt_s_grids, cfgs, *, n_workers: int = 1, verbose: bool = True):
+    """Pre-build the eMELA-NLL radiator **disk** cache for a whole campaign in a
+    single up-front pass, so a subsequent parallel fan-out (theory variations,
+    scenario fits, cross-fits, condor jobs across nodes) only ever *reads* the
+    cache — never races to rebuild it.
+
+    Why this and not a lock
+    -----------------------
+    The radiator is σ̂-independent and its disk cache lives on shared AFS visible
+    to every condor node, but AFS has no reliable cross-node file lock.  N cold
+    jobs starting together would each spend the full ~22 ms × ~19k-query
+    (~minutes) eMELA build computing byte-identical arrays and then atomically
+    over-write the same ``rad_*.pkl``.  The write is already safe; the *redundant
+    compute* (and the eMELA/grid first-touch stampede) is the waste.  Building
+    once, here, before the fan-out converts an N-way build stampede into one
+    build + N millisecond reads — the only concurrency-safe shape available
+    across AFS nodes.
+
+    What multiplies the cache (and what does NOT)
+    ---------------------------------------------
+    One file is one ``(√s-grid, ISR-cfg)``.  Only fields the radiator depends on
+    multiply it: the √s-grid contents and ``_cfg_fingerprint`` (scheme, α,
+    mu_F_factor, mu_F_abs, m_e, x_min, n_quad, emela_*).  The radiator does NOT
+    depend on σ̂, so an entire partonic ladder (LO/NLO/NNLO/δ_QCD) at one ISR cfg
+    collapses to a *single* file; and the analytic LL path (``nll=False``) never
+    touches disk, so only direct-eMELA NLL cfgs are built — LL cfgs are counted
+    as ``skipped_LL`` and the LHAPDF-grid path (``emela_grid`` set, in-memory
+    only) as ``skipped_grid``; both are ignored.  The prewarm set is therefore
+    ``{√s grids} × {NLL ISR cfgs}`` — typically O(10) files for a full
+    theory-variation campaign, not hundreds.
+
+    Parameters
+    ----------
+    sqrt_s_grids : one √s array, or an iterable of them.
+    cfgs         : one ISRConfig, or an iterable of them.
+    n_workers    : build the de-duplicated work list with this many *processes*
+                   (fork pool; each build is independent).  Default 1 (serial,
+                   deterministic — best for validation).  For a real campaign run
+                   on fcc-ironic with n_workers≈8-16 (node cap 48).
+    verbose      : print one line per file + a final tally.
+
+    Returns
+    -------
+    dict: ``built`` / ``exists`` / ``skipped_LL`` / ``no_disk`` counts,
+    ``n_unique`` (de-duplicated build targets), ``files`` (list of (status,
+    path)), and ``cache_dir``.
+
+    Idempotent and resumable: a re-run only builds what is still missing.  Must
+    COMPLETE before the fan-out launches — a job that starts mid-prewarm and
+    finds its file missing will rebuild it (correct, just defeats the purpose).
+    For condor, run prewarm as a DAG parent / held-then-released pre-step.
+    """
+    grids = _coerce_grid_list(sqrt_s_grids)
+    cfgs = [cfgs] if isinstance(cfgs, ISRConfig) else list(cfgs)
+
+    # De-duplicate by disk path: distinct (grid, cfg) that map to the same file
+    # (they can't, by construction, but a caller may pass duplicates) build once.
+    work: dict[str, tuple] = {}
+    skipped_LL = 0
+    skipped_grid = 0
+    no_disk = 0
+    for cfg in cfgs:
+        if not cfg.nll:
+            skipped_LL += len(grids)          # LL path never disk-caches
+            continue
+        if getattr(cfg, "emela_grid", ""):
+            # LHAPDF-grid path is a fast in-memory interpolation and is NOT
+            # disk-cached (see _radiator_setup) — prewarming it would write
+            # nothing yet falsely report 'built'.  Its one-off artifact is the
+            # grid file itself (isr_emela_grid.build_and_write), not a rad_*.pkl.
+            skipped_grid += len(grids)
+            continue
+        for grid in grids:
+            path = _radiator_disk_path(_radiator_key(grid, cfg))
+            if path is None:
+                no_disk += len(grids)
+                break                          # disk caching off entirely
+            work.setdefault(path, (grid, cfg))
+
+    existing = [p for p in work if os.path.exists(p)]
+    to_build = [(p, gc) for p, gc in work.items() if p not in existing]
+
+    if verbose:
+        print(f"[prewarm] {len(work)} unique (grid,cfg) file(s): "
+              f"{len(existing)} already cached, {len(to_build)} to build "
+              f"(skipped_LL={skipped_LL}, skipped_grid={skipped_grid}); "
+              f"cache={_radiator_cache_dir()!r}")
+
+    files = [("exists", p) for p in existing]
+    if to_build:
+        import time as _time
+        import multiprocessing as _mp
+        t0 = _time.time()
+        items = [gc for _p, gc in to_build]
+        if n_workers > 1 and len(items) > 1:
+            ctx = _mp.get_context("fork")
+            with ctx.Pool(min(n_workers, len(items))) as pool:
+                results = pool.map(_prewarm_build_one, items)
+        else:
+            results = []
+            for i, gc in enumerate(items, 1):
+                results.append(_prewarm_build_one(gc))
+                if verbose:
+                    print(f"[prewarm]   built {i}/{len(items)}  {results[-1][1]}")
+        files.extend(results)
+        if verbose:
+            print(f"[prewarm] built {len(items)} file(s) in {_time.time()-t0:.1f}s")
+
+    report = {
+        "built": sum(1 for s, _ in files if s == "built"),
+        "exists": sum(1 for s, _ in files if s == "exists"),
+        "skipped_LL": skipped_LL,
+        "skipped_grid": skipped_grid,
+        "no_disk": no_disk,
+        "n_unique": len(work),
+        "files": files,
+        "cache_dir": _radiator_cache_dir(),
+    }
+    if verbose:
+        print(f"[prewarm] done: built={report['built']} exists={report['exists']} "
+              f"skipped_LL={report['skipped_LL']} skipped_grid={report['skipped_grid']} "
+              f"no_disk={report['no_disk']}")
+    return report
