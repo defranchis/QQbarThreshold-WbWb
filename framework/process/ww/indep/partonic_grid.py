@@ -26,15 +26,27 @@ DEFAULT_RESULTS_DIR = ("/eos/user/m/mdefranc/FCC/QQbar_threshold/"
                        "grid_gen/results")
 
 
-def _read_csv(path: str) -> dict:
+def _read_csv(path: str) -> dict | None:
+    """Parse one result CSV (header + first data row), or ``None`` if the file is
+    empty/truncated/malformed.  EOS productions occasionally leave a header-only
+    or zero-byte CSV when a worker is killed mid-write; such a point is treated
+    as missing (one σ̂ √ŝ hole the smoothing spline absorbs) rather than crashing
+    the whole load."""
     with open(path) as fh:
-        header = fh.readline().strip().split(",")
-        row = fh.readline().strip().split(",")
-    rec = dict(zip(header, row))
-    for k in ("ecm", "mW", "gW", "sigma_born", "err_born", "sigma_nlo",
-              "err_nlo", "sigma_virt", "sigma_real", "sigma_idip"):
-        if k in rec:
-            rec[k] = float(rec[k])
+        header_line = fh.readline()
+        row_line = fh.readline()
+    if not header_line.strip() or not row_line.strip():
+        return None
+    rec = dict(zip(header_line.strip().split(","), row_line.strip().split(",")))
+    if "channel" not in rec or "varpoint" not in rec:
+        return None
+    try:
+        for k in ("ecm", "mW", "gW", "sigma_born", "err_born", "sigma_nlo",
+                  "err_nlo", "sigma_virt", "sigma_real", "sigma_idip"):
+            if k in rec:
+                rec[k] = float(rec[k])
+    except ValueError:
+        return None
     return rec
 
 
@@ -70,23 +82,53 @@ class ChannelVarGrid:
         return self._spline(self.sigma_nlo, self.err_nlo, smooth)
 
 
+def fiducial_suffix(scheme_alpha: str, lepton_cut: float | None,
+                    lepton_pt_min: float | None = None,
+                    lepton_mll_min: float | None = None) -> str:
+    """Result-CSV suffix for a campaign — mirrors ``run_point.py`` / ``submit_grid``.
+
+    Inclusive (``lepton_cut is None``) → ``_<scheme>``; fiducial →
+    ``_<scheme>_cut<NN>[pt<PT>][mll<MLL>]`` (the pt/mll tokens only when set).
+    """
+    if lepton_cut is None:
+        return f"_{scheme_alpha}"
+    suffix = f"_{scheme_alpha}_cut{int(round(lepton_cut * 100))}"
+    if lepton_pt_min is not None:
+        suffix += f"pt{int(round(lepton_pt_min))}"
+    if lepton_mll_min is not None:
+        suffix += f"mll{int(round(lepton_mll_min))}"
+    return suffix
+
+
 def load_grids(results_dir: str = DEFAULT_RESULTS_DIR,
                scheme_alpha: str = "gf",
-               lepton_cut: float | None = None
+               lepton_cut: float | None = None,
+               lepton_pt_min: float | None = None,
+               lepton_mll_min: float | None = None
                ) -> dict[tuple[str, str], ChannelVarGrid]:
     """Return {(channel, varpoint): ChannelVarGrid} from result CSVs.
 
     ``lepton_cut`` selects the campaign: ``None`` → inclusive (no-cut) files
-    ``*_<scheme>.csv``; a value (e.g. 0.95) → fiducial files
-    ``*_<scheme>_cut<NN>.csv``.
+    ``*_<scheme>.csv``; a value (e.g. 0.97) → fiducial files
+    ``*_<scheme>_cut<NN>[pt<PT>][mll<MLL>].csv`` (the production fiducial set is
+    ``cut97pt10mll10``).  The glob anchors on the full suffix so an inclusive
+    load never picks up a fiducial file and vice-versa.
     """
-    suffix = (f"_{scheme_alpha}" if lepton_cut is None
-              else f"_{scheme_alpha}_cut{int(round(lepton_cut*100))}")
+    suffix = fiducial_suffix(scheme_alpha, lepton_cut,
+                             lepton_pt_min, lepton_mll_min)
     rows: dict[tuple[str, str], list[dict]] = {}
+    skipped = 0
     for path in glob.glob(os.path.join(results_dir, f"*{suffix}.csv")):
         rec = _read_csv(path)
+        if rec is None:                      # empty/truncated → treat as missing
+            skipped += 1
+            continue
         key = (rec["channel"], rec["varpoint"])
         rows.setdefault(key, []).append(rec)
+    if skipped:
+        import warnings
+        warnings.warn(f"load_grids: skipped {skipped} empty/malformed CSV(s) "
+                      f"matching *{suffix}.csv under {results_dir}", stacklevel=2)
 
     grids: dict[tuple[str, str], ChannelVarGrid] = {}
     for key, recs in rows.items():

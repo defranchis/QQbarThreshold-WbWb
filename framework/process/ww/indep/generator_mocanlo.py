@@ -9,7 +9,8 @@ consumed by ``common.fit_core``).  Pipeline:
      ∫∫ D D σ̂_NLO − C₁[σ̂_Born]  (``isr_beta.sigma_observed_matched``).
   3. Assemble the 6 blocks with flavour/colour multiplicities
      (``channels.assemble_total``) → σ_tot(√s) per varpoint.
-  4. Quadratic + bilinear morph over the 6 (m_W, Γ_W) varpoints → σ_tot at the
+  4. Factorized (BFS-style) morph over the rich (m_W, Γ_W) varpoint set
+     (σ_nom·R_m·R_Γ·(1+β·Δm·ΔΓ); ``morph.fit_factorized``) → σ_tot at the
      requested fit point.  Output in **pb** (BFS convention; MoCaNLO is fb ×1e-3).
 
 This shares NO code or numerical input with the BFS-EFT chain: the goal is an
@@ -43,6 +44,7 @@ from framework.process.ww.indep.partonic_grid import (
     load_grids, DEFAULT_RESULTS_DIR, ChannelVarGrid,
 )
 from framework.process.ww.indep import grid as gridmod
+from framework.process.ww.indep import morph as morphmod
 
 FB_TO_PB = 1.0e-3
 
@@ -80,10 +82,13 @@ class WWGeneratorMoCaNLO:
     """Independent WW template producer (MoCaNLO partonic ⊗ beta-scheme ISR)."""
     results_dir: str = DEFAULT_RESULTS_DIR
     scheme_alpha: str = "gf"
-    lepton_cut: float | None = None     # None=inclusive(pure-WW); 0.95=fiducial
+    lepton_cut: float | None = None     # None=inclusive(pure-WW); 0.97=fiducial
+    lepton_pt_min: float | None = None  # fiducial p_T,ℓ cut (GeV); pairs with lepton_cut
+    lepton_mll_min: float | None = None # fiducial m_ℓℓ cut (GeV) on same-flavour OS
     isr_cfg: isr_beta.ISRConfig = field(default_factory=isr_beta.ISRConfig)
     order: int = 1                      # NLO-EW → filename tag "1"
     smooth: float | None = None         # σ̂ spline smoothing factor (None=auto)
+    morph_denoise_beta: bool = False    # χ²-smooth the factorized morph's β(√s)
     br_convention: str = "off-shell"    # "off-shell" (native σ(4f)∝BR²) or
                                         # "pdg-constant" (divide out BR(m_W,Γ_W);
                                         # mirrors BFS — Γ_W becomes line-shape-only
@@ -121,7 +126,8 @@ class WWGeneratorMoCaNLO:
     def _load(self):
         if self._grids is None:
             self._grids = load_grids(self.results_dir, self.scheme_alpha,
-                                     self.lepton_cut)
+                                     self.lepton_cut, self.lepton_pt_min,
+                                     self.lepton_mll_min)
             if not self._grids:
                 raise FileNotFoundError(
                     f"no σ̂ grids under {self.results_dir} (scheme {self.scheme_alpha})")
@@ -192,7 +198,8 @@ class WWGeneratorMoCaNLO:
         return (
             self.match_bfs, self.match_bfs_nnlo, self.match_bfs_dqcd,
             self.alpha_s, (self.sm.mt, self.sm.mH, self.sm.mZ),
-            self.scheme_alpha, self.lepton_cut, self.smooth,
+            self.scheme_alpha, self.lepton_cut, self.lepton_pt_min,
+            self.lepton_mll_min, self.smooth, self.morph_denoise_beta,
             isr_beta._cfg_fingerprint(self._isr_cfg()),
         )
 
@@ -247,33 +254,36 @@ class WWGeneratorMoCaNLO:
         self._cache[ck] = out
         return out
 
-    def _fit_morph(self, sqrt_s: np.ndarray):
-        """Least-squares quadratic+bilinear morph coefficients over all varpoints.
+    def _fit_morph(self, sqrt_s: np.ndarray) -> "morphmod.FactorizedMorph":
+        """Factorized (BFS-style) morph over the varpoint line shapes.
 
-        Fits, per √s,  σ(Δm,Δw) = c0 + c1·Δm + c2·Δw + c3·Δm² + c4·Δw² + c5·ΔmΔw
-        (Δ in MeV) to the assembled line shapes at every varpoint present in the
-        grid.  Over-determined (~20 points, 6 coeffs) ⇒ the per-point MC noise is
-        averaged down and the wide lever arm pins the slopes.  Returns coeffs of
-        shape (6, len(sqrt_s)).  Cached per sqrt_s identity.
+        Builds, per √s, the multiplicative morph
+        ``σ = σ_nom · R_m(Δm) · R_Γ(ΔΓ) · (1 + β·Δm·ΔΓ)`` — a per-√s quadratic
+        ratio in each POI plus a bilinear cross from the diagonal varpoints
+        (:func:`morph.fit_factorized`).  This mirrors the BFS production morph
+        (``xsec_calculator/grid_morph.py``): the steep line shape sits in
+        ``σ_nom`` (reproduced exactly), the responses are slowly-varying ratios,
+        and β is isolated from the implicit ``R_m·R_Γ`` product cross.  Cached
+        per sqrt_s identity.
         """
-        ck = ("coeffs", self._state_key(), _grid_key(sqrt_s))
+        ck = ("morph_fac", self._state_key(), _grid_key(sqrt_s))
         if ck in self._cache:
             return self._cache[ck]
         grids = self._load()
         channels = list(self._weights())
         vps = [v for v in VARPOINTS
                if all((ch, v.key) in grids for ch in channels)]
+        # The factorized fit needs the nominal + ≥3 on each POI axis + ≥1 cross;
+        # the full rich varpoint set (9 m-axis, 9 Γ-axis, 3 diagonal) supplies all.
         if len(vps) < 6:
             missing_ch = sorted({ch for v in VARPOINTS for ch in channels
                                  if (ch, v.key) not in grids})
             raise ValueError(
                 f"incomplete σ̂ grid under {self.results_dir!r} "
                 f"(scheme_alpha={self.scheme_alpha!r}, lepton_cut={self.lepton_cut!r}): "
-                f"only {len(vps)} fully-populated varpoint(s), but the 6-coefficient "
-                f"quad+bilinear morph needs ≥6.  Channels with missing varpoints: "
-                f"{missing_ch}.")
-        rows = [[1.0, v.dmW_MeV, v.dgW_MeV, v.dmW_MeV ** 2, v.dgW_MeV ** 2,
-                 v.dmW_MeV * v.dgW_MeV] for v in vps]
+                f"only {len(vps)} fully-populated varpoint(s); the factorized "
+                f"quad+bilinear morph needs the nominal + on-axis + cross varpoints.  "
+                f"Channels with missing varpoints: {missing_ch}.")
 
         # PREWARM the radiator ONCE in the parent (default).  D(x)·|dx/du| is
         # σ̂-independent, so all ~20 varpoints want the SAME radiator; building it
@@ -301,19 +311,17 @@ class WWGeneratorMoCaNLO:
         else:
             rhs = [self._varpoint_lineshape(v.key, sqrt_s) for v in vps]
 
-        A = np.asarray(rows)                       # (n_vp, 6)
-        Y = np.asarray(rhs)                        # (n_vp, n_s)
-        coeffs, *_ = np.linalg.lstsq(A, Y, rcond=None)   # (6, n_s)
-        self._cache[ck] = coeffs
-        return coeffs
+        coords = {v.key: (v.dmW_MeV, v.dgW_MeV) for v in vps}
+        lineshapes = {v.key: r for v, r in zip(vps, rhs)}
+        model = morphmod.fit_factorized(coords, lineshapes, sqrt_s,
+                                        denoise_beta=self.morph_denoise_beta)
+        self._cache[ck] = model
+        return model
 
     def _morphed(self, mW: float, gW: float, sqrt_s: np.ndarray) -> np.ndarray:
-        """σ_tot(√s; m_W, Γ_W) [pb] via the fitted quad+bilinear morph."""
-        coeffs = self._fit_morph(sqrt_s)
-        dm = (mW - MW0) * 1e3      # MeV
-        dw = (gW - GW0) * 1e3
-        basis = np.array([1.0, dm, dw, dm * dm, dw * dw, dm * dw])
-        return basis @ coeffs
+        """σ_tot(√s; m_W, Γ_W) [pb] via the factorized morph."""
+        model = self._fit_morph(sqrt_s)
+        return model.evaluate((mW - MW0) * 1e3, (gW - GW0) * 1e3)   # Δ in MeV
 
     # ------------------------------------------------------------------
     # WWGenerator contract

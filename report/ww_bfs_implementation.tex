@@ -2752,16 +2752,32 @@ sub-dominant to the $\sim\!0.5\%$/$10\MeV$ POI response:
     dedicated A/B test (correlated vs.\ decorrelated, $\ell\nu qq$) measures a
     \textbf{$31.9\times$} reduction of the even (curvature$+$noise) part of the
     $\pm10\MeV$ response, from RMS $0.71\%$ to $0.022\%$.
-  \item \textbf{Wide-lever least-squares morph}: the $20$ variation points
-    ($\mW,\GammaW$ each at $\pm10/\pm20/\pm30/\pm50\MeV$ plus cross points) feed
-    an over-determined quadratic$+$bilinear least-squares fit
-    $[\,1,\Delta m,\Delta w,\Delta m^2,\Delta w^2,\Delta m\,\Delta w\,]$, so the
-    slopes are averaged down rather than taken from a single finite difference.
+  \item \textbf{Factorized morph}: the $20$ variation points ($\mW,\GammaW$ each
+    at $\pm10/\pm20/\pm30/\pm50\MeV$ plus three diagonal cross points) feed a
+    factorized predictor
+    \[
+      \sigma(\sqrts;\mW,\GammaW)=\sigma_{\rm nom}(\sqrts)\,
+        R_m(\sqrts,\Delta m)\,R_\Gamma(\sqrts,\Delta w)\,
+        \bigl[1+\beta(\sqrts)\,\Delta m\,\Delta w\bigr],
+    \]
+    a per-$\sqrts$ quadratic ratio in each POI (fitted over its nine on-axis
+    points, so the slope is averaged down rather than taken from a single finite
+    difference) times a bilinear cross-term $\beta$ from the diagonal points
+    (\code{framework/process/ww/indep/morph.py}). The steep line shape sits
+    entirely in $\sigma_{\rm nom}$ --- reproduced \emph{exactly} --- while the
+    responses $R_m,R_\Gamma\!\approx\!1$ vary slowly with $\sqrts$, isolating
+    $\beta$ from the implicit $R_m R_\Gamma$ product cross.
 \end{itemize}
 The smoothing/morphing structure deliberately mirrors the BFS WHIZARD-grid scheme
 of appendix~\ref{sec:morphval}: a weighted cubic spline in $\sqrt{\hat s}$
-(weights $1/{\rm err}$) on the generator side, then the \emph{same} fit-side
-linear$+$bilinear cross-term morph (\code{CROSS\_TERMS}$=[(\rm mass,width)]$).
+(weights $1/{\rm err}$) on the generator side and the same factorized
+per-$\sqrts$ quadratic$+$bilinear form, then the \emph{same} fit-side
+linear$+$bilinear cross-term morph (\code{CROSS\_TERMS}$=[(\rm mass,width)]$). The
+morph \emph{form} is immaterial to the result: the factorized predictor and an
+additive Taylor fit $[\,1,\Delta m,\Delta w,\Delta m^2,\Delta w^2,\Delta m\,\Delta
+w\,]$ differ by $\le\!10^{-4}$ at the $\pm10\MeV$ template points and give
+identical Asimov sensitivities, so the independent $\sigma(\mW)$, $\sigma(\GammaW)$,
+$\rho$ do not hinge on the morphing choice.
 
 \subsection{The $\mW$ and $\GammaW$ response versus BFS}\label{sec:indep-response}
 

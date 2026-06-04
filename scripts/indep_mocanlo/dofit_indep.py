@@ -72,8 +72,14 @@ def main(argv=None) -> int:
                     choices=["gf", "alpha0", "alphaz", "alphamsbar"],
                     help="EW input scheme (the σ̂ grid must exist for it)")
     ap.add_argument("--lepton-cut", type=float, default=None,
-                    help="fiducial |cosθ_l|<COS grid (e.g. 0.95); default "
+                    help="fiducial |cosθ_l|<COS grid (e.g. 0.97); default "
                          "inclusive pure-WW")
+    ap.add_argument("--lepton-pt-min", type=float, default=None,
+                    help="fiducial p_T,ℓ>PT GeV (production set: 10); pairs with "
+                         "--lepton-cut")
+    ap.add_argument("--lepton-mll-min", type=float, default=None,
+                    help="fiducial m_ℓℓ>MLL GeV on same-flavour OS pairs "
+                         "(production set: 10)")
     ap.add_argument("--isr-scheme", default="LO_beta",
                     choices=list(isr_beta.ISR_SCHEMES))
     ap.add_argument("--mu-F-factor", type=float, default=1.0,
@@ -98,12 +104,16 @@ def main(argv=None) -> int:
 
     cfg = isr_beta.ISRConfig(scheme=args.isr_scheme, mu_F_factor=args.mu_F_factor)
     gen = WWGeneratorMoCaNLO(scheme_alpha=args.scheme, lepton_cut=args.lepton_cut,
+                             lepton_pt_min=args.lepton_pt_min,
+                             lepton_mll_min=args.lepton_mll_min,
                              isr_cfg=cfg, br_convention=args.br_convention)
     c = _card_2poi()
     params = Parameters(c.PARAMETERS, cross_terms=c.CROSS_TERMS)
 
     label = ("inclusive pure-WW" if args.lepton_cut is None
-             else f"fiducial |cosθ|<{args.lepton_cut}")
+             else (f"fiducial |cosθ|<{args.lepton_cut}"
+                   + (f" pt>{args.lepton_pt_min:g}" if args.lepton_pt_min else "")
+                   + (f" mll>{args.lepton_mll_min:g}" if args.lepton_mll_min else "")))
     print(f"[indep fit] generator: MoCaNLO {args.scheme}, {label}, "
           f"ISR {args.isr_scheme} (μ_F/√s={args.mu_F_factor})")
     print(f"[indep fit] generating {len(params.tags)} morph templates → {args.outdir}")
