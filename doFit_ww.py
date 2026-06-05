@@ -87,6 +87,12 @@ def parse_args():
                              "between the measured cross sections at different √s "
                              "from 0→1 (stat-only — all systematics dropped) and "
                              "plot σ(m_W)/σ(Γ_W) vs ρ")
+    parser.add_argument("--xsecSystScan", action="store_true",
+                        help="sweep the cross-section systematic — sized as the "
+                             "same percentage of each √s point's stat — from 0 to "
+                             "2× stat (stat + this one syst only; all others "
+                             "dropped), correlated and uncorrelated components as "
+                             "two lines, and plot σ(m_W)/σ(Γ_W) vs that percentage")
     parser.add_argument("--systTable", action="store_true")
     parser.add_argument("--shapeOnly", action="store_true",
                         help="shape-only fit: float the correlated-luminosity "
@@ -325,6 +331,8 @@ def main():
         scan_jobs.append(lambda: scans.scan_chi2(fit))
     if args.statCorrScan:
         scan_jobs.append(lambda: scans.scan_stat_correlation(fit))
+    if args.xsecSystScan:
+        scan_jobs.append(lambda: scans.scan_xsec_syst(fit, hi=10e-4))
 
     if args.parallel > 1 and len(scan_jobs) > 1:
         scans.run_parallel(scan_jobs, max_workers=args.parallel)

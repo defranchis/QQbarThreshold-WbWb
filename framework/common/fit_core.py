@@ -1010,6 +1010,22 @@ class FitCore:
         if self.xsec_syst_corr:
             d = self.xsec_syst_corr * stat
             cov_data = cov_data + np.outer(d, d)
+        # Flat *relative* cross-section systematics (used by the sweep
+        # ``scans.scan_xsec_syst``): a fully-correlated and a fully-uncorrelated
+        # component, each a flat fractional uncertainty on the cross section —
+        # the SAME percentage at every √s — so they scale with the per-point
+        # cross section ``pseudo_data_scenario`` (like the lumi terms below)
+        # rather than with the per-point stat. Default 0 (getattr) so production
+        # fits, which never set them, are unaffected.
+        xsec_uncorr_rel = getattr(self, "xsec_syst_uncorr_rel", 0.0)
+        xsec_corr_rel = getattr(self, "xsec_syst_corr_rel", 0.0)
+        if xsec_uncorr_rel or xsec_corr_rel:
+            xsec_vec = np.asarray(self.pseudo_data_scenario, dtype=float)
+            if xsec_uncorr_rel:
+                cov_data = cov_data + np.diag((xsec_uncorr_rel * xsec_vec) ** 2)
+            if xsec_corr_rel:
+                d = xsec_corr_rel * xsec_vec
+                cov_data = cov_data + np.outer(d, d)
         if getattr(self.card, "LUMI_UNCORR_SCALES", False):
             L_i = np.array(list(self.scenario.values()), dtype=float)
             lumi_uncorr_ecm = self.lumi_uncorr * np.sqrt(

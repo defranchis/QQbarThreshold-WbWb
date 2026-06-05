@@ -157,6 +157,18 @@ else
     echo "[publish] WARN: $STATCORR_SRC missing — stat-correlation figure will be stale"
 fi
 
+# Cross-section-systematic scan (sigma(m_W)/sigma(Gamma_W) vs the per-point
+# xsec syst as a percentage of stat, 0->2x, corr + uncorr): produced by
+# `doFit_ww.py --xsecSystScan` (framework/common/scans.py:scan_xsec_syst) into
+# fit_output/ww/plots/.
+XSECSYST_SRC="../fit_output/ww/plots/uncert_mass_width_vs_xsecsyst.pdf"
+if [[ -f "$XSECSYST_SRC" ]]; then
+    mkdir -p figs
+    cp -p "$XSECSYST_SRC" "figs/uncert_mass_width_vs_xsecsyst.pdf"
+else
+    echo "[publish] WARN: $XSECSYST_SRC missing — xsec-systematic figure will be stale"
+fi
+
 # Data tables the report cites (text provenance of the results sections, e.g.
 # report/data/scenario_compare.txt referenced in the scenario tables). Mirror
 # the human-readable dumps from the untracked plots/ working areas into the

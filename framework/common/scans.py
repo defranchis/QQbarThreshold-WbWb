@@ -19,6 +19,7 @@ import numpy as np
 
 from framework.common.fit_core import ecm_to_str, quadrature_subtract
 from framework.common.plots import (
+    _labels_module,
     process_annotation,
     projection_title,
     save_figure,
@@ -550,6 +551,119 @@ def scan_stat_correlation(fit, *, lo=0.0, hi=0.99, points=21, outdir=None):
         plt.ylabel(f"Statistical uncertainty [{unit}]")
         process_annotation(fit.card, x=0.05, y=0.55, ha="left")
         save_figure(outdir, _impact_pois_filename("statcorr", unit_pois))
+
+
+# ---------------------------------------------------------------------------
+# Cross-section systematic as a fraction of the per-point stat
+# ---------------------------------------------------------------------------
+def scan_xsec_syst(fit, *, lo=0.0, hi=None, points=21, outdir=None):
+    """Sweep a flat *relative* cross-section systematic — a single fractional
+    uncertainty on the measured σ(√s), the SAME percentage at every √s — and
+    record the TOTAL uncertainty (stat ⊕ this one syst) on each POI. The
+    fully-correlated and fully-uncorrelated components are swept independently
+    (the other held at zero) and drawn as two lines per POI.
+
+    The component scales with the per-point cross section (``pseudo_data_scenario``,
+    a normalisation uncertainty — uncorr → ``diag((δ·σ_i)²)``, corr →
+    ``outer(δ·σ, δ·σ)``), NOT with the per-point stat. The x-axis is therefore a
+    flat percentage on σ. The default sweep runs from ``lo`` to ``hi``; when
+    ``hi`` is ``None`` it is set to twice the SMALLEST per-√s *relative*
+    statistical uncertainty ``min_i(σ^stat_i/σ_i)`` — so the scan spans up to
+    where the flat syst reaches 2× the tightest point's stat. A vertical
+    reference line marks that smallest relative stat uncertainty and is labelled
+    with the √s at which it occurs.
+
+    "Only stat + this one systematic": all OTHER systematics are switched off
+    (``reinitialise_to_stat``) so the data covariance is stat ⊕ the swept syst.
+    At δ=0 both lines start from the stat-only σ; positive δ inflates it.
+
+    Mutates ``fit`` in place (priors → stat-only, ``xsec_syst_*_rel`` + cov per
+    grid point) and restores it on exit (same save/restore-in-``finally`` pattern
+    as :func:`scan_stat_correlation`; no ``deepcopy``, which the theory generator
+    can't survive). Runs a fresh local Minuit each point (the morph matrix /
+    smeared templates are constant). Saves one figure per unit-group of the
+    scannable POIs to ``outdir`` (default ``fit.plot_dir``).
+    """
+    # Per-point relative statistical uncertainty σ^stat_i/σ_i; the smallest sets
+    # the natural x-axis ceiling (2×) and the reference line.
+    xsec_vec = np.asarray(fit.pseudo_data_scenario, dtype=float)
+    rel_stat = np.asarray(fit.unc_pseudodata_scenario, dtype=float) / xsec_vec
+    i_min = int(np.argmin(rel_stat))
+    min_rel_stat = float(rel_stat[i_min])
+    ecm_min = float(list(fit.scenario.keys())[i_min])
+    if hi is None:
+        hi = 2.0 * min_rel_stat
+
+    grid = np.linspace(lo, hi, points)
+    pois = [p for p in fit.tracked_pois() if fit.is_scannable_poi(p)]
+    start = np.zeros(len(fit.param_names))
+    results = {"uncorr": {poi: [] for poi in pois},
+               "corr":   {poi: [] for poi in pois}}
+    fit.reinitialise_to_stat()
+    try:
+        for direction in ("uncorr", "corr"):
+            for delta in grid:
+                fit.xsec_syst_uncorr_rel = float(delta) if direction == "uncorr" else 0.0
+                fit.xsec_syst_corr_rel = float(delta) if direction == "corr" else 0.0
+                fit._build_cov()
+                m = run_local_migrad(fit, start)
+                fr = fit.results_from_minuit(m)
+                for poi in pois:
+                    results[direction][poi].append(fr[fit._idx[poi]].s)
+    finally:
+        # Drop the flat-relative terms, then reinitialise_to_nominal rebuilds the
+        # production covariance (the %-of-stat fractions) cleanly.
+        fit.xsec_syst_uncorr_rel = 0.0
+        fit.xsec_syst_corr_rel = 0.0
+        fit.reinitialise_to_nominal()
+
+    outdir = outdir or fit.plot_dir
+    x = grid * 1e4  # flat relative cross-section systematic, in units of 1e-4
+    proc_label = _labels_module(fit.card).process_label_short(fit.card)
+    # Subscript the (muon) neutrino for this plot only; targeted so it matches
+    # the inclusive μνqq̄ final state and leaves any other channel untouched.
+    proc_label = proc_label.replace(r"\mu\nu q", r"\mu\nu_\mu q")
+    for unit, unit_pois in _pois_by_unit(fit).items():
+        unit_pois = [p for p in unit_pois if p in pois]
+        if not unit_pois:
+            continue
+        plt.figure()
+        ax = plt.gca()
+        for i, poi in enumerate(unit_pois):
+            color, _ = _poi_line(i)
+            sym = poi_symbol(fit, poi)
+            # Relative increase over the stat-only value (the δ=0 grid point,
+            # common to both directions): tot/stat − 1, so the origin is (0, 0).
+            base = results["uncorr"][poi][0]
+            plt.plot(x, np.array(results["uncorr"][poi]) / base - 1,
+                     color=color, linestyle="-",
+                     label=rf"${sym}$ (uncorr.)", linewidth=2)
+            plt.plot(x, np.array(results["corr"][poi]) / base - 1,
+                     color=color, linestyle="--",
+                     label=rf"${sym}$ (corr.)", linewidth=2)
+        # Cap the y-axis at a 50% increase (curves run off the top beyond that).
+        plt.ylim(top=0.5)
+        # Reference line at the smallest per-√s relative stat uncertainty.
+        plt.axvline(min_rel_stat * 1e4, color="0.4", linestyle=":", linewidth=1.5)
+        ymin, ymax = plt.ylim()
+        plt.text(min_rel_stat * 1e4, ymin + 0.04 * (ymax - ymin),
+                 rf" stat. uncertainty at {ecm_min:.1f} GeV",
+                 rotation=90, va="bottom", ha="left", color="0.4", fontsize=17)
+        # Reference line at a 10% increase in the total uncertainty.
+        plt.axhline(0.10, color="0.4", linestyle="--", linewidth=1.5)
+        xmin, xmax = plt.xlim()
+        plt.text(xmax, 0.10, "10% increase ",
+                 va="bottom", ha="right", color="0.4", fontsize=17)
+        # Process label outside the frame, upper-left (mirrors the projection
+        # title, which sits outside upper-right).
+        ax.text(0.0, 1.01, proc_label, transform=ax.transAxes,
+                fontsize=22, va="bottom", ha="left")
+        plt.legend(loc="upper left")
+        plt.title(projection_title(fit.scenario_dict["total_lumi"],
+                                   unit="ab", fmt="{:.1f}"), loc="right", fontsize=20)
+        plt.xlabel(r"Rel. syst. uncert. in WW xsec [$\times 10^{-4}$]")
+        plt.ylabel("Rel. increase in tot. uncert.")
+        save_figure(outdir, _impact_pois_filename("xsecsyst", unit_pois))
 
 
 # ---------------------------------------------------------------------------
