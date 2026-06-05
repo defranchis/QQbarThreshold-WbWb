@@ -2670,10 +2670,11 @@ and luminosity calibration, not the absolute luminosity scale alone.
 \section{Independent BFS-free cross-check: MoCaNLO\,+\,Recola NLO-EW}\label{sec:indep}
 % ---------------------------------------------------------------
 
-\emph{Status: preliminary. The inclusive ($\mu\nu qq$-shape) pure-WW pipeline,
-the independent sensitivities, and the ISR-scheme uncertainty are complete; the
-EW-input-scheme uncertainty and the fiducial-acceptance cross-check are running
-on the batch farm and will be folded into a later revision.}
+\emph{The inclusive ($\mu\nu qq$-shape) pure-WW pipeline, the independent
+sensitivities, the fiducial-acceptance cross-check, and the ISR- and
+EW-input-scheme theory uncertainties are all complete and reported below, on a
+grid synchronised to the production inputs ($m_t=172.5\GeV$, $M_H=125.25\GeV$,
+$M_Z=91.1876\GeV$, $G_F=1.1663787\times10^{-5}$).}
 
 \subsection{Motivation and scope}\label{sec:indep-scope}
 
@@ -2827,14 +2828,13 @@ treatment is the decisive choice:
     $\Gamma_{\rm partial}\propto\mW^3$), so $\GammaW$ becomes line-shape-only and
     $\rho$ returns to $+0.61$ --- matching the BFS correlation structure ---
     \emph{while retaining} the $\mW$ rate handle. The marginal $\sigma(\mW)$
-    actually \emph{tightens} to $0.42\MeV$ purely by de-correlation (the
-    conditional $\sigma(\mW)$ is $\approx0.35\MeV$ in both conventions).
+    actually \emph{tightens} to $0.44\MeV$ purely by de-correlation.
   \item \textbf{shape-only} (lumi prior opened): floating the overall
     normalisation also removes the BR handle, but at the cost of the $\mW$ rate
-    information, loosening $\sigma(\mW)$ to $1.14\MeV$. This is the inferior way
+    information, loosening $\sigma(\mW)$ to $1.27\MeV$. This is the inferior way
     to fix the BR and is reported only for contrast.
 \end{itemize}
-The shape-only result ($\sigma(\mW)=1.14\MeV$, $\rho=+0.52$) reproduces the BFS
+The shape-only result ($\sigma(\mW)=1.27\MeV$, $\rho=+0.52$) reproduces the BFS
 $\mW$ sensitivity ($\sim\!1.2\MeV$, section~\ref{sec:fitresults}) and correlation
 sign from a fully independent line shape --- an independent confirmation of the
 BFS number. The pdg-constant column is the recommended BFS-comparable headline.
@@ -2848,10 +2848,10 @@ comparison requires matched channel scope and is deferred to the fiducial study.
 \hline
 BR treatment (lumi) & $\sigma(\mW)$ [MeV] & $\sigma(\GammaW)$ [MeV] & $\rho$ \\
 \hline
-off-shell, production cov-lumi      & $0.83$ & $0.44$ & $-0.89$ \\
-\textbf{pdg-constant, production}   & $\mathbf{0.42}$ & $\mathbf{0.87}$ & $\mathbf{+0.61}$ \\
-off-shell, shape-only               & $1.14$ & $0.82$ & $+0.52$ \\
-pdg-constant, shape-only            & $1.14$ & $0.80$ & $+0.52$ \\
+off-shell, production cov-lumi      & $0.89$ & $0.48$ & $-0.89$ \\
+\textbf{pdg-constant, production}   & $\mathbf{0.44}$ & $\mathbf{0.95}$ & $\mathbf{+0.61}$ \\
+off-shell, shape-only               & $1.27$ & $0.92$ & $+0.52$ \\
+pdg-constant, shape-only            & $1.27$ & $0.92$ & $+0.52$ \\
 \hline
 \end{tabular}
 \caption{Independent MoCaNLO Asimov sensitivities under the three
@@ -2866,7 +2866,7 @@ $\mW$ rate handle; shape-only discards it. Script
 
 Varying the LL ISR scheme over MoCaNLO's four PDF tags
 (\code{LO\_beta/eta/mixed/collinear}) leaves the \emph{sensitivity}
-scheme-invariant: $\sigma(\mW)=0.82$--$0.83\MeV$ for all four, mirroring the
+scheme-invariant: $\sigma(\mW)=0.89$--$0.90\MeV$ for all four, mirroring the
 scheme-invariance of the BFS Asimov statistics (section~\ref{sec:val-isr-cross}).
 The theory uncertainty is therefore the cross-fit \emph{bias}: injecting the
 reference (\code{LO\_beta}) truth line shape and fitting it with a variant
@@ -2879,17 +2879,52 @@ conservative envelope over all four schemes is thus $\sim\!2.5\MeV$ on the shape
 restricting to the physical beta-type radiators it is $<1\MeV$. This LL-PDF-scheme
 axis is distinct from the EW $\alpha$-renormalisation-scheme axis that dominates
 the BFS ISR systematic (section~\ref{sec:val-isr-scheme}); the MoCaNLO analogue
-of \emph{that} is the EW-input-scheme cross-fit ($\alpha(0)$ vs.\ $\alpha(M_Z)$),
-in progress.
+of \emph{that} is the EW-input-scheme cross-fit, treated next.
 
-\subsection{What remains}\label{sec:indep-todo}
+\subsection{EW-input-scheme theory uncertainty}\label{sec:indep-ew}
 
-Two batch campaigns are running and will complete this section: (i) the EW-input
-scheme grids ($\alpha(0)$, $\alpha(M_Z)$) for the dominant theory-uncertainty
-axis via the same cross-fit machinery; (ii) the fiducial-acceptance grid (six
-blocks with $|\cos\theta_\ell|<0.97$, $p_{T,\ell}>10\GeV$, $m_{\ell\ell}>10\GeV$)
-for the acceptance/channel-scope cross-check and a matched absolute comparison to
-BFS.
+The MoCaNLO partonic cross section is computed in the $G_\mu$ scheme by default.
+Regenerating the $\hat\sigma(\sqrt{\hat s})$ grid in the $\alpha(0)$ and
+$\alpha(M_Z)$ input schemes and cross-fitting against the $G_\mu$ reference truth
+(same \code{crossfit\_scheme.py}) isolates the EW-input-scheme bias. On the
+\emph{shape} alone (lumi free) the schemes agree well, $|\Delta\mW|\lesssim6\MeV$
+($\alpha(0)$: $-1.3\MeV$, $\alpha(M_Z)$: $+6.0\MeV$); the spread is dominated by
+the differing overall normalisation, which under the production cov-lumi prior
+propagates through the ${\rm BR}^2$ rate handle into a $\sim\!66\MeV$ envelope on
+$\mW$ ($\alpha(0)$: $-66\MeV$, $\alpha(M_Z)$: $+66\MeV$). This is the MoCaNLO
+analogue of the $\sim\!36\MeV$ $\alpha$-renormalisation-scheme ISR systematic that
+dominates the BFS theory budget (section~\ref{sec:val-isr-scheme}): in both
+calculations the EW input-scheme choice is the leading theory uncertainty, entering
+the production fit through the rate normalisation. As in the BFS chain, fixing the
+scheme (here $G_\mu$, the FCC-ee EW-fit baseline) and propagating the residual
+$\alpha(M_Z)$ \emph{parametric} uncertainty rather than the full scheme span is
+what enters the realistic budget.
+
+\subsection{Fiducial-acceptance cross-check}\label{sec:indep-fid}
+
+The headline sensitivities above are inclusive. To confirm they are not an
+artefact of the full $4\pi$ acceptance, a second $\hat\sigma$ grid was generated
+with fiducial lepton cuts applied at the matrix-element level (six blocks,
+$|\cos\theta_\ell|<0.97$, $p_{T,\ell}>10\GeV$, $m_{\ell\ell}>10\GeV$;
+\code{dofit\_indep.py --lepton-cut 0.97 --lepton-pt-min 10 --lepton-mll-min 10}).
+The fitted sensitivities are essentially unchanged from the inclusive values:
+pdg-constant $\sigma(\mW)=0.44\MeV$, $\sigma(\GammaW)=0.95\MeV$, $\rho=+0.61$
+(off-shell $0.88/0.47/-0.89$; shape-only $1.26/0.93/+0.53$). The threshold
+sensitivity therefore comes from the line-shape rise, not from the acceptance
+shape, and the result is robust to channel scope and realistic detector
+fiducial cuts.
+
+\subsection{Summary of the independent check}\label{sec:indep-todo}
+
+The independent NLO-EW four-fermion calculation, sharing no code and no
+perturbative input with the BFS chain, reproduces the BFS sensitivities and
+correlation structure: the shape-only $\sigma(\mW)\!\approx\!1.27\MeV$ matches the
+BFS $\sim\!1.2\MeV$ and the pdg-constant $\rho=+0.61$ matches the BFS correlation,
+both from a fully independent line shape. The ISR-scheme ($\lesssim2.5\MeV$ shape)
+and EW-input-scheme ($\sim\!66\MeV$ through the production rate handle, the leading
+theory axis) uncertainties mirror the BFS theory budget. What remains for a future
+revision is detector-level reconstruction and the associated experimental
+systematics, which are beyond the scope of this generator-level cross-check.
 
 % ---------------------------------------------------------------
 \section{Matching BFS higher-order corrections onto MoCaNLO (work in progress)}\label{sec:match}
@@ -3317,11 +3352,12 @@ a single authoritative summary.
   (Scenario H, section~\ref{sec:val-loops}).
 \item \textbf{Parallel calculation.} An independent BFS-free
   MoCaNLO${+}$Recola NLO-EW generator implementing the same
-  \code{WWGenerator} contract is now in place; its first results
-  (independent sensitivities, the branching-ratio-convention
-  analysis, and the ISR-scheme uncertainty) are in
-  section~\ref{sec:indep}. The EW-input-scheme uncertainty and the
-  fiducial-acceptance cross-check are still being generated.
+  \code{WWGenerator} contract is now in place and complete; its results
+  (independent sensitivities, the branching-ratio-convention analysis, the
+  fiducial-acceptance cross-check, and the ISR- and EW-input-scheme theory
+  uncertainties) are in section~\ref{sec:indep}, on a grid synchronised to the
+  production inputs. It reproduces the BFS sensitivities and correlation from a
+  fully independent line shape.
 \item \textbf{Fadin-Khoze-Martin $K_C$ dropped from the default
   chain (2026-05-26).} The previous default multiplied the FKM~\cite{FKM1993,FKM1995}
   $K_C$ factor onto the BFS chain that already contains the leading
