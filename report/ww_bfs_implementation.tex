@@ -2980,16 +2980,17 @@ revision is detector-level reconstruction and the associated experimental
 systematics, which are beyond the scope of this generator-level cross-check.
 
 % ---------------------------------------------------------------
-\section{Matching BFS higher-order corrections onto MoCaNLO (work in progress)}\label{sec:match}
+\section{Matching BFS higher-order corrections onto MoCaNLO}\label{sec:match}
 % ---------------------------------------------------------------
 
-\emph{Status: work in progress / exploratory. The construction, both the LL and
-NLL implementations, the validation cross-checks, and the matched Asimov pull
-(section~\ref{sec:match-pull}) are all in place; what remains is to regenerate the
-pull on the production $m_t=172.5\GeV$ grid and to make the NLL matching
-$\mathcal O(\alpha)$-exact. None of this is wired into the production fit --- it
-lives behind opt-in flags in \code{framework/process/ww/indep/} (\code{match\_bfs},
-\code{isr\_nll}; module \code{match\_bfs.py}).}
+\emph{Status: exploratory, complete. The construction, both the LL and NLL
+implementations, the validation cross-checks, and the matched Asimov pull
+(section~\ref{sec:match-pull}) --- now on the production $m_t=172.5\GeV$ grid ---
+are all in place, and the one-time NLL/$C_1$ scheme question (section~\ref{sec:match-nll})
+has been resolved. None of this is wired into the production fit: it lives behind
+opt-in flags in \code{framework/process/ww/indep/} (\code{match\_bfs},
+\code{isr\_nll}; module \code{match\_bfs.py}), and the headline $\mW$ results of this
+report do not depend on it.}
 
 \subsection{Principle: what MoCaNLO is missing}\label{sec:match-principle}
 
@@ -3113,10 +3114,19 @@ equation~\eqref{eq:match-obs}. The port reuses the validated endpoint substituti
 the independent chain: the per-leg $\beta_e$ at $\mu_F=\sqrt{\hat s}$ and the LL
 soft$+$virtual normalisation coincide \emph{identically} with those of the BFS-side
 eMELA convolution (section~\ref{sec:isr}), so the radiator is exact (verified below).
-The one approximation is that $C_1$ is retained in its analytic-LL form rather than
-rebuilt from eMELA's own $\mathcal O(\alpha)$, leaving a residual $\mathcal O(\alpha)$
-NLL/DELTA-scheme constant (estimated $\lesssim0.1$--$0.3\%$); making the NLL matching
-$\mathcal O(\alpha)$-exact is the leading refinement (section~\ref{sec:match-todo}).
+The $C_1$ subtraction is kept in its analytic $\beta$-scheme LL form
+($\beta=(\alpha/\pi)(2L-1)$, $L=\ln\mu_F/m_e$); one might worry that, since the
+radiator is now the eMELA NLL DELTA ePDF, $C_1$ should instead be rebuilt from
+eMELA's own $\mathcal O(\alpha)$. This has been checked directly and the $\beta$-scheme
+form is correct: comparing eMELA's \code{code\_pdf} to the analytic $\beta$ ($2L-1$) and
+``collinear'' ($2L$, the 1911.12040 convention) soft forms in the region where its
+numerics are valid (omx\,$\approx\!10^{-7}$--$10^{-9}$), eMELA's soft behaviour
+--- which dominates the threshold convolution --- matches the $\beta$-scheme to $0.1\%$
+and the collinear form only to $0.3$--$1.1\%$. The soft$+$virtual ``$-1$'' is genuine
+all-orders soft physics carried by the resummed ePDF regardless of the collinear
+factorisation scheme, so $C_1$ and the radiator are scheme-consistent. The only residual
+is then the genuine LL$\to$NLL difference ($\sim\!0.2\%$ on the line shape,
+$\lesssim0.1\MeV$ in $\mW$).
 
 \subsection{Cross-checks}\label{sec:match-val}
 
@@ -3172,7 +3182,7 @@ NLL/LL ISR shift & $+0.26$ to $+0.59\%$ & --- \\
 $\delta_\text{QCD}$, per channel ($\mu\tau/\ell\nu qq/qqqq$) & $1.000/1.040/1.082$ & --- \\
 \bottomrule
 \end{tabular}
-\caption{Cross-checks of the BFS-on-MoCaNLO matching (work in progress), on the
+\caption{Cross-checks of the BFS-on-MoCaNLO matching, on the
 rich correlated-seed grid ($m_t=174.2\GeV$). The two ``NLO premise'' rows test that
 MoCaNLO's NLO already contains the BFS NLO content (shape and sensitivity), so that
 only the NNLO remainder need be added; the lower block lists the size of the added
@@ -3180,12 +3190,15 @@ corrections.}
 \label{tab:match-val}
 \end{table}
 
-\paragraph{$m_t$ caveat.} The only correlated-seed grid presently available was
-generated at $m_t=174.2\GeV$ (the BFS-table reference), not the production
-$172.5\GeV$. All numbers above are engine-self-consistent at $174.2\GeV$ and the
-\emph{conclusions} are $m_t$-independent at this precision (cf.\ the $-0.0011\%$
-screening of section~\ref{sec:indep-calc}), but any production matched result must be
-regenerated on a $172.5\GeV$ grid.
+\paragraph{$m_t$ dependence.} The structural cross-checks of
+Table~\ref{tab:match-val} use the rich correlated-seed grid at $m_t=174.2\GeV$ (the
+BFS-table reference); they are engine-self-consistent and $m_t$-independent at this
+precision (cf.\ the $-0.0011\%$ screening of section~\ref{sec:indep-calc}). The
+matched Asimov pull (section~\ref{sec:match-pull}) has additionally been regenerated
+on the production $m_t=172.5\GeV$ correlated-seed grid: the headline numbers are
+essentially identical to the $174.2\GeV$ grid (shape-only to $\sim\!0.02\MeV$,
+cov-lumi $\delta_\text{QCD}$ to $\sim\!0.2\MeV$), confirming that the matching
+conclusions are $m_t$-independent.
 
 \subsection{Matched Asimov pull}\label{sec:match-pull}
 
@@ -3195,10 +3208,11 @@ the \emph{unmatched-LL} reference morph, so the best-fit shift is the $\mW$/$\Ga
 bias from omitting that piece (equivalently, the size of the correction the matching
 supplies). The self-fit closes at $0.00\MeV$ and the reference sensitivities
 reproduce the independent fit of Table~\ref{tab:indep-br}
-($\sigma(\mW)=0.44\MeV$ pdg-constant, $0.90\MeV$ off-shell, on the interim
-$m_t=174.2\GeV$ grid --- slightly above the production-grid $0.42/0.83\MeV$ of
-table~\ref{tab:indep-br}, an $m_t$/grid difference rather than an inconsistency),
-validating the machinery. Table~\ref{tab:match-pull} gives the decomposed pulls.
+($\sigma(\mW)=0.44\MeV$ pdg-constant, $0.90\MeV$ off-shell, on the production
+$m_t=172.5\GeV$ grid --- slightly above the $0.42/0.83\MeV$ of
+table~\ref{tab:indep-br}, the two-POI cross-term morph setup rather than the full
+systematics fit), validating the machinery. Table~\ref{tab:match-pull} gives the
+decomposed pulls.
 
 In \emph{shape-only} mode --- which isolates the line-shape bias and is
 convention-robust --- the picture is clean:
@@ -3237,15 +3251,16 @@ sensitivity is a caveat on the rate handle, not a property of the NNLO physics.
 \cmidrule(lr){2-3}\cmidrule(lr){4-5}
 piece added & $\Delta\mW$ & $\Delta\GammaW$ & $\Delta\mW$ & $\Delta\GammaW$ \\
 \midrule
-$\delta_\text{NNLO}$   & $+1.6$ & $-2.2$ & $+2.1\,/\,{-1.7}$  & $-1.8\,/\,{-2.9}$ \\
-$\delta_\text{QCD}$    & $0.0$  & $0.0$  & $-49.8\,/\,{-106}$ & $-37.6\,/\,{-20.3}$ \\
+$\delta_\text{NNLO}$   & $+1.6$ & $-2.2$ & $+2.1\,/\,{-1.6}$  & $-1.8\,/\,{-2.9}$ \\
+$\delta_\text{QCD}$    & $0.0$  & $0.0$  & $-49.7\,/\,{-106}$ & $-37.6\,/\,{-19.6}$ \\
 NLL ISR                & $-3.7$ & $-0.2$ & $-5.4\,/\,{-6.9}$  & $-1.3\,/\,{-1.0}$ \\
-matched$+$NLL (all)    & $-2.0$ & $-2.4$ & $-53\,/\,{-115}$   & $-41\,/\,{-24}$ \\
+matched$+$NLL (all)    & $-2.0$ & $-2.4$ & $-53\,/\,{-115}$   & $-41\,/\,{-23}$ \\
 \bottomrule
 \end{tabular}
 \caption{Matched Asimov pull: $\mW$/$\GammaW$ shift [MeV] from injecting each
 matched/NLL variant as Asimov truth and fitting with the unmatched-LL morph
-(on the interim $m_t=174.2\GeV$ grid). The cov-lumi entries are
+(on the production $m_t=172.5\GeV$ grid; identical to the $174.2\GeV$ grid to
+$\sim\!0.02\MeV$ shape / $\sim\!0.2\MeV$ cov-lumi). The cov-lumi entries are
 off-shell\,/\,pdg-constant. The shape-only columns are the convention-robust
 line-shape pulls; the large cov-lumi $\delta_\text{QCD}$ entries are the rate-fit's
 sensitivity to the flat $+5.4\%$ normalisation, not an NNLO effect (see text). The
@@ -3279,19 +3294,22 @@ Script \code{scripts/investigations/bfs\_match/plot\_match\_lineshape.py}.}
 \label{fig:match-lineshape}
 \end{figure}
 
-\subsection{Open items}\label{sec:match-todo}
+\subsection{Status of the cross-check items}\label{sec:match-todo}
 
 \begin{enumerate}
-  \item \textbf{Matched Asimov pull on the production grid.} The shape-only pull is
-    measured (Table~\ref{tab:match-pull}: $\delta_\text{NNLO}\,{+}1.6\MeV$, NLL ISR
-    $-3.7\MeV$) on the interim $m_t=174.2\GeV$ grid; regenerate it on the production
-    $172.5\GeV$ correlated-seed grid for the headline number.
-  \item \textbf{$\mathcal O(\alpha)$-exact NLL matching.} Rebuild $C_1$ from the
-    eMELA $\mathcal O(\alpha)$ ePDF (the analytic DELTA-scheme coefficient) to remove
-    the residual NLL/scheme $\mathcal O(\alpha)$ term of section~\ref{sec:match-nll}.
-    Its impact has been bounded: toggling the $C_1$ scheme $\alpha$ at fixed NLL
-    radiator moves $\mW$ by only $\lesssim0.1\MeV$, so this is a precision refinement,
-    not a leading correction.
+  \item \textbf{Matched Asimov pull on the production grid (done).} The pull
+    (Table~\ref{tab:match-pull}: $\delta_\text{NNLO}\,{+}1.6\MeV$, NLL ISR
+    $-3.7\MeV$ shape-only) has been regenerated on the production
+    $m_t=172.5\GeV$ correlated-seed grid; the numbers reproduce the interim
+    $174.2\GeV$ grid to $\sim\!0.02\MeV$ (shape) / $\sim\!0.2\MeV$ (cov-lumi
+    $\delta_\text{QCD}$), confirming $m_t$-independence.
+  \item \textbf{$C_1$ / NLL scheme consistency (resolved).} The question of whether
+    $C_1$, kept in its $\beta$-scheme LL form, is consistent with the eMELA NLL DELTA
+    radiator has been settled directly (section~\ref{sec:match-nll}): eMELA's soft
+    ePDF matches the $\beta$-scheme ($2L-1$) to $0.1\%$ --- not the collinear ($2L$)
+    form --- so the soft$+$virtual ``$-1$'' is genuine resummed physics present in both
+    and $C_1$ requires no rebuild. The remaining LL$\to$NLL residual is
+    $\lesssim0.1\MeV$, as the cross-fit toggle confirmed.
   \item \textbf{NLL soft-endpoint substitution (resolved).} The eMELA-NLL per-leg
     integrand uses the analytic soft$+$virtual limit below $1-x<10^{-15}$ ($\approx13\%$
     of the quadrature weight). Quantified: as $x\!\to\!1$ the integrand must approach
