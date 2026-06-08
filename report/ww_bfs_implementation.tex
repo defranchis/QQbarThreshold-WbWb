@@ -1788,20 +1788,26 @@ eMELA NLL         & $80361.452 \pm 2.32$ & $80378.614 \pm 2.31$ & $80384.031 \pm
 \end{tabular}
 \end{table}
 
-The off-diagonal pattern decomposes cleanly:
-\begin{itemize}
-\item LL$+$exp $\leftrightarrow$ eMELA LL: $|\Delta\mW| = 17.0\MeV$
-  --- the \emph{LL-truncation} error of the analytic $\beta^3$
-  Beenakker formula (eq.~\eqref{eq:beenakker-beta}) relative to
-  eMELA's full DGLAP-evolved LL.
-\item eMELA LL $\leftrightarrow$ eMELA NLL: $|\Delta\mW| = 5.4\MeV$
-  --- the \emph{pure NLL} bracket contribution on top of the
-  DGLAP LL.
-\item LL$+$exp $\leftrightarrow$ eMELA NLL: $|\Delta\mW| = 22.4\MeV$
-  --- the full LL$+$exp\,$\to$\,NLL ISR systematic.
-\end{itemize}
-The pieces add: $17.0 + 5.4 \approx 22.4\MeV$. Signs are
-anti-symmetric across the diagonal (linear slope effect). Fit
+The off-diagonal pattern decomposes cleanly into the LL-truncation and
+pure-NLL pieces:
+\begin{center}\small
+\begin{tabular}{l c p{0.46\linewidth}}
+\toprule
+Scheme pair & $|\Delta\mW|$ [MeV] & Physical content \\
+\midrule
+LL$+$exp $\leftrightarrow$ eMELA LL
+  & $17.0$ & \emph{LL-truncation} error of the analytic $\beta^3$ Beenakker
+            formula (eq.~\eqref{eq:beenakker-beta}) vs.\ eMELA's full
+            DGLAP-evolved LL \\
+eMELA LL $\leftrightarrow$ eMELA NLL
+  & $5.4$  & \emph{pure NLL} bracket on top of the DGLAP LL \\
+\midrule
+LL$+$exp $\leftrightarrow$ eMELA NLL
+  & $22.4$ & full LL$+$exp\,$\to$\,NLL ISR systematic ($=17.0+5.4$) \\
+\bottomrule
+\end{tabular}
+\end{center}
+Signs are anti-symmetric across the diagonal (linear slope effect). Fit
 \emph{precision} is scheme-invariant
 ($\sigma_{\mW}\!=\!2.30\MeV$, $\sigma_{\GammaW}\!=\!3.87\MeV$,
 $\rho_{\mW,\GammaW}\!=\!+0.625$ within $\pm 0.005$ across all three
