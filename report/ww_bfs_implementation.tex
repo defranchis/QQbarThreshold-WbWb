@@ -48,6 +48,9 @@ all numbers shown are reproduced verbatim from the current code.
 
 \tableofcontents
 
+\clearpage
+\part{Implementation and closure}\label{part:impl}
+
 % ---------------------------------------------------------------
 \section{Goal and scope}
 % ---------------------------------------------------------------
@@ -68,13 +71,17 @@ or perturbative input with the EFT chain --- is presented in
 section~\ref{sec:indep}, and an exploratory matching of the BFS
 higher-order corrections onto it in section~\ref{sec:match}.
 
-We focus on
-\begin{itemize}
-\item the equations actually evaluated by the code (section \ref{sec:impl});
-\item the round-trips that confirm the implementation reproduces every
-      table of the two BFS papers we currently rely on (section \ref{sec:val}).
-\end{itemize}
-Limitations and open items are collected in section \ref{sec:limits}.
+The report is organised in two parts. \textbf{Part~\ref{part:impl}}
+documents the calculation and its closure: the equations actually
+evaluated by the code (section~\ref{sec:impl}) and the round-trips that
+confirm the implementation reproduces every table of the two BFS papers
+we currently rely on (section~\ref{sec:val}). \textbf{Part~\ref{part:results}}
+reports the physics: the FCC-ee sensitivity and the statistical,
+experimental- and theory-systematic budget on $(\mW,\GammaW)$ --- the
+incremental theory-piece ladder, the ISR-scheme uncertainty, the
+scan-scenario comparison, the channel extrapolation, and the independent
+MoCaNLO cross-check --- closing with the limitations and open items
+(section~\ref{sec:limits}).
 
 % ---------------------------------------------------------------
 \section{The BFS unstable-particle EFT in one page}
@@ -1468,6 +1475,9 @@ below MeV-precision needs on $\mathrm{d}\sigma/\mathrm{d}\mW$. The
 ``paper ratio'' column quantifies the well-known ISR suppression of the
 partonic NNLO: roughly 30\% of the partonic effect survives the radiator
 at 161\,GeV, growing to $\sim$77\% at 170\,GeV.
+
+\clearpage
+\part{Physics results: sensitivity and systematics}\label{part:results}
 
 % ---------------------------------------------------------------
 % ===============================================================
