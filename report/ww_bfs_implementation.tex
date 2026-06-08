@@ -56,13 +56,17 @@ The FCC-ee threshold scan aims at $\sim$MeV-precision $\mW$ from
 $e^+e^-\to W^+W^- \to$ 4 fermions in the energy window
 $\sqrts\in[157,163]\GeV$. With $\sim 10^6$ events per scan point this
 requires a theory prediction whose residual uncertainty on
-$\mathrm{d}\sigma/\mathrm{d}\mW$ is well below $0.1\%/\!\MeV$. Two parallel
-calculations are foreseen: an in-process analytic implementation, and a
-WHIZARD-based parallel calculation (still to be wired). This report
-documents the analytic implementation, which is the BFS \emph{unstable-W}
-EFT expansion of Beneke, Falgari, Schwinn and collaborators, established
-in their NLO paper~\cite{BFSnlo} and the dominant-NNLO
-follow-up~\cite{BFSnnlo}.
+$\mathrm{d}\sigma/\mathrm{d}\mW$ is well below $0.1\%/\!\MeV$. The
+prediction is built and validated with two independent calculations: a
+primary in-process analytic implementation and a fully BFS-free
+cross-check. This report documents the analytic implementation, which is
+the BFS \emph{unstable-W} EFT expansion of Beneke, Falgari, Schwinn and
+collaborators, established in their NLO paper~\cite{BFSnlo} and the
+dominant-NNLO follow-up~\cite{BFSnnlo}; the independent cross-check ---
+a MoCaNLO\,$+$\,Recola NLO-EW four-fermion line shape that shares no code
+or perturbative input with the EFT chain --- is presented in
+section~\ref{sec:indep}, and an exploratory matching of the BFS
+higher-order corrections onto it in section~\ref{sec:match}.
 
 We focus on
 \begin{itemize}
@@ -243,7 +247,7 @@ Its Asimov $\mW$ impact is $\approx0.03\MeV$ with $\rho(\mW,\code{aemEW})\approx
 $\alpha$ \emph{input} nuisances are far below the $0.25\MeV$ target and are
 distinct from the NLL ISR \emph{renormalisation-scheme} variation
 (ALPMZ$\leftrightarrow$ALGMU$\leftrightarrow\alpha(0)$), a separate theory
-uncertainty measured in section~\ref{sec:val-isr-cross}.
+uncertainty measured in section~\ref{sec:val-isr-scheme}.
 
 The whole chain is in the $G_\mu$ + OS scheme: $\alpha_{G_\mu}$ is
 defined to absorb the leading $\Delta r$ correction, and
@@ -322,7 +326,7 @@ The NLO content of Ref.~\cite{BFSnlo} section 4 is split into three
 additive pieces, all applied to $\sigma_\mathrm{LR}$ only:
 
 \paragraph{Hard $+$ soft $+$ collinear (HSC).}
-The bracket term of eq.~(\textsc{finalcross}),
+The bracket term of eq.~(79) of~\cite{BFSnlo},
 \begin{equation}
 \Delta\hat\sigma_\mathrm{LR}^{(1,\mathrm{HSC})} =
 \frac{4\alpha^3}{27\,s_W^4 s}\,
@@ -348,14 +352,15 @@ single-Coulomb-correction term plus the two-photon subleading piece.
 Coded in \code{delta_sigma_Coulomb_NLO_specific_pb}.
 
 \paragraph{NLO electroweak decay.}
-Ref.~\cite{BFSnlo} eq.~(\textsc{delta-decay}) / eq.~(60),
+Ref.~\cite{BFSnlo} eq.~(84),
 \begin{equation}
 \Delta\sigma_\mathrm{decay}^{(1,\mathrm{ew})} =
 \Big(\Gamma_{\mu\nu}^{(1,\mathrm{ew})}/\Gamma_{\mu\nu}^{(0)} +
      \Gamma_{ud}^{(1,\mathrm{ew})}/\Gamma_{ud}^{(0)}\Big)\,
 \sigma_\mathrm{LR}^{(0)},
+\label{eq:nlo-decay}
 \end{equation}
-with the bracket from eq.~(\textsc{Gamma1ewFS}) evaluated with
+with the $\Gamma^{(1,\mathrm{ew})}_{W}$ bracket of eq.~(60) of \cite{BFSnlo} evaluated with
 $c_{d,\ell}^{(1,\mathrm{fin})}=-2.709$, $c_{d,h}^{(1,\mathrm{fin})}=-2.034$
 at the BFS reference inputs (BFS line 1920; both are analytic functions
 of $(\mW,m_t,M_H,M_Z)$ in \code{bfs_c1fin.py}). At the BFS reference
@@ -435,8 +440,8 @@ f(\sqrts,\mW,\GammaW) \;=\;
 which captures the difference between the EFT $N^{3/2}\mathrm{LO}$
 truncation and the exact 4-fermion Born within the same propagator
 prescription. The anchor is applied to the Born sum \emph{only}, not to
-the NLO loops or NNLO additions, which are added on top per
-eq.~(\textsc{finalcross}).
+the NLO loops or NNLO additions, which are added on top, following the
+BFS NLO master cross-section formula (eq.~(79) of~\cite{BFSnlo}).
 
 Three interchangeable sources for $\sigma_\mathrm{Whizard}^\text{exact Born}$
 are wired in and selectable via \code{NLO\_CONFIG["whizard\_anchor\_source"]}:
@@ -535,8 +540,8 @@ We use the LL$+$exp electron structure function in the BETA scheme of
 Skrzypek~\cite{Skrzypek1992} and
 Cacciari-Deandrea-Montagna-Nicrosini~\cite{CDMN1992}, with full
 $\mathcal{O}(\alpha^2)$ exponentiation of the soft$+$virtual endpoint
-(LEP2 Yellow Report, Beenakker et al.~\cite{LEP2YRww},
-eq.~\textsc{GeeLLexp}). Two equivalent forms are implemented:
+(LEP2 Yellow Report, Beenakker et al.~\cite{LEP2YRww}). Two equivalent
+forms are implemented:
 
 \paragraph{Single-convolution shortcut (default).}
 \begin{equation}
@@ -619,7 +624,7 @@ WHIZARD~3.1.5 builds the electron PDF \emph{multiplicatively}
 \end{equation}
 with $\epsilon = (\alpha/\pi)\,(L_e-1)$, $L_e = \ln(s/m_e^2)$
 ($\epsilon=\beta/2$ in the Beenakker convention of
-eq.~(\textsc{GeeLLexp})), $g_1 = 3/4$,
+eq.~\eqref{eq:beenakker-beta}), $g_1 = 3/4$,
 $g_2 = (27-8\pi^2)/96$, $g_3 = (27-24\pi^2+128\,\zeta_3)/384$, and
 $B_k(x)$ the polynomial brackets in the standard
 LEP2~YR~\cite{LEP2YRww} eq.~(67) BETA scheme. Beenakker eq.~(67) is
@@ -876,7 +881,7 @@ quoted in \cite{BFSnlo}: the Coulomb correction
 $\Delta\sigma_\mathrm{Coul}^{(1)}$ of eq.~(62) ${\sim}{+}5\%$ of
 $\sigma_\mathrm{LR}^{(0)}$ at threshold (one-photon, ``leading'')
 plus ${\sim}{+}0.2\%$ subleading (two-photon), and the
-hard${+}$soft${+}$collinear bracket of eq.~(56) ${\sim}1{-}2\%$ across
+hard${+}$soft${+}$collinear bracket of eq.~(79) ${\sim}1{-}2\%$ across
 the scan window. Table~\ref{tab:val-nlo-pieces} tabulates the
 implementation at the six BFS scan energies (Scenario~K), in fb and
 as a fraction of the LO bound-state cross section
@@ -925,7 +930,7 @@ $\Delta\sigma_\mathrm{decay}/\sigma_\mathrm{LR}^{(0)}$ prints a
 constant ${-}0.71\%$: it is the energy-independent flavour-specific
 combination $\Gamma^{(1,ew)}_{\mu\bar\nu}/\Gamma_{\mu\bar\nu}^{(0)}+
 \Gamma_{u\bar d}^{(1,ew)}/\Gamma_{u\bar d}^{(0)}$ of
-eq.~(eq:delta-decay), and its constancy across $\sqrts$ is itself a
+eq.~\eqref{eq:nlo-decay}, and its constancy across $\sqrts$ is itself a
 check on the implementation.
 
 \paragraph{Scenario E — $\delta_\mathrm{QCD}(\alpha_s)$ values.}
@@ -961,7 +966,7 @@ $\mathrm{Re}\,c_{d,h}$           & $-0.068$   & $+1.3\cdot 10^{-3}$ & $+3.3\cdot
 \end{tabular}
 The dominant slope is $\partial\mathrm{Re}\,c_{p,\mathrm{LR}}/\partial\mW
 \approx +1.3$ per GeV: over $\pm 300\MeV$ in $\mW$ this is $\Delta c
-\approx \pm 0.4$ in the HSC bracket of eq.~(56), which when held fixed
+\approx \pm 0.4$ in the HSC bracket of eq.~(79), which when held fixed
 at the BFS reference contributed an estimated $\mathcal{O}(1\MeV)$
 bias on $\mW$. With the analytic implementation the bias is now
 zero by construction. $m_t$ and $M_H$ slopes are $\mathcal{O}(10^{-3})$
@@ -1120,7 +1125,7 @@ near $2\mW$.
 
 \paragraph{(iv) BFS's $\hat\sigma_{LR}^{(0)}\to\hat\sigma_{\rm Born}$
 substitution in the NLO decay correction.}
-BFS line 2660--2661 (the paragraph just above eq.~(eq:finalcross) of
+BFS line 2660--2661 (the paragraph just above the master cross-section formula of
 \cite{BFSnlo}): \emph{"replacing the leading-order cross section
 $\hat\sigma^{(0)}$ by the full Born cross section
 $\hat\sigma_{\rm Born}$ in the decay correction"}. Our framework uses
@@ -1198,11 +1203,11 @@ items (ii) and (iii), which are NLL-ISR territory.
 $\sqrts$ & BFS Table~4 & code (OFF) & code (ON) & OFF/BFS$-1$ & ON/BFS$-1$ & $\Delta$ \\
 {}[GeV]  & $\sigma_{\rm NLO}$ [fb] & [fb] & [fb] & [\%] & [\%] & [pp] \\
 \midrule
-158 & $49.19$  & $47.75$  & $48.17$  & $-2.93$ & $-2.06$ & $+0.86$ \\
-161 & $117.81$ & $116.66$ & $117.14$ & $-0.98$ & $-0.57$ & $+0.41$ \\
-164 & $234.90$ & $233.61$ & $234.14$ & $-0.55$ & $-0.32$ & $+0.23$ \\
-167 & $328.20$ & $327.12$ & $327.72$ & $-0.33$ & $-0.15$ & $+0.18$ \\
-170 & $398.00$ & $395.14$ & $395.80$ & $-0.72$ & $-0.55$ & $+0.17$ \\
+158 & $49.19$  & $47.76$  & $48.18$  & $-2.91$ & $-2.05$ & $+0.86$ \\
+161 & $117.81$ & $116.69$ & $117.17$ & $-0.95$ & $-0.55$ & $+0.41$ \\
+164 & $234.90$ & $233.61$ & $234.15$ & $-0.55$ & $-0.32$ & $+0.23$ \\
+167 & $328.20$ & $327.11$ & $327.71$ & $-0.33$ & $-0.15$ & $+0.18$ \\
+170 & $398.00$ & $395.21$ & $395.88$ & $-0.70$ & $-0.53$ & $+0.17$ \\
 \bottomrule
 \end{tabular}
 \\[2pt]\small \emph{Closure to BFS Table~4 NLO column (paper:
@@ -1676,7 +1681,7 @@ Scheme & $\max|\Delta\sigma/\sigma|$ ($\mW$ axis) &
 \midrule
 LL$+$exp (analytic $\beta^3$ Beenakker)   & 3.98~ppm & 6.67~ppm \\
 eMELA LL (BETA, full DGLAP)               & 3.92~ppm & 7.13~ppm \\
-eMELA NLL (DELTA$+$ALPMZ, CodePdf)        & 3.90~ppm & 7.25~ppm \\
+eMELA NLL (DELTA$+$ALPMZ, \code{code_pdf}) & 3.90~ppm & 7.25~ppm \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1816,32 +1821,28 @@ upper bound on this systematic; our direct measurement gives a tighter
 $22\MeV$ value with the LL$+$exp recipe specified above.
 
 \paragraph{$\alpha_{\rm em,ISR}$ nuisance.}
-The genuine NLL theory uncertainty in the production NLL chain is the
-renormalisation-scheme ambiguity in $\alpha$, parametrised through the
-$\alpha_{\rm em,ISR}$ input to eMELA's DELTA-scheme ePDF
-($\hat\sigma$ has no $\mu_F$ dependence to cancel against $D(x,Q)$
-in DELTA, so the conventional factorisation-scale variation on
-$Q=\xi\sqrt{s}$ does not probe a residual NLL truncation;
-see~section~\ref{sec:isr}). The \emph{input} value $\alpha(M_Z)$ carries an experimental uncertainty
-$\Delta\alpha(M_Z)=4.7\times 10^{-8}$ --- the FCC-ee combined Tera-Z
-projection~\cite{RiembauTeraZ} --- which is now propagated directly as a
-\textbf{profiled Gaussian-constraint nuisance} ($\alpha_{\rm em,ISR}$) in the
-production fit, rather than as a standalone cross-fit. Its contribution to the
-$\mW$ budget is $\approx0.005\MeV$ (the $\alpha_{\rm em,ISR}$ row of
-Table~\ref{tab:scenario-syst}; the full prior sweep across scan layouts is
-Fig.~\ref{fig:scenario-scan-mW}, computed analytically by the rank-1 Gaussian
-covariance update described there), safely sub-dominant and in particular well
-below the $\pm 5.4\MeV$ pure-NLL bracket of section~\ref{sec:val-isr-cross} that
-the NLL upgrade was designed to resolve. \emph{(An earlier dedicated
-$2\times 2$ Asimov cross-fit, made before $\alpha_{\rm em,ISR}$ was promoted to a
-profiled nuisance and using the larger off-peak projection
-$\Delta\alpha=2.4\times10^{-7}$, gave $\Delta\mW=+0.043\MeV$; the impact scales
-$\approx$ linearly with $\Delta\alpha$, consistent with the $\approx0.005\MeV$
-here at the $\sim\!5\times$ tighter combined projection.)} This $\alpha(M_Z)$
-input uncertainty is distinct from the ISR renormalisation-\emph{scheme}
-ambiguity (ALPMZ$\leftrightarrow$ALGMU$\leftrightarrow\alpha(0)$), the genuine
-NLL truncation handle, which is measured separately in
-section~\ref{sec:val-isr-cross}.
+Separate from the LL$\to$NLL bias measured above is the \emph{input}
+uncertainty on the ISR coupling: $\alpha(M_Z)$ carries
+$\Delta\alpha(M_Z)=4.7\times 10^{-8}$ (the FCC-ee combined Tera-Z
+projection~\cite{RiembauTeraZ}), propagated as the profiled
+Gaussian-constraint nuisance \code{aem\_isr} rather than as a standalone
+cross-fit (the full input-vs-scheme distinction, and the partner flat-norm
+\code{aemEW}, are set out once in \S\ref{par:alpha-em}; in DELTA with a
+collinear-finite $c^{(1,\rm fin)}$ the $\xi$ factorisation-scale variation
+probes DGLAP numerics, not a residual NLL truncation, see
+section~\ref{sec:isr}). Its $\mW$ impact is $\approx0.005\MeV$ (the
+$\alpha_{\rm em,ISR}$ row of Table~\ref{tab:scenario-syst}; full prior sweep
+in Fig.~\ref{fig:scenario-scan-mW}, an analytic rank-1 Gaussian covariance
+update), well below the $\pm 5.4\MeV$ pure-NLL bracket above that the NLL
+upgrade resolves. \emph{(An earlier dedicated $2\times 2$ Asimov cross-fit,
+before \code{aem\_isr} was promoted to a profiled nuisance and using the
+larger off-peak projection $\Delta\alpha=2.4\times10^{-7}$, gave
+$\Delta\mW=+0.043\MeV$; the impact scales $\approx$ linearly with
+$\Delta\alpha$, consistent with $\approx0.005\MeV$ at the $\sim\!5\times$
+tighter combined projection.)} This input uncertainty is distinct from the ISR
+renormalisation-\emph{scheme} ambiguity
+(ALPMZ$\leftrightarrow$ALGMU$\leftrightarrow\alpha(0)$), the genuine NLL
+truncation handle, measured in section~\ref{sec:val-isr-scheme}.
 
 % ---------------------------------------------------------------
 \subsection{Chain-routing cross-fit decomposition}\label{sec:val-chain-cross}
@@ -2881,14 +2882,14 @@ comparison requires matched channel scope and is deferred to the fiducial study.
 \begin{table}[t]
 \centering
 \begin{tabular}{l c c c}
-\hline
+\toprule
 BR treatment (lumi) & $\sigma(\mW)$ [MeV] & $\sigma(\GammaW)$ [MeV] & $\rho$ \\
-\hline
+\midrule
 off-shell, production cov-lumi      & $0.89$ & $0.48$ & $-0.89$ \\
 \textbf{pdg-constant, production}   & $\mathbf{0.44}$ & $\mathbf{0.95}$ & $\mathbf{+0.61}$ \\
 off-shell, shape-only               & $1.27$ & $0.92$ & $+0.52$ \\
 pdg-constant, shape-only            & $1.27$ & $0.92$ & $+0.52$ \\
-\hline
+\bottomrule
 \end{tabular}
 \caption{Independent MoCaNLO Asimov sensitivities under the three
 branching-ratio conventions (2-POI cov-lumi, $19.2\,\text{ab}^{-1}$). The
@@ -3142,18 +3143,18 @@ $\sim\!+0.3$--$0.45\%$ across the window), the same with or without the BFS matc
 \begin{table}[t]
 \centering
 \begin{tabular}{l l l}
-\hline
+\toprule
 Check & Result & Verdict \\
-\hline
+\midrule
 NLO premise, line shape (norm.\ @161) & $<0.1\%$ at $160.5$--$162\GeV$ & pass \\
 NLO premise, $\mW$ slope ($160$--$162.5$) & $-3.2\%$ mean, $\pm1$--$3\%$ peak & pass \\
 Double counting & cancels by construction & pass \\
 NLL port vs.\ BFS eMELA, identical $\hat\sigma$ & $6\times10^{-10}$ & pass \\
-\hline
+\midrule
 $\delta_\text{NNLO}$ size, partonic $K$-factor ($157\!\to\!163\GeV$) & $0 \to +0.21\%$ & --- \\
 NLL/LL ISR shift & $+0.26$ to $+0.59\%$ & --- \\
 $\delta_\text{QCD}$, per channel ($\mu\tau/\ell\nu qq/qqqq$) & $1.000/1.040/1.082$ & --- \\
-\hline
+\bottomrule
 \end{tabular}
 \caption{Cross-checks of the BFS-on-MoCaNLO matching (work in progress), on the
 rich correlated-seed grid ($m_t=174.2\GeV$). The two ``NLO premise'' rows test that
@@ -3215,15 +3216,16 @@ sensitivity is a caveat on the rate handle, not a property of the NNLO physics.
 \begin{table}[t]
 \centering
 \begin{tabular}{l r r r r}
-\hline
+\toprule
  & \multicolumn{2}{c}{shape-only} & \multicolumn{2}{c}{cov-lumi (off\,/\,pdg)} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
 piece added & $\Delta\mW$ & $\Delta\GammaW$ & $\Delta\mW$ & $\Delta\GammaW$ \\
-\hline
+\midrule
 $\delta_\text{NNLO}$   & $+1.6$ & $-2.2$ & $+2.1\,/\,{-1.7}$  & $-1.8\,/\,{-2.9}$ \\
 $\delta_\text{QCD}$    & $0.0$  & $0.0$  & $-49.8\,/\,{-106}$ & $-37.6\,/\,{-20.3}$ \\
 NLL ISR                & $-3.7$ & $-0.2$ & $-5.4\,/\,{-6.9}$  & $-1.3\,/\,{-1.0}$ \\
 matched$+$NLL (all)    & $-2.0$ & $-2.4$ & $-53\,/\,{-115}$   & $-41\,/\,{-24}$ \\
-\hline
+\bottomrule
 \end{tabular}
 \caption{Matched Asimov pull: $\mW$/$\GammaW$ shift [MeV] from injecting each
 matched/NLL variant as Asimov truth and fitting with the unmatched-LL morph
@@ -3333,18 +3335,13 @@ a single authoritative summary.
   NLL/DELTA/ALPMZ/$\alpha(M_Z)$ exposed via
   \code{isr\_emela\_\{pert\_order,fac\_scheme,ren\_scheme\}};
   ALGMU/$\alpha_{G_\mu}$ remains available as the BFS-prescription
-  diagnostic. The $\alpha(M_Z)$ \emph{input} uncertainty is propagated as
-  the profiled $\alpha_{\rm em,ISR}$ nuisance with
-  $\Delta\alpha(M_Z)=4.7\times 10^{-8}$ (FCC-ee combined
-  Tera-Z~\cite{RiembauTeraZ}; $\alpha_{G_\mu}$ carries no $\mW$ \emph{bias}
-  --- it is luminosity-degenerate --- but its overall-rate uncertainty still
-  inflates $\sigma(\mW)$, profiled as the separate flat \code{aemEW} nuisance,
-  so \code{PARAM\_UNC.alpha\_em} stays \code{None}); its $\mW$
-  impact is $\approx0.005\MeV$ (Fig.~\ref{fig:scenario-scan-mW}). The
-  genuine NLL truncation systematic is the separate renormalisation-scheme
-  variation: the cross-fit in
-  section~\ref{sec:val-isr-cross} quantifies the LL$+$exp residual
-  systematic on $\mW$ directly: $\pm 22.4\MeV$ total
+  diagnostic. The $\alpha(M_Z)$ \emph{input} uncertainty is propagated as the
+  profiled $\alpha_{\rm em,ISR}$ nuisance ($\mW$ impact $\approx0.005\MeV$),
+  with the luminosity-degenerate $\alpha_{G_\mu}$ rate uncertainty carried as
+  the separate flat \code{aemEW} nuisance and \code{PARAM\_UNC.alpha\_em} kept
+  \code{None} (full treatment in \S\ref{par:alpha-em}). The genuine NLL
+  systematic is measured directly by the cross-fit in
+  section~\ref{sec:val-isr-cross}: $\pm 22.4\MeV$ total
   ($\pm 17.0\MeV$ LL truncation $+$ $\pm 5.4\MeV$ pure NLL), tighter
   than the BFS-quoted $\delta\mW\!\approx\!31\MeV$ upper bound but
   still $\sim 90\times$ the FCC-ee $\sigma(\mW)\!=\!0.25\MeV$
@@ -4161,7 +4158,7 @@ V.~Bertone, M.~Cacciari, S.~Frixione, G.~Stagnitto,
 \emph{The partonic structure of the electron at NLL accuracy in QED},
 JHEP \textbf{03} (2020) 135, \arxiv{1911.12040};
 gstagnit/eMELA implementation:
-\href{https://github.com/gstagnit/ePDF}{github.com/gstagnit/ePDF}.
+\href{https://github.com/gstagnit/eMELA}{github.com/gstagnit/eMELA}.
 
 \bibitem{RiembauTeraZ}
 M.~Riembau,
