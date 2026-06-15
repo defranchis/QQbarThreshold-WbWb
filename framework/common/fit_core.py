@@ -106,6 +106,12 @@ def _warn_if_invalid(minuit):
     if not minuit.valid:
         print(f"WARNING: minuit fit not valid (fval={minuit.fval:.3g}); "
               "uncertainties may be unreliable", file=sys.stderr)
+    elif not minuit.accurate:
+        # migrad converged but hesse could not certify the covariance
+        # (e.g. forced positive-definite) — the parabolic errors read off
+        # ``minuit.covariance`` may be subtly wrong even though ``valid`` is True.
+        print(f"WARNING: minuit covariance not accurate (fval={minuit.fval:.3g}); "
+              "post-fit uncertainties may be unreliable", file=sys.stderr)
 
 
 class FitCore:
@@ -757,6 +763,20 @@ class FitCore:
         if pseudodata is None:
             pseudodata = self.template(self.pseudodata_tag)
         self.pseudo_data_scenario = self.slice_to_scenario(pseudodata)["xsec"]
+        # Every fit bin needs a strictly positive expected cross section: a
+        # zero/negative σ gives a zero statistical uncertainty (line below) and
+        # a singular covariance. This catches an ``add_last_ecm`` anchor whose
+        # √s falls outside the generator's σ̂ coverage (the MoCaNLO generator
+        # zeroes σ above its grid range), which would otherwise silently anchor
+        # the Asimov fit on σ=0.
+        _sig = np.asarray(self.pseudo_data_scenario, dtype=float)
+        if not np.all(np.isfinite(_sig)) or np.any(_sig <= 0):
+            _bad = {ecm: float(s) for ecm, s in zip(self.scenario.keys(), _sig)
+                    if not (np.isfinite(s) and s > 0)}
+            raise ValueError(
+                f"non-positive/non-finite expected cross section in fit bin(s) {_bad}; "
+                "an Asimov fit needs σ>0 per √s point (e.g. an add_last_ecm anchor "
+                "falling outside the generator's σ̂ coverage yields σ=0).")
 
         if same_evts:
             overall_factor = total_lumi / np.sum([1 / sigma for sigma in self.pseudo_data_scenario])

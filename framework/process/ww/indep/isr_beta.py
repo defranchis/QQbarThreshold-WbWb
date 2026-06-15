@@ -102,7 +102,16 @@ _PI = math.pi
 #: ``<scheme_alpha>`` (see lepton_pdfs.F90: ``alpha_pdf = ...%alpha``).
 ALPHA_GMU = 7.5552976871e-3      # Gμ scheme (production default)
 ALPHA_0 = 7.2973525693e-3        # α(0) Thomson
-ALPHA_MZ = 7.7983970817e-3       # α(M_Z)
+ALPHA_MZ = 7.7983970817e-3       # α(M_Z), MoCaNLO's lepton-PDF value (1/128.232)
+
+#: α(M_Z) for the eMELA NLL radiator (ALPMZ scheme): the PDG value 1/128.943,
+#: paired with eMELA's ALPMZ renormalisation and matching the BFS production
+#: chain (cards/ww_default.py PARAM_INPUTS["alpha_em_isr"], isr.py). This is the
+#: documented production α(M_Z), NOT MoCaNLO's lepton-PDF ``ALPHA_MZ`` above —
+#: the two α(M_Z) values differ by 0.55%. The NLL path is an ISR object (QED off
+#: the e± line) independent of the σ̂ grid's EW scheme (gf), so it takes the
+#: standard PDG/eMELA α(M_Z), not MoCaNLO's internal one.
+ALPHA_MZ_EMELA = 1.0 / 128.943   # α(M_Z) PDG, eMELA ALPMZ-paired
 
 _ALPHA_BY_SCHEME = {
     "gf": ALPHA_GMU,
@@ -394,6 +403,20 @@ def _per_leg_grid_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
     from framework.process.ww.xsec_calculator.isr import LAMBDA1_NF0
     alpha = cfg.resolved_alpha()
     grid = _grid.load_grid(cfg.emela_grid)
+    # Fail loud if the precomputed grid's baked scheme/α differ from this cfg:
+    # the soft endpoint (norm_nll) is built from cfg.α while xD comes from the
+    # grid's α, so a mismatch silently splits α within the radiator (e.g. a grid
+    # built at MoCaNLO's 1/128.232 used with cfg at the PDG 1/128.943). Rebuild
+    # the grid (isr_emela_grid.build_and_write) at the cfg's α/scheme to fix.
+    gm = grid.meta or {}
+    if (abs(gm.get("alpha", alpha) - alpha) > 1e-9 * alpha
+            or gm.get("fac_scheme", cfg.emela_fac_scheme) != cfg.emela_fac_scheme
+            or gm.get("ren_scheme", cfg.emela_ren_scheme) != cfg.emela_ren_scheme):
+        raise ValueError(
+            f"eMELA grid {cfg.emela_grid!r} baked "
+            f"(α={gm.get('alpha')}, {gm.get('fac_scheme')}/{gm.get('ren_scheme')}) "
+            f"≠ cfg (α={alpha:.10g}, {cfg.emela_fac_scheme}/{cfg.emela_ren_scheme}); "
+            "rebuild the grid at the cfg's α/scheme.")
     Q = cfg.mu_F(sqrt_s)
     norm_nll = norm * math.exp(be * (alpha / _PI) * (LAMBDA1_NF0 / 4.0))
     per_leg = np.empty_like(x_vals)

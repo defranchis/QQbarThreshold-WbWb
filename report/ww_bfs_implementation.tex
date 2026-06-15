@@ -3100,7 +3100,12 @@ anti-correlates $\GammaW$ with $\mW$ ($\rho=-0.92$) --- pulling $\sigma(\mW)$ do
 with it ($1.13\!\to\!0.40\MeV$) while \emph{decorrelating} the two
 ($\rho:-0.92\!\to\!-0.17$). The pdg-constant convention is unchanged: there the BR
 is divided out, $\sigma(240)\propto\sigma_\text{production}$ is flat in both POIs,
-and the point carries no POI information.}
+and the point carries no POI information. The absolute threshold-only baseline
+here uses a coarser $6$-varpoint morph than Table~\ref{tab:indep-br}, hence the
+$\pm0.02\MeV$ offsets (e.g.\ $\sigma(\mW)=1.13$ here vs $1.15\MeV$ there; pdg-constant
+$\sigma(\GammaW)=1.16$ vs $1.17\MeV$); Fits with and without the anchor share this
+morph, so the robust result is the anchor-induced \emph{improvement}, not the
+absolute baseline.}
 \label{tab:indep-anchor}
 \end{table}
 
@@ -3150,8 +3155,11 @@ has been resolved --- and subsequently mooted: the $C_1$ subtraction was removed
 from the observable on 2026-06-12 (section~\ref{sec:indep-calc}). All pull and
 cross-check numbers in this section have been regenerated on the corrected
 (no-$C_1$) chain; because $C_1$ was $\alpha$-scheme dependent it did \emph{not}
-cancel between the matched and reference sides, so the shape pulls shifted
-appreciably (e.g.\ the NLL-swap pull $-3.7\!\to\!-8.4\MeV$).
+cancel between the matched and reference sides, so the pulls shifted. The NLL-swap
+\emph{shape} pull, separately, has since been found numerically unstable against the
+ISR $\alpha(M_Z)$ input ($-8.4\MeV$ at $1/128.232$ vs $-1.5\MeV$ at the production
+$1/128.943$), a symptom of the unresolved factorisation-scheme matching
+(section~\ref{sec:match-nll}); it is not a robust number.
 None of this is wired into the production fit: it lives behind
 opt-in flags in \code{framework/process/ww/indep/} (\code{match\_bfs},
 \code{isr\_nll}; module \code{match\_bfs.py}), and the headline $\mW$ results of this
@@ -3328,10 +3336,11 @@ caveat). The construction passes its structural and numerical tests:
 The matched corrections are small and smooth: the \emph{partonic}
 $\delta_\text{NNLO}(\hat s)$ $K$-factor of equation~\eqref{eq:match-dnnlo} rises from
 $\approx0$ near threshold to $+0.21\%$ at $163\GeV$ (after the ISR convolution this
-dilutes to $+0.12\%$ on the \emph{observed} line shape --- the curve plotted in
-figure~\ref{fig:match-lineshape}), and the LL$\to$NLL ISR upgrade shifts the rate by
-$+0.26\%$ ($161\GeV$) to $+0.59\%$ ($159\GeV$) (the smoothed figure shows
-$\sim\!+0.3$--$0.45\%$ across the window), the same with or without the BFS matching
+dilutes to $+0.18\%$ on the \emph{observed} line shape --- the curve plotted in
+figure~\ref{fig:match-lineshape}). The LL$\to$NLL ISR upgrade, by contrast, shifts the
+observed line shape by $\sim\!-1.9\%$ at $157\GeV$ (rising with $\sqrts$) --- mostly
+the $\alpha_{G_\mu}\!\to\!\alpha(M_Z)$ radiator-$\alpha$ normalisation, not the NLL
+kernel (section~\ref{sec:match-nll}), and the same with or without the BFS matching
 (the NLL upgrade is orthogonal to it).
 
 \begin{table}[t]
@@ -3425,7 +3434,7 @@ the \emph{unmatched-LL} reference morph, so the best-fit shift is the $\mW$/$\Ga
 bias from omitting that piece (equivalently, the size of the correction the matching
 supplies). The self-fit closes at $0.00\MeV$ and the reference sensitivities
 reproduce the independent fit of Table~\ref{tab:indep-br}
-($\sigma(\mW)=0.52\MeV$ pdg-constant, $1.16\MeV$ off-shell, on the corrected ISR
+($\sigma(\mW)=0.52\MeV$ pdg-constant, $1.15\MeV$ off-shell, on the corrected ISR
 layer), validating the machinery. Table~\ref{tab:match-pull} gives the
 decomposed pulls.
 
@@ -3438,14 +3447,25 @@ convention-robust --- the picture is clean:
     confirmation, from a fully different line shape, that the NNLO threshold
     correction matters at the few-MeV level;
   \item swapping the LL radiator for the eMELA \textbf{NLL} one shifts $\mW$ by
-    $\mathbf{-8.4\MeV}$; this is dominated by the radiator-$\alpha$ convention
-    bundled into the swap ($\alpha_{G_\mu}\!\to\!\alpha(M_Z)$,
-    section~\ref{sec:match-nll}), the genuine NLL-kernel content being sub-MeV, so
-    it measures the line-shape sensitivity to the ISR \emph{scheme} choice rather
-    than the NLL truncation;
+    $\mathbf{-1.5\MeV}$ (shape), which an $\alpha$-matched cross-fit
+    (\code{scripts/investigations/nll\_isr/crossfit\_nll\_decomp.py}) resolves into
+    $-0.6\MeV$ from the radiator-$\alpha$ convention
+    ($\alpha_{G_\mu}\!\to\!\alpha(M_Z)$) and $-1.0\MeV$ from the genuine NLL kernel
+    $+$ DELTA factorisation --- both small. \emph{This shape pull is, however,
+    numerically unstable}: it swings from $-8.4\MeV$ at MoCaNLO's
+    $\alpha(M_Z)=1/128.232$ to $-1.5\MeV$ at the PDG $1/128.943$ --- a $6.9\MeV$
+    swing for a $0.55\%$ change in $\alpha$, far larger than the
+    $-0.6\MeV$ a physical $\alpha$ response would give. This unphysical
+    sensitivity is the signature of an unmatched $\mathcal O(\alpha)$ term whose
+    size scales with $\alpha$ --- the DELTA-vs-$\overline{\rm MS}$ factorisation
+    mismatch between the eMELA ePDF and the Catani--Seymour-subtracted MoCaNLO
+    grid (item~\ref{item:scheme-match} of section~\ref{sec:match-todo}, not yet
+    resolved). The NLL line-shape pull is therefore \emph{not} a robust observable
+    at present; the more stable cov-lumi rate result, and the matched-scheme
+    calculation, are what an NLL line-shape $\mW$ must eventually rest on;
   \item $\delta_\text{QCD}$ is shape-neutral ($0.0\MeV$): a flat $+5.4\%$
     normalisation carries no line-shape information;
-  \item the pieces combine almost linearly (matched\,$+$\,NLL: $-6.0\MeV$), and the
+  \item the pieces combine almost linearly (matched\,$+$\,NLL: $+0.8\MeV$ shape), and the
     fitted \emph{uncertainty} is unchanged --- the matching moves the central value,
     not the sensitivity.
 \end{itemize}
@@ -3472,8 +3492,8 @@ piece added & $\Delta\mW$ & $\Delta\GammaW$ & $\Delta\mW$ & $\Delta\GammaW$ \\
 \midrule
 $\delta_\text{NNLO}$   & $+2.3$ & $-3.6$  & $+3.4\,/\,{-2.7}$   & $-2.9\,/\,{-4.5}$ \\
 $\delta_\text{QCD}$    & $0.0$  & $0.0$   & $-53.4\,/\,{-106}$  & $-36.0\,/\,{-14.9}$ \\
-NLL ISR                & $-8.4$ & $-7.7$  & $+12.4\,/\,{+19.3}$ & $+6.4\,/\,{-3.1}$ \\
-matched$+$NLL (all)    & $-6.0$ & $-11.4$ & $-37.6\,/\,{-88.5}$ & $-32.4\,/\,{-23.1}$ \\
+NLL ISR                & $-1.5$ & $-3.7$  & $+10.6\,/\,{+15.6}$ & $+4.5\,/\,{-0.8}$ \\
+matched$+$NLL (all)    & $+0.8$ & $-7.3$  & $-39.3\,/\,{-92.4}$ & $-34.4\,/\,{-20.7}$ \\
 \bottomrule
 \end{tabular}
 \caption{Matched Asimov pull: $\mW$/$\GammaW$ shift [MeV] from injecting each
@@ -3483,7 +3503,10 @@ $\sim\!0.02\MeV$ shape / $\sim\!0.2\MeV$ cov-lumi). The cov-lumi entries are
 off-shell\,/\,pdg-constant. The shape-only columns are the convention-robust
 line-shape pulls; the large cov-lumi $\delta_\text{QCD}$ entries are the rate-fit's
 sensitivity to the flat $+5.4\%$ normalisation, not an NNLO effect (see text). The
-self-fit bias is $0.00$ in all modes.
+self-fit bias is $0.00$ in all modes. The NLL-containing rows are quoted at the
+production $\alpha(M_Z)=1/128.943$ and are numerically \emph{unstable} against this
+input (section~\ref{sec:match-nll}), unlike the $\delta_\text{NNLO}$/$\delta_\text{QCD}$
+rows; they are not yet robust line-shape observables.
 Script \code{scripts/investigations/bfs\_match/matched\_pull.py}.}
 \label{tab:match-pull}
 \end{table}
@@ -3491,14 +3514,16 @@ Script \code{scripts/investigations/bfs\_match/matched\_pull.py}.}
 Figure~\ref{fig:match-lineshape} shows the corresponding line-shape corrections
 across the scan, as ratios on the \emph{observed} (ISR-convolved) line shape: the
 smooth, energy-rising $\delta_\text{NNLO}$ ($0\to+0.18\%$ observed --- the $+0.21\%$
-partonic $K$-factor diluted by the radiator), the NLL ISR shift
-($\sim\!-1$ to $-2\%$, mostly the $\alpha_{G_\mu}\!\to\!\alpha(M_Z)$ radiator-$\alpha$
-convention --- section~\ref{sec:match-nll}), and the flat $+5.4\%$ $\delta_\text{QCD}$
+partonic $K$-factor diluted by the radiator), the NLL ISR shift (a mostly-flat
+$\alpha_{G_\mu}\!\to\!\alpha(M_Z)$ normalisation plus a small energy-dependent NLL
+bracket --- section~\ref{sec:match-nll}), and the flat $+5.4\%$ $\delta_\text{QCD}$
 normalisation (annotated). Because $\delta_\text{NNLO}$ rides the \emph{same} LL
 radiator as the reference, the partonic Monte-Carlo scatter cancels exactly in its
 ratio; the NLL$/$LL ratio uses two different radiators so it does not, and the
-displayed NLL curve is smoothed in $\sqrt{s}$ (the quantitative result is the fit
-pull of Table~\ref{tab:match-pull}, robust to this scatter).
+displayed NLL curve is smoothed in $\sqrt{s}$. The corresponding shape \emph{pull}
+is small ($-1.5\MeV$) but numerically unstable against the ISR $\alpha(M_Z)$ input
+(section~\ref{sec:match-nll}), so the figure is illustrative; the robust statements
+are the cov-lumi pull and the $\alpha$-decomposition, not the bare shape pull.
 
 \begin{figure}[t]
 \centering
@@ -3506,9 +3531,10 @@ pull of Table~\ref{tab:match-pull}, robust to this scatter).
 \caption{Line-shape corrections added by the BFS-on-MoCaNLO matching, as a ratio
 to the unmatched-LL line shape at nominal $(\mW,\GammaW)$ (the BR factor cancels, so
 this is convention-independent). $\delta_\text{NNLO}$ (BFS NNLO block, shown here as
-the ISR-convolved \emph{observed} ratio, $0\to+0.12\%$) is smooth and
-energy-rising; the NLL ISR upgrade adds $\sim\!+0.3$--$0.45\%$; their sum is the
-matched shape. $\delta_\text{QCD}$ is a flat $+5.4\%$ decay normalisation
+the ISR-convolved \emph{observed} ratio, $0\to+0.18\%$) is smooth and
+energy-rising; the NLL ISR shift is $\sim\!-1.9\%$ at $157\GeV$ (rising with
+$\sqrts$), mostly the $\alpha_{G_\mu}\!\to\!\alpha(M_Z)$ normalisation; their sum is
+the matched shape. $\delta_\text{QCD}$ is a flat $+5.4\%$ decay normalisation
 (shape-neutral, annotated). NLL$/$LL is smoothed in $\sqrt{s}$ (see text).
 Script \code{scripts/investigations/bfs\_match/plot\_match\_lineshape.py}.}
 \label{fig:match-lineshape}
@@ -3519,7 +3545,7 @@ Script \code{scripts/investigations/bfs\_match/plot\_match\_lineshape.py}.}
 \begin{enumerate}
   \item \textbf{Matched Asimov pull on the production grid (done).} The pull
     (Table~\ref{tab:match-pull}: $\delta_\text{NNLO}\,{+}2.3\MeV$, NLL ISR
-    $-8.4\MeV$ shape-only) has been regenerated on the production
+    $-1.5\MeV$ shape-only) has been regenerated on the production
     $m_t=172.5\GeV$ correlated-seed grid; the numbers reproduce the interim
     $174.2\GeV$ grid to $\sim\!0.02\MeV$ (shape) / $\sim\!0.2\MeV$ (cov-lumi
     $\delta_\text{QCD}$), confirming $m_t$-independence.
@@ -3534,6 +3560,22 @@ Script \code{scripts/investigations/bfs\_match/plot\_match\_lineshape.py}.}
     are collinear-counterterm-subtracted, so there is no $\mathcal O(\alpha)$
     overlap to subtract (section~\ref{sec:indep-calc}); the scheme result above
     stands as an eMELA soft-endpoint validation.
+  \item \label{item:scheme-match}\textbf{ISR factorisation-scheme matching (OPEN ---
+    blocks an NLL line-shape $\mW$).} The MoCaNLO NLO-EW grid subtracts its
+    initial-state collinear singularity with Catani--Seymour dipoles
+    (\code{pdf\_set=none}, integrated-dipole \code{idip} run), i.e.\ in the
+    $\overline{\rm MS}$ factorisation scheme, whereas the eMELA NLL ePDF is currently
+    convolved in the \emph{DELTA} scheme. The two differ at $\mathcal O(\alpha)$ by a
+    finite term that scales with $\alpha$ --- invisible at LL (only the collinear
+    \emph{log} matters) but real at NLL. This unmatched term is what makes the NLL
+    \emph{shape} pull numerically unstable against the $\alpha(M_Z)$ input
+    ($-8.4\MeV$ at $1/128.232$ vs $-1.5\MeV$ at $1/128.943$;
+    section~\ref{sec:match-nll}). Resolution: run eMELA in \code{MSBAR} to match the
+    grid (or add the analytic $\overline{\rm MS}\!\to\!$DELTA term), verified by
+    expanding $(\text{ePDF}\otimes\hat\sigma_\text{Born})$ to $\mathcal O(\alpha)$ and
+    checking it reproduces $\hat\sigma_\text{NLO}$
+    (\code{scripts/investigations/nll\_isr/SCHEME\_MATCHING\_SCOPING.md}). Until then
+    the NLL chain stays exploratory; the production LL$+$exp headline is unaffected.
   \item \textbf{NLL soft-endpoint substitution (resolved).} The eMELA-NLL per-leg
     integrand uses the analytic soft$+$virtual limit below $1-x<10^{-15}$ ($\approx13\%$
     of the quadrature weight). Quantified: as $x\!\to\!1$ the integrand must approach

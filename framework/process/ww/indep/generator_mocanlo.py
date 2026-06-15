@@ -161,18 +161,20 @@ class WWGeneratorMoCaNLO:
         cfg untouched."""
         if self.isr_nll and not self.isr_cfg.nll:
             # The eMELA NLL radiator is built in the BFS production scheme
-            # conventions (ALPMZ/DELTA, at this module's α(M_Z) = MoCaNLO's
-            # 1/128.232 — NOT the BFS card's 1/128.943) and REPLACES the
+            # conventions (ALPMZ/DELTA, at the PDG α(M_Z) = 1/128.943, matching
+            # the BFS chain's isr.py and cards/ww_default.py) and REPLACES the
             # analytic LL radiator, so the LL `scheme` knob (LO_beta/eta/mixed)
-            # does not propagate.  Warn if a non-default LL scheme is being
-            # overridden, so the drop is not silent.
+            # does not propagate.  The ISR radiator is a QED object off the e±
+            # line, independent of the σ̂ grid's EW (gf) scheme, so it takes the
+            # standard α(M_Z), not MoCaNLO's internal 1/128.232.  Warn if a
+            # non-default LL scheme is being overridden, so the drop is not silent.
             if self.isr_cfg.scheme != "LO_beta":
                 warnings.warn(
                     f"isr_nll=True replaces the analytic-LL radiator with eMELA NLL "
                     f"(DELTA/ALPMZ): requested isr_cfg.scheme={self.isr_cfg.scheme!r} "
                     f"is ignored on the NLL path.", stacklevel=2)
             return isr_beta.ISRConfig(
-                nll=True, alpha=isr_beta.ALPHA_MZ, ew_scheme="alphaz",
+                nll=True, alpha=isr_beta.ALPHA_MZ_EMELA, ew_scheme="alphaz",
                 mu_F_factor=self.isr_cfg.mu_F_factor, mu_F_abs=self.isr_cfg.mu_F_abs,
                 m_e=self.isr_cfg.m_e, x_min=self.isr_cfg.x_min,
                 n_quad=self.isr_cfg.n_quad,

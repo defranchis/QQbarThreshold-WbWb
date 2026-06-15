@@ -38,13 +38,13 @@ q_knots = eg.default_q_knots(75.0, 350.0, 16)
 print(f"[build] {omx_knots.size}x{q_knots.size} = {omx_knots.size*q_knots.size} "
       f"eMELA samples -> {NPZ}")
 g = eg.build_and_write(NPZ, fac_scheme="DELTA", ren_scheme="ALPMZ",
-                       alpha=ib.ALPHA_MZ, omx_knots=omx_knots, q_knots=q_knots,
+                       alpha=ib.ALPHA_MZ_EMELA, omx_knots=omx_knots, q_knots=q_knots,
                        pert_order="NLL", write_lhagrid1=True, verbose=True)
 print(f"[build] meta = {g.meta}")
 
 # quick self-check: reload from disk and spot-check a few nodes vs eMELA truth
 from framework.process.ww.xsec_calculator import emela_wrapper as em   # noqa: E402
-em.initialize(pert_order="NLL", fac_scheme="DELTA", ren_scheme="ALPMZ", alpha=ib.ALPHA_MZ)
+em.initialize(pert_order="NLL", fac_scheme="DELTA", ren_scheme="ALPMZ", alpha=ib.ALPHA_MZ_EMELA)
 g2 = eg.load_grid(NPZ)
 import numpy as np                                                     # noqa: E402
 worst = 0.0
