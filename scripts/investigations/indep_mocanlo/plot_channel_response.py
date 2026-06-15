@@ -72,9 +72,8 @@ VP_VALS = {"nominal": (MW0, GW0), "mp10": (MW0 + STEP, GW0),
 def mocanlo_channel(grids, channel, varpoint, cfg, br_convention="off-shell"):
     g = grids[(channel, varpoint)]
     lo, hi = g.ecm[0], g.ecm[-1]
-    obs = isr_beta.sigma_observed_matched(
-        SQRT_S, _poly_fn(g.ecm, g.sigma_nlo, g.err_nlo, lo, hi),
-        _poly_fn(g.ecm, g.sigma_born, g.err_born, lo, hi), cfg)
+    obs = isr_beta.sigma_observed(
+        SQRT_S, _poly_fn(g.ecm, g.sigma_nlo, g.err_nlo, lo, hi), cfg)
     if br_convention == "pdg-constant":
         # divide out the off-shell BR² = (Γ_partial(m_W)/Γ_W)² ∝ m_W⁶/Γ_W²
         # (same universal factor as WWGeneratorMoCaNLO._br_factor)

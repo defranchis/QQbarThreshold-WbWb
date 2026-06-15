@@ -1,10 +1,10 @@
-"""MoCaNLO beta-scheme ISR radiator + quadrature convolution + O(α) matching.
+"""MoCaNLO beta-scheme ISR radiator + quadrature convolution.
 
 This is the ISR layer of the **independent, BFS-free** WW-threshold line-shape
 calculation.  It convolves a fixed-order NLO-EW *partonic* cross section
 σ̂(√ŝ) — produced by an unmodified MoCaNLO run with ``pdf_set=none`` (no beam
-ISR) — with the LL+exp electron structure function, applying the standard
-O(α) matching subtraction so the O(α) initial-state radiation is counted once.
+ISR) — with the LL+exp electron structure function, which carries ALL the
+initial-state radiation (see "No O(α) re-subtraction" below).
 
 Provenance / independence
 --------------------------
@@ -40,23 +40,30 @@ Conventions
 * Two-leg double convolution (independent radiation off e⁻ and e⁺):
       σ_obs(s) = ∫∫ dx₁ dx₂ D(x₁) D(x₂) σ̂(x₁ x₂ s).
 
-O(α) matching
--------------
-σ̂_NLO(ŝ) from ``pdf_set=none`` already contains the explicit O(α) initial-state
-collinear log ln(ŝ/m_e²) (mass-regularised, *not* factorised into a PDF).
-Convolving it with the resummed radiator would double-count that O(α) ISR.  The
-matched result subtracts the overlap:
+No O(α) re-subtraction
+----------------------
+The original design assumed σ̂_NLO(ŝ) from ``pdf_set=none`` to be the
+mass-regularised fixed-order result, with the explicit O(α) initial-state
+collinear log ln(ŝ/m_e²) inside — and subtracted the overlap C₁[σ̂_Born]
+(the O(α) piece of the radiator) to avoid double counting.
 
-      σ_obs(s) = ∫∫ D D σ̂_NLO(x₁x₂s)  −  C₁[σ̂_Born](s)
+The production grids show that premise is FALSE: MoCaNLO's ``idip`` run
+applies the initial-state collinear counterterm, so the ISR log is
+factorised *out* of σ̂.  Evidence (lnuqq, √s=163): real = +4.2 %,
+idip = +1.7 %, σ̂_NLO/σ̂_Born = +8.3 % — no trace of the −30 % radiative
+tail — and σ̂_NLO agrees with the ISR-free BFS-EFT partonic to 1.2 %.
+The observed line shape is therefore the plain double convolution
 
-      C₁[σ̂_Born] = 2 ∫₀¹ dx D₁(x) σ̂_Born(x s),
+      σ_obs(s) = ∫∫ D D σ̂_NLO(x₁x₂s)
 
-      D₁(x) = β_e [1/(1−x)]₊ + (3/4)β_s δ(1−x) − (β_h/2)(1+x)
-
-the O(α) piece of one leg of the radiator.  Expanding ∫∫ D D σ̂_NLO to O(α)
-gives σ̂_NLO + C₁[σ̂_Born]; the subtraction restores the exact fixed-order NLO at
-O(α) while keeping the all-orders LL resummation.  (For ``LO_beta``,
-D₁ = β·½[(1+x²)/(1−x)]₊ + ¾β δ(1−x), the familiar P_ee splitting + soft const.)
+which counts O(α) ISR exactly once: the collinear log lives in D, the
+finite remnant in σ̂_NLO.  Subtracting C₁ on top (the pre-2026-06-12
+behaviour) cancels the physical ISR damping — it inflated σ_obs by ~48 %
+(e.g. σ_WW(161.3 GeV) ≈ 5.4 pb against the LEP measurement 3.69±0.45 pb;
+fixed value 3.64 pb, and 5.59 pb at 163 GeV vs BFS-NLL 5.30 / YFSWW3 ≈5.5).
+Residual O(α)·(scheme remnant) from MoCaNLO's counterterm convention vs the
+``LO_beta`` D₁ is bounded at the few-% level by those same comparisons.
+Diagnostics: ``scripts/investigations/three_calc_xsec/``.
 
 All cross sections are in **fb** (MoCaNLO's unit).  ``sigma_hat_fn`` callables
 take √ŝ in GeV and return σ̂ in fb; they are typically interpolators over the
@@ -573,11 +580,19 @@ def convolve_2leg(sqrt_s, sigma_hat_fn, cfg: ISRConfig = ISRConfig()):
 
 
 # ---------------------------------------------------------------------------
-# O(α) matching subtraction
+# O(α) ISR subtraction — DIAGNOSTIC ONLY, not part of the production observable
 # ---------------------------------------------------------------------------
 
 def oalpha_isr_subtraction(sqrt_s, sigma_born_fn, cfg: ISRConfig = ISRConfig()):
-    """C₁[σ̂_Born](s) — the O(α) ISR overlap already in the fixed-order NLO [fb].
+    """C₁[σ̂_Born](s) — the O(α) piece of the two-leg radiator convolution [fb].
+
+    NOT used in the production observable (2026-06-12): the σ̂ grids are
+    collinear-counterterm-subtracted, so there is no O(α) ISR in σ̂_NLO to
+    match against — subtracting C₁ from ∫∫DD σ̂_NLO cancels the physical ISR
+    damping (see module docstring).  Retained for the C₁ scheme diagnostics
+    under ``scripts/investigations/bfs_match/``, which study exactly this
+    kernel.  It would only re-enter the observable for grids that genuinely
+    carry the mass-regularised O(α) ISR log.
 
     This is the O(α) expansion of ``convolve_2leg(σ̂_Born)``, built so that the
     artefacts of the *finite* x_min cutoff cancel exactly between it and
@@ -624,19 +639,18 @@ def oalpha_isr_subtraction(sqrt_s, sigma_born_fn, cfg: ISRConfig = ISRConfig()):
     return float(out[0]) if np.ndim(sqrt_s) == 0 else out
 
 
-def sigma_observed_matched(sqrt_s, sigma_nlo_fn, sigma_born_fn,
-                           cfg: ISRConfig = ISRConfig()):
-    """Matched observed line shape [fb]:
+def sigma_observed(sqrt_s, sigma_nlo_fn, cfg: ISRConfig = ISRConfig()):
+    """Observed line shape [fb]:   σ_obs(s) = ∫∫ D D σ̂_NLO(x₁x₂s).
 
-        σ_obs(s) = ∫∫ D D σ̂_NLO(x₁x₂s)  −  C₁[σ̂_Born](s).
-
-    Reproduces fixed-order NLO-EW at O(α) and resums LL ISR to all orders, with
-    no O(α) ISR double-counting.  ``sigma_nlo_fn``/``sigma_born_fn`` are σ̂_NLO
-    and σ̂_Born interpolators (√ŝ → fb).  Vectorised in ``sqrt_s``.
+    The σ̂ grids are beam-ISR-free (``pdf_set=none`` + collinear counterterm,
+    see module docstring), so the radiator alone supplies the initial-state
+    radiation: the collinear log enters via D, the finite O(α) remnant via
+    σ̂_NLO — each counted once.  Do NOT subtract ``oalpha_isr_subtraction``
+    here: that cancels the ISR damping and inflates σ_obs by ~48 %
+    (pre-2026-06-12 bug).  ``sigma_nlo_fn`` is a σ̂_NLO interpolator
+    (√ŝ → fb).  Vectorised in ``sqrt_s``.
     """
-    conv = convolve_2leg(sqrt_s, sigma_nlo_fn, cfg)
-    sub = oalpha_isr_subtraction(sqrt_s, sigma_born_fn, cfg)
-    return conv - sub
+    return convolve_2leg(sqrt_s, sigma_nlo_fn, cfg)
 
 
 # ---------------------------------------------------------------------------

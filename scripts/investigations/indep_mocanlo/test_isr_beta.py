@@ -85,21 +85,26 @@ def main():
         v = ib.convolve_2leg(SQRT_S, toy_hat_fn, c)
         print(f"    n_quad={nq:4d}  conv={v:.8f}  rel_vs_4096={abs(v-ref)/ref:.1e}")
 
-    # --- 4. O(α) matching exactness: with σ̂_NLO ≡ σ̂_Born the matched line
-    #        shape minus σ̂_Born(s) must be PURE O(α²) (resid/β² → const) ---
-    print("\n[4] O(α) matching exactness: σ̂_NLO≡σ̂_Born ⇒ resid pure O(α²)")
+    # --- 4. C₁ kernel exactness: conv[σ̂] − C₁[σ̂] − σ̂(s) must be PURE O(α²)
+    #        (resid/β² → const).  Guards that oalpha_isr_subtraction is exactly
+    #        the O(α) piece of convolve_2leg, x_min artefacts included.  NB this
+    #        conv−C₁ combination is a kernel identity, NOT the production
+    #        observable (which is convolve_2leg alone — the σ̂ grids are
+    #        beam-ISR-free; see isr_beta module docstring, 2026-06-12). ---
+    print("\n[4] C₁ kernel exactness: conv−C₁−σ̂ ⇒ resid pure O(α²)")
     born_s = float(toy_hat_fn(np.array([SQRT_S]))[0])
     prev = None
     for eps in (1.0, 0.5, 0.25, 0.125):
         c = ib.ISRConfig(scheme="LO_beta", alpha=ALPHA * eps, m_e=M_E,
                          mu_F_factor=1.0, x_min=X_MIN, n_quad=512)
-        sig_obs = ib.sigma_observed_matched(SQRT_S, toy_hat_fn, toy_hat_fn, c)
+        sig_obs = (ib.convolve_2leg(SQRT_S, toy_hat_fn, c)
+                   - ib.oalpha_isr_subtraction(SQRT_S, toy_hat_fn, c))
         b = c.betas(SQRT_S)[0]
         resid = sig_obs - born_s
         ratio = "" if prev is None else f"  resid/β² ratio={resid/b**2/prev:+.4f}"
         prev = resid / b ** 2
         print(f"    β={b:.5f}  resid={resid:+.5f}  resid/β²={resid/b**2:+.3f}{ratio}")
-    print("    (resid/β² → constant ⇒ O(α) ISR double-count cancelled exactly)")
+    print("    (resid/β² → constant ⇒ C₁ is exactly the O(α) piece of the convolution)")
 
     # --- 5. NLL path: independent-chain eMELA convolution vs the BFS-side
     #        sigma_ISR_2leg_convolution(nll=True) on IDENTICAL σ̂.  This is the

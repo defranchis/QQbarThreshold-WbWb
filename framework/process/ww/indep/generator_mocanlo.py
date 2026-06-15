@@ -5,8 +5,9 @@ consumed by ``common.fit_core``).  Pipeline:
 
   1. MoCaNLO NLO-EW partonic σ̂_Born(√ŝ), σ̂_NLO(√ŝ) per channel × varpoint
      (``partonic_grid.load_grids`` → smooth interpolators).
-  2. Per channel: ISR-matched observed line shape σ_obs(√s) =
-     ∫∫ D D σ̂_NLO − C₁[σ̂_Born]  (``isr_beta.sigma_observed_matched``).
+  2. Per channel: ISR-folded observed line shape σ_obs(√s) = ∫∫ D D σ̂_NLO
+     (``isr_beta.sigma_observed``; the σ̂ grids are beam-ISR-free, the
+     radiator carries all initial-state radiation — no O(α) subtraction).
   3. Assemble the 6 blocks with flavour/colour multiplicities
      (``channels.assemble_total``) → σ_tot(√s) per varpoint.
   4. Factorized (BFS-style) morph over the rich (m_W, Γ_W) varpoint set
@@ -151,21 +152,20 @@ class WWGeneratorMoCaNLO:
         production convention (α(M_Z)/ALPMZ/DELTA), preserving the user's μ_F /
         x_min / n_quad knobs.
 
-        LL path: the radiator AND the O(α) matching subtraction C₁ must use the
-        SAME α that MoCaNLO put into σ̂_NLO's explicit O(α) ISR log — i.e. the
-        grid's EW scheme (``scheme_alpha``).  When the ISR α is left at its module
-        default (α_Gμ), couple it to ``scheme_alpha`` so running an α(0)/α(M_Z)
-        grid does not silently mix α schemes between σ̂_NLO and C₁.  An explicitly
-        pinned non-default ``isr_cfg.alpha`` (advanced ISR-α theory variation) is
-        respected, and an unknown ``scheme_alpha`` leaves the cfg untouched."""
+        LL path: the radiator α should match the EW scheme of the grid it
+        dresses (``scheme_alpha``), so an α(0)/α(M_Z) grid does not silently
+        mix α schemes between σ̂ and the factorised ISR.  When the ISR α is
+        left at its module default (α_Gμ), couple it to ``scheme_alpha``.  An
+        explicitly pinned non-default ``isr_cfg.alpha`` (advanced ISR-α theory
+        variation) is respected, and an unknown ``scheme_alpha`` leaves the
+        cfg untouched."""
         if self.isr_nll and not self.isr_cfg.nll:
-            # The eMELA NLL radiator is built in the BFS production convention
-            # (α(M_Z)/ALPMZ/DELTA) and REPLACES the analytic LL radiator, so the LL
-            # `scheme` knob (LO_beta/eta/mixed) does not propagate.  The C₁ matching
-            # subtraction is kept in its analytic-LL form at α(M_Z), leaving the
-            # documented ≲0.1–0.3% O(α) NLL/DELTA-scheme residual (report
-            # sec:match-nll).  Warn if a non-default LL scheme is being overridden,
-            # so the drop is not silent.
+            # The eMELA NLL radiator is built in the BFS production scheme
+            # conventions (ALPMZ/DELTA, at this module's α(M_Z) = MoCaNLO's
+            # 1/128.232 — NOT the BFS card's 1/128.943) and REPLACES the
+            # analytic LL radiator, so the LL `scheme` knob (LO_beta/eta/mixed)
+            # does not propagate.  Warn if a non-default LL scheme is being
+            # overridden, so the drop is not silent.
             if self.isr_cfg.scheme != "LO_beta":
                 warnings.warn(
                     f"isr_nll=True replaces the analytic-LL radiator with eMELA NLL "
@@ -238,14 +238,14 @@ class WWGeneratorMoCaNLO:
             born = g.born_fn(self.smooth)
             nlo = g.nlo_fn(self.smooth)
             if dnnlo_fn is not None:
-                # σ̂_comb = σ̂_NLO + δ_NNLO·σ̂_Born.  The O(α) ISR matching
-                # subtraction (3rd arg) stays MoCaNLO's Born ONLY — the BFS
-                # NNLO term is ISR-naked, MoCaNLO's σ̂_NLO carries the O(α) ISR.
+                # σ̂_comb = σ̂_NLO + δ_NNLO·σ̂_Born.  Both terms are ISR-naked
+                # (the grids are beam-ISR-free), so both take the full
+                # radiator convolution below.
                 def nlo_eff(sh, _nlo=nlo, _born=born, _d=dnnlo_fn):
                     return _nlo(sh) + _d(sh) * _born(sh)
             else:
                 nlo_eff = nlo
-            obs = isr_beta.sigma_observed_matched(sqrt_s, nlo_eff, born, cfg)
+            obs = isr_beta.sigma_observed(sqrt_s, nlo_eff, cfg)
             if self.match_bfs and self.match_bfs_dqcd:
                 obs = obs * match_bfs.delta_qcd_channel_factor(
                     BLOCKS_BY_KEY[key].outgoing, self.alpha_s)

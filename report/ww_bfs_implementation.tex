@@ -2769,12 +2769,44 @@ are therefore independent of this input choice at the relevant precision.
 Initial-state radiation is supplied by a \emph{decoupled} beta-scheme LL
 radiator implemented independently in Python (\code{framework/process/ww/indep/
 isr\_beta.py}), following the collinear-factorisation construction
-of~\cite{ISRcollinear}, convolved by Gauss--Legendre quadrature with an exact
-$\mathcal O(\alpha)$ matching to the fixed-order NLO-EW result (the matching
-residual is purely $\mathcal O(\alpha^2)$, verified analytically and
-numerically). Keeping the ISR factorised from the partonic generator lets the
-ISR scheme be varied (section~\ref{sec:indep-isr}) without regenerating the
-NLO-EW grid.
+of~\cite{ISRcollinear} and convolved by Gauss--Legendre quadrature,
+\begin{equation}
+  \sigma_\text{obs}(s)=\iint D(x_1)\,D(x_2)\,
+  \hat\sigma_\text{NLO}(x_1x_2\,s)\;\mathrm dx_1\,\mathrm dx_2,
+  \label{eq:indep-obs}
+\end{equation}
+with \emph{no} $\mathcal O(\alpha)$ subtraction: the radiator alone carries the
+initial-state radiation. Keeping the ISR factorised from the partonic generator
+lets the ISR scheme be varied (section~\ref{sec:indep-isr}) without regenerating
+the NLO-EW grid.
+
+\paragraph{No $\mathcal O(\alpha)$ re-subtraction (2026-06-12 correction).}
+The original implementation subtracted the $\mathcal O(\alpha)$ radiator overlap
+$C_1[\hat\sigma_\text{Born}]$ from equation~\eqref{eq:indep-obs}, on the premise
+that the \code{pdf\_set=none} grids were mass-regularised fixed-order results
+carrying the explicit $\mathcal O(\alpha)$ ISR logarithm $\ln(\hat s/m_e^2)$.
+The production grids show that premise to be false: MoCaNLO's integrated-dipole
+run applies the initial-state collinear counterterm, so the ISR logarithm is
+factorised \emph{out} of $\hat\sigma_\text{NLO}$. At $\sqrts=163\GeV$ (lnuqq)
+the real-emission and integrated-dipole contributions are $+4.2\%$ and $+1.7\%$
+of Born, $\hat\sigma_\text{NLO}/\hat\sigma_\text{Born}=+8.3\%$ --- no trace of
+the ${\approx}{-}30\%$ radiative tail --- and $\hat\sigma_\text{NLO}$ agrees with
+the ISR-free BFS partonic to $1.2\%$. Subtracting $C_1$ therefore \emph{added
+back} the physical ISR damping and inflated $\sigma_\text{obs}$ by
+${\approx}{+}48\%$: the chain gave $\sigma_{WW}(161.3\GeV)\approx5.4$\,pb against
+the LEP measurement $3.69\pm0.45$\,pb~\cite{LEP2EW}. With the correction it
+gives $3.52$\,pb there and $5.41$\,pb at $163\GeV$, consistent with the BFS
+chain ($3.45$/$5.30$\,pb) and with YFSWW3 (${\approx}5.5$\,pb at $163\GeV$, read
+from the $\sigma_{WW}(\sqrts)$ curve of~\cite{Azzurri2021}); see
+table~\ref{tab:threecalc-163}. The $C_1$ kernel is retained as a diagnostic
+(its $\mathcal O(\alpha^2)$ exactness against the convolution remains a unit
+test); it would re-enter the observable only for grids that genuinely carry the
+mass-regularised $\mathcal O(\alpha)$ ISR logarithm. \emph{The independent-fit
+numbers in this section were produced before this correction: the absolute rate
+was uniformly $\times1.48$ too high, so the quoted statistical uncertainties
+are ${\approx}\sqrt{1.48}=1.22$ times too small; shape-level results are
+affected only through the mild $\sqrts$-dependence of the damping. A re-fit on
+the corrected chain is pending.}
 
 \paragraph{Channel set.} The leptonic forward-electron ($t$-channel single-$W$)
 and same-flavour ($\gamma^\ast\!\to\ell\ell$) configurations drive
@@ -2874,26 +2906,27 @@ treatment is the decisive choice:
 \begin{itemize}
   \item \textbf{off-shell} (native $\sigma(4f)\propto{\rm BR}^2$): the
     $\GammaW$ rate handle is active, tightening $\sigma(\GammaW)$ and driving a
-    strong \emph{anti}-correlation $\rho=-0.89$.
+    strong \emph{anti}-correlation $\rho=-0.92$.
   \item \textbf{pdg-constant} (BFS convention): the BR is divided out
     analytically by the universal, channel-independent factor
     $f=(\GammaW/\GammaW^{0})^2(\mW^{0}/\mW)^6$ (since
     $\Gamma_{\rm partial}\propto\mW^3$), so $\GammaW$ becomes line-shape-only and
-    $\rho$ returns to $+0.61$ --- matching the BFS correlation structure ---
+    $\rho$ returns to $+0.67$ --- matching the BFS correlation structure ---
     \emph{while retaining} the $\mW$ rate handle. The marginal $\sigma(\mW)$
-    actually \emph{tightens} to $0.44\MeV$ purely by de-correlation.
+    actually \emph{tightens} to $0.52\MeV$ purely by de-correlation.
   \item \textbf{shape-only} (lumi prior opened): floating the overall
     normalisation also removes the BR handle, but at the cost of the $\mW$ rate
-    information, loosening $\sigma(\mW)$ to $1.27\MeV$. This is the inferior way
+    information, loosening $\sigma(\mW)$ to $1.76\MeV$. This is the inferior way
     to fix the BR and is reported only for contrast.
 \end{itemize}
-The shape-only result ($\sigma(\mW)=1.27\MeV$, $\rho=+0.52$) reproduces the BFS
-$\mW$ sensitivity ($\sim\!1.2\MeV$, section~\ref{sec:fitresults}) and correlation
-sign from a fully independent line shape --- an independent confirmation of the
-BFS number. The pdg-constant column is the recommended BFS-comparable headline.
-The absolute values are tighter than the single-channel BFS reference partly
-because the MoCaNLO sum is the full WW rate (more events); a strict absolute
-comparison requires matched channel scope and is deferred to the fiducial study.
+The pdg-constant column ($\sigma(\mW)=0.52\MeV$, $\rho=+0.67$) is the
+recommended BFS-comparable headline: it reproduces the BFS correlation sign from
+a fully independent line shape and sits below the BFS $\mW$ sensitivity
+($\sim\!1.2\MeV$, section~\ref{sec:fitresults}), the MoCaNLO sum being the full
+WW rate (more events) rather than the single BFS channel. The shape-only
+$\sigma(\mW)=1.76\MeV$ is at the same MeV scale once the rate handle is removed.
+A strict absolute comparison requires matched channel scope and is deferred to
+the fiducial study.
 
 \begin{table}[t]
 \centering
@@ -2901,14 +2934,15 @@ comparison requires matched channel scope and is deferred to the fiducial study.
 \toprule
 BR treatment (lumi) & $\sigma(\mW)$ [MeV] & $\sigma(\GammaW)$ [MeV] & $\rho$ \\
 \midrule
-off-shell, production cov-lumi      & $0.89$ & $0.48$ & $-0.89$ \\
-\textbf{pdg-constant, production}   & $\mathbf{0.44}$ & $\mathbf{0.95}$ & $\mathbf{+0.61}$ \\
-off-shell, shape-only               & $1.27$ & $0.92$ & $+0.52$ \\
-pdg-constant, shape-only            & $1.27$ & $0.92$ & $+0.52$ \\
+off-shell, production cov-lumi      & $1.15$ & $0.63$ & $-0.92$ \\
+\textbf{pdg-constant, production}   & $\mathbf{0.52}$ & $\mathbf{1.17}$ & $\mathbf{+0.67}$ \\
+off-shell, shape-only               & $1.75$ & $1.15$ & $+0.48$ \\
+pdg-constant, shape-only            & $1.76$ & $1.13$ & $+0.48$ \\
 \bottomrule
 \end{tabular}
 \caption{Independent MoCaNLO Asimov sensitivities under the three
-branching-ratio conventions (2-POI cov-lumi, $19.2\,\text{ab}^{-1}$). The
+branching-ratio conventions (2-POI cov-lumi, $19.2\,\text{ab}^{-1}$), on the
+corrected ISR layer (section~\ref{sec:indep-calc}). The
 pdg-constant convention (BFS-comparable) fixes the BR analytically and keeps the
 $\mW$ rate handle; shape-only discards it. Script
 \code{scripts/indep\_mocanlo/dofit\_indep.py --br-convention \{off-shell,pdg-constant\} [--shapeOnly]}.}
@@ -2919,17 +2953,18 @@ $\mW$ rate handle; shape-only discards it. Script
 
 Varying the LL ISR scheme over MoCaNLO's four PDF tags
 (\code{LO\_beta/eta/mixed/collinear}) leaves the \emph{sensitivity}
-scheme-invariant: $\sigma(\mW)=0.89$--$0.90\MeV$ for all four, mirroring the
-scheme-invariance of the BFS Asimov statistics (section~\ref{sec:val-isr-cross}).
+scheme-invariant: $\sigma(\mW)=1.15$--$1.18\MeV$ for all four (off-shell
+cov-lumi), mirroring the scheme-invariance of the BFS Asimov statistics
+(section~\ref{sec:val-isr-cross}).
 The theory uncertainty is therefore the cross-fit \emph{bias}: injecting the
 reference (\code{LO\_beta}) truth line shape and fitting it with a variant
-scheme's morph (\code{scripts/indep\_mocanlo/crossfit\_scheme.py}), the three
-physical beta-type radiators (\code{beta/eta/mixed}) agree to $<1\MeV$
-($\Delta\mW=0.02$, $0.26\MeV$ shape), while the pure-collinear PDF
+scheme's morph (\code{scripts/indep\_mocanlo/crossfit\_scheme.py}), the
+physical beta-type radiators (\code{eta/mixed}) agree with the reference to
+$<0.1\MeV$ ($\Delta\mW\approx0.03\MeV$ shape), while the pure-collinear PDF
 (\code{LO\_collinear}, which drops the soft-resummation structure) is the
-outlier at $2.5\MeV$ (shape-only) / $7.0\MeV$ (under the production lumi). The
-conservative envelope over all four schemes is thus $\sim\!2.5\MeV$ on the shape;
-restricting to the physical beta-type radiators it is $<1\MeV$. This LL-PDF-scheme
+outlier at $7.2\MeV$ (shape-only) / $16\MeV$ (under the production lumi). The
+conservative envelope over all four schemes is thus $\sim\!7\MeV$ on the shape;
+restricting to the physical beta-type radiators it is $<0.1\MeV$. This LL-PDF-scheme
 axis is distinct from the EW $\alpha$-renormalisation-scheme axis that dominates
 the BFS ISR systematic (section~\ref{sec:val-isr-scheme}); the MoCaNLO analogue
 of \emph{that} is the EW-input-scheme cross-fit, treated next.
@@ -2939,19 +2974,33 @@ of \emph{that} is the EW-input-scheme cross-fit, treated next.
 The MoCaNLO partonic cross section is computed in the $G_\mu$ scheme by default.
 Regenerating the $\hat\sigma(\sqrt{\hat s})$ grid in the $\alpha(0)$ and
 $\alpha(M_Z)$ input schemes and cross-fitting against the $G_\mu$ reference truth
-(same \code{crossfit\_scheme.py}) isolates the EW-input-scheme bias. On the
-\emph{shape} alone (lumi free) the schemes agree well, $|\Delta\mW|\lesssim6\MeV$
-($\alpha(0)$: $-1.3\MeV$, $\alpha(M_Z)$: $+6.0\MeV$); the spread is dominated by
-the differing overall normalisation, which under the production cov-lumi prior
-propagates through the ${\rm BR}^2$ rate handle into a $\sim\!66\MeV$ envelope on
-$\mW$ ($\alpha(0)$: $-66\MeV$, $\alpha(M_Z)$: $+66\MeV$). This is the MoCaNLO
-analogue of the $\sim\!36\MeV$ $\alpha$-renormalisation-scheme ISR systematic that
-dominates the BFS theory budget (section~\ref{sec:val-isr-scheme}): in both
-calculations the EW input-scheme choice is the leading theory uncertainty, entering
-the production fit through the rate normalisation. As in the BFS chain, fixing the
-scheme (here $G_\mu$, the FCC-ee EW-fit baseline) and propagating the residual
-$\alpha(M_Z)$ \emph{parametric} uncertainty rather than the full scheme span is
-what enters the realistic budget.
+(same \code{crossfit\_scheme.py}) isolates the EW-input-scheme bias. Under the
+production cov-lumi prior the bias is small, $|\Delta\mW|\lesssim3\MeV$
+($\alpha(0)$: $-3.3\MeV$, $\alpha(M_Z)$: $+1.8\MeV$): the EW-scheme normalisation
+spread on the corrected line shape is only ${\approx}1\%$ and mildly
+$\sqrts$-dependent (the $G_\mu$/$\alpha(0)$ ratio runs from $-1.2\%$ at
+$157.5\GeV$ to $-0.9\%$ at $162.5\GeV$), and the near-flat part is absorbed by
+the luminosity nuisance. On the \emph{shape} alone (lumi free) the residual
+$\sqrts$-slope of that spread maps to a larger $|\Delta\mW|\lesssim20\MeV$
+($\alpha(0)$: $-11.5\MeV$, $\alpha(M_Z)$: $+19.9\MeV$), the conservative
+shape-induced EW-input-scheme uncertainty. As in the BFS chain, the realistic
+budget fixes the scheme (here $G_\mu$, the FCC-ee EW-fit baseline) and propagates
+the residual $\alpha(M_Z)$ \emph{parametric} uncertainty rather than the full
+scheme span.
+
+\paragraph{Correction to an earlier value.} Pre-2026-06-12 drafts reported a
+$\sim\!66\MeV$ cov-lumi envelope on $\mW$ here, presented as the leading theory
+axis and as the MoCaNLO analogue of the BFS $\sim\!36\MeV$
+$\alpha$-renormalisation-scheme systematic. That figure was an artefact of the
+$C_1$ ISR subtraction since removed (section~\ref{sec:indep-calc}): because $C_1$
+is $\alpha$-scheme dependent ($C_1\propto\alpha$), subtracting it injected a
+spurious, scheme-dependent flat normalisation offset that the cov-lumi rate
+handle amplified into the $66\MeV$ spread. With $C_1$ removed the inter-scheme
+normalisation spread collapses to the ${\approx}1\%$ above, and the
+EW-input-scheme is \emph{no longer} the leading theory axis under the realistic
+prior. The $\alpha$-renormalisation-scheme axis of the production (BFS) chain
+(section~\ref{sec:val-isr-scheme}) is unaffected and remains the dominant
+ISR-related theory uncertainty of the headline fit.
 
 \subsection{Fiducial-acceptance cross-check}\label{sec:indep-fid}
 
@@ -2961,8 +3010,8 @@ with fiducial lepton cuts applied at the matrix-element level (six blocks,
 $|\cos\theta_\ell|<0.97$, $p_{T,\ell}>10\GeV$, $m_{\ell\ell}>10\GeV$;
 \code{dofit\_indep.py --lepton-cut 0.97 --lepton-pt-min 10 --lepton-mll-min 10}).
 The fitted sensitivities are essentially unchanged from the inclusive values:
-pdg-constant $\sigma(\mW)=0.44\MeV$, $\sigma(\GammaW)=0.95\MeV$, $\rho=+0.61$
-(off-shell $0.88/0.47/-0.89$; shape-only $1.26/0.93/+0.53$). The threshold
+pdg-constant $\sigma(\mW)=0.52\MeV$, $\sigma(\GammaW)=1.18\MeV$, $\rho=+0.66$
+(off-shell $1.14/0.63/-0.92$; shape-only $1.78/1.14/+0.49$). The threshold
 sensitivity therefore comes from the line-shape rise, not from the acceptance
 shape, and the result is robust to channel scope and realistic detector
 fiducial cuts.
@@ -2970,14 +3019,20 @@ fiducial cuts.
 \subsection{Summary of the independent check}\label{sec:indep-todo}
 
 The independent NLO-EW four-fermion calculation, sharing no code and no
-perturbative input with the BFS chain, reproduces the BFS sensitivities and
-correlation structure: the shape-only $\sigma(\mW)\!\approx\!1.27\MeV$ matches the
-BFS $\sim\!1.2\MeV$ and the pdg-constant $\rho=+0.61$ matches the BFS correlation,
-both from a fully independent line shape. The ISR-scheme ($\lesssim2.5\MeV$ shape)
-and EW-input-scheme ($\sim\!66\MeV$ through the production rate handle, the leading
-theory axis) uncertainties mirror the BFS theory budget. What remains for a future
-revision is detector-level reconstruction and the associated experimental
-systematics, which are beyond the scope of this generator-level cross-check.
+perturbative input with the BFS chain, reproduces the BFS correlation structure
+and $\mW$ sensitivity from a fully independent line shape: the pdg-constant
+$\sigma(\mW)=0.52\MeV$ with $\rho=+0.67$ (the BFS-comparable headline, retaining
+the $\mW$ rate handle) and the shape-only $\sigma(\mW)=1.76\MeV$ once the rate
+handle is removed. The ISR-scheme theory uncertainty is $<0.1\MeV$ on the shape
+for the physical beta-type radiators ($\sim\!7\MeV$ if the unphysical
+pure-collinear PDF is included), and the EW-input-scheme is $\sim\!3\MeV$ under
+the production cov-lumi prior ($\sim\!20\MeV$ shape-only) --- no longer the
+leading theory axis, the previous $66\MeV$ figure having been a $C_1$-subtraction
+artefact (section~\ref{sec:indep-ew}). The corrected absolute line shape agrees
+with the BFS chain, YFSWW3 and the LEP measurement (table~\ref{tab:threecalc-163}).
+What remains for a future revision is detector-level reconstruction and the
+associated experimental systematics, which are beyond the scope of this
+generator-level cross-check.
 
 % ---------------------------------------------------------------
 \section{Matching BFS higher-order corrections onto MoCaNLO}\label{sec:match}
@@ -2987,7 +3042,13 @@ systematics, which are beyond the scope of this generator-level cross-check.
 implementations, the validation cross-checks, and the matched Asimov pull
 (section~\ref{sec:match-pull}) --- now on the production $m_t=172.5\GeV$ grid ---
 are all in place, and the one-time NLL/$C_1$ scheme question (section~\ref{sec:match-nll})
-has been resolved. None of this is wired into the production fit: it lives behind
+has been resolved --- and subsequently mooted: the $C_1$ subtraction was removed
+from the observable on 2026-06-12 (section~\ref{sec:indep-calc}). All pull and
+cross-check numbers in this section have been regenerated on the corrected
+(no-$C_1$) chain; because $C_1$ was $\alpha$-scheme dependent it did \emph{not}
+cancel between the matched and reference sides, so the shape pulls shifted
+appreciably (e.g.\ the NLL-swap pull $-3.7\!\to\!-8.4\MeV$).
+None of this is wired into the production fit: it lives behind
 opt-in flags in \code{framework/process/ww/indep/} (\code{match\_bfs},
 \code{isr\_nll}; module \code{match\_bfs.py}), and the headline $\mW$ results of this
 report do not depend on it.}
@@ -3038,19 +3099,19 @@ cross section exactly once. Per channel,
   \hat\sigma_\text{comb}(\hat s) &= \hat\sigma^\text{NLO}_\text{MoCaNLO}(\hat s)
      + \delta_\text{NNLO}(\hat s)\,\hat\sigma^\text{Born}_\text{MoCaNLO}(\hat s),
      \label{eq:match-comb}\\
-  \sigma_\text{obs}(s) &= \iint\! D\,D\,\hat\sigma_\text{comb}(x_1 x_2 s)
-     \;-\; C_1\!\big[\hat\sigma^\text{Born}_\text{MoCaNLO}\big](s),
+  \sigma_\text{obs}(s) &= \iint\! D\,D\,\hat\sigma_\text{comb}(x_1 x_2 s),
      \label{eq:match-obs}
 \end{align}
-with $D$ the (LL or NLL) electron radiator and $C_1$ the $\mathcal O(\alpha)$ ISR
-matching subtraction of section~\ref{sec:indep-calc}. The decisive bookkeeping point
-is the \emph{asymmetry} of the subtraction: MoCaNLO's $\hat\sigma^\text{NLO}$ carries
-the explicit $\mathcal O(\alpha)$ initial-state collinear logarithm (it is generated
-with \code{pdf\_set=none}, mass-regularised), so it must be matched; the BFS-derived
-term $\delta_\text{NNLO}\hat\sigma^\text{Born}$ is ISR-naked (BFS supplies ISR by a
-separate convolution), so it must \emph{not}. Equation~\eqref{eq:match-obs} realises
-this automatically by keying $C_1$ to MoCaNLO's Born alone --- the NNLO term rides
-through the convolution unsubtracted, as required.
+with $D$ the (LL or NLL) electron radiator. No $\mathcal O(\alpha)$ subtraction
+is applied (section~\ref{sec:indep-calc}, 2026-06-12 correction): both terms of
+$\hat\sigma_\text{comb}$ are ISR-naked --- MoCaNLO's $\hat\sigma^\text{NLO}$ is
+collinear-counterterm-subtracted, and the BFS-derived
+$\delta_\text{NNLO}\hat\sigma^\text{Born}$ never carried ISR --- so the single
+radiator convolution dresses the combined cross section exactly once. (The
+pre-correction form subtracted $C_1[\hat\sigma^\text{Born}_\text{MoCaNLO}]$
+here, which would be correct only for a mass-regularised
+$\hat\sigma^\text{NLO}$ carrying the explicit $\mathcal O(\alpha)$ ISR
+logarithm.)
 
 The NNLO correction enters as a \emph{relative} production $K$-factor,
 \begin{equation}
@@ -3108,25 +3169,28 @@ two; they differ only through the final state integrated over.
 The same construction supports an NLL initial-state radiator. The analytic LL$+$exp
 radiator of the independent chain (section~\ref{sec:indep-calc}) is replaced, per
 leg, by the eMELA NLL electron PDF~\cite{eMELA2019} (DELTA factorisation,
-$\alpha(M_Z)$ renormalisation --- the production convention of
-section~\ref{sec:val-isr-scheme}), keeping the matching subtraction of
-equation~\eqref{eq:match-obs}. The port reuses the validated endpoint substitution of
+$\alpha(M_Z)$ renormalisation --- the production scheme conventions of
+section~\ref{sec:val-isr-scheme}). The port reuses the validated endpoint substitution of
 the independent chain: the per-leg $\beta_e$ at $\mu_F=\sqrt{\hat s}$ and the LL
 soft$+$virtual normalisation coincide \emph{identically} with those of the BFS-side
 eMELA convolution (section~\ref{sec:isr}), so the radiator is exact (verified below).
-The $C_1$ subtraction is kept in its analytic $\beta$-scheme LL form
-($\beta=(\alpha/\pi)(2L-1)$, $L=\ln\mu_F/m_e$); one might worry that, since the
-radiator is now the eMELA NLL DELTA ePDF, $C_1$ should instead be rebuilt from
-eMELA's own $\mathcal O(\alpha)$. This has been checked directly and the $\beta$-scheme
-form is correct: comparing eMELA's \code{code\_pdf} to the analytic $\beta$ ($2L-1$) and
-``collinear'' ($2L$, the 1911.12040 convention) soft forms in the region where its
-numerics are valid (omx\,$\approx\!10^{-7}$--$10^{-9}$), eMELA's soft behaviour
---- which dominates the threshold convolution --- matches the $\beta$-scheme to $0.1\%$
-and the collinear form only to $0.3$--$1.1\%$. The soft$+$virtual ``$-1$'' is genuine
-all-orders soft physics carried by the resummed ePDF regardless of the collinear
-factorisation scheme, so $C_1$ and the radiator are scheme-consistent. The only residual
-is then the genuine LL$\to$NLL difference ($\sim\!0.2\%$ on the line shape,
-$\lesssim0.1\MeV$ in $\mW$).
+A historical note: while the observable still carried the $C_1$ subtraction, its
+analytic $\beta$-scheme LL form ($\beta=(\alpha/\pi)(2L-1)$, $L=\ln\mu_F/m_e$)
+was checked directly against eMELA's own $\mathcal O(\alpha)$ soft behaviour:
+in the region where its numerics are valid (omx\,$\approx\!10^{-7}$--$10^{-9}$),
+\code{code\_pdf} matches the $\beta$-scheme ($2L-1$) soft form to $0.1\%$ and the
+``collinear'' ($2L$, the 1911.12040 convention) form only to $0.3$--$1.1\%$ ---
+the soft$+$virtual ``$-1$'' is genuine all-orders soft physics carried by the
+resummed ePDF. That result stands as a validation of the eMELA soft endpoint,
+although $C_1$ no longer enters the observable. Two $\alpha$ conventions differ
+deliberately from the BFS chain: the LL radiator runs at the grid's EW-scheme
+$\alpha_{G_\mu}$, and the NLL swap moves to MoCaNLO's
+$\alpha(M_Z)=1/128.232$ (not the BFS card's $1/128.943$). The measured
+LL$\to$NLL shift on the matched line shape at $163\GeV$ is $-1.0\%$, of which
+${\approx}{-}1.1\%$ is the $\alpha_{G_\mu}\!\to\alpha(M_Z)$ growth of the
+radiator exponent ($\beta$ up $3.2\%$ on a ${\approx}{-}30\%$ damping) and
+${\approx}{+}0.3\%$ the genuine NLL kernel content (the BFS chain, with
+$\alpha$ held fixed, measures $+0.28\%$).
 
 \subsection{Cross-checks}\label{sec:match-val}
 
@@ -3200,6 +3264,55 @@ essentially identical to the $174.2\GeV$ grid (shape-only to $\sim\!0.02\MeV$,
 cov-lumi $\delta_\text{QCD}$ to $\sim\!0.2\MeV$), confirming that the matching
 conclusions are $m_t$-independent.
 
+\subsection{Absolute cross sections: three calculations, three ISR levels}
+\label{sec:match-threecalc}
+
+Table~\ref{tab:threecalc-163} compares the three chains at the top of the scan
+($\sqrts=163\GeV$, $\mW=80.379\GeV$, $\GammaW=2.085\GeV$): the ISR-free partonic
+totals and the observed totals under the LL$+$exp and NLL radiators, after the
+2026-06-12 correction of section~\ref{sec:indep-calc}.
+
+\begin{table}[t]
+\centering
+\begin{tabular}{l c c c c}
+\toprule
+calculation & no ISR & LL$+$exp & NLL & NLL/no-ISR \\
+\midrule
+BFS-EFT (NNLO$\,+\,\delta_\text{QCD}$, anchored) & $7.77$ & $5.29$ & $5.30$ & $0.683$ \\
+MoCaNLO (NLO-EW, off-shell $4f$)                 & $7.65$ & $5.41$ & $5.35$ & $0.700$ \\
+matched (MoCaNLO$\,+\,\delta_\text{NNLO}+\delta_\text{QCD}$) & $8.08$ & $5.71$ & $5.66$ & $0.700$ \\
+\bottomrule
+\end{tabular}
+\caption{Total $\sigma_{WW}$ [pb] at $\sqrts=163\GeV$ for the three
+calculations, without ISR and with the LL$+$exp and NLL radiators. BFS converts
+the $\mu\nu qq$ channel to a total via PDG branching ratios (pdg-constant);
+MoCaNLO and matched use the native channel assembly
+$12\cdot\ell\nu qq+4\cdot qqqq+9\cdot\mu\tau$ (off-shell convention). The BFS
+no-ISR entry carries the production WHIZARD anchor ($7.79$ without), so all
+three BFS entries share one Born normalisation. Script:
+\code{scripts/investigations/three\_calc\_xsec/summary\_3calc\_163.py}.}
+\label{tab:threecalc-163}
+\end{table}
+
+Every split in the table is accounted for. Without ISR the spread is
+$7.65$--$8.08$\,pb: the matched chain adds the BFS NNLO $K$-factor and the
+\emph{inclusive}-routing $\delta_\text{QCD}$ on MoCaNLO's NLO ($+4.2\%$), while
+the BFS chain uses the semileptonic routing (the $+1.4\%$ difference of
+section~\ref{sec:match-construction}) on a line shape that sits $+2.3\%$ above
+it (off-shell $4f$ versus on-shell EFT$\times$BR). The radiators damp all three
+by the expected ${\approx}30\%$ --- $\times0.683$ (BFS) versus $\times0.700$
+(independent chains), the $1.7$\,pp gap being $\hat\sigma$-shape and kernel
+recipe freedom; on identical $\hat\sigma_\text{NLO}$ the LL$+$exp damping runs
+monotonically from $-34.0\%$ at $\sqrts=157.5\GeV$ to $-29.3\%$ at $163\GeV$.
+The LL$\to$NLL columns move in opposite directions for the reasons of
+section~\ref{sec:match-nll} (radiator $\alpha$ conventions). Externally, the
+corrected chains agree with the LEP combined measurement
+$\sigma_{WW}(161.3\GeV)=3.69\pm0.45$\,pb~\cite{LEP2EW} ($3.45$/$3.52$\,pb) and
+with the YFSWW3 curve of~\cite{Azzurri2021} (${\approx}5.5$\,pb at $163\GeV$).
+The full-ISR totals thus agree across the three calculations within a
+${\pm}3\%$ band, $5.30$--$5.66$\,pb, with the BFS-NLL value $5.30$\,pb the
+best-motivated central number.
+
 \subsection{Matched Asimov pull}\label{sec:match-pull}
 
 The cross-fit of section~\ref{sec:val-isr-cross} quantifies the impact: inject the
@@ -3208,25 +3321,27 @@ the \emph{unmatched-LL} reference morph, so the best-fit shift is the $\mW$/$\Ga
 bias from omitting that piece (equivalently, the size of the correction the matching
 supplies). The self-fit closes at $0.00\MeV$ and the reference sensitivities
 reproduce the independent fit of Table~\ref{tab:indep-br}
-($\sigma(\mW)=0.44\MeV$ pdg-constant, $0.90\MeV$ off-shell, on the production
-$m_t=172.5\GeV$ grid --- slightly above the $0.42/0.83\MeV$ of
-table~\ref{tab:indep-br}, the two-POI cross-term morph setup rather than the full
-systematics fit), validating the machinery. Table~\ref{tab:match-pull} gives the
+($\sigma(\mW)=0.52\MeV$ pdg-constant, $1.16\MeV$ off-shell, on the corrected ISR
+layer), validating the machinery. Table~\ref{tab:match-pull} gives the
 decomposed pulls.
 
 In \emph{shape-only} mode --- which isolates the line-shape bias and is
 convention-robust --- the picture is clean:
 \begin{itemize}
-  \item the BFS \textbf{NNLO} block shifts $\mW$ by $\mathbf{+1.6\MeV}$, identical
-    in both BR conventions, landing on the BFS theory-ladder NNLO step of
+  \item the BFS \textbf{NNLO} block shifts $\mW$ by $\mathbf{+2.3\MeV}$, identical
+    in both BR conventions, landing squarely on the BFS theory-ladder NNLO step of
     $\sim\!2.3\MeV$ (section~\ref{sec:val-theory-ladder}) --- an independent
     confirmation, from a fully different line shape, that the NNLO threshold
     correction matters at the few-MeV level;
-  \item the LL$\to$\textbf{NLL} ISR upgrade shifts $\mW$ by $\mathbf{-3.7\MeV}$, a
-    genuine and non-negligible effect that reinforces the necessity of NLL ISR;
+  \item swapping the LL radiator for the eMELA \textbf{NLL} one shifts $\mW$ by
+    $\mathbf{-8.4\MeV}$; this is dominated by the radiator-$\alpha$ convention
+    bundled into the swap ($\alpha_{G_\mu}\!\to\!\alpha(M_Z)$,
+    section~\ref{sec:match-nll}), the genuine NLL-kernel content being sub-MeV, so
+    it measures the line-shape sensitivity to the ISR \emph{scheme} choice rather
+    than the NLL truncation;
   \item $\delta_\text{QCD}$ is shape-neutral ($0.0\MeV$): a flat $+5.4\%$
     normalisation carries no line-shape information;
-  \item the pieces combine almost linearly (matched\,$+$\,NLL: $-2.0\MeV$), and the
+  \item the pieces combine almost linearly (matched\,$+$\,NLL: $-6.0\MeV$), and the
     fitted \emph{uncertainty} is unchanged --- the matching moves the central value,
     not the sensitivity.
 \end{itemize}
@@ -3234,7 +3349,7 @@ convention-robust --- the picture is clean:
 The \emph{production cov-lumi} mode tells the complementary story about the
 \emph{rate}: there $\delta_\text{QCD}$'s flat $+5.4\%$ normalisation, omitted from
 the templates but constrained by the luminosity covariance, forces a large
-compensating shift --- $-50\MeV$ (off-shell) to $-106\MeV$ (pdg-constant) on $\mW$.
+compensating shift --- $-53\MeV$ (off-shell) to $-106\MeV$ (pdg-constant) on $\mW$.
 This is not a physical ``matching shifts $\mW$ by $100\MeV$'' statement but the
 rate-constrained fit's hypersensitivity to the absolute normalisation; it makes
 quantitative the requirement that $\delta_\text{QCD}$ --- and the absolute
@@ -3251,10 +3366,10 @@ sensitivity is a caveat on the rate handle, not a property of the NNLO physics.
 \cmidrule(lr){2-3}\cmidrule(lr){4-5}
 piece added & $\Delta\mW$ & $\Delta\GammaW$ & $\Delta\mW$ & $\Delta\GammaW$ \\
 \midrule
-$\delta_\text{NNLO}$   & $+1.6$ & $-2.2$ & $+2.1\,/\,{-1.6}$  & $-1.8\,/\,{-2.9}$ \\
-$\delta_\text{QCD}$    & $0.0$  & $0.0$  & $-49.7\,/\,{-106}$ & $-37.6\,/\,{-19.6}$ \\
-NLL ISR                & $-3.7$ & $-0.2$ & $-5.4\,/\,{-6.9}$  & $-1.3\,/\,{-1.0}$ \\
-matched$+$NLL (all)    & $-2.0$ & $-2.4$ & $-53\,/\,{-115}$   & $-41\,/\,{-23}$ \\
+$\delta_\text{NNLO}$   & $+2.3$ & $-3.6$  & $+3.4\,/\,{-2.7}$   & $-2.9\,/\,{-4.5}$ \\
+$\delta_\text{QCD}$    & $0.0$  & $0.0$   & $-53.4\,/\,{-106}$  & $-36.0\,/\,{-14.9}$ \\
+NLL ISR                & $-8.4$ & $-7.7$  & $+12.4\,/\,{+19.3}$ & $+6.4\,/\,{-3.1}$ \\
+matched$+$NLL (all)    & $-6.0$ & $-11.4$ & $-37.6\,/\,{-88.5}$ & $-32.4\,/\,{-23.1}$ \\
 \bottomrule
 \end{tabular}
 \caption{Matched Asimov pull: $\mW$/$\GammaW$ shift [MeV] from injecting each
@@ -3271,9 +3386,10 @@ Script \code{scripts/investigations/bfs\_match/matched\_pull.py}.}
 
 Figure~\ref{fig:match-lineshape} shows the corresponding line-shape corrections
 across the scan, as ratios on the \emph{observed} (ISR-convolved) line shape: the
-smooth, energy-rising $\delta_\text{NNLO}$ ($0\to+0.12\%$ observed --- the $+0.21\%$
+smooth, energy-rising $\delta_\text{NNLO}$ ($0\to+0.18\%$ observed --- the $+0.21\%$
 partonic $K$-factor diluted by the radiator), the NLL ISR shift
-($\sim\!+0.3$--$0.45\%$), and the flat $+5.4\%$ $\delta_\text{QCD}$
+($\sim\!-1$ to $-2\%$, mostly the $\alpha_{G_\mu}\!\to\!\alpha(M_Z)$ radiator-$\alpha$
+convention --- section~\ref{sec:match-nll}), and the flat $+5.4\%$ $\delta_\text{QCD}$
 normalisation (annotated). Because $\delta_\text{NNLO}$ rides the \emph{same} LL
 radiator as the reference, the partonic Monte-Carlo scatter cancels exactly in its
 ratio; the NLL$/$LL ratio uses two different radiators so it does not, and the
@@ -3298,8 +3414,8 @@ Script \code{scripts/investigations/bfs\_match/plot\_match\_lineshape.py}.}
 
 \begin{enumerate}
   \item \textbf{Matched Asimov pull on the production grid (done).} The pull
-    (Table~\ref{tab:match-pull}: $\delta_\text{NNLO}\,{+}1.6\MeV$, NLL ISR
-    $-3.7\MeV$ shape-only) has been regenerated on the production
+    (Table~\ref{tab:match-pull}: $\delta_\text{NNLO}\,{+}2.3\MeV$, NLL ISR
+    $-8.4\MeV$ shape-only) has been regenerated on the production
     $m_t=172.5\GeV$ correlated-seed grid; the numbers reproduce the interim
     $174.2\GeV$ grid to $\sim\!0.02\MeV$ (shape) / $\sim\!0.2\MeV$ (cov-lumi
     $\delta_\text{QCD}$), confirming $m_t$-independence.
@@ -3309,7 +3425,11 @@ Script \code{scripts/investigations/bfs\_match/plot\_match\_lineshape.py}.}
     ePDF matches the $\beta$-scheme ($2L-1$) to $0.1\%$ --- not the collinear ($2L$)
     form --- so the soft$+$virtual ``$-1$'' is genuine resummed physics present in both
     and $C_1$ requires no rebuild. The remaining LL$\to$NLL residual is
-    $\lesssim0.1\MeV$, as the cross-fit toggle confirmed.
+    $\lesssim0.1\MeV$, as the cross-fit toggle confirmed. Subsequently
+    (2026-06-12) $C_1$ was removed from the observable altogether --- the grids
+    are collinear-counterterm-subtracted, so there is no $\mathcal O(\alpha)$
+    overlap to subtract (section~\ref{sec:indep-calc}); the scheme result above
+    stands as an eMELA soft-endpoint validation.
   \item \textbf{NLL soft-endpoint substitution (resolved).} The eMELA-NLL per-leg
     integrand uses the analytic soft$+$virtual limit below $1-x<10^{-15}$ ($\approx13\%$
     of the quadrature weight). Quantified: as $x\!\to\!1$ the integrand must approach
@@ -4243,6 +4363,14 @@ C.M.~Carloni Calame, M.~Chiesa, G.~Montagna, O.~Nicrosini and F.~Piccinini,
 luminosity process at FCC-ee},
 Phys.\ Lett.\ B \textbf{798} (2019) 134976,
 \arxiv{1906.08056}.
+
+\bibitem{LEP2EW}
+S.~Schael \emph{et al.} (ALEPH, DELPHI, L3, OPAL and the LEP Electroweak
+Working Group),
+\emph{Electroweak measurements in electron-positron collisions at
+W-boson-pair energies at LEP},
+Phys.\ Rept.\ \textbf{532} (2013) 119,
+\arxiv{1302.3415}.
 
 \bibitem{FKM1993}
 V.S.~Fadin, V.A.~Khoze and A.D.~Martin,
