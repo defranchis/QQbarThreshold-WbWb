@@ -2724,10 +2724,12 @@ and luminosity calibration, not the absolute luminosity scale alone.
 % ---------------------------------------------------------------
 
 \emph{The inclusive ($\mu\nu qq$-shape) pure-WW pipeline, the independent
-sensitivities, the fiducial-acceptance cross-check, and the ISR- and
-EW-input-scheme theory uncertainties are all complete and reported below, on a
-grid synchronised to the production inputs ($m_t=172.5\GeV$, $M_H=125.25\GeV$,
-$M_Z=91.1876\GeV$, $G_F=1.1663787\times10^{-5}$).}
+sensitivities (with the channel scope matched to BFS), the fiducial-acceptance
+cross-check, the ISR- and EW-input-scheme theory uncertainties, the full
+$157$--$365\GeV$ cross section, and a $240\GeV$ luminosity anchor are all complete
+and reported below, on a grid synchronised to the production inputs
+($m_t=172.5\GeV$, $M_H=125.25\GeV$, $M_Z=91.1876\GeV$,
+$G_F=1.1663787\times10^{-5}$).}
 
 \subsection{Motivation and scope}\label{sec:indep-scope}
 
@@ -2922,11 +2924,24 @@ treatment is the decisive choice:
 The pdg-constant column ($\sigma(\mW)=0.52\MeV$, $\rho=+0.67$) is the
 recommended BFS-comparable headline: it reproduces the BFS correlation sign from
 a fully independent line shape and sits below the BFS $\mW$ sensitivity
-($\sim\!1.2\MeV$, section~\ref{sec:fitresults}), the MoCaNLO sum being the full
-WW rate (more events) rather than the single BFS channel. The shape-only
-$\sigma(\mW)=1.76\MeV$ is at the same MeV scale once the rate handle is removed.
-A strict absolute comparison requires matched channel scope and is deferred to
-the fiducial study.
+($\sim\!1.3\MeV$, section~\ref{sec:val-theory-ladder}), the MoCaNLO sum being the
+full WW rate rather than the single BFS channel.
+
+\paragraph{Matched channel scope: a strict comparison.} The headline pure-WW
+fit sums all decay channels ($12\cdot\ell\nu qq+4\cdot qqqq+9\cdot\mu\tau$),
+$\approx\!1/B(\mu\nu qq)\!\approx\!7\times$ the yield of the single inclusive
+$\mu\nu qq$ channel the BFS chain fits, so it is tighter purely by statistics ---
+which is why the full-WW shape-only $\sigma(\mW)=1.76\MeV$ sits below the BFS
+reference. Restricting the independent assembly to the same inclusive $\mu\nu qq$
+scope ($4\cdot\ell\nu qq$, $B\!\approx\!0.143$) and running the \emph{identical}
+2-POI fit gives $\sigma(\mW)=1.12\MeV$ (cov-lumi) and $4.51\MeV$ (shape-only),
+against the BFS theory-ladder $1.31$ and $4.71\MeV$
+(Table~\ref{tab:theory-ladder};
+\code{scripts/investigations/indep\_mocanlo/dofit\_single\_channel.py}) ---
+agreement to $4$--$15\%$ from a fully independent NLO-EW line shape, the
+independent calculation marginally tighter. The factor-$7$ yield difference, not
+a line-shape difference, fully accounts for the looser full-WW value, closing the
+strict apples-to-apples comparison.
 
 \begin{table}[t]
 \centering
@@ -3016,6 +3031,92 @@ sensitivity therefore comes from the line-shape rise, not from the acceptance
 shape, and the result is robust to channel scope and realistic detector
 fiducial cuts.
 
+\subsection{The cross section across the FCC-ee range}\label{sec:indep-fullrange}
+
+Figure~\ref{fig:indep-xsec-full} shows the independent pure-WW cross section from
+threshold to the top of the FCC-ee programme, $\sqrts=157$--$365\GeV$, as plain
+MoCaNLO NLO-EW $\hat\sigma$ convolved with the eMELA NLL radiator (no BFS
+matching). The above-threshold grid ($165$--$365\GeV$, 16 energies $\times$ the 3
+pure-WW channels) was generated for this curve in a separate set of MoCaNLO runs
+(\code{scripts/indep\_mocanlo/grid\_hienergy.sub}); the threshold region reuses the
+production grid. The cross section rises through the $2\mW$ turn-on to a broad
+maximum of ${\approx}17.0$\,pb near $\sqrts\approx210\GeV$ and falls to
+${\approx}10.4$\,pb at $365\GeV$. The NLL and LL$+$exp radiators track each other
+to within the line width through threshold and separate by ${\sim}0.6$\,pb
+(${\sim}6\%$) by $365\GeV$ --- the growing high-energy ISR tail. This is the curve
+the $240\GeV$ anchor of section~\ref{sec:indep-anchor} samples
+(${\approx}15$\,pb). Script
+\code{scripts/investigations/hienergy/plot\_xsec\_vs\_ecm.py}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.72\linewidth]{xsec_vs_ecm_157_365}
+\caption{Independent MoCaNLO pure-WW cross section $\sigma_{WW}(\sqrts)$ from
+$157$ to $365\GeV$ (NLO-EW $\hat\sigma\otimes$ NLL ISR, solid; LL$+$exp ISR,
+dashed), spanning the WW threshold scan, the $WW$ maximum and the $ZH$ run energy.
+$\mW=80.379$, $\GammaW=2.085\GeV$.}
+\label{fig:indep-xsec-full}
+\end{figure}
+
+\subsection{A 240\,GeV cross-section anchor}\label{sec:indep-anchor}
+
+The steeply-rising threshold makes the $\mW$/$\GammaW$ extraction
+\emph{rate-driven}. A precise cross-section measurement far above threshold, where
+the line shape is flat, can pin the rate and break the threshold correlations. We
+add one point at the $ZH$-run energy $\sqrts=240\GeV$ with its luminosity
+$10.8\,\text{ab}^{-1}$~\cite{FCCFSR2025}, predicted by the \emph{same} independent
+chain (MoCaNLO NLO-EW $\otimes$ NLL ISR, extended above threshold for this study,
+section~\ref{sec:indep-fullrange}), and re-run the 2-POI cov-lumi fit with the
+$240\GeV$ point appended as a non-beam-smeared overflow bin
+(\code{scripts/investigations/hienergy/dofit\_anchor240.py}).
+
+What the anchor measures depends entirely on the branching-ratio convention, and
+the $240\GeV$ response makes it explicit (relative shift of $\sigma(240)$ for
+$+50\MeV$ in each POI). In \textbf{pdg-constant}, where the BR is divided out so
+$\sigma_\text{obs}\propto\sigma_\text{production}$, the far-above-threshold point
+is flat in \emph{both} POIs ($+0.08\%$ in $\mW$, $+0.003\%$ in $\GammaW$). In
+\textbf{off-shell}, the native $\sigma(4f)\propto{\rm BR}^2\propto m_W^6/\GammaW^2$
+carries the decay branching at \emph{every} energy, so $\sigma(240)$ is a clean
+$\GammaW$ handle ($-4.6\%$ in $\GammaW$, the ${\rm BR}^2$ scaling) with negligible
+$\mW$ dependence ($+0.46\%$, the residual production part).
+
+\begin{table}[t]
+\centering
+\begin{tabular}{l c c c}
+\toprule
+fit & $\sigma(\mW)$ [MeV] & $\sigma(\GammaW)$ [MeV] & $\rho$ \\
+\midrule
+pdg-constant, threshold only          & $0.52$ & $1.16$ & $+0.67$ \\
+pdg-constant $+\,240\GeV$ anchor       & $0.50$ & $1.16$ & $+0.68$ \\
+off-shell, threshold only             & $1.13$ & $0.62$ & $-0.92$ \\
+\textbf{off-shell $+\,240\GeV$ anchor} & $\mathbf{0.40}$ & $\mathbf{0.16}$ & $\mathbf{-0.17}$ \\
+\bottomrule
+\end{tabular}
+\caption{Impact of a $\sqrts=240\GeV$, $10.8\,\text{ab}^{-1}$ cross-section anchor
+on the independent 2-POI cov-lumi Asimov fit. In the off-shell convention the
+anchor's large statistics measure ${\rm BR}^2(\GammaW)$ directly, tightening
+$\sigma(\GammaW)$ ($0.62\!\to\!0.16\MeV$) and --- because the threshold rate
+anti-correlates $\GammaW$ with $\mW$ ($\rho=-0.92$) --- pulling $\sigma(\mW)$ down
+with it ($1.13\!\to\!0.40\MeV$) while \emph{decorrelating} the two
+($\rho:-0.92\!\to\!-0.17$). The pdg-constant convention is unchanged: there the BR
+is divided out, $\sigma(240)\propto\sigma_\text{production}$ is flat in both POIs,
+and the point carries no POI information.}
+\label{tab:indep-anchor}
+\end{table}
+
+So the decorrelation is driven by the off-shell ${\rm BR}^2$ decay factor making
+the $240\GeV$ rate an independent $\GammaW$ measurement, distinct from the
+threshold turn-on: with $\GammaW$ pinned away from $\mW$, the threshold determines
+$\mW$ on its own. The gains are a \emph{statistical} floor --- the off-shell
+$\GammaW$ handle is degenerate with the production cross section $\sigma(240)$ and
+with the $W$ partial widths, so the EW-input-scheme and ISR theory uncertainties on
+$\sigma(240)$ (sections~\ref{sec:indep-ew},~\ref{sec:indep-isr}) and the
+branching-ratio inputs would temper them in a realistic budget. The
+convention-independent message is the mechanism: a high-luminosity above-threshold
+point decorrelates $\GammaW$ from $\mW$ whenever the decay rate is left in the
+observable. Propagating those theory systematics onto the anchor is the natural
+next step.
+
 \subsection{Summary of the independent check}\label{sec:indep-todo}
 
 The independent NLO-EW four-fermion calculation, sharing no code and no
@@ -3023,7 +3124,10 @@ perturbative input with the BFS chain, reproduces the BFS correlation structure
 and $\mW$ sensitivity from a fully independent line shape: the pdg-constant
 $\sigma(\mW)=0.52\MeV$ with $\rho=+0.67$ (the BFS-comparable headline, retaining
 the $\mW$ rate handle) and the shape-only $\sigma(\mW)=1.76\MeV$ once the rate
-handle is removed. The ISR-scheme theory uncertainty is $<0.1\MeV$ on the shape
+handle is removed. With the channel scope matched to the BFS single inclusive
+$\mu\nu qq$ fit, the independent sensitivity reproduces the BFS value directly
+($1.12$ vs $1.31\MeV$ cov-lumi, $4.51$ vs $4.71\MeV$ shape-only;
+section~\ref{sec:indep-fit}). The ISR-scheme theory uncertainty is $<0.1\MeV$ on the shape
 for the physical beta-type radiators ($\sim\!7\MeV$ if the unphysical
 pure-collinear PDF is included), and the EW-input-scheme is $\sim\!3\MeV$ under
 the production cov-lumi prior ($\sim\!20\MeV$ shape-only) --- no longer the
