@@ -50,6 +50,17 @@ M_Z             = 91.1876
 M_E             = 0.5109989461e-3
 G_F             = 1.1663787e-5
 ALPHA_EM_0      = 1.0 / 137.035999084
+ALPHA_MZ_PDG    = 1.0 / 128.943   # α(M_Z), PDG — QED coupling for the ISR ALPMZ
+                                  # renorm scheme (eMELA). SINGLE SOURCE OF TRUTH
+                                  # for the framework: imported by isr.py (bare-ISR
+                                  # ALPMZ default) and theory_ladder.py (fallback).
+                                  # The card PARAM_INPUTS["alpha_em_isr"] is the
+                                  # user-editable INPUT that defaults to this value;
+                                  # it keeps its own literal because cards/ww_default
+                                  # cannot import eft_xsec (this module imports the
+                                  # card's BRs below → would be a circular import).
+                                  # The indep chain keeps its own copy by design
+                                  # (isr_beta.ALPHA_MZ_EMELA — see that module).
 GEV_M2_TO_PB    = 3.8937937217e8
 PB_TO_FB        = 1000.0   # picobarn → femtobarn
 

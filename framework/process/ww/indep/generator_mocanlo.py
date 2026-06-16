@@ -173,8 +173,14 @@ class WWGeneratorMoCaNLO:
                     f"isr_nll=True replaces the analytic-LL radiator with eMELA NLL "
                     f"(DELTA/ALPMZ): requested isr_cfg.scheme={self.isr_cfg.scheme!r} "
                     f"is ignored on the NLL path.", stacklevel=2)
+            # alpha is pinned to the PDG α(M_Z)=1/128.943 (ALPHA_MZ_EMELA), so
+            # resolved_alpha() returns it directly and ew_scheme is never
+            # consulted; the "alphaz" tag is intentionally NOT set here because
+            # in isr_beta._ALPHA_BY_SCHEME it maps to MoCaNLO's lepton-PDF
+            # 1/128.232, not the PDG value — leaving the default avoids tagging
+            # the radiator with an α(M_Z) that disagrees with the pinned one.
             return isr_beta.ISRConfig(
-                nll=True, alpha=isr_beta.ALPHA_MZ_EMELA, ew_scheme="alphaz",
+                nll=True, alpha=isr_beta.ALPHA_MZ_EMELA,
                 mu_F_factor=self.isr_cfg.mu_F_factor, mu_F_abs=self.isr_cfg.mu_F_abs,
                 m_e=self.isr_cfg.m_e, x_min=self.isr_cfg.x_min,
                 n_quad=self.isr_cfg.n_quad,

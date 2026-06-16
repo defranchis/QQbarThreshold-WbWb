@@ -119,6 +119,10 @@ ALPHA_MZ = 7.7983970817e-3       # α(M_Z), MoCaNLO's lepton-PDF value (1/128.23
 #: the two α(M_Z) values differ by 0.55%. The NLL path is an ISR object (QED off
 #: the e± line) independent of the σ̂ grid's EW scheme (gf), so it takes the
 #: standard PDG/eMELA α(M_Z), not MoCaNLO's internal one.
+#: Kept as a separate literal BY DESIGN (not hand-sync drift): this independent
+#: chain shares no code with the BFS chain (see module docstring), so it does not
+#: import eft_xsec.ALPHA_MZ_PDG. Same physical value (PDG α(M_Z)); if PDG updates,
+#: both must move together.
 ALPHA_MZ_EMELA = 1.0 / 128.943   # α(M_Z) PDG, eMELA ALPMZ-paired
 
 _ALPHA_BY_SCHEME = {

@@ -31,7 +31,7 @@ PARAM_INPUTS = {
     "M_Z":          91.1876,      # GeV
     "alpha_s_MW":   0.1199,       # α_s(M_W) MS-bar
     "alpha_em":     None,         # None → α_Gμ(m_W, M_Z)
-    "alpha_em_isr": 1.0/128.943,  # α(M_Z), PDG
+    "alpha_em_isr": 1.0/128.943,  # α(M_Z) PDG; canonical = eft_xsec.ALPHA_MZ_PDG
 }
 
 # Parametric input uncertainties; None = not propagated as a nuisance (per-key

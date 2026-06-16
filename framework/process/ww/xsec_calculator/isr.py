@@ -68,6 +68,7 @@ from framework.process.ww.xsec_calculator.eft_xsec import (
     ALPHA_S_MW_DEFAULT,
     M_W_DEFAULT, GAMMA_W_DEFAULT, M_W_BFS_REF,
     M_T_DEFAULT, M_H_DEFAULT, M_Z,
+    ALPHA_MZ_PDG,
     BFSCorrections,
     alpha_Gmu,
     sigma_partonic_munuqq,
@@ -110,7 +111,7 @@ def _safe_log_pair(z, one_minus_z=None):
 # fit m_W would introduce a fictitious m_W dependence through the ISR
 # kernel. Default kept here as a module-level constant; callers can override
 # via the explicit ``alpha_em`` argument to ``beta_ISR`` / ``sigma_observed``.
-_DEFAULT_ISR_ALPHA = alpha_Gmu(M_W_BFS_REF)   # α_Gμ at the BFS reference m_W; ≈ 1/132.1
+_DEFAULT_ISR_ALPHA = alpha_Gmu(M_W_BFS_REF)   # α_Gμ at the BFS reference m_W; ≈ 1/132.168
 
 
 # ---------------------------------------------------------------------------
@@ -435,11 +436,29 @@ def _radiator_cache_dir() -> str:
         os.path.join(os.path.expanduser("~"), ".cache", "ww_isr_radiator"))
 
 
-def _resolve_isr_alpha(alpha_em_isr: float | None) -> float:
-    """The α actually used in β_e / H_SV / eMELA init — resolves the module
-    default so ``None`` and an explicit α_Gμ(M_W_BFS_REF) map to one cache key
-    (they produce identical radiators)."""
-    return alpha_em_isr if alpha_em_isr is not None else _DEFAULT_ISR_ALPHA
+def _resolve_isr_alpha(alpha_em_isr: float | None,
+                       emela_ren_scheme: str | None = None) -> float:
+    """The α actually used in β_e / H_SV / eMELA init.
+
+    An explicit ``alpha_em_isr`` always wins (production passes it from the card,
+    so the production radiator is byte-unchanged).  When it is ``None`` the
+    default is *paired to the renormalisation scheme* so a bare/test caller never
+    silently gets an α whose value contradicts the scheme tag:
+
+      - ``ALPMZ`` → α(M_Z) PDG (``ALPHA_MZ_PDG`` = 1/128.943); the ALPMZ scheme
+        IS the running coupling at M_Z, so the α_Gμ default would mislabel it
+        (~3 % off — the same trap fixed on the indep chain in
+        ``generator_mocanlo.py``).
+      - otherwise (ALGMU / FIXED / the analytic LL+exp β path) →
+        α_Gμ(M_W_BFS_REF), the BFS prescription.
+
+    On the non-ALPMZ path ``None`` and an explicit α_Gμ(M_W_BFS_REF) still map to
+    one cache key (identical radiators)."""
+    if alpha_em_isr is not None:
+        return alpha_em_isr
+    if emela_ren_scheme == "ALPMZ":
+        return ALPHA_MZ_PDG
+    return _DEFAULT_ISR_ALPHA
 
 
 def _isr_radiator_fingerprint(*, alpha_a: float, isr_scale_factor: float,
@@ -512,7 +531,7 @@ def _emela_radiator_setup(sq: float, *, alpha_em_isr: float | None,
     """Cached (in-memory + disk) per-leg eMELA radiator for one √s → (x_vals, w,
     per_leg).  ``nll`` selects ``code_pdf`` (NLL), otherwise ``ll_pdf`` (eMELA-LL);
     exactly one of nll/emela_ll is True on this path."""
-    alpha_a = _resolve_isr_alpha(alpha_em_isr)
+    alpha_a = _resolve_isr_alpha(alpha_em_isr, emela_ren_scheme)
     fp = _isr_radiator_fingerprint(
         alpha_a=alpha_a, isr_scale_factor=isr_scale_factor, x_min=x_min,
         n_quad=n_quad, nll=nll, emela_ll=emela_ll,
@@ -616,7 +635,7 @@ def _prewarm_build_one(sq_cfg):
     (status, path) with status ∈ {'built','exists','no-disk'}.  Idempotent — an
     existing file is left untouched (not even re-read)."""
     sq, cfg = sq_cfg
-    alpha_a = _resolve_isr_alpha(cfg["alpha_em_isr"])
+    alpha_a = _resolve_isr_alpha(cfg["alpha_em_isr"], cfg["emela_ren_scheme"])
     fp = _isr_radiator_fingerprint(
         alpha_a=alpha_a, isr_scale_factor=cfg["isr_scale_factor"],
         x_min=cfg["x_min"], n_quad=cfg["n_quad"], nll=cfg["nll"],
@@ -671,7 +690,7 @@ def prewarm(sqrt_s_grids, cfgs, *, n_workers: int = 1, verbose: bool = True):
         if not (cfg["nll"] or cfg["emela_ll"]):
             skipped_analytic += n_sq            # analytic LL+exp never disk-caches
             continue
-        alpha_a = _resolve_isr_alpha(cfg["alpha_em_isr"])
+        alpha_a = _resolve_isr_alpha(cfg["alpha_em_isr"], cfg["emela_ren_scheme"])
         fp = _isr_radiator_fingerprint(
             alpha_a=alpha_a, isr_scale_factor=cfg["isr_scale_factor"],
             x_min=cfg["x_min"], n_quad=cfg["n_quad"], nll=cfg["nll"],
@@ -823,7 +842,7 @@ def sigma_ISR_2leg_convolution(sqrt_s,
     _use_emela = nll or emela_ll
     if _use_emela:
         from . import emela_wrapper as _emela
-        alpha_a = alpha_em_isr if alpha_em_isr is not None else _DEFAULT_ISR_ALPHA
+        alpha_a = _resolve_isr_alpha(alpha_em_isr, emela_ren_scheme)
         _emela.initialize(pert_order=emela_pert_order,
                           fac_scheme=emela_fac_scheme,
                           ren_scheme=emela_ren_scheme,

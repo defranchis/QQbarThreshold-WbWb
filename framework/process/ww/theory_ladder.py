@@ -90,7 +90,7 @@ from framework.common.parameters import Parameters
 from framework.process.ww.generator import WWGenerator
 from framework.process.ww.fit import WWFit
 from framework.process.ww.xsec_calculator.eft_xsec import (
-    ALPHA_EM_0, alpha_Gmu, M_W_BFS_REF,
+    ALPHA_EM_0, ALPHA_MZ_PDG, alpha_Gmu, M_W_BFS_REF,
 )
 
 # ---------------------------------------------------------------------------
@@ -336,7 +336,8 @@ def _build_fit(card_ov, hard_key, isr_key, base, scenario=None):
 #                residual is the aem_isr nuisance (≈0.005 MeV). NOT the headline.
 # 'scale' rows → ξ DGLAP-stability diagnostic, NOT a truncation uncertainty in
 #                the DELTA scheme (σ̂ has no μ_F counterterm; see docstring).
-_ALPHA_MZ_FALLBACK = 1.0 / 128.943   # ALPMZ; matches card PARAM_INPUTS alpha_em_isr
+_ALPHA_MZ_FALLBACK = ALPHA_MZ_PDG    # ALPMZ; framework single source (eft_xsec),
+                                     # = card PARAM_INPUTS["alpha_em_isr"] default
 
 
 def _isr_scheme_variants():
@@ -601,7 +602,14 @@ def _emit_table(rows, out, isr_keys, scheme_rows=None):
                      "(aem_isr profiled nuisance)")
         lines.append("         ('ren'/'scale' rows above are STABILITY diagnostics, "
                      "not components.)")
-        lines.append("  NOTE: the truncation is ~0.4 MeV shape-only but ~12 MeV cov-lumi —")
+        # Quote the live free (shape-only) vs prior (cov-lumi) truncation rather
+        # than frozen literals, so the NOTE can never drift away from the numbers
+        # emitted a few lines above when the fit/grid changes.
+        _t_free, _t_prior = _trunc("free"), _trunc("prior")
+        _shape_str = f"~{abs(_t_free):.1f}" if _t_free is not None else "~0.4"
+        _cov_str = f"~{abs(_t_prior):.0f}" if _t_prior is not None else "~12"
+        lines.append(f"  NOTE: the truncation is {_shape_str} MeV shape-only but "
+                     f"{_cov_str} MeV cov-lumi —")
         lines.append("  LL->NLL is almost pure NORMALISATION (~+0.3% ISR flux, little shape);")
         lines.append("  under the tight lumi prior that flux change leaks into m_W via the rate")
         lines.append("  handle (same pattern as 'scale'/'ren'). Whether the cov-lumi leakage is")
