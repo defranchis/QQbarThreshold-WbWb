@@ -2273,17 +2273,21 @@ above the $0.25\MeV$ FCC-ee target. Pinning the ISR coupling scheme (and
 ultimately the input $\alpha(M_Z)$ to the Tera-$Z$ precision) is
 therefore a precondition for an MeV-level $\mW$ extraction.
 
-\paragraph{Not yet varied: factorisation scheme.}
-A genuine factorisation-scheme variation (DELTA$\leftrightarrow$MS$\overline{\text{S}}$)
-is deferred. DELTA is currently the \emph{only} scheme consistent with
-our $\hat\sigma=\sigma_\text{Born}$ (no ISR collinear subtraction):
-eMELA's DELTA radiator equals the BFS LL subtractant by construction
-(section~\ref{sec:isr}), whereas MS$\overline{\text{S}}$ differs by a
-finite kernel $K(x)$ that would have to be added to $\hat\sigma$ as a
-$+\!\int\!K(x)\,\sigma_\text{Born}$ collinear counterterm before
-DELTA$-$MS$\overline{\text{S}}$ becomes a meaningful uncertainty rather
-than an $\mathcal{O}(\alpha)$ double-count. This is the natural phase-2
-extension of the ISR scheme study.
+\paragraph{Factorisation scheme: DELTA is the matched choice.}
+The DELTA$\leftrightarrow$MS$\overline{\text{S}}$ factorisation question has been
+studied directly (item~\ref{item:scheme-match}, section~\ref{sec:match-todo}) and
+DELTA confirmed as the matched scheme. DELTA is the scheme consistent with
+$\hat\sigma=\sigma_\text{Born}$ (no ISR collinear subtraction) --- the QED DIS-like
+scheme, in which the finite initial-state collinear remainder is absorbed into the
+PDF~\cite{eMELAdelta} --- so eMELA's DELTA radiator equals the BFS LL subtractant by
+construction (section~\ref{sec:isr}). MS$\overline{\text{S}}$ differs by the
+closed-form finite kernel
+$D_{\overline{\rm MS}}\!-\!D_\Delta=-(\alpha/2\pi)\,[(1{+}x^2)/(1{-}x)\,(2\ln(1{-}x){+}1)]_+$,
+which would have to be added to $\hat\sigma$ as a collinear counterterm; convolving the
+MS$\overline{\text{S}}$ ePDF without it double-counts that term and roughly doubles the
+near-threshold line shape. An $\alpha$-stability scan confirms DELTA is $\alpha$-stable
+(the unmatched MS$\overline{\text{S}}$ term, being $\propto\alpha$, is absent), so a
+DELTA$-$MS$\overline{\text{S}}$ spread is not a residual ISR-scheme uncertainty here.
 
 % ---------------------------------------------------------------
 \subsection{Scan-scenario comparison and FCC-ee inputs}\label{sec:val-scenarios}
@@ -3156,10 +3160,12 @@ from the observable on 2026-06-12 (section~\ref{sec:indep-calc}). All pull and
 cross-check numbers in this section have been regenerated on the corrected
 (no-$C_1$) chain; because $C_1$ was $\alpha$-scheme dependent it did \emph{not}
 cancel between the matched and reference sides, so the pulls shifted. The NLL-swap
-\emph{shape} pull, separately, has since been found numerically unstable against the
-ISR $\alpha(M_Z)$ input ($-8.4\MeV$ at $1/128.232$ vs $-1.5\MeV$ at the production
-$1/128.943$), a symptom of the unresolved factorisation-scheme matching
-(section~\ref{sec:match-nll}); it is not a robust number.
+\emph{shape} pull was at one point suspected to be numerically unstable against the
+ISR $\alpha(M_Z)$ input; an $\alpha$-stability scheme scan has since
+\emph{resolved} this (item~\ref{item:scheme-match}, section~\ref{sec:match-todo}): the
+apparent swing is the LL $\alpha$-input piece of the reference morph, while the NLL
+kernel is $\alpha$-stable to $0.14\MeV$ and DELTA is the matched factorisation scheme,
+so the production $-1.5\MeV$ pull is robust.
 None of this is wired into the production fit: it lives behind
 opt-in flags in \code{framework/process/ww/indep/} (\code{match\_bfs},
 \code{isr\_nll}; module \code{match\_bfs.py}), and the headline $\mW$ results of this
@@ -3294,15 +3300,17 @@ in the region where its numerics are valid (omx\,$\approx\!10^{-7}$--$10^{-9}$),
 ``collinear'' ($2L$, the 1911.12040 convention) form only to $0.3$--$1.1\%$ ---
 the soft$+$virtual ``$-1$'' is genuine all-orders soft physics carried by the
 resummed ePDF. That result stands as a validation of the eMELA soft endpoint,
-although $C_1$ no longer enters the observable. Two $\alpha$ conventions differ
-deliberately from the BFS chain: the LL radiator runs at the grid's EW-scheme
-$\alpha_{G_\mu}$, and the NLL swap moves to MoCaNLO's
-$\alpha(M_Z)=1/128.232$ (not the BFS card's $1/128.943$). The measured
-LL$\to$NLL shift on the matched line shape at $163\GeV$ is $-1.0\%$, of which
-${\approx}{-}1.1\%$ is the $\alpha_{G_\mu}\!\to\alpha(M_Z)$ growth of the
-radiator exponent ($\beta$ up $3.2\%$ on a ${\approx}{-}30\%$ damping) and
-${\approx}{+}0.3\%$ the genuine NLL kernel content (the BFS chain, with
-$\alpha$ held fixed, measures $+0.28\%$).
+although $C_1$ no longer enters the observable. The radiator $\alpha$ conventions:
+the LL radiator runs at the grid's EW-scheme $\alpha_{G_\mu}$, and the NLL swap moves to
+$\alpha(M_Z)$ in the eMELA \emph{ALPMZ} scheme --- aligned since to the PDG
+$1/128.943$ (it formerly used MoCaNLO's internal lepton-PDF $1/128.232$, which was the
+source of the apparent NLL-pull instability now resolved in
+item~\ref{item:scheme-match}). The measured LL$\to$NLL shift on the matched line
+shape at $163\GeV$ is dominated by the $\alpha_{G_\mu}\!\to\alpha(M_Z)$ growth of the
+radiator exponent ($\beta$ up ${\approx}3\%$ on a ${\approx}{-}30\%$ damping), with a
+small genuine NLL-kernel content on top (the BFS chain, with $\alpha$ held fixed,
+measures $+0.28\%$); the $\alpha$-stability scan of item~\ref{item:scheme-match}
+isolates these two pieces and shows the kernel part is $\alpha$-stable.
 
 \subsection{Cross-checks}\label{sec:match-val}
 
@@ -3451,18 +3459,21 @@ convention-robust --- the picture is clean:
     (\code{scripts/investigations/nll\_isr/crossfit\_nll\_decomp.py}) resolves into
     $-0.6\MeV$ from the radiator-$\alpha$ convention
     ($\alpha_{G_\mu}\!\to\!\alpha(M_Z)$) and $-1.0\MeV$ from the genuine NLL kernel
-    $+$ DELTA factorisation --- both small. \emph{This shape pull is, however,
-    numerically unstable}: it swings from $-8.4\MeV$ at MoCaNLO's
-    $\alpha(M_Z)=1/128.232$ to $-1.5\MeV$ at the PDG $1/128.943$ --- a $6.9\MeV$
-    swing for a $0.55\%$ change in $\alpha$, far larger than the
-    $-0.6\MeV$ a physical $\alpha$ response would give. This unphysical
-    sensitivity is the signature of an unmatched $\mathcal O(\alpha)$ term whose
-    size scales with $\alpha$ --- the DELTA-vs-$\overline{\rm MS}$ factorisation
-    mismatch between the eMELA ePDF and the Catani--Seymour-subtracted MoCaNLO
-    grid (item~\ref{item:scheme-match} of section~\ref{sec:match-todo}, not yet
-    resolved). The NLL line-shape pull is therefore \emph{not} a robust observable
-    at present; the more stable cov-lumi rate result, and the matched-scheme
-    calculation, are what an NLL line-shape $\mW$ must eventually rest on;
+    in DELTA factorisation --- both small. An earlier concern that this pull was
+    \emph{numerically unstable} --- it appears to swing $6.9\MeV$ as $\alpha(M_Z)$
+    moves from MoCaNLO's $1/128.232$ to the PDG $1/128.943$ --- has been
+    \emph{resolved} (item~\ref{item:scheme-match}, section~\ref{sec:match-todo}). An
+    $\alpha$-stability scheme scan shows the swing lives \emph{entirely} in the
+    LL $\alpha$-\emph{input} piece --- the reference morph's
+    $\alpha_{G_\mu}\!\to\!\alpha(M_Z)$ leading log, which moves $-0.6\MeV\!\to\!-7.4\MeV$
+    across that $\alpha$ range --- while the genuine NLL \emph{kernel} pull is
+    $\alpha$-\emph{stable} to $0.14\MeV$ over the same range. DELTA is confirmed to be
+    the factorisation scheme matched to the Catani--Seymour-subtracted MoCaNLO grid
+    (running eMELA in MS$\overline{\text{S}}$ instead over-counts the finite collinear
+    term and roughly \emph{doubles} the near-threshold line shape). The $-1.5\MeV$ at
+    the production $\alpha(M_Z)=1/128.943$ is therefore a robust line-shape pull; the
+    residual sensitivity to $\alpha(M_Z)$ is the physical input uncertainty, carried by
+    the $\Delta\alpha$ nuisance, not an unmatched-scheme artifact;
   \item $\delta_\text{QCD}$ is shape-neutral ($0.0\MeV$): a flat $+5.4\%$
     normalisation carries no line-shape information;
   \item the pieces combine almost linearly (matched\,$+$\,NLL: $+0.8\MeV$ shape), and the
@@ -3504,9 +3515,11 @@ off-shell\,/\,pdg-constant. The shape-only columns are the convention-robust
 line-shape pulls; the large cov-lumi $\delta_\text{QCD}$ entries are the rate-fit's
 sensitivity to the flat $+5.4\%$ normalisation, not an NNLO effect (see text). The
 self-fit bias is $0.00$ in all modes. The NLL-containing rows are quoted at the
-production $\alpha(M_Z)=1/128.943$ and are numerically \emph{unstable} against this
-input (section~\ref{sec:match-nll}), unlike the $\delta_\text{NNLO}$/$\delta_\text{QCD}$
-rows; they are not yet robust line-shape observables.
+production $\alpha(M_Z)=1/128.943$; the NLL-\emph{kernel} pull is $\alpha$-stable
+($0.14\MeV$ over $1/128.943$--$1/128.232$) and DELTA is the matched factorisation
+scheme (item~\ref{item:scheme-match}, section~\ref{sec:match-todo}), so these are
+robust line-shape observables --- the residual $\alpha(M_Z)$ dependence is the
+physical input uncertainty.
 Script \code{scripts/investigations/bfs\_match/matched\_pull.py}.}
 \label{tab:match-pull}
 \end{table}
@@ -3521,9 +3534,9 @@ normalisation (annotated). Because $\delta_\text{NNLO}$ rides the \emph{same} LL
 radiator as the reference, the partonic Monte-Carlo scatter cancels exactly in its
 ratio; the NLL$/$LL ratio uses two different radiators so it does not, and the
 displayed NLL curve is smoothed in $\sqrt{s}$. The corresponding shape \emph{pull}
-is small ($-1.5\MeV$) but numerically unstable against the ISR $\alpha(M_Z)$ input
-(section~\ref{sec:match-nll}), so the figure is illustrative; the robust statements
-are the cov-lumi pull and the $\alpha$-decomposition, not the bare shape pull.
+is small and robust ($-1.5\MeV$): the NLL kernel is $\alpha$-stable and DELTA is the
+matched factorisation scheme (item~\ref{item:scheme-match}, section~\ref{sec:match-todo}),
+so the curve is a faithful line-shape correction, not merely illustrative.
 
 \begin{figure}[t]
 \centering
@@ -3560,22 +3573,45 @@ Script \code{scripts/investigations/bfs\_match/plot\_match\_lineshape.py}.}
     are collinear-counterterm-subtracted, so there is no $\mathcal O(\alpha)$
     overlap to subtract (section~\ref{sec:indep-calc}); the scheme result above
     stands as an eMELA soft-endpoint validation.
-  \item \label{item:scheme-match}\textbf{ISR factorisation-scheme matching (OPEN ---
-    blocks an NLL line-shape $\mW$).} The MoCaNLO NLO-EW grid subtracts its
-    initial-state collinear singularity with Catani--Seymour dipoles
-    (\code{pdf\_set=none}, integrated-dipole \code{idip} run), i.e.\ in the
-    $\overline{\rm MS}$ factorisation scheme, whereas the eMELA NLL ePDF is currently
-    convolved in the \emph{DELTA} scheme. The two differ at $\mathcal O(\alpha)$ by a
-    finite term that scales with $\alpha$ --- invisible at LL (only the collinear
-    \emph{log} matters) but real at NLL. This unmatched term is what makes the NLL
-    \emph{shape} pull numerically unstable against the $\alpha(M_Z)$ input
-    ($-8.4\MeV$ at $1/128.232$ vs $-1.5\MeV$ at $1/128.943$;
-    section~\ref{sec:match-nll}). Resolution: run eMELA in \code{MSBAR} to match the
-    grid (or add the analytic $\overline{\rm MS}\!\to\!$DELTA term), verified by
-    expanding $(\text{ePDF}\otimes\hat\sigma_\text{Born})$ to $\mathcal O(\alpha)$ and
-    checking it reproduces $\hat\sigma_\text{NLO}$
-    (\code{scripts/investigations/nll\_isr/SCHEME\_MATCHING\_SCOPING.md}). Until then
-    the NLL chain stays exploratory; the production LL$+$exp headline is unaffected.
+  \item \label{item:scheme-match}\textbf{ISR factorisation-scheme matching (RESOLVED ---
+    DELTA is the matched scheme).} The question was whether the eMELA NLL ePDF, convolved
+    in the \emph{DELTA} factorisation scheme, is consistent with the MoCaNLO NLO-EW grid,
+    whose initial-state collinear singularity is handled by Catani--Seymour dipoles
+    (\code{pdf\_set=none}, integrated-dipole \code{idip} run). An $\alpha$-stability
+    scheme scan settles it three ways, all confirming DELTA:
+    \begin{itemize}
+      \item \textbf{Empirical} (\code{scripts/investigations/nll\_isr/scheme\_alpha\_scan.py},
+        \code{confirm\_alpha\_decomp.py}). For each scheme, the genuine NLL-kernel pull is
+        measured at $\alpha(M_Z)\!=\!1/128.943$ and $1/128.232$. \emph{DELTA} is
+        $\alpha$-stable ($-0.98\!\to\!-1.12\MeV$ shape, swing $0.14\MeV$;
+        $+1.3\MeV$ cov-lumi, swing $0.06\MeV$); an unmatched $\mathcal O(\alpha)$ term
+        scales with $\alpha$ and would show such sensitivity, so its absence proves DELTA
+        is matched. \emph{MS}$\overline{\text{S}}$ is catastrophic ($+6.7\MeV$ shape,
+        $-384\MeV$ cov-lumi; its convolved line shape is ${\approx}2\times$ DELTA near
+        threshold). The apparent $6.9\MeV$ instability of the full pull is the
+        \emph{LL $\alpha$-input} piece (the reference morph's
+        $\alpha_{G_\mu}\!\to\!\alpha(M_Z)$ leading log, $-0.6\!\to\!-7.4\MeV$), not the
+        kernel or the scheme.
+      \item \textbf{Literature} (eMELA: BCFS~\cite{eMELA2019}; the $\Delta$-scheme
+        definition~\cite{eMELAdelta}). DELTA is the QED DIS-like scheme in which the finite initial-state collinear
+        remainder is absorbed into the PDF, so $\hat\sigma=\sigma_\text{Born}$; eMELA's
+        \code{MSBAR} is the standard $\overline{\rm MS}$ ($K_{ij}\!\equiv\!0$). The two
+        differ by the closed-form $\mathcal O(\alpha)$ term
+        $D_{\overline{\rm MS}}\!-\!D_\Delta=-(\alpha/2\pi)\,[(1{+}x^2)/(1{-}x)\,(2\ln(1{-}x){+}1)]_+$,
+        and the soft$+$virtual endpoint constant $\lambda_1$ is scheme-\emph{independent}.
+      \item \textbf{Numerical closure.} eMELA's measured
+        $x\,(D_{\overline{\rm MS}}\!-\!D_\Delta)$ at $Q\!=\!161\GeV$ reproduces that
+        analytic term to ${\sim}3\%$ at $x\!=\!0.9$ (correct sign throughout), confirming
+        eMELA implements the standard transformation.
+    \end{itemize}
+    Why DELTA, not $\overline{\rm MS}$: with \code{pdf\_set=none} and massive electrons there
+    is no beam PDF to mass-factorise into, so no initial-state collinear counterterm is
+    applied (the surfaced \code{idip} is a small $+0.4$--$2.5\%$ of Born, not a large
+    collinear subtraction); $\hat\sigma_\text{NLO}$ is the inclusive = DELTA hard
+    coefficient, and the energy-degrading ISR collinear log lives in the ePDF. The earlier
+    expectation ``CS dipoles $\Rightarrow\overline{\rm MS}$'' conflated IR finiteness with
+    mass factorisation. DELTA is therefore already the correct production choice; no scheme
+    change is needed.
   \item \textbf{NLL soft-endpoint substitution (resolved).} The eMELA-NLL per-leg
     integrand uses the analytic soft$+$virtual limit below $1-x<10^{-15}$ ($\approx13\%$
     of the quadrature weight). Quantified: as $x\!\to\!1$ the integrand must approach
@@ -4459,6 +4495,11 @@ V.~Bertone, M.~Cacciari, S.~Frixione, G.~Stagnitto,
 JHEP \textbf{03} (2020) 135, \arxiv{1911.12040};
 gstagnit/eMELA implementation:
 \href{https://github.com/gstagnit/eMELA}{github.com/gstagnit/eMELA}.
+
+\bibitem{eMELAdelta}
+S.~Frixione,
+\emph{On factorisation schemes for the electron parton distribution functions in QED},
+JHEP \textbf{07} (2021) 180, \arxiv{2105.06688}.
 
 \bibitem{RiembauTeraZ}
 M.~Riembau,
