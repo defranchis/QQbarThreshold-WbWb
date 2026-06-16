@@ -33,16 +33,20 @@ prior NLL  +dQCD      +0.000    +0.000    +0.000   1.312   2.755  +0.66  ok
 -----------------------------------------------------------------------------
 
 ##########################################################################
-ISR scheme variation — hard side = +dQCD, NLL ISR throughout.
-Reference truth = ALPMZ, ξ=1 (production); ALPMZ row is the closure check.
-'ren'   = α-renormalisation scheme (ALPMZ↔ALGMU↔α(0)): genuine NLL
-          ISR scheme uncertainty, decoupled from the BFS σ̂.
-'scale' = ISR factorisation scale ξ (Q=ξ√s): DGLAP-stability check
-          ONLY — NOT a truncation uncertainty in the DELTA scheme.
+ISR scheme variation — hard side = +dQCD; truth = NLL/ALPMZ/ξ=1 (production).
+Components reported SEPARATELY, not in quadrature (2026-06-16 DELTA-NLL resolution):
+'trunc' = NNLL TRUNCATION (the ISR theory-systematic component): α-fixed
+          order step eMELA-LL ↔ eMELA-NLL (same α → only the NLL kernel).
+'ren'   = α-renorm-scheme STABILITY diagnostic (ALPMZ↔ALGMU↔α(0)); the
+          spread is the LL α-VALUE sensitivity, NOT the kernel. α is fixed by
+          the EW input scheme; physical residual = aem_isr nuisance (~0.005).
+'scale' = ξ (Q=ξ√s) DGLAP-stability diagnostic ONLY — NOT a truncation
+          uncertainty in the DELTA scheme (σ̂ has no μ_F counterterm).
 ##########################################################################
 lumi  variant      kind        Δm_W      ΔΓ_W    σ_mW    σ_ΓW      ρ  conv
                               [MeV]     [MeV]   [MeV]   [MeV]       
 --------------------------------------------------------------------------
+free  eMELA-LL     trunc     -0.425    -0.180   4.691   2.768  +0.32  ok
 free  ALPMZ(prod)  ren       +0.000    +0.000   4.713   2.783  +0.32  ok
 free  ALGMU        ren       +3.504    +2.342   4.637   2.746  +0.32  ok
 free  alpha(0)     ren       +5.864    +3.152   4.541   2.703  +0.33  ok
@@ -52,6 +56,7 @@ free  xi=2.0       scale     -1.189    +1.112   4.844   2.838  +0.31  ok
 lumi  variant      kind        Δm_W      ΔΓ_W    σ_mW    σ_ΓW      ρ  conv
                               [MeV]     [MeV]   [MeV]   [MeV]       
 --------------------------------------------------------------------------
+prior eMELA-LL     trunc    +11.571    +0.876   1.314   2.758  +0.67  ok
 prior ALPMZ(prod)  ren       +0.000    +0.000   1.312   2.755  +0.66  ok
 prior ALGMU        ren      +38.061    +5.584   1.319   2.766  +0.68  ok
 prior alpha(0)     ren      +79.228   +10.798   1.324   2.778  +0.70  ok
@@ -59,8 +64,16 @@ prior xi=0.5       scale    +46.646    +7.420   1.306   2.713  +0.67  ok
 prior xi=2.0       scale    -46.189    -2.187   1.312   2.751  +0.65  ok
 --------------------------------------------------------------------------
 
+ISR theory systematic — SEPARATE components (NOT added in quadrature):
+  [free ] NNLL truncation =   0.42 MeV  (eMELA-LL↔eMELA-NLL, α fixed)
+  [prior] NNLL truncation =  11.57 MeV  (eMELA-LL↔eMELA-NLL, α fixed)
+         residual DELTA scheme =   0.14 MeV  (kernel α-swing; step 5, indep chain)
+         α(M_Z) input          =   0.005 MeV (aem_isr profiled nuisance)
+         ('ren'/'scale' rows above are STABILITY diagnostics, not components.)
+
 NOT captured by this ladder (separate estimate needed):
   • NLO electroweak (YFSWW3-class non-factorisable + initial-final).
   • Higher-order Coulomb (BFS G_C vs. dropped FKM K_C).
-  • Factorisation-scheme (DELTA↔MSBAR) ISR uncertainty — needs the
-    +∫K(x)σ_Born collinear counterterm in σ̂ (deferred).
+  • Factorisation-scheme (DELTA↔MSBAR) ISR uncertainty — proper variation
+    needs the +∫K(x)σ_Born collinear counterterm in σ̂ (deferred); bounded
+    ≈0.14 MeV by the NLL-kernel α-swing (step 5, listed as a component above).

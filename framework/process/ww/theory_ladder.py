@@ -31,27 +31,39 @@ guideline):
          that leaks into m_W/Γ_W under the real constraint is included.
 
 On top of the perturbative ladder, an **ISR scheme-variation** block
-probes the ISR theory uncertainty by scheme comparison (the BFS hard side
-admits no cheap scheme variation — its EW input scheme is baked into the
-analytic matching coefficients — so the perturbative ladder above is the
-hard-side missing-higher-order proxy, while the ISR side *does* admit a
-clean scheme variation that is fully decoupled from the BFS σ̂):
+probes the ISR theory uncertainty. After the 2026-06-16 DELTA-NLL
+resolution (report sec:val-isr-cross; scripts/investigations/nll_isr/
+scheme_alpha_scan.py + mu_f_truncation.py), the ISR theory systematic is
+reported as SEPARATE components — **NOT combined in quadrature** — and is
+kept distinct from renorm-scheme / scale STABILITY diagnostics:
 
-  * **α renormalisation scheme** — ALPMZ (production, α(M_Z)=1/128.943) vs
-    ALGMU (α_Gμ≈1/132.17, the BFS prescription) vs FIXED/α(0) (Thomson,
-    1/137.036). β_e ∝ α, so this is a genuine NLL-order (≡ NNLL-ambiguity)
-    *shape* shift on m_W, and — per reference_emela_nll_isr — needs **no**
-    change to c^(1,fin) (hard σ̂ and ISR β_e are formally independent at
-    NLL). This is the headline ISR theory uncertainty.
-  * **factorisation scale ξ** (Q=ξ√s, ξ∈{0.5,2}) — reported as a *DGLAP-
-    stability check only*, NOT a truncation uncertainty: in the DELTA
-    scheme with collinear-finite c^(1,fin) the σ̂ has no μ_F to cancel D's
-    evolution, so ξ-variation measures evolution stability of D, not a
-    physical NLL ambiguity (see cards/ww_nlo_config.py notes).
+  * **NNLL truncation** ('trunc' row) — the size of the highest included
+    order: the α-FIXED order step eMELA-LL ↔ eMELA-NLL (same production
+    α(M_Z)=1/128.943 on both sides, so the leading-log α-value piece
+    cancels and only the genuine NLL kernel remains). This is the dominant
+    ISR theory-systematic component (≈1 MeV; cf. indep-chain 0.98 MeV).
+  * **residual factorisation scheme** (DELTA↔MSBAR) — DELTA is matched to
+    σ̂ (σ̂=σ_Born, no IS mass factorisation); the leftover O(α²) is bounded
+    by the NLL-kernel α-swing ≈0.14 MeV (indep chain, step 5). A proper
+    DELTA↔MSBAR variation in this BFS ladder is deferred — it needs the
+    +∫K(x)σ_Born collinear counterterm in σ̂, since DELTA is the only
+    factorisation scheme consistent with σ̂=σ_Born.
+  * **α(M_Z) input** — the measurement uncertainty on the ISR coupling,
+    ≈0.005 MeV, carried as the profiled ``aem_isr`` nuisance (not a row
+    here; it lives in the scenario-systematics table).
 
-A genuine factorisation-scheme variation (DELTA↔MSBAR) is deferred: it
-would require adding the +∫K(x)σ_Born collinear counterterm to σ̂, since
-DELTA is the only factorisation scheme consistent with our σ̂=σ_Born.
+DIAGNOSTICS — stability checks, NOT systematic components:
+  * **α renormalisation scheme** ('ren' rows) — ALPMZ (production) vs ALGMU
+    (α_Gμ≈1/132.17) vs FIXED/α(0) (Thomson). The spread (≈36 MeV
+    ALPMZ↔ALGMU) is DOMINATED by the non-linear LL α-VALUE sensitivity (the
+    fit absorbs Δα into m_W; step 1), NOT the NLL kernel. The production α
+    is fixed by the EW input scheme to α(M_Z), so this is a renorm-scheme
+    stability diagnostic whose physical residual is the ``aem_isr`` input
+    nuisance above — NOT the headline systematic (superseded 2026-06-16).
+  * **factorisation scale ξ** ('scale' rows, Q=ξ√s, ξ∈{0.5,2}) — DGLAP
+    evolution-stability only: σ̂ has no μ_F counterterm (pdf_set=none) so
+    ξ-variation is uncompensated (shape ≈1.4 MeV ≈ the truncation; cov-lumi
+    ≈31 MeV is a normalisation artefact), NOT a truncation uncertainty.
 
 What this ladder does **not** capture: pieces entirely absent from the
 BFS chain — NLO electroweak (YFSWW3-class non-factorisable + initial-final
@@ -307,16 +319,23 @@ def _build_fit(card_ov, hard_key, isr_key, base, scenario=None):
 
 
 # ---------------------------------------------------------------------------
-# ISR scheme variation (phase 1: α-renormalisation scheme + ξ stability)
+# ISR scheme variation (α-fixed NNLL truncation + renorm-scheme/ξ stability)
 # ---------------------------------------------------------------------------
-# All variants ride on the full production hard side (+dQCD) with NLL ISR;
-# only the eMELA α-renormalisation scheme (+ its paired α value) or the ISR
-# factorisation scale ξ changes. Each is fit against the production truth
-# (ALPMZ, ξ=1), so its best-fit shift is the scheme-induced m_W/Γ_W bias.
+# All variants ride on the full production hard side (+dQCD). Each is fit
+# against the production truth (NLL, ALPMZ, ξ=1), so its best-fit shift is the
+# scheme-/order-induced m_W/Γ_W bias. After the 2026-06-16 DELTA-NLL
+# resolution the kinds split into ONE systematic component and two diagnostics
+# (see module docstring); components are reported SEPARATELY, not in quadrature.
 #
-# 'ren'   rows → genuine NLL ISR scheme uncertainty (headline).
-# 'scale' rows → DGLAP-stability check, NOT a truncation uncertainty in the
-#                DELTA scheme (see module docstring / cards notes).
+# 'trunc' row  → NNLL TRUNCATION (the ISR theory-systematic component): the
+#                α-fixed order step eMELA-LL ↔ eMELA-NLL (same production α on
+#                both sides → leading-log α-value cancels, genuine NLL kernel).
+# 'ren'   rows → renorm-scheme STABILITY diagnostic (ALPMZ↔ALGMU↔α(0)); the
+#                ≈36 MeV spread is the non-linear LL α-VALUE sensitivity, NOT
+#                the kernel. α is fixed by the EW input scheme; the physical
+#                residual is the aem_isr nuisance (≈0.005 MeV). NOT the headline.
+# 'scale' rows → ξ DGLAP-stability diagnostic, NOT a truncation uncertainty in
+#                the DELTA scheme (σ̂ has no μ_F counterterm; see docstring).
 _ALPHA_MZ_FALLBACK = 1.0 / 128.943   # ALPMZ; matches card PARAM_INPUTS alpha_em_isr
 
 
@@ -331,6 +350,11 @@ def _isr_scheme_variants():
     a_0 = ALPHA_EM_0                 # FIXED/Thomson α(0) (≈1/137.036)
     nll = {"isr_nll": True}          # +dQCD hard already production; NLL ISR
     return [
+        # NNLL-truncation component: eMELA DGLAP LL at the SAME production α →
+        # the bias vs the eMELA-NLL truth is the α-fixed NLL kernel.
+        ("eMELA-LL",    "trunc", {"isr_nll": False, "isr_emela_ll": True,
+                                   "isr_emela_ren_scheme": "ALPMZ",
+                                   "alpha_em_isr": a_mz,  "isr_scale_factor": 1.0}),
         ("ALPMZ(prod)", "ren",   {**nll, "isr_emela_ren_scheme": "ALPMZ",
                                    "alpha_em_isr": a_mz,  "isr_scale_factor": 1.0}),
         ("ALGMU",       "ren",   {**nll, "isr_emela_ren_scheme": "ALGMU",
@@ -533,12 +557,15 @@ def _emit_table(rows, out, isr_keys, scheme_rows=None):
                    f"{'[MeV]':>7s} {'[MeV]':>7s} {'':>6s}")
         lines.append("")
         lines.append("#" * len(s_header))
-        lines.append("ISR scheme variation — hard side = +dQCD, NLL ISR throughout.")
-        lines.append("Reference truth = ALPMZ, ξ=1 (production); ALPMZ row is the closure check.")
-        lines.append("'ren'   = α-renormalisation scheme (ALPMZ↔ALGMU↔α(0)): genuine NLL")
-        lines.append("          ISR scheme uncertainty, decoupled from the BFS σ̂.")
-        lines.append("'scale' = ISR factorisation scale ξ (Q=ξ√s): DGLAP-stability check")
-        lines.append("          ONLY — NOT a truncation uncertainty in the DELTA scheme.")
+        lines.append("ISR scheme variation — hard side = +dQCD; truth = NLL/ALPMZ/ξ=1 (production).")
+        lines.append("Components reported SEPARATELY, not in quadrature (2026-06-16 DELTA-NLL resolution):")
+        lines.append("'trunc' = NNLL TRUNCATION (the ISR theory-systematic component): α-fixed")
+        lines.append("          order step eMELA-LL ↔ eMELA-NLL (same α → only the NLL kernel).")
+        lines.append("'ren'   = α-renorm-scheme STABILITY diagnostic (ALPMZ↔ALGMU↔α(0)); the")
+        lines.append("          spread is the LL α-VALUE sensitivity, NOT the kernel. α is fixed by")
+        lines.append("          the EW input scheme; physical residual = aem_isr nuisance (~0.005).")
+        lines.append("'scale' = ξ (Q=ξ√s) DGLAP-stability diagnostic ONLY — NOT a truncation")
+        lines.append("          uncertainty in the DELTA scheme (σ̂ has no μ_F counterterm).")
         lines.append("#" * len(s_header))
         for lumi_mode in ("free", "prior"):
             sub = [r for r in scheme_rows if r["lumi"] == lumi_mode]
@@ -555,12 +582,39 @@ def _emit_table(rows, out, isr_keys, scheme_rows=None):
                     f"{'ok' if r['valid'] else 'BAD'}")
             lines.append("-" * len(s_header))
 
+    # --- ISR theory systematic: separate components (NOT in quadrature) -----
+    if scheme_rows:
+        def _trunc(lm):
+            r = next((x for x in scheme_rows if x.get("kind") == "trunc"
+                      and x["lumi"] == lm), None)
+            return None if r is None else r["bias_mW"]
+        lines.append("")
+        lines.append("ISR theory systematic — SEPARATE components (NOT added in quadrature):")
+        for lm in ("free", "prior"):
+            t = _trunc(lm)
+            if t is not None:
+                lines.append(f"  [{lm:5s}] NNLL truncation = {abs(t):6.2f} MeV  "
+                             f"(eMELA-LL↔eMELA-NLL, α fixed)")
+        lines.append("         residual DELTA scheme =   0.14 MeV  "
+                     "(kernel α-swing; step 5, indep chain)")
+        lines.append("         α(M_Z) input          =   0.005 MeV "
+                     "(aem_isr profiled nuisance)")
+        lines.append("         ('ren'/'scale' rows above are STABILITY diagnostics, "
+                     "not components.)")
+        lines.append("  NOTE: the truncation is ~0.4 MeV shape-only but ~12 MeV cov-lumi —")
+        lines.append("  LL->NLL is almost pure NORMALISATION (~+0.3% ISR flux, little shape);")
+        lines.append("  under the tight lumi prior that flux change leaks into m_W via the rate")
+        lines.append("  handle (same pattern as 'scale'/'ren'). Whether the cov-lumi leakage is")
+        lines.append("  a separate ISR-norm component or absorbed into the lumi + cross-section-")
+        lines.append("  normalisation budget is an OPEN accounting choice (both shown above).")
+
     lines.append("")
     lines.append("NOT captured by this ladder (separate estimate needed):")
     lines.append("  • NLO electroweak (YFSWW3-class non-factorisable + initial-final).")
     lines.append("  • Higher-order Coulomb (BFS G_C vs. dropped FKM K_C).")
-    lines.append("  • Factorisation-scheme (DELTA↔MSBAR) ISR uncertainty — needs the")
-    lines.append("    +∫K(x)σ_Born collinear counterterm in σ̂ (deferred).")
+    lines.append("  • Factorisation-scheme (DELTA↔MSBAR) ISR uncertainty — proper variation")
+    lines.append("    needs the +∫K(x)σ_Born collinear counterterm in σ̂ (deferred); bounded")
+    lines.append("    ≈0.14 MeV by the NLL-kernel α-swing (step 5, listed as a component above).")
     text = "\n".join(lines)
     print("\n" + text + "\n")
 
