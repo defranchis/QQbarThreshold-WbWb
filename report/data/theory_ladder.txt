@@ -70,6 +70,12 @@ ISR theory systematic — SEPARATE components (NOT added in quadrature):
          residual DELTA scheme =   0.14 MeV  (kernel α-swing; step 5, indep chain)
          α(M_Z) input          =   0.005 MeV (aem_isr profiled nuisance)
          ('ren'/'scale' rows above are STABILITY diagnostics, not components.)
+  NOTE: the truncation is ~0.4 MeV shape-only but ~12 MeV cov-lumi —
+  LL->NLL is almost pure NORMALISATION (~+0.3% ISR flux, little shape);
+  under the tight lumi prior that flux change leaks into m_W via the rate
+  handle (same pattern as 'scale'/'ren'). Whether the cov-lumi leakage is
+  a separate ISR-norm component or absorbed into the lumi + cross-section-
+  normalisation budget is an OPEN accounting choice (both shown above).
 
 NOT captured by this ladder (separate estimate needed):
   • NLO electroweak (YFSWW3-class non-factorisable + initial-final).

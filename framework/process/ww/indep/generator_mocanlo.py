@@ -237,12 +237,14 @@ class WWGeneratorMoCaNLO:
         sigma_tot = np.zeros_like(sqrt_s, dtype=float)
         for key, w in weights.items():
             g: ChannelVarGrid = grids[(key, varpoint)]
-            born = g.born_fn(self.smooth)
             nlo = g.nlo_fn(self.smooth)
             if dnnlo_fn is not None:
                 # σ̂_comb = σ̂_NLO + δ_NNLO·σ̂_Born.  Both terms are ISR-naked
                 # (the grids are beam-ISR-free), so both take the full
-                # radiator convolution below.
+                # radiator convolution below.  σ̂_Born is only needed here (the
+                # plain-NLO production path no longer consumes it), so build it
+                # inside this branch.
+                born = g.born_fn(self.smooth)
                 def nlo_eff(sh, _nlo=nlo, _born=born, _d=dnnlo_fn):
                     return _nlo(sh) + _d(sh) * _born(sh)
             else:

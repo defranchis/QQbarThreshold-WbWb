@@ -60,9 +60,17 @@ which counts O(α) ISR exactly once: the collinear log lives in D, the
 finite remnant in σ̂_NLO.  Subtracting C₁ on top (the pre-2026-06-12
 behaviour) cancels the physical ISR damping — it inflated σ_obs by ~48 %
 (e.g. σ_WW(161.3 GeV) ≈ 5.4 pb against the LEP measurement 3.69±0.45 pb;
-fixed value 3.64 pb, and 5.59 pb at 163 GeV vs BFS-NLL 5.30 / YFSWW3 ≈5.5).
-Residual O(α)·(scheme remnant) from MoCaNLO's counterterm convention vs the
-``LO_beta`` D₁ is bounded at the few-% level by those same comparisons.
+fixed value 3.52 pb, and 5.41 pb at 163 GeV vs BFS-NLL 5.30 / YFSWW3 ≈5.5).
+
+A residual O(α) finite-scheme remnant remains between σ̂_NLO's MoCaNLO
+counterterm (idip/CS) convention and the radiator's O(α) finite part — DELTA
+for the production eMELA-NLL radiator, the ``LO_beta`` D₁ on the LL diagnostic
+path.  The rate-closure comparisons above bound only its NORMALISATION (≲ few
+%), and that piece is lumi/σ-norm-degenerate, so it does NOT bias m_W.  The
+SHAPE component — the part that *can* bias m_W — is NOT constrained by rate
+closure; it is bounded separately by the ISR scheme/order shape studies in the
+theory budget (DELTA↔MSBAR ≈0.14 MeV; eMELA-LL↔eMELA-NLL truncation ≈0.98 MeV
+shape on the indep chain) — see report sec:val-isr-cross.
 Diagnostics: ``scripts/investigations/three_calc_xsec/``.
 
 All cross sections are in **fb** (MoCaNLO's unit).  ``sigma_hat_fn`` callables
@@ -300,12 +308,15 @@ class ISRConfig:
     x_min         per-leg lower cutoff (x₁x₂ ≥ x_min² stays below WW threshold).
     n_quad        GL nodes per leg.
     nll           EXPLORATORY: replace the analytic LL+exp per-leg radiator with
-                  eMELA's NLL electron ePDF (DGLAP-evolved).  The O(α) matching
-                  subtraction stays the analytic LL form → leading-log-exact
-                  with a residual O(α) NLL/DELTA-scheme constant (the #1 NLL
-                  refinement: derive the subtraction from eMELA's own O(α)).
-                  Configure with alpha=ALPHA_MZ + emela_ren_scheme="ALPMZ" to
-                  match the BFS production NLL convention.
+                  eMELA's NLL electron ePDF (DGLAP-evolved).  There is NO O(α)
+                  matching subtraction (see module docstring "No O(α) re-
+                  subtraction"): the σ̂ grids are beam-ISR-free, so the radiator
+                  alone supplies the ISR and σ_obs = ∫∫ D D σ̂_NLO.
+                  Configure with alpha=ALPHA_MZ_EMELA (PDG α(M_Z)=1/128.943, NOT
+                  MoCaNLO's lepton-PDF ALPHA_MZ) + emela_ren_scheme="ALPMZ" to
+                  match the BFS production NLL convention; the precomputed grid
+                  must be baked at the same α/scheme (enforced by the guard in
+                  ``_per_leg_grid_nll``).
     """
     scheme: str = "LO_beta"
     alpha: float | None = ALPHA_GMU
@@ -408,15 +419,22 @@ def _per_leg_grid_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
     # grid's α, so a mismatch silently splits α within the radiator (e.g. a grid
     # built at MoCaNLO's 1/128.232 used with cfg at the PDG 1/128.943). Rebuild
     # the grid (isr_emela_grid.build_and_write) at the cfg's α/scheme to fix.
+    # A grid with absent provenance meta CANNOT be certified, so treat any
+    # MISSING key as a mismatch — defaulting a missing key to the cfg value
+    # would let an old/meta-stripped grid baked at the wrong α slip through
+    # silently (the very case this guard exists to catch).
     gm = grid.meta or {}
-    if (abs(gm.get("alpha", alpha) - alpha) > 1e-9 * alpha
-            or gm.get("fac_scheme", cfg.emela_fac_scheme) != cfg.emela_fac_scheme
-            or gm.get("ren_scheme", cfg.emela_ren_scheme) != cfg.emela_ren_scheme):
+    _missing = [k for k in ("alpha", "fac_scheme", "ren_scheme") if k not in gm]
+    if (_missing
+            or abs(gm["alpha"] - alpha) > 1e-9 * alpha
+            or gm["fac_scheme"] != cfg.emela_fac_scheme
+            or gm["ren_scheme"] != cfg.emela_ren_scheme):
         raise ValueError(
-            f"eMELA grid {cfg.emela_grid!r} baked "
-            f"(α={gm.get('alpha')}, {gm.get('fac_scheme')}/{gm.get('ren_scheme')}) "
-            f"≠ cfg (α={alpha:.10g}, {cfg.emela_fac_scheme}/{cfg.emela_ren_scheme}); "
-            "rebuild the grid at the cfg's α/scheme.")
+            f"eMELA grid {cfg.emela_grid!r} provenance cannot be certified "
+            f"against cfg: baked meta={gm or 'EMPTY'} "
+            f"(missing keys {_missing}) "
+            f"vs cfg (α={alpha:.10g}, {cfg.emela_fac_scheme}/{cfg.emela_ren_scheme}); "
+            "rebuild the grid (isr_emela_grid.build_and_write) at the cfg's α/scheme.")
     Q = cfg.mu_F(sqrt_s)
     norm_nll = norm * math.exp(be * (alpha / _PI) * (LAMBDA1_NF0 / 4.0))
     per_leg = np.empty_like(x_vals)
