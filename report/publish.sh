@@ -185,8 +185,12 @@ for src in "${!DATA_FILES[@]}"; do
     else echo "[publish] WARN: $src missing — report/data table will be stale"; fi
 done
 
-# Build twice so references resolve.
+# Build three times so all references resolve: with hyperref + TOC + the
+# long results tables, a fresh build (no .aux) needs a third pass before
+# the cross-references and outlines stop shifting ("Rerun to get
+# cross-references right" persists after only two).
 echo "[publish] building $TEX.pdf"
+pdflatex -interaction=nonstopmode -halt-on-error "$TEX.tex" >/dev/null
 pdflatex -interaction=nonstopmode -halt-on-error "$TEX.tex" >/dev/null
 pdflatex -interaction=nonstopmode -halt-on-error "$TEX.tex" >/dev/null
 
