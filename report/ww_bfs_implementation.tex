@@ -170,7 +170,9 @@ cf.~section~\ref{sec:isr}). The card knob \code{isr_nll=True} became
 production default on 2026-05-29 after the cross-fit campaign of
 section~\ref{sec:val-isr-cross} quantified the LL$+$exp residual bias
 at $\pm 22.4\MeV$, $\sim 90\times$ the FCC-ee target
-$\sigma(\mW)\!=\!0.25\MeV$. The legacy LL$+$exp BETA radiator
+$\sigma(\mW)\!=\!0.25\MeV$. That $\pm22.4\MeV$ is the penalty for the
+analytic $\beta^3$ fallback; on the production NLL baseline the residual
+ISR theory systematic is $\approx\pm1.0\MeV$ (section~\ref{sec:val-isr-cross}). The legacy LL$+$exp BETA radiator
 (\code{isr_nll=False}) is kept available for paper-closure tests
 that match BFS's own structure-function choice
 (cf.~section~\ref{sec:val-table4}).
@@ -1833,8 +1835,57 @@ Production fits at the precision target must run with
 a $\pm 5\MeV$ residual from the unresummed NLL bracket --- useful as a
 diagnostic but not a viable production fallback. The
 BFS-quoted $\delta\mW\!\approx\!31\MeV$~\cite{BFSnlo} is a conservative
-upper bound on this systematic; our direct measurement gives a tighter
-$22\MeV$ value with the LL$+$exp recipe specified above.
+upper bound on the \emph{LL$+$exp fallback} bias; our direct measurement
+gives a tighter $22\MeV$ for that fallback. Crucially, $\pm22\MeV$ is the
+penalty for running the analytic $\beta^3$ default --- \emph{not} the
+uncertainty of the production NLL fit, which is quantified next.
+
+\paragraph{Residual ISR systematic on the NLL baseline.}
+Once eMELA's DGLAP NLL ePDF \emph{is} the central value, the $\pm22.4\MeV$
+above is no longer the systematic. The $\pm17.0\MeV$ piece was the
+approximation error of the analytic $\beta^3$ Beenakker formula relative
+to the full DGLAP LL --- it vanishes identically when the DGLAP ePDF is
+used. The $\pm5.4\MeV$ ``pure-NLL'' bracket was itself partly an
+$\alpha$-value artefact: the eMELA cells of Table~\ref{tab:cross-fit-isr}
+carried the pre-2026-05-28 ALGMU$+\alpha_{G_\mu}$ default, so the
+LL$\to$NLL step mixed the genuine NLL kernel with the
+ALGMU$\to$ALPMZ leading-log $\alpha$ swap. Measured on the matched
+DELTA-NLL baseline
+(\code{scripts/investigations/nll\_isr/scheme\_alpha\_scan.py},
+\code{mu\_f\_truncation.py}) with $\alpha$ held fixed at the production
+$\alpha(M_Z)=1/128.943$, the residual decomposes as
+\begin{center}\small
+\begin{tabular}{l c p{0.42\linewidth}}
+\toprule
+Component & $|\Delta\mW|$ [MeV] & Content \\
+\midrule
+NNLL truncation & $0.98$ & size of the highest included order (the NLL
+   kernel itself, $\alpha$ fixed): truth $=\text{NLL}(\text{DELTA},\alpha)$,
+   morph $=\text{LL}(\alpha)$ \\
+residual factorisation scheme & $0.14$ & DELTA matched; an unmatched
+   O($\alpha$) term scales with $\alpha$, so the kernel $\alpha$-swing
+   (PDG$\leftrightarrow$MoCaNLO) bounds the leftover O($\alpha^2$) \\
+$\alpha(M_Z)$ input & $0.005$ & the separate profiled \code{aem_isr}
+   nuisance \\
+\midrule
+quadrature & $\mathbf{1.0}$ & residual ISR theory systematic on the
+   production NLL fit \\
+\bottomrule
+\end{tabular}
+\end{center}
+A factorisation-scale ($\mu_F=\xi\sqrts$, $\xi\in[\tfrac12,2]$)
+cross-check is consistent: the \emph{shape-only} $\mW$ envelope is
+$1.4\MeV$, in line with the order-step estimate. The \emph{cov-lumi}
+envelope is much larger ($31\MeV$) because the independent chain's
+$\hat\sigma_\text{NLO}$ carries no $\mu_F$ counterterm
+(\code{pdf_set=none}, no initial-state mass factorisation), so the
+ePDF's $\mu_F$-running is uncompensated --- a direct measurement of the
+``$\xi$ probes DGLAP numerics, not truncation'' statement: it is a
+normalisation rescaling absorbed by the luminosity and
+$\alpha(M_Z)$-input treatment, not a physical line-shape systematic.
+Net, the ISR theory systematic on the production NLL fit is
+$\approx\pm1.0\MeV$, down from the $\pm22.4\MeV$ LL$+$exp-fallback
+figure --- a $\sim\!20\times$ reduction.
 
 \paragraph{$\alpha_{\rm em,ISR}$ nuisance.}
 Separate from the LL$\to$NLL bias measured above is the \emph{input}
@@ -1849,8 +1900,9 @@ probes DGLAP numerics, not a residual NLL truncation, see
 section~\ref{sec:isr}). Its $\mW$ impact is $\approx0.005\MeV$ (the
 $\alpha_{\rm em,ISR}$ row of Table~\ref{tab:scenario-syst}; full prior sweep
 in Fig.~\ref{fig:scenario-scan-mW}, an analytic rank-1 Gaussian covariance
-update), well below the $\pm 5.4\MeV$ pure-NLL bracket above that the NLL
-upgrade resolves. \emph{(An earlier dedicated $2\times 2$ Asimov cross-fit,
+update), well below the $\approx\pm 1.0\MeV$ residual ISR theory
+systematic on the NLL baseline derived above (and a fortiori below the
+$\pm 5.4\MeV$ LL$\to$NLL bracket that the NLL upgrade resolves). \emph{(An earlier dedicated $2\times 2$ Asimov cross-fit,
 before \code{aem\_isr} was promoted to a profiled nuisance and using the
 larger off-peak projection $\Delta\alpha=2.4\times10^{-7}$, gave
 $\Delta\mW=+0.043\MeV$; the impact scales $\approx$ linearly with
@@ -3675,13 +3727,15 @@ a single authoritative summary.
   profiled $\alpha_{\rm em,ISR}$ nuisance ($\mW$ impact $\approx0.005\MeV$),
   with the luminosity-degenerate $\alpha_{G_\mu}$ rate uncertainty carried as
   the separate flat \code{aemEW} nuisance and \code{PARAM\_UNC.alpha\_em} kept
-  \code{None} (full treatment in \S\ref{par:alpha-em}). The genuine NLL
-  systematic is measured directly by the cross-fit in
-  section~\ref{sec:val-isr-cross}: $\pm 22.4\MeV$ total
-  ($\pm 17.0\MeV$ LL truncation $+$ $\pm 5.4\MeV$ pure NLL), tighter
-  than the BFS-quoted $\delta\mW\!\approx\!31\MeV$ upper bound but
-  still $\sim 90\times$ the FCC-ee $\sigma(\mW)\!=\!0.25\MeV$
-  statistical target. \textbf{Flipped to production default on
+  \code{None} (full treatment in \S\ref{par:alpha-em}). The cross-fit in
+  section~\ref{sec:val-isr-cross} measures the \emph{LL$+$exp fallback}
+  bias at $\pm 22.4\MeV$ total ($\pm 17.0\MeV$ analytic-$\beta^3$
+  approximation error $+$ $\pm 5.4\MeV$ LL$\to$NLL bracket), tighter
+  than the BFS-quoted $\delta\mW\!\approx\!31\MeV$ upper bound; this is
+  the penalty for \emph{not} running NLL. On the production NLL
+  baseline the residual ISR theory systematic shrinks to
+  $\approx\pm 1.0\MeV$ (NNLL truncation $\oplus$ residual DELTA scheme
+  $\oplus$ $\alpha(M_Z)$ input; same section). \textbf{Flipped to production default on
   2026-05-29:} \code{isr_nll=True} is now the card default
   (\code{cards/ww_nlo_config.py}); the canonical templates in
   \code{output_xsec/ww/\{nominal,BEC/scan_\{p,m\}10\}/} were
