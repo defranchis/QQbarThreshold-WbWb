@@ -88,3 +88,8 @@ framework/process/ww/indep/grids/
 mdefranc.cc
 *.kcache
 krb5cc_*
+
+# Ad-hoc handoff/continuation notes for the NLL-ISR investigation. Working
+# scratch docs (not part of the tracked analysis); live copies stay on disk,
+# archived outside the repo under ../ww_handoff_docs_backup/nll_isr/.
+scripts/investigations/nll_isr/handoff/
