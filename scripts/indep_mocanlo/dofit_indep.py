@@ -82,6 +82,14 @@ def main(argv=None) -> int:
                          "(production set: 10)")
     ap.add_argument("--isr-scheme", default="LO_beta",
                     choices=list(isr_beta.ISR_SCHEMES))
+    ap.add_argument("--isr-nll", action="store_true",
+                    help="upgrade the analytic LL+exp radiator to eMELA NLL "
+                         "(α(M_Z)/ALPMZ/DELTA); --isr-scheme is then ignored")
+    ap.add_argument("--isr-lumi", action=argparse.BooleanOptionalAction, default=None,
+                    help="ISR convolution form for --isr-nll: default (auto) uses "
+                         "the ripple-free 1-D luminosity self-convolution on the "
+                         "production eMELA grid; --no-isr-lumi forces the 2-D einsum "
+                         "(direct-eMELA, pre-flip path)")
     ap.add_argument("--mu-F-factor", type=float, default=1.0,
                     help="ISR factorisation scale μ_F / √s")
     ap.add_argument("--br-convention", default="off-shell",
@@ -106,7 +114,8 @@ def main(argv=None) -> int:
     gen = WWGeneratorMoCaNLO(scheme_alpha=args.scheme, lepton_cut=args.lepton_cut,
                              lepton_pt_min=args.lepton_pt_min,
                              lepton_mll_min=args.lepton_mll_min,
-                             isr_cfg=cfg, br_convention=args.br_convention)
+                             isr_cfg=cfg, br_convention=args.br_convention,
+                             isr_nll=args.isr_nll, isr_lumi=args.isr_lumi)
     c = _card_2poi()
     params = Parameters(c.PARAMETERS, cross_terms=c.CROSS_TERMS)
 
@@ -114,8 +123,10 @@ def main(argv=None) -> int:
              else (f"fiducial |cosθ|<{args.lepton_cut}"
                    + (f" pt>{args.lepton_pt_min:g}" if args.lepton_pt_min else "")
                    + (f" mll>{args.lepton_mll_min:g}" if args.lepton_mll_min else "")))
+    isr_lbl = (("eMELA-NLL" + (" 2D" if args.isr_lumi is False else " lumi"))
+               if args.isr_nll else args.isr_scheme)
     print(f"[indep fit] generator: MoCaNLO {args.scheme}, {label}, "
-          f"ISR {args.isr_scheme} (μ_F/√s={args.mu_F_factor})")
+          f"ISR {isr_lbl} (μ_F/√s={args.mu_F_factor})")
     print(f"[indep fit] generating {len(params.tags)} morph templates → {args.outdir}")
     _generate_templates(gen, params, args.outdir)
 

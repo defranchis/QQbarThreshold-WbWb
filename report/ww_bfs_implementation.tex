@@ -2878,6 +2878,26 @@ are ${\approx}\sqrt{1.48}=1.22$ times too small; shape-level results are
 affected only through the mild $\sqrts$-dependence of the damping. A re-fit on
 the corrected chain is pending.}
 
+\paragraph{Luminosity convolution (production NLL form).} For the eMELA-NLL
+radiator the double convolution of equation~\eqref{eq:indep-obs} is evaluated in
+its equivalent one-dimensional \emph{luminosity} form
+$\sigma_\text{obs}(s)=\int L(z;\mu_F)\,\hat\sigma(\sqrt z\,\sqrt s)\,\mathrm dz$,
+$z=x_1x_2$, with $L$ the radiator self-convolution
+(\code{framework/process/ww/indep/isr\_lumi.py}). The plain two-dimensional
+Gauss--Legendre rule straddles the $\hat\sigma$ grid-edge step at
+$\sqrt{\hat s}=156\GeV$ (where $\hat\sigma\equiv0$ below threshold) and therefore
+\emph{ripples} $\propto 1/n_\text{quad}$ as $\sqrt s$ sweeps --- point-wise up to
+$0.66\%$ at the production $n_\text{quad}=128$; in $V=-\ln z$ the luminosity makes
+that step the outer integration \emph{limit}, never an interior node, so the line
+shape is ripple-free. The luminosity reproduces the two-dimensional rule's
+many-$n_\text{quad}$ (ripple-free) mean to ${\approx}0.04\%$ and is smoother than
+it; the Asimov $\sigma(\mW)$/$\sigma(\GammaW)$/$\rho$ are unchanged. It is the
+production default for the independent NLL chain since this form is
+\emph{well-defined} where the two-dimensional rule is not: a cross-fit between two
+$n_\text{quad}$ values of the latter scatters by ${\approx}1$--$3\MeV$ (it
+converges only in a many-$n_\text{quad}$ average), whereas the luminosity is
+ripple-free and self-consistent by construction.
+
 \paragraph{Channel set.} The leptonic forward-electron ($t$-channel single-$W$)
 and same-flavour ($\gamma^\ast\!\to\ell\ell$) configurations drive
 small-Gram-determinant instabilities in the one-loop reduction; the inclusive

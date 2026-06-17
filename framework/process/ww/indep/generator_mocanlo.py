@@ -49,6 +49,13 @@ from framework.process.ww.indep import morph as morphmod
 
 FB_TO_PB = 1.0e-3
 
+#: Production eMELA NLL grid (α(M_Z)=1/128.943, ALPMZ/DELTA) — the per-leg ρ̃
+#: source for the luminosity ISR path (``isr_lumi``).  The default NLL radiator
+#: uses DIRECT eMELA; the luminosity path needs the grid, so ``isr_lumi=True``
+#: routes through this file.
+PROD_EMELA_GRID = os.path.join(os.path.dirname(__file__), "grids",
+                               "emela_nll_delta_alpmz.npz")
+
 # Output grid: mirror the BFS WWGenerator (155–170 @0.1 + 240) so the fit reads
 # an identical-shape CSV; values are 0 outside the σ̂ coverage.
 ECM_FINE_MIN, ECM_FINE_MAX, ECM_FINE_STEP = 155.0, 170.0, 0.1
@@ -108,6 +115,19 @@ class WWGeneratorMoCaNLO:
     # (α(M_Z)/ALPMZ/DELTA — the BFS production NLL convention).  Independent of
     # match_bfs; the O(α) matching subtraction stays analytic-LL (see isr_beta).
     isr_nll: bool = False
+    # ISR convolution form for the NLL chain (the isr_nll LL→NLL upgrade path).
+    #   None  = AUTO (PRODUCTION DEFAULT): use the ripple-free 1-D LUMINOSITY
+    #           self-convolution (isr_lumi) whenever the NLL radiator is active.
+    #           The 2-D Gauss-Legendre einsum ripples ∝1/n_quad against the σ̂
+    #           grid-edge step (point-wise ~0.66% at n_quad=128); the luminosity
+    #           makes that step the outer integration LIMIT → ripple-free, and
+    #           reproduces the 2-D's many-n_quad mean to ~0.04% (the Asimov
+    #           σ(m_W)/σ(Γ_W)/ρ are unchanged; cross-fit & validation in
+    #           scripts/investigations/nll_isr/).  Implies the eMELA-GRID radiator
+    #           (PROD_EMELA_GRID), not direct eMELA.
+    #   False = force the 2-D einsum (direct-eMELA radiator) — the pre-flip path.
+    #   True  = force luminosity (errors if no NLL radiator is active).
+    isr_lumi: bool | None = None
     _grids: dict = field(default=None, repr=False)
     _cache: dict = field(default_factory=dict, repr=False)
 
@@ -159,6 +179,11 @@ class WWGeneratorMoCaNLO:
         explicitly pinned non-default ``isr_cfg.alpha`` (advanced ISR-α theory
         variation) is respected, and an unknown ``scheme_alpha`` leaves the
         cfg untouched."""
+        if self.isr_lumi is True and not (self.isr_nll or self.isr_cfg.nll):
+            raise ValueError(
+                "isr_lumi=True requires the NLL radiator: set isr_nll=True (or "
+                "pass an isr_cfg with nll=True). The luminosity convolution is an "
+                "NLL-grid-only path.")
         if self.isr_nll and not self.isr_cfg.nll:
             # The eMELA NLL radiator is built in the BFS production scheme
             # conventions (ALPMZ/DELTA, at the PDG α(M_Z) = 1/128.943, matching
@@ -179,12 +204,18 @@ class WWGeneratorMoCaNLO:
             # in isr_beta._ALPHA_BY_SCHEME it maps to MoCaNLO's lepton-PDF
             # 1/128.232, not the PDG value — leaving the default avoids tagging
             # the radiator with an α(M_Z) that disagrees with the pinned one.
+            # Luminosity is the production default for the NLL chain (isr_lumi is
+            # None=auto or True); it routes the convolution through the 1-D form,
+            # which needs the eMELA GRID radiator (PROD_EMELA_GRID).  isr_lumi=False
+            # forces the pre-flip 2-D einsum on the direct-eMELA radiator.
+            lumi_kw = (dict(emela_grid=PROD_EMELA_GRID, lumi=True)
+                       if self.isr_lumi is not False else {})
             return isr_beta.ISRConfig(
                 nll=True, alpha=isr_beta.ALPHA_MZ_EMELA,
                 mu_F_factor=self.isr_cfg.mu_F_factor, mu_F_abs=self.isr_cfg.mu_F_abs,
                 m_e=self.isr_cfg.m_e, x_min=self.isr_cfg.x_min,
                 n_quad=self.isr_cfg.n_quad,
-                emela_fac_scheme="DELTA", emela_ren_scheme="ALPMZ")
+                emela_fac_scheme="DELTA", emela_ren_scheme="ALPMZ", **lumi_kw)
         cfg = self.isr_cfg
         try:
             want = isr_beta.alpha_for_scheme(self.scheme_alpha)
@@ -372,8 +403,9 @@ class WWGeneratorMoCaNLO:
                 fh.write(f"# match_bfs: nnlo={self.match_bfs_nnlo} "
                          f"dqcd={self.match_bfs_dqcd} alpha_s={self.alpha_s}\n")
             _cfg = self._isr_cfg()
-            fh.write(f"# isr: {'eMELA-NLL' if _cfg.nll else _cfg.scheme}  "
-                     f"mu_F_factor: {_cfg.mu_F_factor}\n")
+            _isr_lbl = ("eMELA-NLL" if _cfg.nll else _cfg.scheme) + (
+                " (lumi)" if getattr(_cfg, "lumi", False) else "")
+            fh.write(f"# isr: {_isr_lbl}  mu_F_factor: {_cfg.mu_F_factor}\n")
             fh.write(f"# mass: {mW:.4f}  width: {gW:.4f}  units: pb\n")
             for ecm, sig in zip(ecm_grid, sigma):
                 fh.write(f"{ecm:.4f}, {sig:.8f}\n")

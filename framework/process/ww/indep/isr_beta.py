@@ -339,6 +339,16 @@ class ISRConfig:
     #: solver per node — √s/μ_F/quadrature-independent, no eMELA runtime dep.  The
     #: analytic norm_nll endpoint (omx<1e-15) is unchanged.  "" = direct eMELA.
     emela_grid: str = ""
+    #: EXPLORATORY (opt-in, NLL-grid path only): route the two-leg convolution
+    #: through the 1-D LUMINOSITY self-convolution (``isr_lumi``) instead of the
+    #: 2-D ``convolve_2leg`` einsum.  Requires ``nll=True`` AND ``emela_grid`` set
+    #: (the per-leg ρ̃ source).  Faithful to the 2-D (reproduces its ripple-free
+    #: many-n_quad mean to ~tens of ppm) but RIPPLE-FREE and smoother: the 2-D's
+    #: plain Gauss-Legendre straddles the σ̂ grid-edge step at √ŝ=156 (point-wise
+    #: ripple ∝1/n_quad), whereas the luminosity makes that step the outer
+    #: integration LIMIT.  Production default stays 2-D (``False``) until the
+    #: cross-fit Δm_W gate passes (HANDOFF_lumi_to_production_2026-06-18.md).
+    lumi: bool = False
 
     def resolved_alpha(self) -> float:
         return self.alpha if self.alpha is not None else alpha_for_scheme(self.ew_scheme)
@@ -480,20 +490,25 @@ def _cfg_fingerprint(cfg: ISRConfig) -> tuple:
     base = (cfg.scheme, round(cfg.resolved_alpha(), 15), round(cfg.mu_F_factor, 12),
             round(cfg.mu_F_abs, 12), cfg.m_e, round(cfg.x_min, 12), cfg.n_quad,
             cfg.nll, cfg.emela_fac_scheme, cfg.emela_ren_scheme)
+    # The luminosity (1-D) path is a distinct convolution at the same radiator, so
+    # it must hash distinctly from the 2-D — but ONLY append the marker when active,
+    # so the default (2-D) fingerprint and its validated production cache are
+    # byte-unchanged (no spurious rebuild).
+    lumi_tag = ("lumi",) if getattr(cfg, "lumi", False) else ()
     # Append the grid tag ONLY when the LHAPDF-grid path is active, so the
     # direct-eMELA fingerprint (and its validated production cache) is unchanged.
     grid = getattr(cfg, "emela_grid", "")
     if not grid:
-        return base
+        return base + lumi_tag
     # Fold the grid file's identity (mtime_ns + size) into the key so a same-path
     # rebuild invalidates the in-memory radiator, mirroring isr_emela_grid.load_grid
     # (which keys on the same stat fields).  Without this an L1 hit serves a
     # radiator built from the OLD grid contents after an in-process regeneration.
     try:
         st = os.stat(grid)
-        return base + ("grid:" + grid, st.st_mtime_ns, st.st_size)
+        return base + ("grid:" + grid, st.st_mtime_ns, st.st_size) + lumi_tag
     except OSError:
-        return base + ("grid:" + grid,)
+        return base + ("grid:" + grid,) + lumi_tag
 
 
 def _radiator_key(sqrt_s_arr: np.ndarray, cfg: ISRConfig):
@@ -545,6 +560,14 @@ def _radiator_setup(sqrt_s_arr: np.ndarray, cfg: ISRConfig):
     """List of (x_vals, w, per_leg) per √s — σ̂-independent, cached (in-memory +,
     for the eMELA-NLL path, on disk; see ``_RADIATOR_CACHE`` / ``_radiator_disk_path``)."""
     a = np.ascontiguousarray(sqrt_s_arr, dtype=float)
+    if cfg.nll and getattr(cfg, "lumi", False):
+        # Luminosity path: the 2-D per-leg setups are unused (convolve_2leg routes
+        # to isr_lumi before reaching here).  Warm the σ̂-independent luminosity
+        # cache instead, so a parent prewarm benefits the fork pool via COW, then
+        # return an empty list (never consumed on this path).
+        from framework.process.ww.indep import isr_lumi
+        isr_lumi.prewarm(a, cfg)
+        return []
     key = _radiator_key(a, cfg)
     cached = _RADIATOR_CACHE.get(key)
     if cached is not None:
@@ -606,7 +629,17 @@ def convolve_2leg(sqrt_s, sigma_hat_fn, cfg: ISRConfig = ISRConfig()):
     Vectorised in ``sqrt_s`` (scalar or array).  ``cfg.nll`` swaps the analytic
     LL+exp per-leg radiator for eMELA's NLL ePDF.  The σ̂-independent radiator is
     cached across calls (see ``_radiator_setup``).
+
+    When ``cfg.lumi`` (opt-in; requires ``cfg.nll`` and ``cfg.emela_grid``) the
+    convolution is computed by the RIPPLE-FREE 1-D luminosity self-convolution
+    (``isr_lumi.sigma_obs``) instead of the 2-D einsum — same observable, smoother
+    line shape; see ``ISRConfig.lumi``.
     """
+    if cfg.nll and getattr(cfg, "lumi", False):
+        # Lazy import (isr_lumi imports isr_beta) → route to the luminosity form.
+        from framework.process.ww.indep import isr_lumi
+        return isr_lumi.sigma_obs(sqrt_s, sigma_hat_fn, cfg)
+
     sqrt_s_arr = np.atleast_1d(np.asarray(sqrt_s, dtype=float))
     out = np.zeros_like(sqrt_s_arr)
     setups = _radiator_setup(sqrt_s_arr, cfg)

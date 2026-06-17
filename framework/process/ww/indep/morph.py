@@ -48,6 +48,16 @@ def _polyval_cols(coef: np.ndarray, x: float) -> np.ndarray:
     return out
 
 
+def _safe_ratio(num: np.ndarray, denom: np.ndarray) -> np.ndarray:
+    """num/denom, but 1.0 where denom==0.  The morph response R is only ever used
+    as σ = σ_nom·R, and the denominator IS σ_nom (the on-axis poly at Δ=0); where
+    σ_nom=0 (√s below the σ̂ support, e.g. the grid-edge point that the ripple-free
+    luminosity convolution evaluates to exactly 0) the product is 0 regardless of
+    R, so R=1 keeps σ=0 instead of poisoning it with 0/0=NaN.  Byte-identical for
+    the 2-D convolution path, whose finite-n_quad σ_nom is never exactly zero."""
+    return np.divide(num, denom, out=np.ones_like(denom), where=denom != 0.0)
+
+
 @dataclass
 class FactorizedMorph:
     """Per-√s factorized morph numbers + the multiplicative evaluator."""
@@ -60,8 +70,10 @@ class FactorizedMorph:
     def evaluate(self, dmW_MeV: float, dgW_MeV: float) -> np.ndarray:
         """σ(√s) [same units as the input line shapes] at (Δm, ΔΓ) in MeV."""
         dm, dw = float(dmW_MeV), float(dgW_MeV)
-        Rm = _polyval_cols(self.coef_m, dm) / _polyval_cols(self.coef_m, 0.0)
-        Rg = _polyval_cols(self.coef_g, dw) / _polyval_cols(self.coef_g, 0.0)
+        Rm = _safe_ratio(_polyval_cols(self.coef_m, dm),
+                         _polyval_cols(self.coef_m, 0.0))
+        Rg = _safe_ratio(_polyval_cols(self.coef_g, dw),
+                         _polyval_cols(self.coef_g, 0.0))
         cross = 1.0 + self.beta * dm * dw
         return self.sigma_nom * Rm * Rg * cross
 
@@ -133,8 +145,10 @@ def fit_factorized(coords: dict[str, tuple[float, float]],
     else:
         denom_m = _polyval_cols(coef_m, 0.0)
         denom_g = _polyval_cols(coef_g, 0.0)
-        Rm_c = np.array([_polyval_cols(coef_m, x) for x in dm[cross]]) / denom_m
-        Rg_c = np.array([_polyval_cols(coef_g, x) for x in dw[cross]]) / denom_g
+        Rm_c = np.array([_safe_ratio(_polyval_cols(coef_m, x), denom_m)
+                         for x in dm[cross]])
+        Rg_c = np.array([_safe_ratio(_polyval_cols(coef_g, x), denom_g)
+                         for x in dw[cross]])
         pred = sigma_nom[None, :] * Rm_c * Rg_c          # (n_cross, n_s)
         A = pred * (dm[cross] * dw[cross])[:, None]       # (n_cross, n_s)
         b = Y[cross] - pred
