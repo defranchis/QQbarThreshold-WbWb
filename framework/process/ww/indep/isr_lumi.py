@@ -67,6 +67,7 @@ import numpy as np
 
 from framework.process.ww.indep import isr_beta
 from framework.process.ww.indep import isr_emela_grid as _eg
+from framework.process.ww.indep import grid as _grid
 
 #: Deep-endpoint cutoff — MUST match ``isr_emela_grid.OMX_FLOOR`` /
 #: ``isr_beta._per_leg_grid_nll``'s 1e-15 switch to the analytic ``norm_nll``.
@@ -74,16 +75,25 @@ OMX_FLOOR = _eg.OMX_FLOOR
 
 #: σ̂ grid bottom (σ̂ ≡ 0 below): caps the V-range at V_top = 2 ln(√s/SIGMA_GRID_LO)
 #: so the σ̂ grid-edge step is always the outer integration LIMIT, never interior.
-#: = ``grid.ECM_MIN`` (156 GeV); kept a literal so this module has no import
-#: dependency on the grid layout (asserted against grid.ECM_MIN in __main__).
-SIGMA_GRID_LO = 156.0
+#: SINGLE-SOURCED from ``grid.ECM_MIN`` (the partonic σ̂-grid floor, =156 GeV) — the
+#: σ̂ step sits at that floor by construction, so binding here makes V_top track it
+#: automatically if the MoCaNLO grid is ever regenerated at a different floor (no
+#: hand-synced literal that could silently drift from the real edge).
+SIGMA_GRID_LO = _grid.ECM_MIN
 
 #: Production quadrature for the luminosity convolution (module constants, like
-#: the 2-D's n_quad).  ``LUMI_N_JAC`` (inner self-conv) samples the soft endpoint
-#: as deep as the 2-D's u=(1−x)^β GL nodes reach (omx ~ 1e-15); ``LUMI_N_OUT``
-#: (outer panel) is converged to the 2-D's ripple-free mean (validated).  Both are
-#: a ONE-TIME per-√s cost (σ̂-independent, cached); the per-channel/varpoint cost
-#: is only ``LUMI_N_OUT`` σ̂-evals (vs the 2-D's n_quad²).
+#: the 2-D's n_quad).  ``LUMI_N_JAC`` (inner self-conv): its deepest Gauss-Jacobi
+#: node reaches omx ≈ 3e-8 — the soft tail below that (down to OMX_FLOOR) is the
+#: analytic ``norm_nll`` anchor (ρ̃→norm_nll·β_e), so the deep endpoint is exact
+#: regardless of n_jac; the surviving n_jac dependence is a ~few-100-ppm NORM
+#: offset that is lumi-degenerate (cancels in the morph σ/σ_nom ratio → ≲30 ppm
+#: residual SHAPE, sub-0.02 MeV).  ``LUMI_N_OUT`` (outer panel): the line-SHAPE is
+#: converged (≲20 ppm vs n_out≥384 in the 157–163 physics window).  Both are a
+#: ONE-TIME per-√s cost (σ̂-independent, cached); the per-channel/varpoint cost is
+#: only ``LUMI_N_OUT`` σ̂-evals (vs the 2-D's n_quad²).  NB the Gauss-Jacobi
+#: self-conv is NOT monotone at large n_jac (scipy roots_jacobi degrades for the
+#: near-singular α=β≈−0.94 weight); these production values are validated, do not
+#: raise n_jac blindly for "accuracy".
 LUMI_N_OUT = 192
 LUMI_N_JAC = 400
 
@@ -99,12 +109,12 @@ def _norm_nll(cfg: isr_beta.ISRConfig, Q: float):
     """(β_e, norm_nll) — the exact analytic soft+virtual per-leg endpoint value,
     matching ``isr_beta._per_leg_grid_nll`` (and the BFS-side isr.py): the LL+exp
     prefactor ``_radiator_norm`` times the BCFS NLL exponent correction
-    ``exp(β_e·(α/π)·λ₁/4))``.  ρ̃(v) → norm_nll·β_e as v → 0."""
-    from framework.process.ww.xsec_calculator.isr import LAMBDA1_NF0
+    ``exp(β_e·(α/π)·λ₁/4))``.  ρ̃(v) → norm_nll·β_e as v → 0.  The endpoint value is
+    the SINGLE-SOURCED ``isr_beta._norm_nll_endpoint`` (shared with the 2-D path)."""
     be, bs, _bh = cfg.betas(Q)
     alpha = cfg.resolved_alpha()
     norm = isr_beta._radiator_norm(be, bs)
-    return be, norm * math.exp(be * (alpha / math.pi) * (LAMBDA1_NF0 / 4.0))
+    return be, isr_beta._norm_nll_endpoint(be, norm, alpha)
 
 
 def _check_grid_provenance(grid, cfg: isr_beta.ISRConfig):
@@ -180,6 +190,12 @@ def _lumi_setup(sqrt_s_arr: np.ndarray, cfg: isr_beta.ISRConfig,
     cached = _LUMI_CACHE.get(key)
     if cached is not None:
         return cached
+    # Grid x-coverage guard: the inner self-conv samples ρ̃ at v up to V_top, i.e.
+    # 1−x up to 1−(SIGMA_GRID_LO/√s)² — for large √s this exceeds the eMELA grid's
+    # omx_hi (the threshold production √s≤170 reaches only ~0.16, well within 0.5,
+    # but e.g. a 240 GeV anchor needs ~0.58).  Fail EARLY with the √s ceiling rather
+    # than deep inside the vectorised xfxQ spline call.
+    omx_hi = float(_eg.load_grid(cfg.emela_grid).omx[-1])
     setups = []
     for sq in a:
         sq = float(sq)
@@ -189,6 +205,14 @@ def _lumi_setup(sqrt_s_arr: np.ndarray, cfg: isr_beta.ISRConfig,
         if V_top <= 0.0:                                   # √s ≤ σ̂ floor → no support
             setups.append((np.array([sq]), np.array([0.0])))
             continue
+        omx_need = 1.0 - (SIGMA_GRID_LO / sq) ** 2         # deepest 1−x the self-conv reaches
+        if omx_need > omx_hi * (1.0 + 1e-9):
+            sq_max = SIGMA_GRID_LO / math.sqrt(1.0 - omx_hi)
+            raise ValueError(
+                f"isr_lumi: √s={sq:.4g} GeV needs the ePDF down to 1−x={omx_need:.4g}, "
+                f"beyond the eMELA grid's omx_hi={omx_hi:.4g} (max √s≈{sq_max:.1f} GeV "
+                f"for this grid). Rebuild the grid with a larger omx_hi, or use the 2-D "
+                f"direct-eMELA path (isr_lumi=False).")
         tj, wj = _jac01(n_out, 2.0 * be - 1.0, 0.0)        # ∫₀¹ τ^{2β−1}
         V = V_top * tj
         Lt = _ltilde_at(rho_tilde, be, V, n_jac)

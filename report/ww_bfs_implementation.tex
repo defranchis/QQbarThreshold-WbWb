@@ -3006,7 +3006,7 @@ treatment is the decisive choice:
     actually \emph{tightens} to $0.52\MeV$ purely by de-correlation.
   \item \textbf{shape-only} (lumi prior opened): floating the overall
     normalisation also removes the BR handle, but at the cost of the $\mW$ rate
-    information, loosening $\sigma(\mW)$ to $1.76\MeV$. This is the inferior way
+    information, loosening $\sigma(\mW)$ to $1.77\MeV$. This is the inferior way
     to fix the BR and is reported only for contrast.
 \end{itemize}
 The pdg-constant column ($\sigma(\mW)=0.52\MeV$, $\rho=+0.67$) is the
@@ -3019,14 +3019,14 @@ full WW rate rather than the single BFS channel.
 fit sums all decay channels ($12\cdot\ell\nu qq+4\cdot qqqq+9\cdot\mu\tau$),
 $\approx\!1/B(\mu\nu qq)\!\approx\!7\times$ the yield of the single inclusive
 $\mu\nu qq$ channel the BFS chain fits, so it is tighter purely by statistics ---
-which is why the full-WW shape-only $\sigma(\mW)=1.76\MeV$ sits below the BFS
+which is why the full-WW shape-only $\sigma(\mW)=1.77\MeV$ sits below the BFS
 reference. Restricting the independent assembly to the same inclusive $\mu\nu qq$
 scope ($4\cdot\ell\nu qq$, $B\!\approx\!0.143$) and running the \emph{identical}
-2-POI fit gives $\sigma(\mW)=1.12\MeV$ (cov-lumi) and $4.51\MeV$ (shape-only),
+2-POI fit gives $\sigma(\mW)=1.13\MeV$ (cov-lumi) and $4.56\MeV$ (shape-only),
 against the BFS theory-ladder $1.31$ and $4.71\MeV$
 (Table~\ref{tab:theory-ladder};
 \code{scripts/investigations/indep\_mocanlo/dofit\_single\_channel.py}) ---
-agreement to $4$--$15\%$ from a fully independent NLO-EW line shape, the
+agreement to $3$--$14\%$ from a fully independent NLO-EW line shape, the
 independent calculation marginally tighter. The factor-$7$ yield difference, not
 a line-shape difference, fully accounts for the looser full-WW value, closing the
 strict apples-to-apples comparison.
@@ -3037,10 +3037,10 @@ strict apples-to-apples comparison.
 \toprule
 BR treatment (lumi) & $\sigma(\mW)$ [MeV] & $\sigma(\GammaW)$ [MeV] & $\rho$ \\
 \midrule
-off-shell, production cov-lumi      & $1.15$ & $0.63$ & $-0.92$ \\
-\textbf{pdg-constant, production}   & $\mathbf{0.52}$ & $\mathbf{1.17}$ & $\mathbf{+0.67}$ \\
-off-shell, shape-only               & $1.75$ & $1.15$ & $+0.48$ \\
-pdg-constant, shape-only            & $1.76$ & $1.13$ & $+0.48$ \\
+off-shell, production cov-lumi      & $1.16$ & $0.64$ & $-0.92$ \\
+\textbf{pdg-constant, production}   & $\mathbf{0.52}$ & $\mathbf{1.18}$ & $\mathbf{+0.67}$ \\
+off-shell, shape-only               & $1.77$ & $1.16$ & $+0.48$ \\
+pdg-constant, shape-only            & $1.78$ & $1.13$ & $+0.48$ \\
 \bottomrule
 \end{tabular}
 \caption{Independent MoCaNLO Asimov sensitivities under the three
@@ -3298,11 +3298,13 @@ with it ($1.13\!\to\!0.40\MeV$) while \emph{decorrelating} the two
 ($\rho:-0.92\!\to\!-0.17$). The pdg-constant convention is unchanged: there the BR
 is divided out, $\sigma(240)\propto\sigma_\text{production}$ is flat in both POIs,
 and the point carries no POI information. The absolute threshold-only baseline
-here uses a coarser $6$-varpoint morph than Table~\ref{tab:indep-br}, hence the
-$\pm0.02\MeV$ offsets (e.g.\ $\sigma(\mW)=1.13$ here vs $1.15\MeV$ there; pdg-constant
-$\sigma(\GammaW)=1.16$ vs $1.17\MeV$); Fits with and without the anchor share this
-morph, so the robust result is the anchor-induced \emph{improvement}, not the
-absolute baseline.}
+here uses a coarser $6$-varpoint morph than Table~\ref{tab:indep-br} \emph{and} the
+legacy LL$+$exp radiator (the eMELA-grid NLL luminosity convolution does not reach
+the $240\GeV$ ISR phase space, $x<0.5$, beyond the grid coverage), hence the
+$\lesssim\!0.03\MeV$ offsets (e.g.\ $\sigma(\mW)=1.13$ here vs $1.16\MeV$ there;
+pdg-constant $\sigma(\GammaW)=1.16$ vs $1.18\MeV$); Fits with and without the anchor
+share this morph and radiator, so the robust result is the anchor-induced
+\emph{improvement}, not the absolute baseline.}
 \label{tab:indep-anchor}
 \end{table}
 
@@ -3325,10 +3327,10 @@ The independent NLO-EW four-fermion calculation, sharing no code and no
 perturbative input with the BFS chain, reproduces the BFS correlation structure
 and $\mW$ sensitivity from a fully independent line shape: the pdg-constant
 $\sigma(\mW)=0.52\MeV$ with $\rho=+0.67$ (the BFS-comparable headline, retaining
-the $\mW$ rate handle) and the shape-only $\sigma(\mW)=1.76\MeV$ once the rate
+the $\mW$ rate handle) and the shape-only $\sigma(\mW)=1.77\MeV$ once the rate
 handle is removed. With the channel scope matched to the BFS single inclusive
 $\mu\nu qq$ fit, the independent sensitivity reproduces the BFS value directly
-($1.12$ vs $1.31\MeV$ cov-lumi, $4.51$ vs $4.71\MeV$ shape-only;
+($1.13$ vs $1.31\MeV$ cov-lumi, $4.56$ vs $4.71\MeV$ shape-only;
 section~\ref{sec:indep-fit}). The ISR-scheme theory uncertainty is $<0.1\MeV$ on the shape
 for the physical beta-type radiators ($\sim\!7\MeV$ if the unphysical
 pure-collinear PDF is included) and sub-MeV for the NLL factorisation- and
@@ -3638,7 +3640,7 @@ the \emph{unmatched-LL} reference morph, so the best-fit shift is the $\mW$/$\Ga
 bias from omitting that piece (equivalently, the size of the correction the matching
 supplies). The self-fit closes at $0.00\MeV$ and the reference sensitivities
 reproduce the independent fit of Table~\ref{tab:indep-br}
-($\sigma(\mW)=0.52\MeV$ pdg-constant, $1.15\MeV$ off-shell, on the corrected ISR
+($\sigma(\mW)=0.52\MeV$ pdg-constant, $1.16\MeV$ off-shell, on the corrected ISR
 layer), validating the machinery. Table~\ref{tab:match-pull} gives the
 decomposed pulls.
 

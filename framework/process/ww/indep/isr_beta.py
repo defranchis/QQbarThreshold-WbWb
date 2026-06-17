@@ -203,6 +203,18 @@ def _radiator_norm(beta_e: float, beta_s: float) -> float:
     return math.exp(0.75 * beta_s - EULER_GAMMA * beta_e) / _gamma_fn(1.0 + beta_e)
 
 
+def _norm_nll_endpoint(beta_e: float, norm: float, alpha: float) -> float:
+    """Exact soft+virtual per-leg NLL endpoint: the LL+exp prefactor ``norm``
+    (= :func:`_radiator_norm`) times the BCFS NLL exponent correction
+    ``exp(β_e·(α/π)·λ₁/4)`` (arXiv:1911.12040; λ₁ = ``xsec_calculator.isr.LAMBDA1_NF0``).
+    SINGLE SOURCE shared by ``_per_leg_emela_nll`` / ``_per_leg_grid_nll`` here and
+    ``isr_lumi._norm_nll``: the per-leg radiator → this value as x→1, and the
+    luminosity ρ̃(v) → β_e·this as v→0.  (The BFS-side ``xsec_calculator.isr`` writes
+    the same physics with κ=β_e/2; keep that port in sync separately.)"""
+    from framework.process.ww.xsec_calculator.isr import LAMBDA1_NF0
+    return norm * math.exp(beta_e * (alpha / _PI) * (LAMBDA1_NF0 / 4.0))
+
+
 def _radiator_NS(x, beta_h: float, *, one_minus_x=None):
     """Non-singular (hard-collinear) part of the single-leg radiator D(x).
 
@@ -399,12 +411,11 @@ def _per_leg_emela_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
     isr.py — keep them in sync.)  scripts/investigations/bfs_match/ analysis.
     """
     from framework.process.ww.xsec_calculator import emela_wrapper as _emela
-    from framework.process.ww.xsec_calculator.isr import LAMBDA1_NF0
     alpha = cfg.resolved_alpha()
     _emela.initialize(pert_order="NLL", fac_scheme=cfg.emela_fac_scheme,
                       ren_scheme=cfg.emela_ren_scheme, alpha=alpha)
     Q = cfg.mu_F(sqrt_s)
-    norm_nll = norm * math.exp(be * (alpha / _PI) * (LAMBDA1_NF0 / 4.0))
+    norm_nll = _norm_nll_endpoint(be, norm, alpha)
     per_leg = np.empty_like(x_vals)
     for i in range(len(x_vals)):
         omx_i = float(one_minus_x[i])
@@ -425,7 +436,6 @@ def _per_leg_grid_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
     whole mid region is evaluated in ONE vectorised spline call.  Keep this in
     lockstep with ``_per_leg_emela_nll`` (endpoint cutoff, norm_nll formula)."""
     from framework.process.ww.indep import isr_emela_grid as _grid
-    from framework.process.ww.xsec_calculator.isr import LAMBDA1_NF0
     alpha = cfg.resolved_alpha()
     grid = _grid.load_grid(cfg.emela_grid)
     # Fail loud if the precomputed grid's baked scheme/α differ from this cfg:
@@ -450,7 +460,7 @@ def _per_leg_grid_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
             f"vs cfg (α={alpha:.10g}, {cfg.emela_fac_scheme}/{cfg.emela_ren_scheme}); "
             "rebuild the grid (isr_emela_grid.build_and_write) at the cfg's α/scheme.")
     Q = cfg.mu_F(sqrt_s)
-    norm_nll = norm * math.exp(be * (alpha / _PI) * (LAMBDA1_NF0 / 4.0))
+    norm_nll = _norm_nll_endpoint(be, norm, alpha)
     per_leg = np.empty_like(x_vals)
     soft = one_minus_x < _grid.OMX_FLOOR
     per_leg[soft] = norm_nll

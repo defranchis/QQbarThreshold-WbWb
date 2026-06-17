@@ -142,6 +142,10 @@ def _card_2poi():
 def run_fit(add_anchor: bool, br_convention: str):
     c = _card_2poi()
     params = Parameters(c.PARAMETERS, cross_terms=c.CROSS_TERMS)
+    # NB: kept on the analytic LL+exp radiator. The NLL eMELA-grid (luminosity)
+    # path cannot be used at √s=240: V_top=2ln(240/156)=0.86 drives the radiator to
+    # x<0.5 (omx≈0.58), beyond the production grid's omx_hi=0.5 coverage. NLL here
+    # would require a grid rebuilt with larger omx_hi (or the 2-D direct-eMELA path).
     gen = AnchorGen(results_dir=ANCHOR, scheme_alpha="gf", lepton_cut=None,
                     isr_cfg=isr_beta.ISRConfig(scheme="LO_beta"),
                     br_convention=br_convention)

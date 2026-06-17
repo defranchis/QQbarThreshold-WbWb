@@ -82,9 +82,12 @@ def main(argv=None) -> int:
                          "(production set: 10)")
     ap.add_argument("--isr-scheme", default="LO_beta",
                     choices=list(isr_beta.ISR_SCHEMES))
-    ap.add_argument("--isr-nll", action="store_true",
-                    help="upgrade the analytic LL+exp radiator to eMELA NLL "
-                         "(α(M_Z)/ALPMZ/DELTA); --isr-scheme is then ignored")
+    ap.add_argument("--isr-nll", action=argparse.BooleanOptionalAction, default=True,
+                    help="eMELA NLL radiator (α(M_Z)/ALPMZ/DELTA) — the PRODUCTION "
+                         "DEFAULT for the independent chain (ripple-free 1-D "
+                         "luminosity convolution, see --isr-lumi). --no-isr-nll "
+                         "reverts to the analytic LL+exp radiator (--isr-scheme). "
+                         "When NLL is active --isr-scheme is ignored.")
     ap.add_argument("--isr-lumi", action=argparse.BooleanOptionalAction, default=None,
                     help="ISR convolution form for --isr-nll: default (auto) uses "
                          "the ripple-free 1-D luminosity self-convolution on the "

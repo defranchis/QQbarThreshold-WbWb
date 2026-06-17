@@ -95,7 +95,7 @@ def main():
         for mode, shape in (("pdg-constant cov-lumi", False),
                             ("shape-only", True)):
             gen = Gen(scheme_alpha="gf", lepton_cut=None, isr_cfg=cfg,
-                      br_convention="pdg-constant")
+                      isr_nll=True, br_convention="pdg-constant")
             if w is not None:
                 gen._lnuqq_weight = w
             sm, sw, rho = run_fit(gen, params, c, os.path.join(OUTDIR, tag), shape)
