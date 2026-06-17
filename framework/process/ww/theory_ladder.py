@@ -42,12 +42,18 @@ kept distinct from renorm-scheme / scale STABILITY diagnostics:
     α(M_Z)=1/128.943 on both sides, so the leading-log α-value piece
     cancels and only the genuine NLL kernel remains). This is the dominant
     ISR theory-systematic component (≈1 MeV; cf. indep-chain 0.98 MeV).
-  * **residual factorisation scheme** (DELTA↔MSBAR) — DELTA is matched to
-    σ̂ (σ̂=σ_Born, no IS mass factorisation); the leftover O(α²) is bounded
-    by the NLL-kernel α-swing ≈0.14 MeV (indep chain, step 5). A proper
-    DELTA↔MSBAR variation in this BFS ladder is deferred — it needs the
-    +∫K(x)σ_Born collinear counterterm in σ̂, since DELTA is the only
-    factorisation scheme consistent with σ̂=σ_Born.
+  * **residual factorisation scheme** (DELTA↔MSBAR) — RESOLVED 2026-06-16
+    (indep-chain scheme campaign: scripts/investigations/nll_isr/{oalpha_
+    matching_test, msbar_rematched_crossfit, ren_scheme_crossfit}.py). The
+    O(α) DELTA⊗DELTA matching is exact (Task 0: eMELA=DELTA; σ̂_NLO carries no
+    IS-collinear log; the ΔC₁ finite term cancels in the matched observable),
+    and the MS̄ resummed ePDF is endpoint-pathological (Task 2: D_MS̄/D_Δ→1.44
+    as x→1, MS̄⊗MS̄≈2.2×Δ⊗Δ — an all-orders blow-up no O(α) counterterm can
+    cancel). So DELTA is the UNIQUE valid NLL factorisation scheme and the
+    residual is O(α²)/sub-MeV; the coupling-renorm scheme at FIXED α (Task 3,
+    ALPMZ↔MSBAR) is +0.36 MeV shape (negligible). The ≈0.14 MeV proxy is
+    RETIRED (it was an α-VALUE swing, not a scheme effect; no valid alternative
+    scheme remains to bracket).
   * **α(M_Z) input** — the measurement uncertainty on the ISR coupling,
     ≈0.005 MeV, carried as the profiled ``aem_isr`` nuisance (not a row
     here; it lives in the scenario-systematics table).
@@ -69,7 +75,14 @@ What this ladder does **not** capture: pieces entirely absent from the
 BFS chain — NLO electroweak (YFSWW3-class non-factorisable + initial-final
 interference) and higher-order Coulomb (the BFS unstable-W Green function
 G_C vs. the dropped FKM K_C). Those are genuine theory uncertainties that
-live outside the ladder and need a separate, non-ladder estimate.
+live outside the ladder and need a separate, non-ladder estimate. The
+independent MoCaNLO+Recola chain DOES carry full NLO-EW: its hard-EW
+renormalisation-scheme spread (gf↔alphaz ≈ −12 MeV shape — the now-largest
+indep-chain theory systematic; ew_scheme_crossfit.py) quantifies part of
+this NLO-EW uncertainty. A G_F-consistency test (gf with G_F tuned so the
+derived α_Gμ equals the alphaz α(M_Z), gf_consistency_crossfit.py) separates
+the genuine NNLO-EW renormalisation-prescription residual from the (spurious)
+non-SM-consistent input-α-value difference; see report sec:indep-ew.
 
 Run via ``python3 doFit_ww.py --theoryLadder`` (see doFit_ww.py for flags),
 or import :func:`run_theory_ladder`.

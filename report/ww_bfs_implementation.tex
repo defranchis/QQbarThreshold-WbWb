@@ -3048,42 +3048,151 @@ $<0.1\MeV$ ($\Delta\mW\approx0.03\MeV$ shape), while the pure-collinear PDF
 outlier at $7.2\MeV$ (shape-only) / $16\MeV$ (under the production lumi). The
 conservative envelope over all four schemes is thus $\sim\!7\MeV$ on the shape;
 restricting to the physical beta-type radiators it is $<0.1\MeV$. This LL-PDF-scheme
-axis is distinct from the EW $\alpha$-renormalisation-scheme axis that dominates
-the BFS ISR systematic (section~\ref{sec:val-isr-scheme}); the MoCaNLO analogue
-of \emph{that} is the EW-input-scheme cross-fit, treated next.
+axis is distinct from the production NLL ISR, whose factorisation- and
+coupling-renormalisation-scheme dependence we quantify next.
+
+\paragraph{NLL factorisation and renormalisation scheme.} The production radiator
+is the eMELA NLL electron PDF in the $\Delta$ factorisation scheme with
+$\alpha(M_Z)$ (\code{ALPMZ}) coupling renormalisation (section~\ref{sec:indep-calc}).
+Three checks (\code{scripts/investigations/nll\_isr/}; right panel of
+figure~\ref{fig:indep-scheme-var}) bound its scheme dependence.
+\begin{itemize}
+\item \emph{$O(\alpha)$ matching ($\Delta\otimes\Delta$).} The eMELA $\Delta$-scheme
+  PDF minus the $\overline{\rm MS}$ one reproduces the analytic matching term
+  $(\alpha/2\pi)K_{ee}^{(\Delta)}$ (\cite{eMELAdelta}, eq.~33) to $1\%$, confirming
+  the grid \emph{is} the $\Delta$ scheme; and the MoCaNLO hard correction
+  $\hat\sigma_{\rm NLO}-\hat\sigma_{\rm Born}=+7$--$10\%$ carries \emph{no}
+  initial-state collinear logarithm (the $\Delta$ radiator itself supplies a
+  $-37$ to $-47\%$ ISR damping), i.e.\ $\hat\sigma$ is inclusive/$\Delta$. Hard
+  cross section and $\Delta$ radiator are thus matched at $O(\alpha)$, the finite
+  counterterm cancelling in the convolved observable and leaving an $O(\alpha^2)$
+  residual.
+\item \emph{$\overline{\rm MS}$ is not a viable alternative.} The resummed eMELA
+  $\overline{\rm MS}$ PDF is endpoint-pathological --- $D_{\overline{\rm MS}}/D_\Delta$
+  grows from $1.02$ at $x=0.5$ to $1.44$ at $x=0.999$ --- so the endpoint-dominated
+  threshold convolution gives $\overline{\rm MS}\otimes\overline{\rm MS}\approx
+  2.2\times\Delta\otimes\Delta$, an all-orders blow-up that the $O(\alpha)$
+  counterterm cannot absorb. This is precisely the behaviour the $\Delta$ scheme
+  was constructed to avoid~\cite{eMELAdelta}, and it makes $\Delta$ the
+  \emph{unique} valid NLL ISR factorisation scheme here; the residual
+  factorisation-scheme uncertainty is the $O(\alpha^2)$ matching remainder
+  (sub-MeV, at the NNLL-truncation level).
+\item \emph{ISR coupling renormalisation.} Switching the radiator from
+  \code{ALPMZ} to $\overline{\rm MS}$ renormalisation at \emph{fixed} $\alpha(M_Z)$
+  (a fresh $\Delta$/$\overline{\rm MS}$-ren grid, so no endpoint pathology) shifts
+  the cross-fit by $\Delta\mW=+0.36\MeV$ (shape) / $+15.2\MeV$ (cov-lumi) --- the
+  shape is negligible, the cov-lumi is the usual normalisation leakage absorbed by
+  the rate prior.
+\end{itemize}
+An earlier $0.14\MeV$ factorisation-scheme proxy is retired: it was an
+$\alpha$-\emph{value} swing, not a scheme effect, and --- $\overline{\rm MS}$ being
+pathological --- there is no second valid factorisation scheme to bracket against
+$\Delta$. The NLL ISR factorisation- and renormalisation-scheme uncertainty of the
+independent chain is therefore sub-MeV on the shape. The MoCaNLO analogue of the
+dominant BFS $\alpha$-renormalisation axis (section~\ref{sec:val-isr-scheme}) is
+instead the \emph{hard EW-input scheme} of $\hat\sigma$, treated next.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{ww_scheme_variations}
+\caption{Independent-chain line-shape scheme variations (pure-WW, nominal
+$\mW=80.379$, $\GammaW=2.085\GeV$). \textbf{Left:} hard EW-input scheme of the
+MoCaNLO $\hat\sigma$ ($G_\mu$ production, $\alpha(M_Z)$, $\alpha(0)$) with the
+\emph{identical} production NLL ISR. \textbf{Right:} ISR scheme/order at fixed
+$\hat\sigma_{G_\mu}$ and fixed $\alpha(M_Z)$ (LL$+$exp BETA, NLL $\Delta$/ALPMZ
+production, NLL $\Delta$/$\overline{\rm MS}$-ren). Top: absolute $\sigma_{\rm obs}
+(\sqrts)$; bottom: line-shape ratio with the overall normalisation divided out
+(each curve and the reference normalised at $\sqrts=161\GeV$), which is what biases
+$\mW$ --- a flat normalisation offset is absorbed by the luminosity/rate. The
+EW-input-scheme shape spread ($\sim\!0.46\%$) dwarfs the ISR-scheme spread
+($\lesssim\!0.19\%$); the convolution is at $n_{\rm quad}=512$ to suppress the
+Gauss--Legendre turn-on ripple of the production $n_{\rm quad}=128$ templates
+(section~\ref{sec:indep-ew}, the ripple is a sub-$0.1\%$ quadrature artefact that
+cancels in same-radiator fits).}
+\label{fig:indep-scheme-var}
+\end{figure}
 
 \subsection{EW-input-scheme theory uncertainty}\label{sec:indep-ew}
 
-The MoCaNLO partonic cross section is computed in the $G_\mu$ scheme by default.
-Regenerating the $\hat\sigma(\sqrt{\hat s})$ grid in the $\alpha(0)$ and
-$\alpha(M_Z)$ input schemes and cross-fitting against the $G_\mu$ reference truth
-(same \code{crossfit\_scheme.py}) isolates the EW-input-scheme bias. Under the
-production cov-lumi prior the bias is small, $|\Delta\mW|\lesssim3\MeV$
-($\alpha(0)$: $-3.3\MeV$, $\alpha(M_Z)$: $+1.8\MeV$): the EW-scheme normalisation
-spread on the corrected line shape is only ${\approx}1\%$ and mildly
-$\sqrts$-dependent (the $G_\mu$/$\alpha(0)$ ratio runs from $-1.2\%$ at
-$157.5\GeV$ to $-0.9\%$ at $162.5\GeV$), and the near-flat part is absorbed by
-the luminosity nuisance. On the \emph{shape} alone (lumi free) the residual
-$\sqrts$-slope of that spread maps to a larger $|\Delta\mW|\lesssim20\MeV$
-($\alpha(0)$: $-11.5\MeV$, $\alpha(M_Z)$: $+19.9\MeV$), the conservative
-shape-induced EW-input-scheme uncertainty. As in the BFS chain, the realistic
-budget fixes the scheme (here $G_\mu$, the FCC-ee EW-fit baseline) and propagates
-the residual $\alpha(M_Z)$ \emph{parametric} uncertainty rather than the full
-scheme span.
+The MoCaNLO partonic cross section is an NLO-EW calculation, computed in the
+$G_\mu$ input scheme by default. The choice of EW input scheme ($G_\mu$,
+$\alpha(M_Z)$, $\alpha(0)$) is a renormalisation prescription whose effect on a
+fixed-order (NLO) result is formally of the next, uncomputed order (NNLO-EW), so
+the scheme spread is the standard estimate of the missing higher-order EW
+uncertainty. We regenerate the $\hat\sigma(\sqrt{\hat s})$ grid in each scheme ---
+on md5-identical point lists with identical $\mW$/$\GammaW$/cuts and shared SM
+inputs, so \emph{only} the EW scheme of $\hat\sigma$ varies --- convolve each with
+the identical production NLL ISR, and cross-fit by injecting the variant truth line
+shape and fitting with the $G_\mu$ morph
+(\code{scripts/investigations/nll\_isr/ew\_scheme\_crossfit.py}, left panel of
+figure~\ref{fig:indep-scheme-var}).
 
-\paragraph{Correction to an earlier value.} Pre-2026-06-12 drafts reported a
-$\sim\!66\MeV$ cov-lumi envelope on $\mW$ here, presented as the leading theory
-axis and as the MoCaNLO analogue of the BFS $\sim\!36\MeV$
-$\alpha$-renormalisation-scheme systematic. That figure was an artefact of the
-$C_1$ ISR subtraction since removed (section~\ref{sec:indep-calc}): because $C_1$
-is $\alpha$-scheme dependent ($C_1\propto\alpha$), subtracting it injected a
-spurious, scheme-dependent flat normalisation offset that the cov-lumi rate
-handle amplified into the $66\MeV$ spread. With $C_1$ removed the inter-scheme
-normalisation spread collapses to the ${\approx}1\%$ above, and the
-EW-input-scheme is \emph{no longer} the leading theory axis under the realistic
-prior. The $\alpha$-renormalisation-scheme axis of the production (BFS) chain
-(section~\ref{sec:val-isr-scheme}) is unaffected and remains the dominant
-ISR-related theory uncertainty of the headline fit.
+Following the systematics convention of this analysis the components are quoted
+individually, never enveloped, and the shape-only and cov-lumi biases separately:
+\begin{align*}
+  G_\mu\!\leftrightarrow\!\alpha(M_Z):&\quad \Delta\mW = -12.3\MeV~(\text{shape}) \,/\, -9.2\MeV~(\text{cov-lumi}),\\
+  G_\mu\!\leftrightarrow\!\alpha(0):&\quad \Delta\mW = +11.3\MeV~(\text{shape}) \,/\, +23.6\MeV~(\text{cov-lumi}),
+\end{align*}
+with the $G_\mu\!\leftrightarrow\!G_\mu$ null fit returning $0.00$. The shape bias
+is a genuine $\sqrts$-tilt of the NLO cross section: the Born ratio between schemes
+is flat in $\sqrt{\hat s}$ to $10^{-13}$ (pure normalisation, absorbed by the rate),
+while the NLO ratio curves by $0.2$--$0.3\%$ peaking at threshold --- and that
+curvature is the $\mW$ lever. $\alpha(0)$ is a known-poor scheme for $W$ physics
+(it omits the $\sim\!6\%$ running $\alpha(0)\!\to\!\alpha(M_Z)$), so
+$G_\mu\!\leftrightarrow\!\alpha(0)$ overestimates; $G_\mu\!\leftrightarrow\!\alpha(M_Z)$
+is the representative bracket. At $\sim\!12\MeV$ on the shape this is the
+\emph{largest} theory axis of the independent chain, well above the NLL ISR
+factorisation/renormalisation scheme (sub-MeV, section~\ref{sec:indep-isr}) and the
+physical-radiator LL-PDF span ($<0.1\MeV$).
+
+\paragraph{Not a coupling/parameter mismatch.} The Born ratio between two schemes
+is identical across all three channels (to $10^{-13}$) despite their different
+$t$-channel-$\nu$ versus $s$-channel-$\gamma$ content, showing the schemes differ
+by a coherent $g\!\leftrightarrow\!e$ rescaling and not a parameter mismatch:
+Recola derives $e=\sqrt{4\pi\alpha}$ and $g=e/\sin\theta_W$ with
+$\sin^2\theta_W=1-M_W^2/M_Z^2$ \emph{fixed} across schemes, so only $\alpha$ changes
+(and on-shell photons always couple at $\alpha(0)$). The $\sqrts$-tilt is therefore
+a real NLO effect, not a leftover of inconsistent inputs.
+
+\paragraph{Is the $\sim\!12\MeV$ genuine? The $G_F$-consistency test.} The three
+schemes use today's PDG values of $\alpha$, which are not mutually SM-consistent
+($\alpha(M_Z)$ from a fit, $\alpha(0)$ measured, and $\alpha_{G_\mu}$ derived from
+$G_F$), so part of the spread could be a spurious input-value inconsistency rather
+than a genuine prescription difference. To separate the two, we tune $G_F$ in the
+$G_\mu$ scheme so its derived coupling equals the $\alpha(M_Z)$ scheme's input
+($\alpha(M_Z)=1/128.233$ in Recola, giving $G_F^{\rm adj}=1.2034\times10^{-5}$,
+verified through \code{get\_alpha\_rcl}) and repeat the cross-fit
+(\code{gf\_consistency\_crossfit.py}, on a dedicated grid). In this test the
+direction is reversed ($G_\mu$ truth, $\alpha(M_Z)$ morph), so the sign flips: the
+$+12.26\MeV$ bias --- reproducing the campaign $|{-}12.3|\MeV$ --- drops only to
+$+10.15\MeV$ once the input values are made consistent. The input-value piece is
+thus just $+2.1\MeV$, and the remaining $\sim\!10\MeV$ is the \emph{genuine}
+renormalisation-prescription (missing-NNLO-EW) residual. The EW-input-scheme
+uncertainty is therefore real and is kept as the leading theory axis. (The
+corresponding cov-lumi bias \emph{enlarges} to $-108\MeV$ when $\alpha$ is forced
+up, because $\hat\sigma_{\rm NLO}\!\sim\!\alpha^4$ makes the rescaling a $+12.7\%$
+normalisation shift that the rate handle amplifies; this is a lumi-degenerate
+normalisation effect, not a shape bias, and the cov-lumi accounting is left open
+per the convention above.)
+
+As in the BFS chain, the realistic budget fixes the scheme (here $G_\mu$, the
+FCC-ee EW-fit baseline) and propagates the residual $\alpha(M_Z)$ \emph{parametric}
+uncertainty (sub-MeV at the Tera-Z projection~\cite{RiembauTeraZ}) rather than the
+full scheme span; the $\sim\!12\MeV$ span is the conservative missing-NNLO-EW theory
+uncertainty when the scheme is left free.
+
+\paragraph{Correction to earlier values.} Pre-2026-06-12 drafts reported a
+$\sim\!66\MeV$ cov-lumi envelope here, and earlier shape numbers ($\alpha(M_Z)$:
+$+19.9\MeV$, $\alpha(0)$: $-11.5\MeV$) from the superseded \code{crossfit\_scheme.py}
+with the opposite truth/morph direction and a pre-$C_1$-fix grid. The $66\MeV$ was
+an artefact of the $C_1$ ISR subtraction since removed (section~\ref{sec:indep-calc}):
+$C_1\propto\alpha$, so subtracting it injected a spurious scheme-dependent flat
+normalisation that the cov-lumi rate handle amplified. With $C_1$ removed and the
+cross-fit redone on the campaign grids, the genuine EW-input-scheme effect is the
+$\sim\!12\MeV$ \emph{shape} bias above --- smaller than the old cov-lumi figure, and
+now confirmed genuine by the $G_F$-consistency test. The
+$\alpha$-renormalisation-scheme axis of the production (BFS) chain
+(section~\ref{sec:val-isr-scheme}) is a separate, unaffected systematic.
 
 \subsection{Fiducial-acceptance cross-check}\label{sec:indep-fid}
 
@@ -3202,10 +3311,13 @@ $\mu\nu qq$ fit, the independent sensitivity reproduces the BFS value directly
 ($1.12$ vs $1.31\MeV$ cov-lumi, $4.51$ vs $4.71\MeV$ shape-only;
 section~\ref{sec:indep-fit}). The ISR-scheme theory uncertainty is $<0.1\MeV$ on the shape
 for the physical beta-type radiators ($\sim\!7\MeV$ if the unphysical
-pure-collinear PDF is included), and the EW-input-scheme is $\sim\!3\MeV$ under
-the production cov-lumi prior ($\sim\!20\MeV$ shape-only) --- no longer the
-leading theory axis, the previous $66\MeV$ figure having been a $C_1$-subtraction
-artefact (section~\ref{sec:indep-ew}). The corrected absolute line shape agrees
+pure-collinear PDF is included) and sub-MeV for the NLL factorisation- and
+coupling-renormalisation scheme (section~\ref{sec:indep-isr}). The leading theory
+axis is instead the hard EW-input scheme of $\hat\sigma$, a $\sim\!12\MeV$ shape
+bias ($G_\mu\!\leftrightarrow\!\alpha(M_Z)$) confirmed genuine
+($\sim\!10\MeV$ renormalisation-prescription, only $\sim\!2\MeV$ input-value) by a
+$G_F$-consistency test; the previous $\sim\!66\MeV$ cov-lumi figure was a
+$C_1$-subtraction artefact (section~\ref{sec:indep-ew}). The corrected absolute line shape agrees
 with the BFS chain, YFSWW3 and the LEP measurement (table~\ref{tab:threecalc-163}).
 What remains for a future revision is detector-level reconstruction and the
 associated experimental systematics, which are beyond the scope of this

@@ -61,6 +61,11 @@ def main(argv=None) -> int:
                     help="override Higgs mass [GeV] (default: SMInputs 125.0)")
     ap.add_argument("--m-z", type=float, default=None,
                     help="override Z mass [GeV] (default: SMInputs 91.188)")
+    ap.add_argument("--fermi-constant", type=float, default=None,
+                    help="override Fermi constant G_F [GeV^-2] (default: SMInputs "
+                         "1.1663787e-5). In the 'gf' scheme this sets the derived "
+                         "α_Gμ=√2 G_F M_W² sw²/π — used by the G_F-consistency test "
+                         "to pin α_Gμ to α(M_Z) (G_F=1.1957623e-5 → 1/128.936).")
     ap.add_argument("--precision-pct", type=float, default=0.5,
                     help="MoCaNLO target_relative_precision per run [%%]")
     ap.add_argument("--events", type=int, default=200000,
@@ -119,7 +124,9 @@ def main(argv=None) -> int:
     os.makedirs(args.outdir, exist_ok=True)
 
     sm_over = {k: v for k, v in (("mt", args.m_t), ("mH", args.m_h),
-                                 ("mZ", args.m_z)) if v is not None}
+                                 ("mZ", args.m_z),
+                                 ("fermi_constant", args.fermi_constant))
+               if v is not None}
     sm = SMInputs(scheme_alpha=args.scheme_alpha, **sm_over)
     integ = IntegrationSettings(n_target_accepted=args.events,
                                 target_rel_precision_pct=args.precision_pct,
