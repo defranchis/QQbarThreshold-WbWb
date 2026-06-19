@@ -164,7 +164,7 @@ The public assembly functions are:
 \end{description}
 The defaults of \code{sigma_observed_munuqq} are the project's ``best
 calculation'': full BFS Born $+$ NLO loops $+$ NNLO $+$ $\delta_\text{QCD}$
-$+$ Whizard anchor $+$ single-convolution eMELA-NLL ISR
+$+$ Whizard anchor $+$ 2-leg eMELA-NLL ISR
 (DELTA factorisation, ALPMZ renormalisation, $\alpha(M_Z)\!=\!1/128.943$;
 cf.~section~\ref{sec:isr}). The card knob \code{isr_nll=True} became
 production default on 2026-05-29 after the cross-fit campaign of
@@ -223,7 +223,7 @@ $\alpha_{\rm em}$ overrides, both defaulting to \code{None}:
    off-peak~\cite{RiembauTeraZ}) --- the value the soft/collinear
    photon physically sees and the natural input for eMELA's DGLAP
    evolution.\quad\code{None} $\to$ legacy fallback
-   $\alpha_{G_\mu}(M_W^{\rm BFS\,ref})\approx 1/132.1$, frozen across the
+   $\alpha_{G_\mu}(M_W^{\rm BFS\,ref})\approx 1/132.17$, frozen across the
    fit (BFS prescription, line 2514 of \cite{BFSnlo}); kept for
    paper-closure tests.
 \end{itemize}
@@ -2045,8 +2045,8 @@ Azzurri YFSWW3, all-channel               & $0.5$  & $1.2$  & $\approx 0$ \\
 \end{tabular}
 \end{table}
 
-Two observations. First, $\sigma_{\mW}$ ($\mu\nu q\bar q$) has improved
-$2.5\times$ from the 2026-05-18 baseline ($3.09\MeV$, all-channel) that
+Two observations. First, the all-channel $\sigma_{\mW}$ has improved
+$2.5\times$ from the 2026-05-18 baseline ($3.09\to1.22\MeV$) that
 pre-dated the NLO loops, NNLO and the chain cleanup; $\sigma_{\GammaW}$
 moved from $1.05$ to $1.51\MeV$ and $\rho$ from $+0.75$ to $+0.49$,
 consistent with the $d\sigma/d\GammaW$ slope flattening toward the
@@ -2234,7 +2234,7 @@ Two handles, with very different status:
 \begin{itemize}\itemsep0pt
   \item \textbf{$\alpha$ renormalisation scheme} (the headline). The
   coupling in $\beta_e=(2\alpha/\pi)(\ln(s/m_e^2)-1)$ is taken in three
-  schemes: \code{ALPMZ} ($\alpha(M_Z)=1/128.94$, production --- what
+  schemes: \code{ALPMZ} ($\alpha(M_Z)=1/128.943$, production --- what
   FCC-ee measures via off-peak $A_\text{FB}^{\mu\mu}$), \code{ALGMU}
   ($\alpha_{G_\mu}\!\approx\!1/132.17$, the BFS prescription), and
   \code{FIXED}/$\alpha(0)$ ($1/137.04$, Thomson). Since $\beta_e\propto
@@ -2871,12 +2871,8 @@ from the $\sigma_{WW}(\sqrts)$ curve of~\cite{Azzurri2021}); see
 table~\ref{tab:threecalc-163}. The $C_1$ kernel is retained as a diagnostic
 (its $\mathcal O(\alpha^2)$ exactness against the convolution remains a unit
 test); it would re-enter the observable only for grids that genuinely carry the
-mass-regularised $\mathcal O(\alpha)$ ISR logarithm. \emph{The independent-fit
-numbers in this section were produced before this correction: the absolute rate
-was uniformly $\times1.48$ too high, so the quoted statistical uncertainties
-are ${\approx}\sqrt{1.48}=1.22$ times too small; shape-level results are
-affected only through the mild $\sqrts$-dependence of the damping. A re-fit on
-the corrected chain is pending.}
+mass-regularised $\mathcal O(\alpha)$ ISR logarithm. \emph{All independent-fit
+numbers in this section are quoted on the corrected (no-$C_1$) chain.}
 
 \paragraph{Luminosity convolution (production NLL form).} For the eMELA-NLL
 radiator the double convolution of equation~\eqref{eq:indep-obs} is evaluated in
@@ -3990,7 +3986,7 @@ authoritative copies are in
 \caption{Cross-section chain build-up: BFS Born at successive orders
 ($\sigma^{(0)} \to \sigma^{(0)}+\sigma^{(1/2)} \to +\sigma^{(1)} \to
 +\sigma^{(3/2),a}$) and then with the production NLL ISR (eMELA,
-single-conv) layered on (the multiplicative FKM $K_C$ factor is off by
+2-leg) layered on (the multiplicative FKM $K_C$ factor is off by
 default). Top panel: $\sigma(\sqrts)$ on linear scale.
 Bottom panel: ratios relative to the full $N^{3/2}\mathrm{LO}$ Born.}
 \end{figure}
