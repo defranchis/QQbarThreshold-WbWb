@@ -93,6 +93,11 @@ class WWGeneratorMoCaNLO:
     lepton_cut: float | None = None     # None=inclusive(pure-WW); 0.97=fiducial
     lepton_pt_min: float | None = None  # fiducial p_T,ℓ cut (GeV); pairs with lepton_cut
     lepton_mll_min: float | None = None # fiducial m_ℓℓ cut (GeV) on same-flavour OS
+    pure_ww_weights: dict | None = None # override the inclusive (lepton_cut=None)
+                                        # PURE_WW assembly; e.g. {"lnuqq": 4.0} =
+                                        # inclusive μνqq scope (B≈0.143, the BFS-
+                                        # comparable single channel). None = full
+                                        # 12·lnuqq+4·qqqq+9·mutau.
     isr_cfg: isr_beta.ISRConfig = field(default_factory=isr_beta.ISRConfig)
     order: int = 1                      # NLO-EW → filename tag "1"
     smooth: float | None = None         # σ̂ spline smoothing factor (None=auto)
@@ -162,7 +167,7 @@ class WWGeneratorMoCaNLO:
         (lepton_cut set): the original 6 blocks with their multiplicities.
         """
         if self.lepton_cut is None:
-            return dict(PURE_WW_WEIGHTS)
+            return dict(self.pure_ww_weights or PURE_WW_WEIGHTS)
         return {b.key: b.weight for b in BLOCKS}
 
     def _isr_cfg(self) -> "isr_beta.ISRConfig":

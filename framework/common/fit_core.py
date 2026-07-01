@@ -308,6 +308,16 @@ class FitCore:
         self._cross_matrix = None
         self._cov_factor = None
 
+        # Free-floating, energy-INDEPENDENT additive σ term (diagnostic, OFF by
+        # default — see ``add_flat_const``). When active, ``_flat_const_scale``
+        # holds the absolute σ scale (pb) carried per unit of the ``cFlat`` fit
+        # parameter, and ``_flat_const_idx`` is that parameter's slot in
+        # ``param_names`` (set in ``_build_chi2_caches``). Both ``None`` leaves
+        # production fits byte-identical.
+        self._flat_const_name = "cFlat"
+        self._flat_const_scale = None
+        self._flat_const_idx = None
+
         # Placeholder cross-section systematics (a fully-correlated and a
         # fully-uncorrelated component across √s, each sized as a fraction of the
         # per-point statistical uncertainty). OFF until a driver calls
@@ -625,7 +635,8 @@ class FitCore:
         # a per-bin name and raise on the ``_systematics_meta`` lookup.)
         self.morph_dict = {p: self._morph_one(p)
                            for p in self.param_names
-                           if not self._is_per_bin_name(p)}
+                           if not self._is_per_bin_name(p)
+                           and p != self._flat_const_name}
         # POI cross-term corner rows (only when the card declares CROSS_TERMS).
         for (a, b) in self.parameters.cross_terms:
             self.morph_dict[self.parameters.cross_tag(a, b)] = self._morph_one_cross(a, b)
@@ -647,6 +658,9 @@ class FitCore:
         return False
 
     def value_from_param(self, par, name):
+        if name == self._flat_const_name and self._flat_const_scale is not None:
+            # Physical value of the flat pedestal: c = cFlat·scale (σ units, pb).
+            return par * self._flat_const_scale
         if name in self._systematics_meta["global"]:
             return par * self.input_var[name]
         if self._is_bin_nuisance(name):
@@ -821,7 +835,8 @@ class FitCore:
         # reason as ``_morph_cross_sections``.
         self.morph_scenario = {p: self.slice_to_scenario(self.morph_dict[p])
                                for p in self.param_names
-                               if not self._is_per_bin_name(p)}
+                               if not self._is_per_bin_name(p)
+                               and p != self._flat_const_name}
         for kind in (*self._systematics_meta["binned"], *self._systematics_meta["global"]):
             if kind in self.morph_dict:
                 self.morph_scenario[kind] = self.slice_to_scenario(self.morph_dict[kind])
@@ -925,6 +940,14 @@ class FitCore:
             p_b = resolved_params[self._cross_idx[:, 1]]
             th_xsec = th_xsec * np.prod(
                 1 + (p_a * p_b)[:, None] * self._cross_matrix, axis=0)
+
+        # Energy-independent additive term: th_xsec(√s) → th_xsec(√s) + c with
+        # the SAME constant c = cFlat·scale at every √s (fully correlated across
+        # ECM), added AFTER the multiplicative shape product so it is a genuine
+        # pedestal — not a fraction of the signal that rides the line shape. OFF
+        # unless ``add_flat_const`` registered the parameter.
+        if self._flat_const_idx is not None:
+            th_xsec = th_xsec + resolved_params[self._flat_const_idx] * self._flat_const_scale
 
         res = self.pseudo_data_scenario - th_xsec
         chi2_val = float(res @ cho_solve(self._cov_factor, res))
@@ -1088,7 +1111,15 @@ class FitCore:
         self._xsec_base = np.asarray(self.xsec_scenario["xsec"]) * np.asarray(self.scale_var_scenario)
         n_ecm = len(self._xsec_base)
         rows = []
+        self._flat_const_idx = None
         for i, name in enumerate(self.param_names):
+            if name == self._flat_const_name and self._flat_const_scale is not None:
+                # Free additive pedestal: zero multiplicative-morph row (it never
+                # enters the Π(1+p·morph) product) — its effect is the additive
+                # term applied separately in ``chi2`` via ``_flat_const_idx``.
+                rows.append(np.zeros(n_ecm))
+                self._flat_const_idx = i
+                continue
             meta = self._per_bin_meta.get(i)
             if meta is not None:
                 kind, bin_idx = meta
@@ -1270,6 +1301,36 @@ class FitCore:
 
     def set_global_nuisance_prior(self, kind, *, prior):
         self._nuisance_priors.setdefault(kind, {})["prior"] = prior / self.input_var[kind]
+
+    def add_flat_const(self, *, scale=None):
+        """Activate a free-floating, energy-INDEPENDENT additive σ term.
+
+        Adds one fit parameter ``cFlat`` so the model cross section becomes
+        ``th_xsec(√s) → th_xsec(√s) + c`` with the SAME constant ``c`` at every
+        √s point (fully correlated across ECM) and NO Gaussian prior (freely
+        floating). The parameter carries ``c/scale``; its physical value
+        (reported by ``fit_results``/``results_from_minuit`` via
+        ``value_from_param``) is ``c = cFlat·scale`` in the template σ units
+        (pb). ``scale`` defaults to the mean nominal σ over the scan so
+        ``cFlat`` is O(1) — good conditioning — and reads directly as the flat
+        term in units of the mean cross section.
+
+        Implementation notes: ``cFlat`` gets a zero multiplicative-morph row
+        (it never enters the ``Π(1+p·morph)`` shape product) and is injected as
+        a pure additive pedestal in :meth:`chi2`. Because it is registered as
+        neither a constraint nor a binned/global nuisance, the χ² adds no
+        penalty for it → genuinely free. Call AFTER ``init_scenario`` (needs
+        ``pseudo_data_scenario`` for the default scale); ``init_minuit`` /
+        ``fit_parameters`` afterwards picks up the extra parameter. Idempotent."""
+        name = self._flat_const_name
+        if name in self.param_names:
+            return
+        if scale is None:
+            scale = float(np.mean(self.pseudo_data_scenario))
+        if not scale > 0:
+            raise ValueError(f"flat-const scale must be > 0 (got {scale!r})")
+        self._flat_const_scale = float(scale)
+        self.param_names.append(name)
 
     def set_xsec_systematics(self, *, corr_frac=0.0, uncorr_frac=0.0):
         """Activate the placeholder cross-section systematics: a fully-correlated
