@@ -7,29 +7,29 @@ Fit: m_W, Γ_W float; stat (Asimov) + correlated lumi only; all other parameters
 lumi  ISR  rung         Δm_W   δ(prev)      ΔΓ_W    σ_mW    σ_ΓW      ρ  conv
                        [MeV]     [MeV]     [MeV]   [MeV]   [MeV]       
 -----------------------------------------------------------------------------
-free  LL   LO        -33.104              +4.828   5.100   2.831  +0.28  ok
-free  LL   +NLO       +4.409   +37.514    -3.142   4.708   2.797  +0.33  ok
-free  LL   +NNLO      +2.070    -2.339    +0.967   4.712   2.791  +0.32  ok
-free  LL   +dQCD      +2.070    +0.000    +0.967   4.712   2.791  +0.32  ok
+free  LL   LO        -36.515              +2.511   5.137   2.634  +0.28  ok
+free  LL   +NLO       +2.580   +39.094    -3.161   4.738   2.607  +0.33  ok
+free  LL   +NNLO      +0.030    -2.550    +0.606   4.741   2.601  +0.32  ok
+free  LL   +dQCD      +0.030    +0.000    +0.606   4.741   2.601  +0.32  ok
 -----------------------------------------------------------------------------
-free  NLL  LO        -35.343              +3.964   5.102   2.822  +0.27  ok
-free  NLL  +NLO       +2.341   +37.684    -4.118   4.709   2.789  +0.32  ok
-free  NLL  +NNLO      +0.000    -2.341    +0.000   4.713   2.783  +0.32  ok
-free  NLL  +dQCD      +0.000    +0.000    +0.000   4.713   2.783  +0.32  ok
+free  NLL  LO        -36.584              +1.909   5.113   2.611  +0.28  ok
+free  NLL  +NLO       +2.551   +39.135    -3.755   4.716   2.585  +0.33  ok
+free  NLL  +NNLO      +0.000    -2.551    +0.000   4.719   2.579  +0.32  ok
+free  NLL  +dQCD      +0.000    +0.000    +0.000   4.719   2.579  +0.32  ok
 -----------------------------------------------------------------------------
 =============================================================================
 lumi  ISR  rung         Δm_W   δ(prev)      ΔΓ_W    σ_mW    σ_ΓW      ρ  conv
                        [MeV]     [MeV]     [MeV]   [MeV]   [MeV]       
 -----------------------------------------------------------------------------
-prior LL   LO        -97.744              +1.385   1.305   2.726  +0.63  ok
-prior LL   +NLO       -9.969   +87.775    -4.440   1.304   2.746  +0.66  ok
-prior LL   +NNLO      -6.543    +3.426    +0.191   1.307   2.749  +0.66  ok
-prior LL   +dQCD      -6.543    +0.000    +0.191   1.307   2.749  +0.66  ok
+prior LL   LO       -109.135              -1.024   1.313   2.542  +0.64  ok
+prior LL   +NLO      -21.608   +87.527    -5.110   1.312   2.553  +0.67  ok
+prior LL   +NNLO     -18.154    +3.454    -0.817   1.315   2.555  +0.67  ok
+prior LL   +dQCD     -18.154    +0.000    -0.817   1.315   2.555  +0.67  ok
 -----------------------------------------------------------------------------
-prior NLL  LO        -91.151              +1.074   1.309   2.730  +0.63  ok
-prior NLL  +NLO       -3.425   +87.726    -4.631   1.309   2.751  +0.66  ok
-prior NLL  +NNLO      +0.000    +3.425    +0.000   1.312   2.755  +0.66  ok
-prior NLL  +dQCD      +0.000    +0.000    +0.000   1.312   2.755  +0.66  ok
+prior NLL  LO        -90.569              -0.737   1.323   2.540  +0.65  ok
+prior NLL  +NLO       -3.438   +87.131    -4.246   1.322   2.552  +0.68  ok
+prior NLL  +NNLO      +0.000    +3.438    +0.000   1.324   2.554  +0.68  ok
+prior NLL  +dQCD      +0.000    +0.000    +0.000   1.324   2.554  +0.68  ok
 -----------------------------------------------------------------------------
 
 ##########################################################################
@@ -46,31 +46,31 @@ Components reported SEPARATELY, not in quadrature (2026-06-16 DELTA-NLL resoluti
 lumi  variant      kind        Δm_W      ΔΓ_W    σ_mW    σ_ΓW      ρ  conv
                               [MeV]     [MeV]   [MeV]   [MeV]       
 --------------------------------------------------------------------------
-free  eMELA-LL     trunc     -0.425    -0.180   4.691   2.768  +0.32  ok
-free  ALPMZ(prod)  ren       +0.000    +0.000   4.713   2.783  +0.32  ok
-free  ALGMU        ren       +3.504    +2.342   4.637   2.746  +0.32  ok
-free  alpha(0)     ren       +5.864    +3.152   4.541   2.703  +0.33  ok
-free  xi=0.5       scale     +7.958    +3.935   4.572   2.708  +0.32  ok
-free  xi=2.0       scale     -1.189    +1.112   4.844   2.838  +0.31  ok
+free  eMELA-LL     trunc     -0.691    -0.348   4.717   2.574  +0.32  ok
+free  ALPMZ(prod)  ren       +0.000    +0.000   4.719   2.579  +0.32  ok
+free  ALGMU        ren       -0.298    -0.256   4.720   2.575  +0.32  ok
+free  alpha(0)     ren       +1.115    +0.427   4.676   2.559  +0.32  ok
+free  xi=0.5       scale     +4.958    +2.383   4.592   2.538  +0.33  ok
+free  xi=2.0       scale     -6.019    -3.317   4.846   2.604  +0.31  ok
 --------------------------------------------------------------------------
 lumi  variant      kind        Δm_W      ΔΓ_W    σ_mW    σ_ΓW      ρ  conv
                               [MeV]     [MeV]   [MeV]   [MeV]       
 --------------------------------------------------------------------------
-prior eMELA-LL     trunc    +11.571    +0.876   1.314   2.758  +0.67  ok
-prior ALPMZ(prod)  ren       +0.000    +0.000   1.312   2.755  +0.66  ok
-prior ALGMU        ren      +38.061    +5.584   1.319   2.766  +0.68  ok
-prior alpha(0)     ren      +79.228   +10.798   1.324   2.778  +0.70  ok
-prior xi=0.5       scale    +46.646    +7.420   1.306   2.713  +0.67  ok
-prior xi=2.0       scale    -46.189    -2.187   1.312   2.751  +0.65  ok
+prior eMELA-LL     trunc     +2.420    -0.107   1.325   2.553  +0.68  ok
+prior ALPMZ(prod)  ren       +0.000    +0.000   1.324   2.554  +0.68  ok
+prior ALGMU        ren       -0.770    -0.293   1.323   2.550  +0.68  ok
+prior alpha(0)     ren      +15.222    +1.578   1.323   2.549  +0.68  ok
+prior xi=0.5       scale    +46.734    +6.143   1.323   2.556  +0.69  ok
+prior xi=2.0       scale    -47.689    -6.077   1.322   2.540  +0.66  ok
 --------------------------------------------------------------------------
 
 ISR theory systematic — SEPARATE components (NOT added in quadrature):
-  [free ] NNLL truncation =   0.42 MeV  (eMELA-LL↔eMELA-NLL, α fixed)
-  [prior] NNLL truncation =  11.57 MeV  (eMELA-LL↔eMELA-NLL, α fixed)
+  [free ] NNLL truncation =   0.69 MeV  (eMELA-LL↔eMELA-NLL, α fixed)
+  [prior] NNLL truncation =   2.42 MeV  (eMELA-LL↔eMELA-NLL, α fixed)
          residual DELTA scheme =   0.14 MeV  (kernel α-swing; step 5, indep chain)
          α(M_Z) input          =   0.005 MeV (aem_isr profiled nuisance)
          ('ren'/'scale' rows above are STABILITY diagnostics, not components.)
-  NOTE: the truncation is ~0.4 MeV shape-only but ~12 MeV cov-lumi —
+  NOTE: the truncation is ~0.7 MeV shape-only but ~2 MeV cov-lumi —
   LL->NLL is almost pure NORMALISATION (~+0.3% ISR flux, little shape);
   under the tight lumi prior that flux change leaks into m_W via the rate
   handle (same pattern as 'scale'/'ren'). Whether the cov-lumi leakage is

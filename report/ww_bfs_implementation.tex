@@ -537,7 +537,10 @@ bound the closure: a 1-MeV ($\mW,\GammaW$) plane at 3 $\sqrts$
 spacing on three $\sqrts$ slices (\texttt{grid\_validate\_fine}), the
 latter at $\sim$0.005\,\% MC. The morph reproduces both at the MC bar
 (maximum residual 0.04\,\% and 0.02\,\% respectively), so the morph
-interpolation is sub-MeV-safe in the regime the fit operates in. The
+interpolation is sub-MeV-safe in the regime the fit operates in. Outside
+the knot range the anchor \emph{calibration factor} is frozen at the edge
+value (since 2026-07-02; the splines themselves are never extrapolated ---
+see the limitations item on the sub-edge fix). The
 construction is taken apart and validated extensively in
 Appendix~\ref{sec:morphval}: the input grid, the per-$\sqrts$
 quadratic fits, the bilinear cross term, the $\sqrts$ interpolation,
@@ -1646,6 +1649,37 @@ follow (sections~\ref{sec:val-theory-ladder}, \ref{sec:val-scenarios},
 $\sigma$ tables have been regenerated accordingly --- but do \emph{not} carry the
 two cross-section systematics, which are activated for the production headline fit only.
 
+\subsection{Free non-resonant pedestal: sensitivity to an uncalculated
+flat background}\label{sec:fitresults-pedestal}
+% ---------------------------------------------------------------
+
+An energy-\emph{independent} additive cross-section term --- the same
+constant $c$ at every scan point, fully correlated across ECM, with no
+prior --- probes the fit's exposure to an uncalculated non-resonant
+continuum contribution. \code{FitCore.add_flat_const} registers one free
+parameter (\code{cFlat}; physical value $c$ in pb), implemented as a
+genuine additive pedestal in the $\chi^2$ model (applied \emph{after}
+every multiplicative nuisance, so it is never rescaled by the
+luminosity/efficiency factors); production fits are byte-identical when
+the knob is unused, and the result is scale-invariant to $10^{-10}$.
+Drivers: \code{doFit\_ww.py}-style study on the BFS chain
+(\code{scripts/investigations/flat\_const/dofit\_flatconst\_bfs.py}) and
+\code{dofit\_indep.py --flatConst [--munuqq]} on the independent chain.
+
+On the $\mu\nu qq$ scope (pdg-constant, cov-lumi, 2-POI baseline
+$\sigma(\mW)=1.34\MeV$ with the full per-point luminosity priors) the
+threshold scan $157$--$163\GeV$ constrains the pedestal to
+$\sigma(c)\approx0.57$\,fb --- both chains agree --- at the cost of
+$\sigma(\mW)\times1.55$ and $\sigma(\GammaW)\times2.26$, with
+$\mathrm{corr}(c,\GammaW)=-0.90$: below and at threshold a flat pedestal
+trades almost entirely against the $\GammaW$-driven tail. In an
+above-threshold scan ($160$--$166\GeV$) the degeneracy flips to the mass,
+$\mathrm{corr}(c,\mW)=+0.98$ and $\sigma(\mW)\times4.5$ while $\GammaW$
+is untouched: a non-resonant background is far more dangerous for $\mW$
+above threshold, where the line shape offers no independent normalisation
+lever. ($\sigma(c)$ is $\sim\!3.6\times$ the naive
+$\sqrt{\sigma/L}$ counting estimate, the degeneracy inflation.)
+
 \subsection{ISR-scheme systematic on the fitted $m_W$}\label{sec:val-isr-cross}
 % ---------------------------------------------------------------
 
@@ -1866,8 +1900,8 @@ combined in quadrature}:
 Component & shape & cov-lumi & Content \\
          & [MeV] & [MeV] & \\
 \midrule
-NNLL truncation & $0.42$\,/\,$0.98$ & $11.6$ & $\alpha$-fixed order step
-   eMELA-LL$\leftrightarrow$eMELA-NLL (BFS ladder $0.42$; indep chain
+NNLL truncation & $0.69$\,/\,$0.98$ & $2.4$ & $\alpha$-fixed order step
+   eMELA-LL$\leftrightarrow$eMELA-NLL (BFS ladder $0.69$; indep chain
    $0.98$). The cov-lumi value is normalisation-dominated (see below) \\
 residual factor.\ scheme & $0.14$ & --- & DELTA matched; the kernel
    $\alpha$-swing (PDG$\leftrightarrow$MoCaNLO) bounds the leftover
@@ -1888,7 +1922,7 @@ ePDF's $\mu_F$-running is uncompensated --- a direct measurement of the
 normalisation rescaling absorbed by the luminosity and
 $\alpha(M_Z)$-input treatment, not a physical line-shape systematic.
 The line-shape ISR truncation is thus sub-MeV. Its cov-lumi counterpart
-($\approx11.6\MeV$) is normalisation-dominated: LL$\to$NLL is almost pure
+($\approx2.4\MeV$) is normalisation-dominated: LL$\to$NLL is almost pure
 normalisation ($\sim+0.3\%$ ISR flux, little shape change), which under the
 tight FCC-ee luminosity prior leaks into $\mW$ via the rate handle, exactly
 as the $\xi$ ($1.4$ shape\,/\,$31$ cov-lumi) and $\alpha$-renormalisation
@@ -2119,24 +2153,24 @@ ISR & rung & $\Delta\mW$ & $\delta$(prev) & $\Delta\GammaW$ & $\sigma_{\mW}$ & $
  & & [MeV] & [MeV] & [MeV] & [MeV] & [MeV] & \\
 \midrule
 \multicolumn{8}{l}{\emph{free correlated lumi (pure shape bias)}}\\
-LL  & LO                   & $-33.1$ &        & $+4.8$ & $5.10$ & $2.83$ & $+0.28$ \\
-LL  & +NLO                 & $+4.4$  & $+37.5$ & $-3.2$ & $4.71$ & $2.80$ & $+0.33$ \\
-LL  & +NNLO                & $+2.1$  & $-2.3$ & $+1.0$ & $4.71$ & $2.79$ & $+0.32$ \\
-LL  & +$\delta_\text{QCD}$ & $+2.1$  & $+0.0$ & $+1.0$ & $4.71$ & $2.79$ & $+0.32$ \\
-NLL & LO                   & $-35.3$ &        & $+4.0$ & $5.10$ & $2.82$ & $+0.27$ \\
-NLL & +NLO                 & $+2.3$  & $+37.7$ & $-4.1$ & $4.71$ & $2.79$ & $+0.32$ \\
-NLL & +NNLO                & $0.0$   & $-2.3$ & $0.0$  & $4.71$ & $2.78$ & $+0.32$ \\
-NLL & +$\delta_\text{QCD}$ & $0.0$   & $+0.0$ & $0.0$  & $4.71$ & $2.78$ & $+0.32$ \\
+LL  & LO                   & $-36.5$ &        & $+2.5$ & $5.14$ & $2.63$ & $+0.28$ \\
+LL  & +NLO                 & $+2.6$  & $+39.1$ & $-3.2$ & $4.74$ & $2.61$ & $+0.33$ \\
+LL  & +NNLO                & $+0.0$  & $-2.6$ & $+0.6$ & $4.74$ & $2.60$ & $+0.32$ \\
+LL  & +$\delta_\text{QCD}$ & $+0.0$  & $+0.0$ & $+0.6$ & $4.74$ & $2.60$ & $+0.32$ \\
+NLL & LO                   & $-36.6$ &        & $+1.9$ & $5.11$ & $2.61$ & $+0.28$ \\
+NLL & +NLO                 & $+2.6$  & $+39.1$ & $-3.8$ & $4.72$ & $2.59$ & $+0.33$ \\
+NLL & +NNLO                & $0.0$   & $-2.6$ & $0.0$  & $4.72$ & $2.58$ & $+0.32$ \\
+NLL & +$\delta_\text{QCD}$ & $0.0$   & $+0.0$ & $0.0$  & $4.72$ & $2.58$ & $+0.32$ \\
 \midrule
 \multicolumn{8}{l}{\emph{realistic FCC-ee correlated-lumi prior}}\\
-LL  & LO                   & $-97.7$ &        & $+1.4$ & $1.31$ & $2.73$ & $+0.63$ \\
-LL  & +NLO                 & $-10.0$ & $+87.7$ & $-4.4$ & $1.31$ & $2.75$ & $+0.66$ \\
-LL  & +NNLO                & $-6.5$  & $+3.4$ & $+0.2$ & $1.31$ & $2.75$ & $+0.66$ \\
-LL  & +$\delta_\text{QCD}$ & $-6.5$  & $+0.0$ & $+0.2$ & $1.31$ & $2.75$ & $+0.66$ \\
-NLL & LO                   & $-91.1$ &        & $+1.1$ & $1.31$ & $2.73$ & $+0.63$ \\
-NLL & +NLO                 & $-3.4$  & $+87.7$ & $-4.6$ & $1.31$ & $2.75$ & $+0.66$ \\
-NLL & +NNLO                & $0.0$   & $+3.4$ & $0.0$  & $1.31$ & $2.76$ & $+0.66$ \\
-NLL & +$\delta_\text{QCD}$ & $0.0$   & $+0.0$ & $0.0$  & $1.31$ & $2.76$ & $+0.66$ \\
+LL  & LO                   & $-109.1$ &        & $-1.0$ & $1.31$ & $2.54$ & $+0.64$ \\
+LL  & +NLO                 & $-21.6$ & $+87.5$ & $-5.1$ & $1.31$ & $2.55$ & $+0.67$ \\
+LL  & +NNLO                & $-18.2$ & $+3.5$ & $-0.8$ & $1.32$ & $2.56$ & $+0.67$ \\
+LL  & +$\delta_\text{QCD}$ & $-18.2$ & $+0.0$ & $-0.8$ & $1.32$ & $2.56$ & $+0.67$ \\
+NLL & LO                   & $-90.6$ &        & $-0.7$ & $1.32$ & $2.54$ & $+0.65$ \\
+NLL & +NLO                 & $-3.4$  & $+87.1$ & $-4.2$ & $1.32$ & $2.55$ & $+0.68$ \\
+NLL & +NNLO                & $0.0$   & $+3.4$ & $0.0$  & $1.32$ & $2.55$ & $+0.68$ \\
+NLL & +$\delta_\text{QCD}$ & $0.0$   & $+0.0$ & $0.0$  & $1.32$ & $2.55$ & $+0.68$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -2173,13 +2207,18 @@ Four features stand out.
 
 \paragraph{ISR scheme.}
 The LL$\to$NLL difference at the converged ($+$NNLO/$+\delta_\text{QCD}$)
-rung is the residual ISR-scheme bias on $\mW$: $+2.1\MeV$ in free mode
-(pure shape) and $-6.5\MeV$ under the realistic lumi prior, with
-$|\Delta\GammaW|\!\lesssim\!1\MeV$. This is consistent in magnitude with
-the $\pm5.4\MeV$ pure-NLL figure of the dedicated ISR cross-fit
-(section~\ref{sec:val-isr-cross}) and reaffirms that running the analysis
-with the NLL default (\code{isr_nll=True}) is necessary at the FCC-ee
-$0.25\MeV$ target.
+rung is the residual ISR-scheme bias on $\mW$. After the 2026-07-02 chain
+fixes (eMELA endpoint substitution removed; morph-anchor edge clamp) the
+picture sharpened considerably: the \emph{shape} residual collapses to
+$+0.03\MeV$ in free mode --- LL$\to$NLL is now almost pure normalisation
+($\sim\!+0.3\%$ ISR flux) --- while under the realistic lumi prior that
+flux difference leaks through the rate handle to $-18.2\MeV$. The two
+numbers are the clean split of the NNLL-truncation component quoted in
+section~\ref{sec:val-isr-cross} (shape-only vs.\ cov-lumi accounting);
+running the analysis with the NLL default (\code{isr_nll=True}) remains
+necessary at the FCC-ee $0.25\MeV$ target, and the cov-lumi leakage
+accounting (ISR-normalisation component vs.\ luminosity/cross-section
+normalisation budget) is an open bookkeeping choice, shown both ways.
 
 \paragraph{Free vs.\ prior.}
 The two lumi modes bracket the role of the absolute rate. With the
@@ -2189,9 +2228,9 @@ $\sigma_{\mW}\!\approx\!4.7\MeV$ (the rate carries $\mW$ information that
 is thrown away); with the tight realistic prior (\textbf{prior}) the rate
 sharpens $\sigma_{\mW}$ to $\approx\!1.31\MeV$ but couples a low-order
 normalisation error into $\mW$ --- which is why the LO bias balloons to
-$\sim\!90$--$100\MeV$ and the NNLO residual grows from $2.3$ to $3.4\MeV$. The
+$\sim\!90$--$110\MeV$ and the NNLO residual grows from $2.6$ to $3.4\MeV$. The
 honest perturbative-truncation number for the budget is the
-\textbf{free} (pure-shape) NNLO step, $\sim\!2.3\MeV$; the prior column
+\textbf{free} (pure-shape) NNLO step, $\sim\!2.6\MeV$; the prior column
 shows how much a low-order rate error would additionally leak through the
 luminosity constraint.
 
@@ -2265,45 +2304,54 @@ truncation uncertainty in DELTA).}
  & & [MeV] & [MeV] & [MeV] & \\
 \midrule
 \multicolumn{6}{l}{\emph{free correlated lumi (pure shape)}}\\
-ren   & ALPMZ (prod)        & $0.0$  & $0.0$  & $4.71$ & $+0.32$ \\
-ren   & ALGMU               & $+3.5$ & $+2.3$ & $4.64$ & $+0.32$ \\
-ren   & $\alpha(0)$         & $+5.8$ & $+3.1$ & $4.54$ & $+0.33$ \\
-scale & $\xi=0.5$           & $+7.9$ & $+3.9$ & $4.57$ & $+0.32$ \\
-scale & $\xi=2.0$           & $-1.2$ & $+1.1$ & $4.84$ & $+0.31$ \\
+ren   & ALPMZ (prod)        & $0.0$  & $0.0$  & $4.72$ & $+0.32$ \\
+ren   & ALGMU               & $-0.3$ & $-0.3$ & $4.72$ & $+0.32$ \\
+ren   & $\alpha(0)$         & $+1.1$ & $+0.4$ & $4.68$ & $+0.32$ \\
+scale & $\xi=0.5$           & $+5.0$ & $+2.4$ & $4.59$ & $+0.33$ \\
+scale & $\xi=2.0$           & $-6.0$ & $-3.3$ & $4.85$ & $+0.31$ \\
 \midrule
 \multicolumn{6}{l}{\emph{realistic FCC-ee correlated-lumi prior}}\\
-ren   & ALPMZ (prod)        & $0.0$   & $0.0$   & $1.31$ & $+0.66$ \\
-ren   & ALGMU               & $+38.0$ & $+5.6$  & $1.32$ & $+0.68$ \\
-ren   & $\alpha(0)$         & $+79.2$ & $+10.8$ & $1.32$ & $+0.70$ \\
-scale & $\xi=0.5$           & $+46.6$ & $+7.4$  & $1.31$ & $+0.67$ \\
-scale & $\xi=2.0$           & $-46.2$ & $-2.2$  & $1.31$ & $+0.65$ \\
+ren   & ALPMZ (prod)        & $0.0$   & $0.0$   & $1.32$ & $+0.68$ \\
+ren   & ALGMU               & $-0.8$  & $-0.3$  & $1.32$ & $+0.68$ \\
+ren   & $\alpha(0)$         & $+15.2$ & $+1.6$  & $1.32$ & $+0.68$ \\
+scale & $\xi=0.5$           & $+46.7$ & $+6.1$  & $1.32$ & $+0.69$ \\
+scale & $\xi=2.0$           & $-47.7$ & $-6.1$  & $1.32$ & $+0.66$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Reading the table (Table~\ref{tab:isr-scheme}).}
-The pure-shape (\textbf{free}) column is modest: the ISR coupling-scheme
-choice moves $\mW$ by $+3.5\MeV$ (ALPMZ$\to$ALGMU) to $+5.8\MeV$
-(ALPMZ$\to\alpha(0)$) once the rate is floated. The realistic-prior
-column is far larger --- $+38\MeV$ (ALGMU) and $+79\MeV$ ($\alpha(0)$)
---- because a $2.5$--$5.9\,\%$ change in the ISR coupling rescales the
-\emph{total} radiated energy, and that normalisation shift is \emph{not}
-absorbable by a luminosity constrained to $1\times10^{-4}$, so it leaks
-directly into $\mW$. The $\xi$ rows behave the same way ($\pm45\MeV$
-under the prior, near-cancelling in free mode), confirming they are a
-normalisation-driven stability artefact rather than a clean uncertainty
---- exactly the reason $\xi$ was removed from the production card.
+These are the post-2026-07-02 numbers (eMELA endpoint substitution
+removed, morph-anchor edge clamp) and they are qualitatively sharper than
+the campaign's original ones: the two chain artifacts responded to the
+ISR $\alpha$ differently from the genuine radiator over $\sim\!13\%$ of
+the endpoint weight and below the anchor-grid edge, inflating the scheme
+spread by up to an order of magnitude (ALGMU prior was $+38\MeV$
+pre-fix). Now the ALPMZ$\leftrightarrow$ALGMU swap --- a consistent
+reparametrisation of the same NLL tower --- nearly cancels, as it should:
+$-0.3\MeV$ free, $-0.8\MeV$ under the prior. $\alpha(0)$ remains a
+genuine outlier ($+1.1$ free, $+15.2\MeV$ prior) because it omits the
+QED running logs the NLL evolution resums --- a $+0.65\,\%$ pure
+normalisation offset that the $10^{-4}$-constrained luminosity cannot
+absorb, leaking into $\mW$ along the threshold turn-on. The $\xi$ rows
+behave the same way ($\pm47\MeV$ under the prior, $\pm5$--$6\MeV$ free),
+confirming they are a normalisation-driven stability diagnostic rather
+than a clean uncertainty --- exactly the reason $\xi$ was removed from
+the production card.
 
 \paragraph{Cross-section-level verification.}
 Because the prior-mode shifts are large, the effect was checked
 independently at the $\sigma$ level (script
 \code{scripts/investigations/isr\_scheme/verify\_isr\_alpha\_scheme.py}).
 The ratio $R(\sqrts)=\sigma_\text{scheme}/\sigma_\text{ALPMZ}$ on
-$\sqrts\in[157,163]\GeV$ is an almost \emph{flat} offset: $R-1=+1.62\,\%$
-(ALGMU) and $+3.43\,\%$ ($\alpha(0)$), with a $\sqrts$-slope of only
-$\sim\!10^{-3}\,\%/\GeV$ --- i.e.\ the shape distortion sits at or below
-the quadrature floor, and the mean offset is stable to $2.5\times10^{-5}$
-across $n_\text{quad}=128/192/256$. Three controls confirm the effect is
+$\sqrts\in[157,163]\GeV$ is an almost \emph{flat} offset: remeasured on
+the fixed chain (2026-07-02), $R-1=-0.026\,\%$ (ALGMU) and $+0.65\,\%$
+($\alpha(0)$), with a $\sqrts$-slope of only $\sim\!3\times10^{-3}\,\%/\GeV$
+--- the pre-fix values ($+1.62\,\%$/$+3.43\,\%$) were dominated by the
+endpoint-substitution artifact's spurious $\alpha$ response. Both convert
+to the ladder's prior-mode shifts through the $\approx\!23.5\MeV/\%$
+turn-on slope ($-0.6$ vs.\ $-0.8\MeV$ measured; $+15.3$ vs.\ $+15.2\MeV$)
+--- a closed consistency loop. Three controls confirm the effect is
 genuine and purely from ISR: (i) the \emph{partonic} $\hat\sigma$ is
 identical across the three schemes (the ISR coupling never touches the
 hard side); (ii) the shift tracks the $\alpha$ \emph{value} entering
@@ -2311,13 +2359,14 @@ $\beta_e$ (about half) plus the eMELA DGLAP renormalisation-scheme running
 (about half), not the scheme \emph{string}; (iii) $\beta_e$ scales exactly
 linearly in $\alpha$. So the scheme dependence is a nearly-pure
 \emph{normalisation} shift of the ISR-corrected rate: with the rate floated
-(free) only the tiny slope biases $\mW$ (the residual few-MeV figure is
-mostly the statistically-constrained rate, not a clean shape), while under
-the tight luminosity prior the $1.6$--$3.4\,\%$ rate offset cannot be
-absorbed and is compensated by $\mW$ sliding along the steep threshold
-turn-on ($\mathrm{d}\sigma/\mathrm{d}\sqrts\!\approx\!+0.16\,\text{pb}/\GeV$), giving the
-$\sim\!38$/$79\MeV$ shifts --- the factor $\sim\!10$ between prior and free
-is exactly the dominant-normalisation expectation.
+(free) only the tiny slope biases $\mW$, while under the tight luminosity
+prior the $\alpha(0)$ $+0.65\,\%$ rate offset cannot be absorbed and is
+compensated by $\mW$ sliding along the steep threshold turn-on
+($\mathrm{d}\sigma/\mathrm{d}\sqrts\!\approx\!+0.16\,\text{pb}/\GeV$), giving the
+$+15\MeV$ shift --- the factor $\sim\!14$ between prior and free is
+exactly the dominant-normalisation expectation, while the near-null ALGMU
+row shows a \emph{consistent} $\alpha$-scheme change compensating between
+$\beta_e$ and the DGLAP running at NLL.
 
 \paragraph{Interpretation and recommended number.}
 ALPMZ is the theoretically preferred scheme: the NLL resummation is built
@@ -2327,15 +2376,23 @@ QED running logs the NLL evolution is designed to capture), so the
 $\alpha(0)$ row is an extreme bound rather than an equal-validity
 alternative. Taking the ALPMZ$\leftrightarrow$ALGMU spread as the
 defensible scheme variation gives a residual ISR theory uncertainty of
-$\approx\!3.5\MeV$ (pure shape) rising to $\approx\!38\MeV$ once the
-non-absorbable rate component is included under the realistic lumi
-constraint. Either way the message is the same as the LL$\to$NLL
-cross-fit (section~\ref{sec:val-isr-cross}): \textbf{ISR is the dominant
-single theory systematic on $\mW$}, an order of magnitude or more above
-the $\mathcal{O}(2$--$3\MeV)$ perturbative-truncation proxy, and well
-above the $0.25\MeV$ FCC-ee target. Pinning the ISR coupling scheme (and
-ultimately the input $\alpha(M_Z)$ to the Tera-$Z$ precision) is
-therefore a precondition for an MeV-level $\mW$ extraction.
+$\lesssim\!0.3\MeV$ (pure shape) and $\lesssim\!0.8\MeV$ under the
+realistic lumi constraint. This \emph{revises} the campaign's original
+headline: the earlier $3.5$--$38\MeV$ spread --- and with it the claim
+that ISR is the dominant single theory systematic on $\mW$ --- was
+substantially an artifact of the two chain defects fixed on 2026-07-02
+(the eMELA endpoint substitution and the morph-anchor edge
+extrapolation), whose spurious $\alpha$ response the scheme variation
+probed. The surviving genuine ISR components are those of
+section~\ref{sec:val-isr-cross}: NNLL truncation $0.69\MeV$ shape-only
+($2.4\MeV$ in the cov-lumi accounting), the DELTA residual $0.14\MeV$,
+and the profiled $\alpha(M_Z)$-input nuisance ($0.005\MeV$) --- with the
+dominant-theory-systematic mantle passing to the pieces \emph{absent}
+from the chain (YFSWW3-class NLO-EW; and, on the independent chain, the
+hard-EW input-scheme spread of section~\ref{sec:indep-ew}). Pinning the
+input $\alpha(M_Z)$ to the Tera-$Z$ precision remains a precondition for
+an MeV-level $\mW$ extraction, now via the nuisance rather than a scheme
+ambiguity.
 
 \paragraph{Factorisation scheme: DELTA is the matched choice.}
 The DELTA$\leftrightarrow$MS$\overline{\text{S}}$ factorisation question has been
@@ -2866,7 +2923,7 @@ back} the physical ISR damping and inflated $\sigma_\text{obs}$ by
 ${\approx}{+}48\%$: the chain gave $\sigma_{WW}(161.3\GeV)\approx5.4$\,pb against
 the LEP measurement $3.69\pm0.45$\,pb~\cite{LEP2EW}. With the correction it
 gives $3.52$\,pb there and $5.41$\,pb at $163\GeV$, consistent with the BFS
-chain ($3.45$/$5.30$\,pb) and with YFSWW3 (${\approx}5.5$\,pb at $163\GeV$, read
+chain ($3.50$/$5.34$\,pb post the 2026-07-02 fixes) and with YFSWW3 (${\approx}5.5$\,pb at $163\GeV$, read
 from the $\sigma_{WW}(\sqrts)$ curve of~\cite{Azzurri2021}); see
 table~\ref{tab:threecalc-163}. The $C_1$ kernel is retained as a diagnostic
 (its $\mathcal O(\alpha^2)$ exactness against the convolution remains a unit
@@ -3594,9 +3651,9 @@ totals and the observed totals under the LL$+$exp and NLL radiators, after the
 \toprule
 calculation & no ISR & LL$+$exp & NLL & NLL/no-ISR \\
 \midrule
-BFS-EFT (NNLO$\,+\,\delta_\text{QCD}$, anchored) & $7.77$ & $5.29$ & $5.30$ & $0.683$ \\
-MoCaNLO (NLO-EW, off-shell $4f$)                 & $7.65$ & $5.41$ & $5.35$ & $0.700$ \\
-matched (MoCaNLO$\,+\,\delta_\text{NNLO}+\delta_\text{QCD}$) & $8.08$ & $5.71$ & $5.66$ & $0.700$ \\
+BFS-EFT (NNLO$\,+\,\delta_\text{QCD}$, anchored) & $7.77$ & $5.30$ & $5.34$ & $0.687$ \\
+MoCaNLO (NLO-EW, off-shell $4f$)                 & $7.65$ & $5.41$ & $5.37$ & $0.702$ \\
+matched (MoCaNLO$\,+\,\delta_\text{NNLO}+\delta_\text{QCD}$) & $8.08$ & $5.71$ & $5.67$ & $0.702$ \\
 \bottomrule
 \end{tabular}
 \caption{Total $\sigma_{WW}$ [pb] at $\sqrts=163\GeV$ for the three
@@ -3616,18 +3673,21 @@ $7.65$--$8.08$\,pb: the matched chain adds the BFS NNLO $K$-factor and the
 the BFS chain uses the semileptonic routing (the $+1.4\%$ difference of
 section~\ref{sec:match-construction}) on a line shape that sits $+2.3\%$ above
 it (off-shell $4f$ versus on-shell EFT$\times$BR). The radiators damp all three
-by the expected ${\approx}30\%$ --- $\times0.683$ (BFS) versus $\times0.700$
-(independent chains), the $1.7$\,pp gap being $\hat\sigma$-shape and kernel
+by the expected ${\approx}30\%$ --- $\times0.687$ (BFS) versus $\times0.702$
+(independent chains), the $1.5$\,pp gap being $\hat\sigma$-shape and kernel
 recipe freedom; on identical $\hat\sigma_\text{NLO}$ the LL$+$exp damping runs
 monotonically from $-34.0\%$ at $\sqrts=157.5\GeV$ to $-29.3\%$ at $163\GeV$.
 The LL$\to$NLL columns move in opposite directions for the reasons of
 section~\ref{sec:match-nll} (radiator $\alpha$ conventions). Externally, the
 corrected chains agree with the LEP combined measurement
-$\sigma_{WW}(161.3\GeV)=3.69\pm0.45$\,pb~\cite{LEP2EW} ($3.45$/$3.52$\,pb) and
+$\sigma_{WW}(161.3\GeV)=3.69\pm0.45$\,pb~\cite{LEP2EW} ($3.50$/$3.52$\,pb) and
 with the YFSWW3 curve of~\cite{Azzurri2021} (${\approx}5.5$\,pb at $163\GeV$).
 The full-ISR totals thus agree across the three calculations within a
-${\pm}3\%$ band, $5.30$--$5.66$\,pb, with the BFS-NLL value $5.30$\,pb the
-best-motivated central number.
+${\pm}3\%$ band, $5.34$--$5.67$\,pb, with the BFS-NLL value $5.34$\,pb the
+best-motivated central number. (Table refreshed 2026-07-02 after the
+endpoint and morph-edge fixes; the MoCaNLO/matched NLL cells also moved
+$+0.3$--$0.4\%$ relative to the original because the production
+independent-chain ISR is now the ripple-free 1-D luminosity convolution.)
 
 \subsection{Matched Asimov pull}\label{sec:match-pull}
 
@@ -3830,8 +3890,31 @@ Script \code{scripts/investigations/bfs\_match/plot\_match\_lineshape.py}.}
     deep-endpoint continuation --- \code{ll\_pdf} has no internal asymptotic and
     returns NaN below omx\,$\approx\!10^{-16}$ --- but now uses eMELA-LL's own
     converged plateau ($0.19\%$ above the analytic constant), not the truncated
-    value. Theory-ladder and ISR-scheme cross-fit numbers are being regenerated
-    on the fixed chain.
+    value. Theory-ladder and ISR-scheme numbers in this report were
+    regenerated on the fixed chain the same day.
+  \item \textbf{Morph-anchor sub-edge extrapolation (REVERSED 2026-07-02;
+    fixed).} The production \code{morph} WHIZARD anchor
+    (section~\ref{sec:anchor}) evaluated natural cubic splines with
+    \code{extrapolate=True} below the $154\GeV$ edge of its
+    \code{grid\_fine} knot range, where they turn \emph{negative}; the ISR
+    convolution samples that region from every scan point, suppressing the
+    observed templates by $2.1\%$ at $\sqrts=157.5\GeV$ falling to $0.6\%$
+    at $162.5\GeV$. Asimov results were immune (model $=$ data), but a
+    cross-fit of the fixed chain against the pre-fix line shape measures
+    the bias a real-data fit would have inherited: $+2.8\MeV$ on $\mW$ and
+    $-23\MeV$ on $\GammaW$. The fix freezes the anchor \emph{calibration
+    factor} at the knot edge (numerator and EFT-Born denominator evaluated
+    at the clamped $\sqrts$), so the EFT Born shape continues below
+    $154\GeV$ with the edge calibration; the $[149,150]\GeV$ quintic floor
+    is unchanged. Templates, diagnostics, the theory ladder and the
+    ISR-scheme tables were regenerated; $\sigma(\GammaW)$ improves
+    $2.75\!\to\!2.55\MeV$ (ladder prior mode) from the restored
+    width-sensitive tail. The residual (legitimate) morph-vs-grid anchor
+    difference is $-0.15\%$ at $157.5\GeV$ shrinking to $-0.04\%$ at
+    $162.5\GeV$. A template-fingerprint version token
+    (\code{isr\_radiator\_version}, \code{anchor\_morph\_version}) now
+    guards against silent stale-by-value template reuse, which both
+    2026-07-02 fixes required \code{--force} to work around.
   \item \textbf{$\delta_\text{QCD}$ bookkeeping (resolved).} Confirmed: MoCaNLO takes
     the physical (QCD-corrected) $\GammaW$ as an external input while its $W\!\to q\bar
     q$ matrix element runs at QCD order zero, so its hadronic branching ratio
