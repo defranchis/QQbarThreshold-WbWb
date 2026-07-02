@@ -11,12 +11,16 @@ Provenance / independence
 The radiator ``D(x)`` is transcribed **directly from the MoCaNLO source**,
 ``src/mocanlo/pdfs/lepton_pdfs.F90`` subroutine ``lepton_pdf_convolution``
 (case ``LO_beta`` etc.), itself appendix A of arXiv:2207.03265 (Bertone,
-Cacciari, Frixione, Stagnitto, Zaro, Zhao).  It deliberately does **not**
-import the project's BFS ``xsec_calculator.isr`` module — this chain shares no
-code or numerical input with the BFS-EFT calculation.  (The two radiators are
-mathematically the same LEP-YR structure function, so a numerical cross-check
-against ``isr.sigma_ISR_2leg_convolution`` is a useful *validation*, performed
-in ``tests``/``__main__`` — but it is not a dependency.)
+Cacciari, Frixione, Stagnitto, Zaro, Zhao).  The analytic LL chain deliberately
+does **not** import the project's BFS ``xsec_calculator.isr`` module and shares
+no code or numerical input with the BFS-EFT calculation.  (The two radiators
+are mathematically the same LEP-YR structure function, so a numerical
+cross-check against ``isr.sigma_ISR_2leg_convolution`` is a useful
+*validation*, performed in ``tests``/``__main__`` — but it is not a
+dependency.)  The NLL path is the one deliberate exception: it shares the
+eMELA library (``emela_wrapper``) and the single λ₁(N_F=0) constant
+(``LAMBDA1_NF0``, imported in ``_norm_nll_endpoint``) with the BFS chain —
+same NLL convention by design, not an independence leak in the σ̂ inputs.
 
 Why decoupled quadrature
 -------------------------
@@ -323,8 +327,9 @@ class ISRConfig:
     m_e           ISR regulator mass.
     x_min         per-leg lower cutoff (x₁x₂ ≥ x_min² stays below WW threshold).
     n_quad        GL nodes per leg.
-    nll           EXPLORATORY: replace the analytic LL+exp per-leg radiator with
-                  eMELA's NLL electron ePDF (DGLAP-evolved).  There is NO O(α)
+    nll           replace the analytic LL+exp per-leg radiator with eMELA's
+                  NLL electron ePDF (DGLAP-evolved); production for the NLL
+                  chain since 74f110a (dofit_indep default).  There is NO O(α)
                   matching subtraction (see module docstring "No O(α) re-
                   subtraction"): the σ̂ grids are beam-ISR-free, so the radiator
                   alone supplies the ISR and σ_obs = ∫∫ D D σ̂_NLO.
@@ -345,21 +350,24 @@ class ISRConfig:
     nll: bool = False
     emela_fac_scheme: str = "DELTA"
     emela_ren_scheme: str = "ALPMZ"
-    #: EXPLORATORY (LHAPDF approach): path to a precomputed eMELA grid (.npz from
-    #: isr_emela_grid.build_and_write).  When set AND nll=True, the per-leg NLL
-    #: radiator interpolates x·D from the grid instead of calling eMELA's DGLAP
-    #: solver per node — √s/μ_F/quadrature-independent, no eMELA runtime dep.  The
-    #: analytic norm_nll endpoint (omx<1e-15) is unchanged.  "" = direct eMELA.
+    #: Path to a precomputed eMELA grid (.npz from isr_emela_grid.build_and_write).
+    #: When set AND nll=True, the per-leg NLL radiator interpolates x·D from the
+    #: grid instead of calling eMELA's DGLAP solver per node — √s/μ_F/quadrature-
+    #: independent, no eMELA runtime dep.  The analytic norm_nll endpoint
+    #: (omx<1e-15) is unchanged.  "" = direct eMELA.  PROD_EMELA_GRID via the
+    #: generator is the production NLL route (feeds the luminosity form).
     emela_grid: str = ""
-    #: EXPLORATORY (opt-in, NLL-grid path only): route the two-leg convolution
-    #: through the 1-D LUMINOSITY self-convolution (``isr_lumi``) instead of the
-    #: 2-D ``convolve_2leg`` einsum.  Requires ``nll=True`` AND ``emela_grid`` set
-    #: (the per-leg ρ̃ source).  Faithful to the 2-D (reproduces its ripple-free
-    #: many-n_quad mean to ~tens of ppm) but RIPPLE-FREE and smoother: the 2-D's
-    #: plain Gauss-Legendre straddles the σ̂ grid-edge step at √ŝ=156 (point-wise
-    #: ripple ∝1/n_quad), whereas the luminosity makes that step the outer
-    #: integration LIMIT.  Production default stays 2-D (``False``) until the
-    #: cross-fit Δm_W gate passes (HANDOFF_lumi_to_production_2026-06-18.md).
+    #: Route the two-leg convolution through the 1-D LUMINOSITY self-convolution
+    #: (``isr_lumi``) instead of the 2-D ``convolve_2leg`` einsum.  Requires
+    #: ``nll=True`` AND ``emela_grid`` set (the per-leg ρ̃ source).  Faithful to
+    #: the 2-D (reproduces its ripple-free many-n_quad mean to ~tens of ppm) but
+    #: RIPPLE-FREE and smoother: the 2-D's plain Gauss-Legendre straddles the σ̂
+    #: grid-edge step at √ŝ=156 (point-wise ripple ∝1/n_quad), whereas the
+    #: luminosity makes that step the outer integration LIMIT.  PRODUCTION for
+    #: the NLL chain since 74f110a: the field default stays False, but
+    #: WWGeneratorMoCaNLO (isr_lumi=None auto) routes NLL fits through it —
+    #: scheme-variation callers building their own cfg keep the 2-D unless they
+    #: opt in.
     lumi: bool = False
 
     def resolved_alpha(self) -> float:

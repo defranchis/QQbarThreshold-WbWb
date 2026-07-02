@@ -116,9 +116,12 @@ class WWGeneratorMoCaNLO:
     match_bfs_dqcd: bool = True         # add δ_QCD to hadronic-decay channels
     alpha_s: float = 0.1199             # α_s(M_W) for δ_QCD (BFS reference)
     sm: SMInputs = field(default_factory=SMInputs)   # mt/MH/MZ for δ_NNLO
-    # EXPLORATORY: upgrade the ISR convolution from analytic LL+exp to eMELA NLL
+    # Upgrade the ISR convolution from analytic LL+exp to eMELA NLL
     # (α(M_Z)/ALPMZ/DELTA — the BFS production NLL convention).  Independent of
-    # match_bfs; the O(α) matching subtraction stays analytic-LL (see isr_beta).
+    # match_bfs; NO O(α) matching subtraction on either path (the grids are
+    # collinear-counterterm-subtracted — see isr_beta "No O(α) re-subtraction").
+    # Field default False so scheme-variation callers (crossfit_scheme) keep the
+    # radiator they built; dofit_indep flips it on for production fits.
     isr_nll: bool = False
     # ISR convolution form for the NLL chain (the isr_nll LL→NLL upgrade path).
     #   None  = AUTO (PRODUCTION DEFAULT): use the ripple-free 1-D LUMINOSITY
@@ -132,6 +135,9 @@ class WWGeneratorMoCaNLO:
     #           (PROD_EMELA_GRID), not direct eMELA.
     #   False = force the 2-D einsum (direct-eMELA radiator) — the pre-flip path.
     #   True  = force luminosity (errors if no NLL radiator is active).
+    # With a user-supplied isr_cfg(nll=True) (isr_nll flag unset), None=auto
+    # respects that cfg verbatim (scheme-variation callers keep exact control);
+    # explicit True/False still override its lumi routing.
     isr_lumi: bool | None = None
     _grids: dict = field(default=None, repr=False)
     _cache: dict = field(default_factory=dict, repr=False)
@@ -222,6 +228,14 @@ class WWGeneratorMoCaNLO:
                 n_quad=self.isr_cfg.n_quad,
                 emela_fac_scheme="DELTA", emela_ren_scheme="ALPMZ", **lumi_kw)
         cfg = self.isr_cfg
+        # User-supplied NLL cfg (isr_nll flag unset): auto/None keeps the cfg
+        # verbatim, but an EXPLICIT isr_lumi=True/False must still route the
+        # convolution — it was silently ignored here before 2026-07-02.
+        if cfg.nll and self.isr_lumi is True and not cfg.lumi:
+            cfg = replace(cfg, lumi=True,
+                          emela_grid=cfg.emela_grid or PROD_EMELA_GRID)
+        elif self.isr_lumi is False and cfg.lumi:
+            cfg = replace(cfg, lumi=False)
         try:
             want = isr_beta.alpha_for_scheme(self.scheme_alpha)
         except ValueError:

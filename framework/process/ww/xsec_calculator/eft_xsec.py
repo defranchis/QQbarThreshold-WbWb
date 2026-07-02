@@ -424,7 +424,7 @@ def sigma_partonic_munuqq(s,
                           mW: float = M_W_DEFAULT,
                           gammaW: float = GAMMA_W_DEFAULT,
                           channel: str = "inclusive",
-                          include_coulomb: bool = True,
+                          include_coulomb: bool = False,
                           bfs: BFSCorrections | None = None,
                           br_convention: str = "pdg-constant",
                           # Defaults below are the project's "best calculation"

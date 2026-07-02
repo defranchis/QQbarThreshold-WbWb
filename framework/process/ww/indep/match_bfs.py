@@ -38,10 +38,12 @@ and adding them would double-count.
 
 Bookkeeping note (the matching is correct because):
   σ̂_comb(ŝ) = σ̂_MoCaNLO,NLO(ŝ)  +  δ_NNLO(ŝ)·σ̂_MoCaNLO,Born(ŝ)
-The NNLO term rides through the SAME single ISR convolution as the NLO term,
-but the O(α) ISR matching subtraction stays keyed to σ̂_MoCaNLO,Born ONLY —
-because MoCaNLO's σ̂_NLO carries the explicit O(α) ISR log while the BFS-derived
-δ_NNLO·Born term is ISR-naked.  See generator_mocanlo.WWGeneratorMoCaNLO.
+is ONE callable pushed through ONE full radiator convolution — both terms are
+ISR-naked (the production grids are collinear-counterterm-subtracted, and the
+never-radiated δ_NNLO·Born term trivially so), there is NO O(α) matching
+subtraction on either term, and both therefore see the identical radiator /
+α / x_min / n_quad / scheme (see isr_beta "No O(α) re-subtraction" and
+generator_mocanlo.WWGeneratorMoCaNLO._varpoint_lineshape).
 
 This module imports the BFS σ-chain on purpose: the "independent" MoCaNLO path
 stays independent only in its default (match_bfs=False) mode; the matched mode

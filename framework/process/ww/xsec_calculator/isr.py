@@ -407,7 +407,9 @@ def _H_SV_per_leg(beta: float, nll: bool = False,
 # the within-process one.  Bump ``_RADIATOR_DISK_VERSION`` if the radiator math /
 # eMELA conventions change (the eMELA .so content hash is folded in already).
 _RADIATOR_CACHE: dict = {}
-_RADIATOR_DISK_VERSION = 1
+_RADIATOR_DISK_VERSION = 3   # v3: NLL no endpoint substitution; eMELA-LL
+                             # deep-endpoint continued with its own plateau
+                             # (2026-07-02; v2 was a same-day intermediate)
 _EMELA_LIB_TAG: str | None = None
 
 
@@ -496,12 +498,18 @@ def _build_emela_radiator(sq: float, *, alpha_a: float, isr_scale_factor: float,
                           emela_ren_scheme: str):
     """Build ONE (√s, cfg) per-leg eMELA radiator → (x_vals, w, per_leg).
 
-    Byte-identical to the inline build that used to live in
-    ``sigma_ISR_2leg_convolution``: same β_e, same u-substitution grid, same
-    ``code_pdf``(nll) / ``ll_pdf``(eMELA-LL) per-node loop and the same analytic
-    ``_H_SV_per_leg`` substitution for omx < 1e-15.  Self-initialises eMELA so it
-    is safe to call from ``prewarm`` standalone (``initialize`` is a no-op when
-    the args already match)."""
+    Same β_e and u-substitution grid as the analytic path; nodes query eMELA
+    via ``code_pdf``(nll) / ``ll_pdf``(eMELA-LL) with 1−x passed explicitly —
+    ``one_minus_x`` = u^{2/β} stays representable (≳1e-300) even where
+    ``x_vals`` rounds to 1.0.  NLL: every node is a genuine ``code_pdf`` query
+    (it applies its own soft asymptotic internally, healthy to omx ≤ 1e-60);
+    the former ``omx < 1e-15 → _H_SV_per_leg`` substitution replaced eMELA's
+    genuine NLL soft enhancement with the LL constant over 13 % of the u-space
+    weight (−0.19 % per-leg radiator mass, −0.45 % σ_obs — 2026-07-02 review).
+    eMELA-LL: ``ll_pdf`` NaNs below omx ≈ 1e-16, so deep-endpoint nodes are
+    continued with eMELA-LL's own (flat) plateau value instead.
+    Self-initialises eMELA so it is safe to call from ``prewarm`` standalone
+    (``initialize`` is a no-op when the args already match)."""
     from . import emela_wrapper as _emela
     _emela.initialize(pert_order=emela_pert_order, fac_scheme=emela_fac_scheme,
                       ren_scheme=emela_ren_scheme, alpha=alpha_a)
@@ -509,18 +517,30 @@ def _build_emela_radiator(sq: float, *, alpha_a: float, isr_scale_factor: float,
     beta = beta_ISR(s, alpha_em=alpha_a, isr_scale_factor=isr_scale_factor)
     u, w, x_vals, one_minus_x, jac_NS = _endpoint_substitution(
         beta / 2.0, x_min, n_quad)
-    H_sv_em = _H_SV_per_leg(beta, nll=nll, alpha_em=alpha_a)
     Q = float(sq) * isr_scale_factor
     per_leg = np.empty_like(x_vals)
+    ll_plateau = None
+    if not nll:
+        # eMELA's LLPDF has no internal soft asymptotic: it returns NaN below
+        # omx ≈ 1e-16 (CodePdf is healthy to ≤1e-60).  The LL u-integrand is
+        # flat there (plateau constant over omx ∈ [1e-16, 1e-10], verified
+        # 2026-07-02), so continue the deep-endpoint nodes with eMELA-LL's OWN
+        # plateau value — not the analytic ``_H_SV_per_leg`` constant, whose
+        # β³-truncated normalisation sits 0.19 % below the DGLAP-evolved one.
+        omx_ref = 1e-15
+        u_ref = omx_ref ** (beta / 2.0)
+        jac_ref = u_ref ** (2.0 / beta - 1.0) / (beta / 2.0)
+        ll_plateau = (_emela.ll_pdf(1, 1.0 - omx_ref, omx_ref, Q)
+                      / (1.0 - omx_ref) * jac_ref)
     for i in range(len(x_vals)):
         omx_i = float(one_minus_x[i])
-        if omx_i < 1e-15:
-            per_leg[i] = H_sv_em
-        else:
-            x_i = float(x_vals[i])
-            xD = (_emela.code_pdf(x_i, omx_i, Q) if nll
-                  else _emela.ll_pdf(1, x_i, omx_i, Q))
-            per_leg[i] = xD / x_i * float(jac_NS[i])
+        x_i = float(x_vals[i])
+        if not nll and omx_i < 1e-15:
+            per_leg[i] = ll_plateau
+            continue
+        xD = (_emela.code_pdf(x_i, omx_i, Q) if nll
+              else _emela.ll_pdf(1, x_i, omx_i, Q))
+        per_leg[i] = xD / x_i * float(jac_NS[i])
     return x_vals, w, per_leg
 
 
@@ -813,8 +833,11 @@ def sigma_ISR_2leg_convolution(sqrt_s,
     correction.  Mutually exclusive with ``nll=True``; setting both
     ``isr_nll`` and ``isr_emela_ll`` raises ValueError.
 
-    Near x→1 (omx underflows below 1e-15): the analytic limit H_SV / H_SV_NLL
-    is substituted (those nodes contribute negligibly to the sum).
+    Near x→1 the wrapper passes omx = u^{2/β} explicitly (representable far
+    below double-epsilon of x).  NLL: every node is a genuine ``code_pdf``
+    query (internal soft asymptotic, no analytic substitution).  eMELA-LL:
+    ``ll_pdf`` NaNs below omx ≈ 1e-16, so deep-endpoint nodes reuse eMELA-LL's
+    own flat plateau (see ``_build_emela_radiator``).
     eMELA must be importable (libeMELApy.so installed via
     scripts/investigations/nll_isr/build_emela_wrapper.sh).
 
@@ -878,9 +901,9 @@ def sigma_ISR_2leg_convolution(sqrt_s,
         if _use_emela:
             # σ̂-independent per-leg eMELA radiator, cached in-memory + on disk
             # (see _emela_radiator_setup).  per_leg[i] = xD(x_i,Q)/x_i·|dx/du|_i
-            # via code_pdf (nll) / ll_pdf (eMELA-LL), with the analytic H_SV
-            # limit for omx_i < 1e-15.  Built once per (√s, ISR-cfg) and reused
-            # across every σ̂ variation of the morph/fit.
+            # via code_pdf (nll) / ll_pdf (eMELA-LL) at every node (omx passed
+            # explicitly; no analytic endpoint substitution).  Built once per
+            # (√s, ISR-cfg) and reused across every σ̂ variation of the fit.
             x_vals, w, per_leg = _emela_radiator_setup(
                 float(sq), alpha_em_isr=alpha_em_isr,
                 isr_scale_factor=isr_scale_factor, x_min=x_min, n_quad=n_quad,
@@ -923,7 +946,7 @@ def sigma_observed_munuqq(sqrt_s,
                           channel: str = "inclusive",
                           z_min: float = _Z_MIN_DEFAULT,
                           n_quad: int = 200,
-                          include_coulomb: bool = True,
+                          include_coulomb: bool = False,
                           bfs: BFSCorrections | None = None,
                           br_convention: str = "pdg-constant",
                           # Defaults below are the project's "best calculation"

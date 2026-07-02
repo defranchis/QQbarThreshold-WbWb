@@ -90,7 +90,6 @@ def _run_card(ecm: float, integ: IntegrationSettings) -> str:
 \t\t<histograms       id="none"/>
 \t</run>""")
     runs_block = "\n".join(runs)
-    n_acc = f"{integ.n_target_accepted:,}".replace(",", " ")
     return f"""<runs directory="out">
 {runs_block}
 </runs>

@@ -80,7 +80,9 @@ def partonic_kwargs_from_card(card) -> dict:
     theory = getattr(card, "PARAM_INPUTS", {})
     return dict(
         channel=str(nlo.get("channel", "inclusive")),
-        include_coulomb=bool(nlo.get("include_coulomb", True)),
+        # Fallback False = the decommissioned-K_C production default; the card
+        # sets the key explicitly, so this only guards key-less test cards.
+        include_coulomb=bool(nlo.get("include_coulomb", False)),
         br_convention=str(nlo.get("br_convention", "pdg-constant")),
         include_NLO_hard_decay=bool(nlo.get("include_NLO_hard_decay", True)),
         include_BFS_NNLO=bool(nlo.get("include_BFS_NNLO", True)),
