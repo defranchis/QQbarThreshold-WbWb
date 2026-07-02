@@ -2,7 +2,8 @@
 
 A modular chi2/Minuit fit of the cross-section lineshape near production
 thresholds at FCC-ee. Currently configured for **WbWb** (top-quark threshold,
-~343 GeV) and scaffolded for **WW** (W-pair threshold, ~161 GeV).
+~343 GeV) and **WW** (W-pair threshold, ~161 GeV) — both wired end-to-end,
+WW with two independent cross-section chains (BFS-EFT and MoCaNLO+Recola).
 
 It grew out of the monolithic `work/doFit.py` (in the commit history); the
 refactor split the fit machinery from process-specific glue so that different
@@ -33,7 +34,7 @@ WW_threshold/
 │   │                              alphaS / scale / shift / chi2 / true-value
 │   │                              (one impact line per POI)
 │   │   ├── systematics.py      - print_syst_table (text + LaTeX)
-│   │   └── parallel.py         - fork-based scan dispatcher
+│   │   └── eos_publish.py      - mirror fit outputs to the EOS web area
 │   └── process/
 │       ├── wbwb/                 - WbWb process code (fit-side + calculation)
 │       │   ├── generator.py        - thin wrapper around xsec_calculator.xsec_calc
@@ -51,20 +52,33 @@ WW_threshold/
 │       └── ww/                   - WW process code (fit-side + calculation)
 │           ├── generator.py        - WWGenerator + .from_card factory + chain-
 │           │                         kwargs helpers (single source of truth)
-│           ├── fit.py              - WWFit (placeholder; inherits FitCore)
+│           ├── fit.py              - WWFit (thin; inherits FitCore)
+│           ├── theory_ladder.py    - incremental theory-piece Asimov ladder
+│           ├── scenario_compare.py / channel_extrap.py / template_metadata.py
+│           ├── indep/              - BFS-free cross-check chain: MoCaNLO+Recola
+│           │                         NLO-EW grids ⊗ β/eMELA ISR (isr_beta.py,
+│           │                         isr_lumi.py 1-D luminosity NLL = production,
+│           │                         match_bfs.py exploratory matching)
 │           └── xsec_calculator/    - WW BFS-EFT cross-section calculation (Python)
 │               ├── bfs_eft.py        - BFS-EFT N^(3/2)LO Born (eq. 17+33+37+39 of
 │               │                       arXiv:0707.0773) + h4-h7 single-resonant +
 │               │                       NLO loops (HSC + Coulomb_NLO + EW-decay)
 │               │                       + Whizard 4f Born anchor (sec. 6.2) + δ_QCD
-│               ├── eft_xsec.py       - σ partonic entry points + Fadin-Khoze-Martin
-│               │                       Coulomb K-factor + RACOONWW spline above 170 GeV
+│               ├── bfs_c1fin.py      - analytic c^(1,fin) in (m_W, m_t, M_H, M_Z)
+│               ├── eft_xsec.py       - σ partonic entry points + RACOONWW spline
+│               │                       above 170 GeV (+ decommissioned FKM K_C,
+│               │                       include_coulomb=False everywhere)
+│               ├── grid_morph.py     - WHIZARD-anchor morph (production source)
+│               ├── emela_wrapper.py  - thin eMELA (libeMELApy.so) interface
 │               └── isr.py            - ISR convolution: LL+exp BETA radiator
 │                                       (LEP2 YR eq. 67) + eMELA NLL ePDF
 │                                       (BCFS arXiv:1911.12040). Single-conv
 │                                       default + 2-leg per BFS eq. 71.
 │                                       Production default since 2026-05-29:
-│                                       isr_nll=True (eMELA DELTA+ALPMZ).
+│                                       isr_nll=True (eMELA DELTA+ALPMZ); since
+│                                       2026-07-02 the NLL radiator queries eMELA
+│                                       at every node (endpoint substitution
+│                                       removed, σ_obs +0.45% flat).
 ├── output_xsec/            - pre-computed σ-template input files for the
 │   ├── wbwb/                 fit (gitignored; one subdir per process, each
 │   └── ww/                   with {nominal,scale_vars,BEC,sw2,pseudo,…})
@@ -84,8 +98,10 @@ WW_threshold/
 ├── compute_xsec_ww.py      - WW template-generation driver (nominal + BEC vars)
 ├── doFit_wbwb.py           - WbWb entry script
 ├── doFit_ww.py             - WW entry script
-└── setup.sh                - prepend the QQbar_threshold .so directory to
-                              LIBRARY_PATH / LD_LIBRARY_PATH / CPLUS_INCLUDE_PATH
+└── setup.sh                - source the cvmfs LCG_106 python stack
+                              (numpy/scipy/iminuit) and prepend the
+                              QQbar_threshold / eMELA .so directories to the
+                              library paths (needed by BOTH processes now)
 ```
 
 ## Quick start
@@ -95,14 +111,17 @@ WW_threshold/
 source setup.sh                   # loads the C++ libQQbar_threshold
 python3 doFit_wbwb.py --systTable
 
-# WW (W-pair threshold) — no setup.sh needed (pure Python)
-python3 compute_xsec_ww.py        # regenerate templates (~2 s, idempotent)
+# WW (W-pair threshold) — setup.sh needed too (LCG python stack + eMELA
+# for the NLL-ISR production default)
+source setup.sh
+WW_ISR_NJOBS=16 python3 compute_xsec_ww.py   # regenerate templates (idempotent;
+                                             # ~5 min for the full NLL set on a
+                                             # multi-core node, reuse is instant)
 python3 doFit_ww.py --systTable
 ```
 
 Or run the full diagnostic suites via `./allFits_wbwb.sh` / `./allFits_ww.sh`
-(chain the relevant scans + syst table; `allFits_wbwb.sh` sources `setup.sh`
-itself, `allFits_ww.sh` doesn't need it).
+(chain the relevant scans + syst table; source `setup.sh` first either way).
 
 ## Running scans
 
@@ -347,11 +366,16 @@ bash compile_calc.sh        # builds xsec_calc.cpython-*.so
 python ../../../../compute_xsec_wbwb.py --ncores 8 --outdir ../../../../output_xsec/wbwb/nominal
 ```
 
-**WW** is pure-Python (full BFS-EFT chain — see `framework/process/ww/xsec_calculator/`
-and the WW status section below) and runs in ~2 s with no build step:
+**WW** is python (full BFS-EFT chain — see `framework/process/ww/xsec_calculator/`
+and the WW status section below); the NLL-eMELA production default needs the
+`libeMELApy.so` built once via
+`scripts/investigations/nll_isr/build_emela_wrapper.sh`:
 
 ```bash
-python3 compute_xsec_ww.py    # nominal + BEC-variation templates, idempotent
+source setup.sh
+WW_ISR_NJOBS=16 python3 compute_xsec_ww.py   # nominal + BEC templates, idempotent
+                                             # (fingerprint-reuse; NOTE: value-only
+                                             # chain changes need --force)
 ```
 
 ## Physics conventions
@@ -459,10 +483,13 @@ NLL-order m_W shift) and the **ISR scale ξ** (a DGLAP-stability check only,
 
 The ladder bounds only the **missing higher orders of pieces already in the
 chain**: the series has converged by NNLO (~2–3 MeV residual on m_W) and
-δ_QCD is an exact no-op under pdg-constant BR routing. The scheme block shows
-**ISR is the dominant single theory systematic on m_W** — the α-scheme spread
-is ~3.5 MeV (pure shape, ALPMZ↔ALGMU), rising to ~36 MeV once the
-non-lumi-absorbable rate component is included under the realistic prior. It
+δ_QCD is an exact no-op under pdg-constant BR routing. The ISR components
+quoted from the ladder (post-endpoint-fix, 2026-07-02; itemised, never added
+in quadrature) are: NNLL truncation 0.60 MeV shape-only / 2.43 MeV cov-lumi
+(LL→NLL is now almost pure +0.3% normalisation — the cov-lumi leakage
+accounting is an open choice), residual DELTA scheme 0.14 MeV, α(M_Z) input
+0.005 MeV; the `ren`/`scale` rows are stability diagnostics, not components
+(see `plots/theory_ladder/theory_ladder.txt`). It
 does **not** capture pieces entirely absent from the chain — NLO-EW
 (YFSWW3-class), higher-order Coulomb (BFS `G_C` vs the dropped FKM `K_C`), and
 the deferred DELTA↔MSBAR ISR factorisation variation — which need a separate
@@ -478,13 +505,13 @@ Cross-section pipeline (in `framework/process/ww/xsec_calculator/`):
   **dominant NNLO** from arXiv:0807.0102 eq. (49) — C×[S+H] + NLO-C +
   C×decay + C×res + C3, all closed-form (eqs. 11, 34, 39, 40, 48) — a
   δ_QCD multiplier, and the Whizard 4f Born anchor (BFS sec. 6.2). The
-  anchor has two sources via `NLO_CONFIG["whizard_anchor_source"]`:
-  `spline` (BFS Tables 1+2, cubic in δ=√s−2m_W + linear in Γ_W) and
-  `grid` (1295-pt WHIZARD 3.1.5 scan, 3D trilinear). A denser morphing
-  scheme (per-√s quadratic + bilinear, fed by the 6363-pt `grid_fine`
-  campaign + 0.5-GeV highstats wings) is validated sub-MeV-safe under
-  `scripts/investigations/whizard_grid_highstats/` but not yet wired into
-  the fit. Both anchors apply a fixed BR-strip `(Γ_W / Γ_W^(0)(M_W_BFS_REF))²`
+  anchor has three sources via `NLO_CONFIG["whizard_anchor_source"]`:
+  `morph` (**production default** — per-√s quadratic + bilinear morph +
+  cubic √s spline over the 6363-pt `grid_fine` campaign + 0.5-GeV
+  highstats wings, validated sub-MeV-safe under
+  `scripts/investigations/whizard_grid_highstats/`), `grid` (1295-pt
+  WHIZARD 3.1.5 scan, 3D trilinear) and `spline` (BFS Tables 1+2, cubic
+  in δ=√s−2m_W + linear in Γ_W). All apply a fixed BR-strip `(Γ_W / Γ_W^(0)(M_W_BFS_REF))²`
   under the PDG-constant chain so σ_observed = σ_WW × BR_PDG (Azzurri
   picture; the Γ_W crossing at √s ≈ 162 GeV is preserved). All chain knobs
   are card-driven and on by default (`cards/ww_default.py` NLO_CONFIG).
@@ -607,10 +634,8 @@ What's NOT yet in the calculation (priority order for sub-MeV m_W):
    Trivial to add. The dominant recipe-detail residual — BFS's
    σ̂_LR^(0)→σ̂_Born_full substitution in Δσ_decay — is implemented
    (see `decay_uses_full_born` knob in `NLO_CONFIG`).
-2. **Finer Whizard anchor grid** — currently uses only the 6 √s × 2 Γ_W
-   reference points from BFS Tables 1+2; a denser grid (run Whizard
-   ourselves) would remove the 168-GeV dσ/dΓ_W bump and shrink the
-   Born-side ~0.3 MeV systematic.
+2. ~~Finer Whizard anchor grid~~ — **done**: the 6363-pt `grid_fine`
+   morph is the production anchor source (`whizard_anchor_source="morph"`).
 
 Shipped 2026-05-29:
 - **NLL ISR as production default** (`isr_nll=True`) — removes the
@@ -629,13 +654,17 @@ A **parallel, BFS-free implementation** (MoCaNLO+Recola NLO-EW ⊗ decoupled
 beta-scheme / eMELA ISR) lives in `framework/process/ww/indep/`, slotting into
 the same `do_scan` / `file_name` contract as a second `WWGeneratorMoCaNLO` for
 publication-level cross-validation — independent σ(m_W) / σ(Γ_W) / ρ (report
-section "Independent BFS-free cross-check").
+section "Independent BFS-free cross-check"). Its production ISR is the
+ripple-free **1-D luminosity eMELA-NLL** convolution (`indep/isr_lumi.py`,
+default in `scripts/indep_mocanlo/dofit_indep.py`); the 2-D einsum and the
+analytic LL radiator remain as fallbacks/diagnostics.
 
 An **exploratory matching layer** (`indep/match_bfs.py`; opt-in `match_bfs` /
 `isr_nll` flags, default off) grafts onto it the only BFS pieces genuinely
 missing from a complete NLO-EW calculation — the dominant NNLO threshold block
 (as a relative K-factor) and δ_QCD on hadronic decay — plus an eMELA NLL ISR
-option, all combined at the partonic level ahead of a single ISR convolution
-(the O(α) ISR matching subtraction stays keyed to MoCaNLO's Born). Asimov pull:
-δ_NNLO ≈ +1.6 MeV, NLL ≈ −3.7 MeV on m_W (report section "Matching BFS
+option, all combined at the partonic level ahead of a **single** ISR
+convolution (both terms ISR-naked; no O(α) matching subtraction — the grids
+are collinear-counterterm-subtracted). Asimov pull on m_W (post-C₁-fix,
+shape): δ_NNLO ≈ +2.3 MeV, NLL ≈ −1.5 MeV (report section "Matching BFS
 higher-order corrections onto MoCaNLO"). Not wired into the production fit.
