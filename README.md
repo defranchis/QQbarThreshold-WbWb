@@ -485,7 +485,7 @@ The ladder bounds only the **missing higher orders of pieces already in the
 chain**: the series has converged by NNLO (~2–3 MeV residual on m_W) and
 δ_QCD is an exact no-op under pdg-constant BR routing. The ISR components
 quoted from the ladder (post-endpoint-fix, 2026-07-02; itemised, never added
-in quadrature) are: NNLL truncation 0.60 MeV shape-only / 2.43 MeV cov-lumi
+in quadrature) are: NNLL truncation 0.74 MeV shape-only / 2.44 MeV cov-lumi
 (LL→NLL is now almost pure +0.3% normalisation — the cov-lumi leakage
 accounting is an open choice), residual DELTA scheme 0.14 MeV, α(M_Z) input
 0.005 MeV; the `ren`/`scale` rows are stability diagnostics, not components

@@ -68,6 +68,11 @@ _WHIZARD_WORK  = _QQBAR_ROOT / "whizard" / "work"
 
 GRID_FINE_CSV          = _WHIZARD_WORK / "grid_fine"       / "grid.csv"
 GRID_HIGHSTATS_CSV     = _WHIZARD_WORK / "grid_highstats"  / "grid.csv"
+#: Sub-154 GeV extension (2026-07-02): 8 slices 150.0-153.5 x uniform-Γ_W
+#: sublattice, so the anchor rests on real 4f Born data below the old edge
+#: instead of the frozen edge calibration.  Optional: the loader skips it
+#: if the campaign file is absent.
+GRID_LOWEXT_CSV        = _WHIZARD_WORK / "grid_lowext"     / "grid.csv"
 # Not used by the production morph (which combines grid_fine + grid_highstats
 # wings); the validation grids are loaded only via an explicit grid_path.
 GRID_VALIDATE_CSV      = _WHIZARD_WORK / "grid_validate"   / "grid.csv"
@@ -104,7 +109,12 @@ def load_operational_grid() -> pd.DataFrame:
     hs   = load_grid(GRID_HIGHSTATS_CSV)
     fine_sqrts = set(np.round(fine.sqrts.unique(), 4))
     wings = hs[~np.round(hs.sqrts, 4).isin(fine_sqrts)].copy()
-    return pd.concat([fine, wings], ignore_index=True)
+    parts = [fine, wings]
+    if GRID_LOWEXT_CSV.exists():
+        lowext = load_grid(GRID_LOWEXT_CSV)
+        covered = fine_sqrts | set(np.round(wings.sqrts.unique(), 4))
+        parts.append(lowext[~np.round(lowext.sqrts, 4).isin(covered)].copy())
+    return pd.concat(parts, ignore_index=True)
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +331,10 @@ _MORPH_CACHE: dict[str, dict] = {}
 #: freshness guard catches stale-by-value templates).
 #: v2: √s edge-clamp — no natural-spline extrapolation below/above the
 #: knot range (2026-07-02).
-MORPH_VERSION = 2
+#: v3: sub-154 GeV grid_lowext slices in the operational grid — the low
+#: knot edge moves 154 → 150 GeV, real 4f data replaces the frozen edge
+#: calibration over [150,154] (2026-07-02).
+MORPH_VERSION = 3
 
 
 def morph_sqrts_range(grid_path=None) -> tuple[float, float]:
