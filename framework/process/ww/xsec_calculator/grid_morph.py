@@ -253,7 +253,15 @@ def sigma_morph(sqrts, mW: float, gammaW: float, *, splines: dict,
     .. note::
         The argument is ``sqrts`` (GeV), not ``s`` (GeV²).  The public
         :func:`whizard_sigma_morph` accepts ``s`` (GeV²) and converts.
+
+    √s is clamped to the spline knot range: the natural cubic splines
+    extrapolate (negative σ below the 154 GeV grid edge — 2026-07-02
+    review), so outside the grid every morph number is held at its edge
+    value.  The production anchor additionally freezes the whole
+    calibration factor at the edge (``bfs_eft.whizard_anchor_factor``).
     """
+    knots = splines["sigma_nom"].x
+    sqrts = np.clip(np.asarray(sqrts, dtype=float), knots[0], knots[-1])
     coef_m = np.array([splines["coef_m_0"](sqrts),
                        splines["coef_m_1"](sqrts),
                        splines["coef_m_2"](sqrts)])
@@ -307,6 +315,19 @@ def build_operational_morph(*, denoise: bool = True
 # ---------------------------------------------------------------------------
 
 _MORPH_CACHE: dict[str, dict] = {}
+
+#: Bump on any change to the morph construction/evaluation that alters σ
+#: values at fixed config (fed into ``template_fingerprint`` so the fit's
+#: freshness guard catches stale-by-value templates).
+#: v2: √s edge-clamp — no natural-spline extrapolation below/above the
+#: knot range (2026-07-02).
+MORPH_VERSION = 2
+
+
+def morph_sqrts_range(grid_path=None) -> tuple[float, float]:
+    """(lo, hi) knot range of the cached morph splines in √s [GeV]."""
+    knots = _get_morph_splines(grid_path)["sigma_nom"].x
+    return float(knots[0]), float(knots[-1])
 
 
 def _get_morph_splines(grid_path=None) -> dict:

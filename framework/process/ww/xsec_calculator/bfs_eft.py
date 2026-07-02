@@ -357,10 +357,24 @@ def whizard_anchor_factor(s, mW: float = M_W_DEFAULT,
       ``"morph"``  — grid_fine (6363 pts) morphing predictor; sub-MeV-safe.
     """
     sigma_whiz_callable = _whizard_sigma_fb_from_source(source)
-    sigma_whiz_fb = sigma_whiz_callable(s, mW, gammaW) * _br_strip_factor(
+    s_eval = s
+    if source == "morph":
+        # Freeze the calibration factor at the morph knot edges: BOTH the
+        # numerator and the EFT-Born denominator are evaluated at the clamped
+        # √s, so below the 154 GeV grid edge (and above the top knot) the
+        # anchored Born keeps the EFT shape scaled by the edge calibration.
+        # Without this the natural-spline extrapolation goes negative and the
+        # ISR convolution samples it (−1.6 % on σ_obs(157.5) — 2026-07-02
+        # review).  The [149,150] quintic floor still zeroes the far tail.
+        from framework.process.ww.xsec_calculator.grid_morph import morph_sqrts_range
+        lo, hi = morph_sqrts_range()
+        s_eval = np.clip(np.asarray(s, dtype=float), lo ** 2, hi ** 2)
+        if np.ndim(s) == 0:
+            s_eval = float(s_eval)
+    sigma_whiz_fb = sigma_whiz_callable(s_eval, mW, gammaW) * _br_strip_factor(
         gammaW, apply_BR_correction=apply_BR_correction)
     sigma_LR, sigma_RL = _accumulate_born_orders(
-        s, mW, gammaW, apply_BR_correction=apply_BR_correction, MZ=MZ,
+        s_eval, mW, gammaW, apply_BR_correction=apply_BR_correction, MZ=MZ,
         alpha_em=alpha_em)
     sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * PB_TO_FB
     f = sigma_whiz_fb / sigma_EFT_fb

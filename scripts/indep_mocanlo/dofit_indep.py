@@ -139,6 +139,10 @@ def main(argv=None) -> int:
     ap.add_argument("--outdir", default=DEFAULT_OUTDIR)
     args = ap.parse_args(argv)
 
+    if args.munuqq and args.lepton_cut is not None:
+        ap.error("--munuqq requires the inclusive pure-WW grids (lepton_cut "
+                 "unset): pure_ww_weights is ignored on the fiducial path, so "
+                 "the fit would silently run full-scope under a munuqq label.")
     cfg = isr_beta.ISRConfig(scheme=args.isr_scheme, mu_F_factor=args.mu_F_factor)
     # μνqq scope: keep the inclusive (lepton_cut=None) pure-WW grids but reweight
     # the assembly to the single lnuqq block (×4 = inclusive μνqq, B≈0.143).

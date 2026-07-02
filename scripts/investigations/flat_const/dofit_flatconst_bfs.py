@@ -2,9 +2,10 @@
 """Flat-pedestal sensitivity on the BFS (production) chain — μνqq channel.
 
 Companion to ``scripts/indep_mocanlo/dofit_indep.py --flatConst``: that runs the
-study on the INDEPENDENT MoCaNLO line shape; this runs the IDENTICAL clean
-2-POI cov-lumi Asimov fit (the theory-ladder configuration: no nuisances, lumi
-in the covariance, pdg-constant BR) on the BFS production line shape
+study on the INDEPENDENT MoCaNLO line shape; this runs the same clean
+2-POI cov-lumi Asimov fit (no nuisances, lumi in the covariance, pdg-constant
+BR — NOT byte-identical to the theory-ladder config, see below) on the BFS
+production line shape
 (``WWGenerator.from_card`` — sigma_observed_munuqq, the single inclusive μνqq
 channel the BFS chain fits). So the two flat-const numbers are directly
 comparable, scope-for-scope (both μνqq, pdg-constant, cov-lumi).
@@ -12,8 +13,11 @@ comparable, scope-for-scope (both μνqq, pdg-constant, cov-lumi).
 The free, energy-INDEPENDENT additive σ pedestal c (same constant at every √s,
 fully correlated across ECM, no prior) is added via ``FitCore.add_flat_const``.
 
-Baseline must reproduce the report theory-ladder μνqq number
-(σ(m_W)=1.31, σ(Γ_W)=2.75, ρ=+0.66; report Table tab:theory-ladder).
+Baseline vs the report theory-ladder μνqq number (σ(m_W)=1.31): same scenario
+but NOT the identical fit config — the ladder fits lumi-CORR-ONLY
+(lumi_uncorr=0) while this driver keeps the full per-point card lumi priors,
+which fully explains the 1.34-vs-1.31 baseline difference (a ladder-replica on
+identical templates reproduces 1.312/2.755/+0.663 — 2026-07-02 review).
 """
 from __future__ import annotations
 

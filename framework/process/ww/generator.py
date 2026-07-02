@@ -189,7 +189,7 @@ class WWGenerator:
     for the WW threshold fit."""
 
     def __init__(self, *, order: int = 2, channel: str = "inclusive",
-                 include_coulomb: bool = True, bfs: BFSCorrections | None = None,
+                 include_coulomb: bool = False, bfs: BFSCorrections | None = None,
                  # Defaults below are the project's "best calculation"; see
                  # cards/ww_default.py + sigma_observed_munuqq in isr.py for
                  # the per-knob rationale.
@@ -325,8 +325,16 @@ class WWGenerator:
         run if any field disagrees with the live card. This is the
         integrity check that catches "I edited the card but forgot to
         regenerate templates" mistakes."""
+        # Value-level version tokens: bumped when the radiator / anchor-morph
+        # CODE changes σ at fixed config, so the fit's freshness guard
+        # catches stale-by-value templates (the 9a8862b endpoint fix needed a
+        # manual --force because these were missing — 2026-07-02 review).
+        from framework.process.ww.xsec_calculator.isr import _RADIATOR_DISK_VERSION
+        from framework.process.ww.xsec_calculator.grid_morph import MORPH_VERSION
         fp = {
             "chain":           self.chain_label(),
+            "isr_radiator_version": str(_RADIATOR_DISK_VERSION),
+            "anchor_morph_version": str(MORPH_VERSION),
             "channel":         self.channel,
             "br_convention":   self.br_convention,
             "alpha_s":         f"{self.alpha_s:.5f}",

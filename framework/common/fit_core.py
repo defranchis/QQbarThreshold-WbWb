@@ -461,6 +461,10 @@ class FitCore:
         theory knob, constrained to 1 by convention)."""
         if name in self._systematics_meta["global"] or self._is_bin_nuisance(name):
             return val
+        if name == self._flat_const_name:
+            # Pedestal has no pseudodata truth entry; the raw value IS the
+            # pull (Asimov truth = 0), like a nuisance.
+            return val
         return val - self.d_params[self.pseudodata_tag][name]
 
     def stat_breakdown_default(self):

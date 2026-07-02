@@ -57,7 +57,8 @@ def node_census(sq, n_quad=128):
 
 
 def main():
-    print(f"_RADIATOR_DISK_VERSION = {_RADIATOR_DISK_VERSION} (expect 2)")
+    print(f"_RADIATOR_DISK_VERSION = {_RADIATOR_DISK_VERSION} (expect >= 2; "
+          f"3 = +eMELA-LL plateau continuation)")
 
     n, wfrac = node_census(161.0)
     print(f"\n[3] omx<1e-15 nodes at 161 GeV, n_quad=128: {n}/128 "
