@@ -3482,8 +3482,8 @@ The same construction supports an NLL initial-state radiator. The analytic LL$+$
 radiator of the independent chain (section~\ref{sec:indep-calc}) is replaced, per
 leg, by the eMELA NLL electron PDF~\cite{eMELA2019} (DELTA factorisation,
 $\alpha(M_Z)$ renormalisation --- the production scheme conventions of
-section~\ref{sec:val-isr-scheme}). The port reuses the validated endpoint substitution of
-the independent chain: the per-leg $\beta_e$ at $\mu_F=\sqrt{\hat s}$ and the LL
+section~\ref{sec:val-isr-scheme}). The port reuses the independent chain's endpoint
+normalisation anchor: the per-leg $\beta_e$ at $\mu_F=\sqrt{\hat s}$ and the LL
 soft$+$virtual normalisation coincide \emph{identically} with those of the BFS-side
 eMELA convolution (section~\ref{sec:isr}), so the radiator is exact (verified below).
 A historical note: while the observable still carried the $C_1$ subtraction, its
@@ -3557,7 +3557,8 @@ Double counting & cancels by construction & pass \\
 NLL port vs.\ BFS eMELA, identical $\hat\sigma$ & $6\times10^{-10}$ & pass \\
 \midrule
 $\delta_\text{NNLO}$ size, partonic $K$-factor ($157\!\to\!163\GeV$) & $0 \to +0.21\%$ & --- \\
-NLL/LL ISR shift & $+0.26$ to $+0.59\%$ & --- \\
+NLL/LL kernel-only shift ($\alpha$ held fixed; the observed
+line-shape shift is $\sim\!-1.9$ to $-1.1\%$, see text) & $+0.26$ to $+0.59\%$ & --- \\
 $\delta_\text{QCD}$, per channel ($\mu\tau/\ell\nu qq/qqqq$) & $1.000/1.040/1.082$ & --- \\
 \bottomrule
 \end{tabular}
@@ -3611,7 +3612,7 @@ three BFS entries share one Born normalisation. Script:
 
 Every split in the table is accounted for. Without ISR the spread is
 $7.65$--$8.08$\,pb: the matched chain adds the BFS NNLO $K$-factor and the
-\emph{inclusive}-routing $\delta_\text{QCD}$ on MoCaNLO's NLO ($+4.2\%$), while
+\emph{inclusive}-routing $\delta_\text{QCD}$ on MoCaNLO's NLO ($+5.4\%$), while
 the BFS chain uses the semileptonic routing (the $+1.4\%$ difference of
 section~\ref{sec:match-construction}) on a line shape that sits $+2.3\%$ above
 it (off-shell $4f$ versus on-shell EFT$\times$BR). The radiators damp all three
@@ -3806,15 +3807,31 @@ Script \code{scripts/investigations/bfs\_match/plot\_match\_lineshape.py}.}
     expectation ``CS dipoles $\Rightarrow\overline{\rm MS}$'' conflated IR finiteness with
     mass factorisation. DELTA is therefore already the correct production choice; no scheme
     change is needed.
-  \item \textbf{NLL soft-endpoint substitution (resolved).} The eMELA-NLL per-leg
-    integrand uses the analytic soft$+$virtual limit below $1-x<10^{-15}$ ($\approx13\%$
-    of the quadrature weight). Quantified: as $x\!\to\!1$ the integrand must approach
-    that exact constant, and \code{code_pdf} agrees to $\sim0.2\%$ where its numerics
-    are valid (omx\,$\approx\!10^{-7}$--$10^{-9}$) but then \emph{diverges} to $+6\%$ at
-    omx\,$\approx\!10^{-66}$ (where $x$ underflows to $1.0$). The analytic limit is
-    therefore the trusted value and the cutoff \emph{shields} the result from eMELA's
-    $x\!\to\!1$ grid-edge artifact; lowering it would \emph{import} a $+0.53\%$ shift
-    (shape-only $\Delta\mW=-0.11\MeV$, wrong sign). The cutoff is correct as-is.
+  \item \textbf{NLL soft-endpoint substitution (REVERSED 2026-07-02; removed).}
+    The eMELA-NLL per-leg integrand formerly used the analytic LL soft$+$virtual
+    constant below $1-x<10^{-15}$ ($\approx\!13\%$ of the $u$-space quadrature
+    weight). An earlier check interpreted the integrand's rise beyond that
+    constant ($+6\%$ at omx\,$\approx\!10^{-66}$) as an eMELA $x\!\to\!1$
+    grid-edge artifact to be shielded. The 2026-07-02 review reversed this:
+    below its internal cut ($\mathtt{omxcut}=10^{-8}$) \code{code\_pdf} switches
+    to eMELA's \emph{own analytic NLL soft asymptotic} --- no grid is consulted,
+    and $1-x$ is passed explicitly through the wrapper precisely so the
+    $x$-underflow is immaterial. The residual $u^{-0.007}$ drift of the
+    $u$-integrand is the genuine (integrable) mismatch between the NLL soft
+    exponent and the LL $\beta/2$ used in the $u$-substitution, i.e.\ resummed
+    physics, not an artifact. The substitution therefore truncated $0.19\%$ of
+    the per-leg radiator mass (endpoint integral $0.99776\!\to\!0.99965$); it
+    was removed (every node now queries \code{code\_pdf}), lifting
+    $\sigma_\text{obs}$ by $+0.444$ to $+0.449\%$ nearly flat across the
+    $157.5$--$162.5\GeV$ scan. Asimov sensitivities are unchanged (identical
+    systematics table); the earlier fit-level estimate of the endpoint depth,
+    shape-only $|\Delta\mW|\approx0.1\MeV$, remains the right order for the
+    residual shape effect. The eMELA-LL \emph{diagnostic} branch keeps a
+    deep-endpoint continuation --- \code{ll\_pdf} has no internal asymptotic and
+    returns NaN below omx\,$\approx\!10^{-16}$ --- but now uses eMELA-LL's own
+    converged plateau ($0.19\%$ above the analytic constant), not the truncated
+    value. Theory-ladder and ISR-scheme cross-fit numbers are being regenerated
+    on the fixed chain.
   \item \textbf{$\delta_\text{QCD}$ bookkeeping (resolved).} Confirmed: MoCaNLO takes
     the physical (QCD-corrected) $\GammaW$ as an external input while its $W\!\to q\bar
     q$ matrix element runs at QCD order zero, so its hadronic branching ratio
