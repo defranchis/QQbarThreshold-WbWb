@@ -208,13 +208,17 @@ def _radiator_norm(beta_e: float, beta_s: float) -> float:
 
 
 def _norm_nll_endpoint(beta_e: float, norm: float, alpha: float) -> float:
-    """Exact soft+virtual per-leg NLL endpoint: the LL+exp prefactor ``norm``
+    """Analytic soft+virtual per-leg constant: the LL+exp prefactor ``norm``
     (= :func:`_radiator_norm`) times the BCFS NLL exponent correction
     ``exp(β_e·(α/π)·λ₁/4)`` (arXiv:1911.12040; λ₁ = ``xsec_calculator.isr.LAMBDA1_NF0``).
-    SINGLE SOURCE shared by ``_per_leg_emela_nll`` / ``_per_leg_grid_nll`` here and
-    ``isr_lumi._norm_nll``: the per-leg radiator → this value as x→1, and the
-    luminosity ρ̃(v) → β_e·this as v→0.  (The BFS-side ``xsec_calculator.isr`` writes
-    the same physics with κ=β_e/2; keep that port in sync separately.)"""
+    DIAGNOSTIC REFERENCE ONLY since the 2026-07-03 deep-endpoint fix: production
+    radiators (``_per_leg_emela_nll`` / ``_per_leg_grid_nll`` / ``isr_lumi``) no
+    longer substitute it at x→1 — the genuine NLL integrand keeps rising past it
+    ∝ omx^(−4.3e-4) (see the HISTORY note in ``_per_leg_emela_nll``).  Kept as
+    the normalisation reference for the endpoint-closure diagnostics and the
+    ``isr_lumi.__main__`` anchor check.  (The BFS-side ``xsec_calculator.isr``
+    writes the same constant as ``_H_SV_per_leg``, likewise no longer
+    substituted; keep that port in sync separately.)"""
     from framework.process.ww.xsec_calculator.isr import LAMBDA1_NF0
     return norm * math.exp(beta_e * (alpha / _PI) * (LAMBDA1_NF0 / 4.0))
 
@@ -353,9 +357,10 @@ class ISRConfig:
     #: Path to a precomputed eMELA grid (.npz from isr_emela_grid.build_and_write).
     #: When set AND nll=True, the per-leg NLL radiator interpolates x·D from the
     #: grid instead of calling eMELA's DGLAP solver per node — √s/μ_F/quadrature-
-    #: independent, no eMELA runtime dep.  The analytic norm_nll endpoint
-    #: (omx<1e-15) is unchanged.  "" = direct eMELA.  PROD_EMELA_GRID via the
-    #: generator is the production NLL route (feeds the luminosity form).
+    #: independent, no eMELA runtime dep.  Below the grid's deepest omx knot,
+    #: xfxQ continues log-linearly (genuine NLL soft drift; no analytic
+    #: substitution — 2026-07-03 fix).  "" = direct eMELA.  PROD_EMELA_GRID via
+    #: the generator is the production NLL route (feeds the luminosity form).
     emela_grid: str = ""
     #: Route the two-leg convolution through the 1-D LUMINOSITY self-convolution
     #: (``isr_lumi``) instead of the 2-D ``convolve_2leg`` einsum.  Requires
@@ -386,63 +391,62 @@ class ISRConfig:
 # ---------------------------------------------------------------------------
 
 def _per_leg_emela_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
-    """Per-leg eMELA NLL radiator weight in u-space (EXPLORATORY).
+    """Per-leg eMELA NLL radiator weight in u-space (direct eMELA).
 
     Mirrors ``isr.sigma_ISR_2leg_convolution``'s eMELA handling: the full ePDF
     xD(x,Q) replaces the analytic norm+NS split.  ``jac_NS`` here is the FULL,
     universal |dx/du| = u^(1/β_e−1)/β_e (the name is historical — for the LL path
     it multiplies only the NS polynomial, but for the NLL ePDF it multiplies the
     whole xD/x).  xD/x · jac_NS is finite at the soft endpoint — the ePDF's
-    (1-x)^(β-1) singularity cancels the jacobian's u^(1/β-1).  At x→1
-    (omx<1e-15) the analytic NLL soft+virtual limit is used (norm × the BCFS
-    arXiv:1911.12040 exponent correction exp(β_e·(α/π)·λ₁/4)).
+    (1-x)^(β-1) singularity cancels the jacobian's u^(1/β-1).  EVERY node is a
+    genuine ``code_pdf`` query with 1−x passed explicitly: ``one_minus_x`` =
+    u^(1/β_e) stays representable (≳1e-300) even where ``x_vals`` rounds to 1.0,
+    and eMELA applies its own soft asymptotic internally (healthy to omx ≤ 1e-60).
+    Same construction as the BFS ``isr._build_emela_radiator`` — keep in sync;
+    after the 2026-07-03 fix below the two chains genuinely agree (per-leg mass
+    0.999642 at √s=161/n128 on both, six digits).
     Imports eMELA lazily so the default LL path keeps no BFS/eMELA dependency.
 
-    KNOWN NLL SYSTEMATIC (omx<1e-15 endpoint substitution, shared with the BFS-
-    side isr.py — do NOT change one without the other or the validated machine-
-    precision port closure breaks).  Because u=omx^β_e with β_e≈0.06 (1/β_e≈17),
-    the smallest GL nodes reach omx≈1e-66, so ~30/128 nodes fall below the 1e-15
-    cutoff and carry ~13 % of the per-leg integral weight; there the flat analytic
-    ``norm_nll`` is used instead of ``code_pdf``.
-
-    QUANTIFIED 2026-06-03 — the cutoff is CORRECT, do NOT lower it.  As x→1 the
-    integrand MUST approach the exact soft+virtual constant ``norm_nll``; eMELA's
-    ``code_pdf`` agrees with it to ~0.2 % where its numerics are valid (omx≈1e-7
-    to 1e-9) but then DIVERGES monotonically away, reaching code/analytic≈+6 % at
-    omx≈1e-66 (the divergence sets in exactly where x underflows to 1.0).  So the
-    analytic ``norm_nll`` is the trusted endpoint value and the 1e-15 cutoff
-    shields the result from eMELA's x→1 grid-edge artifact.  LOWERING the cutoff
-    (calling code_pdf on the soft nodes) would IMPORT that artifact: +0.53 % on
-    the line shape, a shape-only m_W bias of only −0.11 MeV (lumi-weighted) but in
-    the WRONG direction.  Net: the cutoff avoids a ~0.1 MeV error; it is not a
-    systematic on the current result.  (Same substitution lives in the production
-    isr.py — keep them in sync.)  scripts/investigations/bfs_match/ analysis.
+    HISTORY (2026-07-02 review MAJOR, indep mirror applied 2026-07-03 — sibling
+    of BFS commit 9a8862b).  Until then, nodes with omx<1e-15 (~30/128 nodes,
+    ~13 % of the per-leg weight) were substituted with the flat analytic
+    ``_norm_nll_endpoint`` constant.  A 2026-06-03 analysis had read eMELA's
+    monotonic drift past that constant (code/analytic ≈ +6 % at omx≈1e-66) as an
+    x→1 grid-edge artifact and pinned the cutoff.  That interpretation was
+    WRONG: the drift is smooth log-linear ∝ omx^(−4.3e-4) straight through the
+    float64 x-underflow — the GENUINE NLL soft exponent (u^(−0.007) in
+    u = omx^β_e) — and ``code_pdf`` takes omx explicitly, so no numerical
+    artifact is imported by querying it there.  The substitution cost −0.19 %
+    per-leg radiator mass / −0.45…−0.47 % σ_obs (norm-dominated; ~180 ppm shape
+    tilt across the 157.5–162.5 scan).  Closure measurement:
+    ``scripts/investigations/indep_endpoint/deep_endpoint_closure.py``.
     """
     from framework.process.ww.xsec_calculator import emela_wrapper as _emela
     alpha = cfg.resolved_alpha()
     _emela.initialize(pert_order="NLL", fac_scheme=cfg.emela_fac_scheme,
                       ren_scheme=cfg.emela_ren_scheme, alpha=alpha)
     Q = cfg.mu_F(sqrt_s)
-    norm_nll = _norm_nll_endpoint(be, norm, alpha)
     per_leg = np.empty_like(x_vals)
     for i in range(len(x_vals)):
         omx_i = float(one_minus_x[i])
-        if omx_i < 1e-15:
-            per_leg[i] = norm_nll
-        else:
-            x_i = float(x_vals[i])
-            per_leg[i] = _emela.code_pdf(x_i, omx_i, Q) / x_i * float(jac_NS[i])
+        x_i = float(x_vals[i])
+        x_q = x_i if x_i < 1.0 else 1.0     # x underflows to 1.0 deep in
+        per_leg[i] = (_emela.code_pdf(x_q, omx_i, Q)
+                      / max(x_q, _SAFE_FLOOR) * float(jac_NS[i]))
     return per_leg
 
 
 def _per_leg_grid_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
     """Per-leg NLL radiator weight via the LHAPDF-style precomputed grid
-    (EXPLORATORY; cfg.emela_grid set).  Numerically the same construction as
-    ``_per_leg_emela_nll`` — same analytic ``norm_nll`` soft+virtual endpoint for
-    omx<1e-15, same xD/x·|dx/du| in the mid region — except x·D comes from
-    ``isr_emela_grid`` interpolation instead of a per-node eMELA DGLAP call.  The
-    whole mid region is evaluated in ONE vectorised spline call.  Keep this in
-    lockstep with ``_per_leg_emela_nll`` (endpoint cutoff, norm_nll formula)."""
+    (cfg.emela_grid set; feeds the production luminosity route).  Numerically
+    the same construction as ``_per_leg_emela_nll`` — same xD/x·|dx/du| at every
+    node — except x·D comes from ``isr_emela_grid`` interpolation instead of a
+    per-node eMELA DGLAP call: the whole leg is ONE vectorised spline call.
+    NO analytic endpoint substitution (2026-07-03 fix, see the HISTORY note in
+    ``_per_leg_emela_nll``): below the grid's own deepest omx knot ``xfxQ``
+    continues ln(x·D) log-linearly in ln(omx) — exact for the genuine NLL soft
+    drift, which is log-linear there.  Keep in lockstep with
+    ``_per_leg_emela_nll``."""
     from framework.process.ww.indep import isr_emela_grid as _grid
     alpha = cfg.resolved_alpha()
     grid = _grid.load_grid(cfg.emela_grid)
@@ -468,15 +472,9 @@ def _per_leg_grid_nll(cfg, be, norm, x_vals, one_minus_x, jac_NS, sqrt_s):
             f"vs cfg (α={alpha:.10g}, {cfg.emela_fac_scheme}/{cfg.emela_ren_scheme}); "
             "rebuild the grid (isr_emela_grid.build_and_write) at the cfg's α/scheme.")
     Q = cfg.mu_F(sqrt_s)
-    norm_nll = _norm_nll_endpoint(be, norm, alpha)
-    per_leg = np.empty_like(x_vals)
-    soft = one_minus_x < _grid.OMX_FLOOR
-    per_leg[soft] = norm_nll
-    nz = ~soft
-    if np.any(nz):
-        xD = grid.xfxQ(x_vals[nz], one_minus_x[nz], Q)
-        per_leg[nz] = xD / x_vals[nz] * jac_NS[nz]
-    return per_leg
+    xD = grid.xfxQ(x_vals, one_minus_x, Q)
+    # x ≥ x_min ≈ 0.55 always (deep-endpoint x_vals round UP to exactly 1.0).
+    return xD / x_vals * jac_NS
 
 
 #: Per-leg radiator setup cache.  The radiator weight D(x)·|dx/du| depends ONLY
@@ -498,7 +496,11 @@ _RADIATOR_CACHE: dict = {}
 #: the eMELA library / the scheme conventions) changes, or clear the cache dir.
 #: Location: ``$WW_ISR_RADIATOR_CACHE`` (default ~/.cache/ww_isr_radiator);
 #: set it empty to disable disk caching.
-_RADIATOR_DISK_VERSION = 1
+#: History: 1→2 (2026-07-03) deep-endpoint fix — the omx<1e-15 norm_nll
+#: substitution removed from ``_per_leg_emela_nll`` (indep mirror of BFS
+#: 9a8862b); every pre-fix radiator array is invalid.  Indep-side ``rad_*.pkl``
+#: keys only; the BFS chain's ``rad_bfs_*`` files version separately.
+_RADIATOR_DISK_VERSION = 2
 
 
 def _cfg_fingerprint(cfg: ISRConfig) -> tuple:

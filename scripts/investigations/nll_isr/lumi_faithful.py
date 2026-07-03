@@ -38,6 +38,16 @@ CONVERGENCE (validated, lnuqq gf-NLL vs ripple-free 2D mean):
 ``soft_mode='nll'``  = norm_nll floor below omx_trust (the LESS-faithful variant,
 kept to quantify the deep-soft sensitivity).
 
+2026-07-03 UPDATE (deep-endpoint fix, mirror of BFS 9a8862b): the production
+chain no longer substitutes norm_nll anywhere — the genuine NLL soft drift
+rho~ ~ v^(-delta) (delta≈4e-4) is absorbed into the Gauss-Jacobi weights
+(beta' = beta_e - delta, rho^ = rho~ * v^delta log-flat at v->0), because the
+inner nodes only reach omx~3e-8 and a polynomial rule cannot carry the drift
+below its deepest node.  FaithfulLumi mirrors that construction (soft_mode=
+'grid'), so it remains the independent same-physics harness for
+validate_lumi_production.py; the numbers quoted ABOVE in this docstring are
+the historical pre-fix ones.
+
 Run:  source setup.sh && PYTHONPATH=$PWD:$PYTHONPATH \
       python3 scripts/investigations/nll_isr/lumi_faithful.py
 """
@@ -68,7 +78,6 @@ ALPHA = isr_beta.ALPHA_MZ_EMELA
 PROD_GRID = os.path.join(
     _REPO, "framework/process/ww/indep/grids/emela_nll_delta_alpmz.npz")
 SIGMA_GRID_LO = 156.0
-OMX_CUT = EG.OMX_FLOOR            # 1e-15, the 2D's norm_nll switch
 
 
 def prod_nll(n_quad=128):
@@ -112,18 +121,26 @@ class FaithfulLumi:
         self.soft_mode = soft_mode
         self.omx_trust = omx_trust
         self.rt_soft = self.norm_nll * self.be          # analytic soft+virtual rho~
-        self._t, self._wj = _jac01(n_jac, self.be - 1.0, self.be - 1.0)
+        # 2026-07-03 endpoint fix: absorb the genuine NLL soft drift v^(-delta)
+        # into the Jacobi weight (mirror of production isr_lumi._rho_hat_factory).
+        self.delta = (self.be - 1.0) - self.grid.deep_slope(self.Q)
+        self.be_eff = self.be - self.delta
+        self._t, self._wj = _jac01(n_jac, self.be_eff - 1.0, self.be_eff - 1.0)
 
     def rho_tilde(self, v):
-        """rho~(v) = x*D(v) * v^(1-be); soft floor to the analytic norm_nll*be."""
+        """rho^(v) = x*D(v) * v^(1-be+delta) — drift-absorbed, log-flat at v->0
+        (soft_mode='nll' floors it to the analytic norm_nll*be legacy variant)."""
         v = np.asarray(v, float)
         x = np.exp(-v)
         omx = -np.expm1(-v)
-        omx_c = np.clip(omx, OMX_CUT, None)
-        xD = self.grid.xfxQ(x, omx_c, self.Q)
-        rt = np.where(v > 0, xD * v ** (1.0 - self.be), 0.0)
+        v_c = np.maximum(v, 1e-300)
+        xD = self.grid.xfxQ(x, np.maximum(omx, 1e-300), self.Q)
+        rt = xD * v_c ** (1.0 - self.be + self.delta)
         if self.soft_mode == "nll":
-            rt = np.where(omx < self.omx_trust, self.rt_soft, rt)
+            # Legacy substitution expressed in the hatted variables:
+            # rho~ -> norm_nll*be  <=>  rho^ -> norm_nll*be * v^delta.
+            rt = np.where(omx < self.omx_trust,
+                          self.rt_soft * v_c ** self.delta, rt)
         return rt
 
     def Ltilde(self, V):
@@ -142,15 +159,15 @@ class FaithfulLumi:
 
 
 def sigma_obs(sq, sigma_fn, lumi: FaithfulLumi, n_out=64):
-    """sigma_obs(sqrt(s)) = INT_0^{V_top} V^(2be-1) L-tilde(V) sig_hat(e^{-V/2} sqrt(s)) dV."""
-    be = lumi.be
-    p = 2.0 * be - 1.0
-    tj, wj = _jac01(n_out, p, 0.0)                 # INT_0^1 tau^(2be-1)
+    """sigma_obs(sqrt(s)) = INT_0^{V_top} V^(2be'-1) L^(V) sig_hat(e^{-V/2} sqrt(s)) dV."""
+    be_eff = lumi.be_eff
+    p = 2.0 * be_eff - 1.0
+    tj, wj = _jac01(n_out, p, 0.0)                 # INT_0^1 tau^(2be'-1)
     V_top = 2.0 * math.log(sq / SIGMA_GRID_LO)
     V = V_top * tj
     Lt = lumi.Ltilde_vec(V)
     integ = Lt * np.asarray(sigma_fn(np.exp(-V / 2.0) * sq))
-    return V_top ** (2.0 * be) * np.sum(wj * integ)
+    return V_top ** (2.0 * be_eff) * np.sum(wj * integ)
 
 
 def line_shape(cfg, SQ, soft_mode="nll", n_out=64, n_jac=160, omx_trust=1e-6):

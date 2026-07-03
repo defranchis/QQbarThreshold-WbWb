@@ -18,6 +18,18 @@ M.  ASIMOV m_W CROSS-FIT on real EOS σ̂ grids: build the direct-eMELA NLL morp
 S.  SPEED: per-node eMELA (~22 ms) vs vectorised grid interp; radiator build.
 E.  ENDPOINT: grid tracks eMELA in its valid range and the analytic norm_nll
     takes over below 1e-15 (unchanged) — the grid never has to reach x=1.
+
+2026-07-03 NOTE (deep-endpoint fix): the analytic norm_nll substitution is
+REMOVED from production — the grid path now serves every node, continuing
+log-linearly below the grid's own deepest knot, and eg.OMX_FLOOR changed
+meaning (1e-15 substitution boundary → 1e-70 default deep BUILD edge).  The
+`mid = omx >= eg.OMX_FLOOR` masks below therefore now cover ALL nodes (still
+a valid grid-vs-direct closure — code_pdf takes omx explicitly and is healthy
+through the deep region), the in-script grid builds span ~70 decades (slower),
+and section [E]'s "norm_nll takes over" wording describes the REMOVED
+behaviour.  The lhagrid1 x-space artifact cannot represent omx ≲ 5e-17
+(x collapses to 1.0 in float64), so real-lhapdf cross-reads are only
+meaningful above that.
 """
 import math
 import os

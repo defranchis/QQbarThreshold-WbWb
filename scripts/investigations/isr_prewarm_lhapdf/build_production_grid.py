@@ -10,12 +10,18 @@ Convention (must match generator_mocanlo._isr_cfg's production NLL branch):
     pert_order=NLL, fac_scheme=DELTA, ren_scheme=ALPMZ, alpha=ALPHA_MZ(=alpha(M_Z)).
 
 Grid coverage:
-  omx in [3e-16, 0.5] at 16/decade  — 3e-16 sits just below isr_beta's 1e-15
-        analytic-norm cutoff (so the spline never extrapolates at the cutoff) yet
-        keeps x=1-omx < 1.0 (avoids the float64 x->1 underflow).
+  omx in [eg.OMX_FLOOR=1e-70, 0.5] at 16/decade — the DEEP edge of the
+        2026-07-03 endpoint fix (the old 3e-16 edge backed the REMOVED 1e-15
+        analytic-norm substitution; the deep endpoint is now genuine eMELA,
+        continued log-linearly below the grid's own deepest knot by xfxQ).
   Q in [75, 350] GeV, 16 log knots — covers mu_F = mu_F_factor*sqrt(s) for the
         scan sqrt(s) ~ [150,172] with xi=0.5/2 scale variations AND the
         mu_F_abs=m_W(~80.4) absolute-scale option.
+
+NOTE: prefer scripts/investigations/indep_endpoint/rebuild_prod_grid.py — the
+same build fork-parallelised (32 workers, ~40 s instead of ~7 min) with a
+deep-edge log-linearity sanity block; this serial script is kept as the
+original documented builder and now produces the identical grid.
 
 Run:  PYTHONPATH=$PWD python3 scripts/investigations/isr_prewarm_lhapdf/build_production_grid.py
 """
@@ -32,7 +38,8 @@ from framework.process.ww.indep import isr_emela_grid as eg       # noqa: E402
 OUTDIR = os.path.join(REPO, "framework", "process", "ww", "indep", "grids")
 NPZ = os.path.join(OUTDIR, "emela_nll_delta_alpmz.npz")
 
-omx_knots = eg.default_omx_knots(omx_lo=3e-16, omx_hi=0.5, per_decade=16)
+# omx_lo tracks eg.OMX_FLOOR (deep edge, 2026-07-03 endpoint fix).
+omx_knots = eg.default_omx_knots(omx_hi=0.5, per_decade=16)
 q_knots = eg.default_q_knots(75.0, 350.0, 16)
 
 print(f"[build] {omx_knots.size}x{q_knots.size} = {omx_knots.size*q_knots.size} "

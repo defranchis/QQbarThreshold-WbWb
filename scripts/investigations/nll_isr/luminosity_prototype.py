@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Prototype: luminosity-function form of the ISR convolution (the efficient one).
 
+SUPERSEDED (2026-07-03): production is framework/.../indep/isr_lumi.py, which
+additionally ABSORBS the genuine NLL soft drift v^(-delta) into the Jacobi
+weights (beta' = beta_e - delta).  This prototype keeps the plain beta_e
+weights and therefore under-integrates the deep-soft drift by ~0.4% in norm
+post-endpoint-fix — fine for its original structural purpose, NOT faithful to
+production numbers (nor is lumi_grid.py, which builds on it).
+
 σ_obs(s) = ∫∫ D(x₁)D(x₂) σ̂(√(x₁x₂)√s) dx₁dx₂  is collapsed onto z=x₁x₂:
     σ_obs(s) = ∫ L(z;μ_F) σ̂(√z·√s) dz,   L(z) = ∫ (dx/x) D(x) D(z/x),
 the two-leg LUMINOSITY (radiator self-convolution).  Work in V = −ln z (so the

@@ -44,7 +44,8 @@ MSBARREN_GRID = os.path.join(GRIDDIR, "emela_nll_delta_msbarren_alpmz.npz")
 
 
 def _ensure_grids():
-    omx = eg.default_omx_knots(omx_lo=3e-16, omx_hi=0.5, per_decade=16)
+    # omx_lo tracks eg.OMX_FLOOR (deep edge, 2026-07-03 endpoint fix).
+    omx = eg.default_omx_knots(omx_hi=0.5, per_decade=16)
     q = eg.default_q_knots(75.0, 350.0, 16)
     if not os.path.exists(ALPMZ_GRID):
         eg.build_and_write(ALPMZ_GRID, fac_scheme="DELTA", ren_scheme="ALPMZ",

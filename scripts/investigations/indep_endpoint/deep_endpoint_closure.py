@@ -26,6 +26,14 @@ shared production cache).
 
 Usage: WW_ISR_RADIATOR_CACHE= PYTHONPATH=.:$PYTHONPATH \
        python3 scripts/investigations/indep_endpoint/deep_endpoint_closure.py
+
+2026-07-03 POSTSCRIPT: the fix proposed by this measurement is now APPLIED
+(_per_leg_emela_nll queries code_pdf at every node; the grid path continues
+log-linearly below the deep grid edge; isr_lumi absorbs the drift into its
+Jacobi weights).  Re-run as the ACCEPTANCE TEST: part (a) grid/direct/TRUE
+must agree (TRUE per-leg mass 0.999642(1) at 161/n128, grid vs direct ≤1 ppm)
+and part (b) shifts must collapse to ~0 (the patched TRUE builder is now
+identical to production).
 """
 
 import math

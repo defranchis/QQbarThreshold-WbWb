@@ -17,10 +17,15 @@ the structure function carries the integrable soft singularity x·D ~ omx^(β-1)
 So we lay knots in ``omx = 1-x`` (dense toward the endpoint) and interpolate
 ``ln(x·D)`` against ``(ln omx, ln Q)`` — the variables in which the resummed soft
 tail is *nearly a straight line*, so even a cubic spline is sub-permille.  The
-deep endpoint ``omx < OMX_FLOOR`` is deliberately NOT gridded: there
-``isr_beta`` uses the exact analytic soft+virtual constant (``norm_nll``),
-identical to the direct path.  The grid only ever serves the mid region
-``OMX_FLOOR ≤ omx ≤ omx_hi`` (≈ the convolution's x∈[x_min, 1-OMX_FLOOR]).
+knots run down to ``OMX_FLOOR`` (deep endpoint; x = 1−omx underflows to exactly
+1.0 there, which is fine — eMELA takes omx explicitly and applies its own soft
+asymptotic internally).  BELOW the grid's own deepest knot, ``xfxQ`` continues
+``ln(x·D)`` log-linearly with the spline's edge slope: the genuine NLL soft
+drift is log-linear in these variables (measured through omx≈1e-66), so the
+continuation IS the deep-endpoint physics.  No analytic substitution anywhere —
+the pre-2026-07-03 ``norm_nll`` endpoint patch was the indep sibling of the BFS
+9a8862b MAJOR (it truncated the genuine NLL soft enhancement: −0.19 % per-leg
+radiator mass, −0.45 % σ_obs) and has been removed.
 
 Standard LHAPDF interpolation (log-x, value-cubic) is the *wrong* variable for
 this endpoint and degrades there — see the cross-check in
@@ -36,10 +41,15 @@ import os
 
 import numpy as np
 
-#: Deep-endpoint cutoff — MUST match isr_beta._per_leg_emela_nll's 1e-15 switch
-#: to the analytic norm_nll.  The grid is built down to a slightly smaller omx so
-#: the spline never extrapolates at the cutoff.
-OMX_FLOOR = 1e-15
+#: Default DEEP EDGE of built grids (``default_omx_knots``'s omx_lo) — a grid
+#: floor only, NO physics substitution below it (2026-07-03 endpoint fix; the
+#: old value 1e-15 was the boundary of the removed norm_nll substitution in
+#: isr_beta/isr_lumi).  Consumers continue log-linearly below the grid's own
+#: deepest knot (``EmelaGrid.xfxQ``), and 1e-70 is deep enough that the
+#: continued region carries <1e-4 of the per-leg quadrature weight even at
+#: n_quad=256 (deepest node omx≈1e-76) — with the log-linear drift exact, the
+#: residual error there is negligible.
+OMX_FLOOR = 1e-70
 
 #: PDG id eMELA returns for the electron structure function.
 ELECTRON_ID = 11
@@ -49,7 +59,7 @@ ELECTRON_ID = 11
 # Grid construction (sample eMELA once)
 # ---------------------------------------------------------------------------
 
-def default_omx_knots(omx_lo: float = 1e-16, omx_hi: float = 0.5,
+def default_omx_knots(omx_lo: float = OMX_FLOOR, omx_hi: float = 0.5,
                       per_decade: int = 8) -> np.ndarray:
     """Log-spaced omx knots from ``omx_lo`` to ``omx_hi`` (ascending)."""
     decades = math.log10(omx_hi) - math.log10(omx_lo)
@@ -94,9 +104,12 @@ class EmelaGrid:
     Interpolation: cubic B-spline of ``ln(x·D)`` over ``(ln omx, ln Q)`` (via
     scipy RectBivariateSpline).  ``xfxQ(x, omx, Q)`` is vectorised over the
     nodes; Q is a scalar per convolution call (the per-leg radiator is built at a
-    single μ_F).  Outside the omx-knot range the spline is clamped to the edge
-    knot (the convolution never queries there — the endpoint is analytic and the
-    bulk edge is below x_min)."""
+    single μ_F).  Above the omx-knot range xfxQ fails loud (bulk edge is below
+    x_min by construction); BELOW the deepest knot it continues ``ln(x·D)``
+    log-linearly with the spline's edge slope — the genuine NLL soft drift is
+    log-linear there, so the continuation is exact deep-endpoint physics
+    (2026-07-03 fix; the pre-fix edge CLAMP existed only to backstop the
+    norm_nll substitution, now removed)."""
 
     def __init__(self, omx_knots, q_knots, table, meta=None):
         from scipy.interpolate import RectBivariateSpline
@@ -142,8 +155,12 @@ class EmelaGrid:
         the convolution with no error.  This bites if ``ISRConfig.x_min`` is
         lowered below the grid's ``1-omx_hi`` (max one_minus_x exceeds omx_hi) or
         if μ_F=mu_F_factor·√s leaves the grid's Q window (e.g. a ξ scale
-        variation) — rebuild the grid wider.  Below-range omx is clamped (it is
-        below the analytic endpoint cutoff and never actually contributes)."""
+        variation) — rebuild the grid wider.  BELOW the deepest omx knot,
+        ``ln(x·D)`` is continued log-linearly in ``ln(omx)`` with the spline's
+        edge slope (= β_e−1−δ, δ the genuine NLL soft-drift exponent ≈ 4e-4 —
+        see :meth:`deep_slope`); the drift is log-linear through the deep
+        endpoint, so the continuation is exact there (no flat clamp, no
+        analytic substitution — 2026-07-03 fix)."""
         omx = np.asarray(omx, dtype=float)
         tol = 1e-9
         omx_max = float(np.max(omx)) if omx.size else self.omx[-1]
@@ -156,10 +173,30 @@ class EmelaGrid:
             raise ValueError(
                 f"Q={Qf:.4g} outside grid Q∈[{self.q[0]:.4g},{self.q[-1]:.4g}]; "
                 f"rebuild the grid to cover μ_F=mu_F_factor·√s (incl. ξ variations)")
-        ln_omx = np.log(np.clip(omx, self.omx[0], self.omx[-1]))
+        # 1e-320 floor: keeps ln finite for an exact omx=0 query (measure-zero
+        # in every consumer; the continued value there is finite and irrelevant).
+        ln_omx = np.log(np.maximum(omx, 1e-320))
+        lo = self._ln_omx[0]
         ln_q = math.log(min(max(Qf, self.q[0]), self.q[-1]))
-        out = np.exp(self._spline(ln_omx, ln_q, grid=False))
+        out_ln = self._spline(np.clip(ln_omx, lo, self._ln_omx[-1]), ln_q,
+                              grid=False)
+        below = ln_omx < lo
+        if np.any(below):
+            edge = float(self._spline(lo, ln_q, grid=False))
+            slope = float(self._spline(lo, ln_q, dx=1, grid=False))
+            out_ln = np.where(below, edge + slope * (ln_omx - lo), out_ln)
+        out = np.exp(out_ln)
         return float(out) if np.ndim(omx) == 0 else out
+
+    def deep_slope(self, Q) -> float:
+        """d ln(x·D)/d ln(omx) at the grid's DEEPEST omx knot, at scale ``Q`` —
+        the log-linear soft exponent the deep continuation in :meth:`xfxQ` uses.
+        Equals β_e − 1 − δ with δ ≈ 4e-4 the genuine NLL soft-drift exponent
+        (the integrand ∝ omx^(−δ) enhancement the 2026-07-03 endpoint fix
+        restored); ``isr_lumi`` reads δ from here to absorb the drift into its
+        Gauss-Jacobi weights."""
+        ln_q = math.log(min(max(float(Q), self.q[0]), self.q[-1]))
+        return float(self._spline(self._ln_omx[0], ln_q, dx=1, grid=False))
 
 
 # ---------------------------------------------------------------------------
