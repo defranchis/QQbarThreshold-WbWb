@@ -44,9 +44,12 @@ from framework.process.ww.generator import WWGenerator, _build_fine_grid
 from framework.process.ww.xsec_calculator import isr
 
 #: sigma_observed_munuqq defaults the generator does NOT override: z_min=0.30
-#: (→ x_min=√0.30) and n_quad=200 which the 2-leg path auto-maps to 128.  Pinned
-#: here; --verify proves they still match the live generator end-to-end.
-_N_QUAD_2LEG = 128
+#: (→ x_min=√0.30) and n_quad=200 which the 2-leg path auto-maps to 128.  Since
+#: the edge-aware quadrature (radiator v4) the production artifact is the
+#: n_ref = max(256, n_quad) per-leg REFERENCE consumed via the log-log spline,
+#: so the prewarmed fingerprint carries n_quad=256.  Pinned here; --verify
+#: proves it still matches the live generator end-to-end.
+_N_QUAD_2LEG = 256
 
 
 def _radiator_cfgs_and_grids():

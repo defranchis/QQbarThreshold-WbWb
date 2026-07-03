@@ -72,6 +72,7 @@ from framework.process.ww.xsec_calculator.eft_xsec import (
     BFSCorrections,
     alpha_Gmu,
     sigma_partonic_munuqq,
+    _SQRTS_BFS_FLOOR, _SQRTS_BFS_RAMP_TOP,
 )
 
 EULER_GAMMA = 0.5772156649015329
@@ -83,6 +84,19 @@ _SAFE_FLOOR = 1e-300   # underflow guard for log args near 0/1
 # where σ̂ vanishes, and tighter cutoffs waste GL nodes.
 _Z_MIN_DEFAULT      = 0.30                # single-conv lower bound on z = x₁x₂
 _X_MIN_2LEG_DEFAULT = math.sqrt(_Z_MIN_DEFAULT)   # per-leg lower bound
+
+# Edge-aware 2-leg quadrature (2026-07-03, overnight follow-up of the
+# 2026-07-02 review's −365 ppm n_quad finding at the 157.5 scan edge).
+# σ̂'s support boundary (≡0 below √ŝ = _SQRTS_BFS_FLOOR) and quintic ramp top
+# (_SQRTS_BFS_RAMP_TOP) map to kink LINES x₁x₂·s = F² of the 2-D integrand;
+# a plain tensor Gauss-Legendre rule straddles them and ripples by a few
+# 100 ppm at n_quad = 128 (oscillatory in n — it only converges on average).
+# The edge-aware path makes both images integration LIMITS on both legs
+# (dead region dropped, ramp in its own panel), the same edge-as-limit idea
+# as the indep chain's isr_lumi.py: measured ≤0.1 ppm at n_quad = 128
+# (analytic-LL A/B, scripts/investigations/nquad_edge/).
+_EDGE_N_RAMP       = 16    # GL nodes for the [floor, ramp-top] panels
+_EDGE_SPLINE_N_REF = 256   # eMELA per-leg reference sampling for the spline
 
 # NLL ISR constants (BCFS arXiv:1911.12040)
 ZETA3 = 1.2020569031595942           # Riemann ζ(3) = Apéry's constant
@@ -407,9 +421,14 @@ def _H_SV_per_leg(beta: float, nll: bool = False,
 # the within-process one.  Bump ``_RADIATOR_DISK_VERSION`` if the radiator math /
 # eMELA conventions change (the eMELA .so content hash is folded in already).
 _RADIATOR_CACHE: dict = {}
-_RADIATOR_DISK_VERSION = 3   # v3: NLL no endpoint substitution; eMELA-LL
-                             # deep-endpoint continued with its own plateau
-                             # (2026-07-02; v2 was a same-day intermediate)
+_RADIATOR_DISK_VERSION = 4   # v4: edge-aware 2-leg quadrature (2026-07-03) —
+                             # production consumes the n_ref=256 per-leg
+                             # reference through a log-log spline at panelised
+                             # nodes; per-node math unchanged from v3, bumped
+                             # so template fingerprints force a regen.
+                             # (v3: NLL no endpoint substitution; eMELA-LL
+                             # deep-endpoint continued with its own plateau,
+                             # 2026-07-02; v2 was a same-day intermediate)
 _EMELA_LIB_TAG: str | None = None
 
 
@@ -612,10 +631,14 @@ def _coerce_grid_list(grids) -> list[np.ndarray]:
 
 
 #: Radiator-cfg defaults — match ``sigma_observed_munuqq``'s production 2-leg
-#: call (z_min=0.30 → x_min=√0.30, n_quad auto-mapped to 128, NLL DELTA/ALPMZ).
+#: call (z_min=0.30 → x_min=√0.30, NLL DELTA/ALPMZ). Since the edge-aware
+#: quadrature (v4) the production artifact is the n_ref = max(256, n_quad)
+#: per-leg REFERENCE sampling consumed through the log-log spline, so the
+#: prewarmed fingerprint carries n_quad=256 (the fit's request of 128 maps
+#: to the same 256-node reference).
 _RADIATOR_CFG_DEFAULTS = dict(
     alpha_em_isr=None, isr_scale_factor=1.0, x_min=_X_MIN_2LEG_DEFAULT,
-    n_quad=128, nll=True, emela_ll=False, emela_pert_order="NLL",
+    n_quad=_EDGE_SPLINE_N_REF, nll=True, emela_ll=False, emela_pert_order="NLL",
     emela_fac_scheme="DELTA", emela_ren_scheme="ALPMZ")
 
 
@@ -769,6 +792,149 @@ def prewarm(sqrt_s_grids, cfgs, *, n_workers: int = 1, verbose: bool = True):
     return report
 
 
+# ---------------------------------------------------------------------------
+# Edge-aware 2-leg quadrature (see the _EDGE_* constants block for the why)
+# ---------------------------------------------------------------------------
+
+def _perleg_u_sampler(sq: float, *, x_min: float, n_quad: int,
+                      alpha_em_isr, isr_scale_factor: float,
+                      nll: bool, emela_ll: bool, emela_pert_order: str,
+                      emela_fac_scheme: str, emela_ren_scheme: str):
+    """Return ``(beta, sampler)`` — the per-leg β and a callable evaluating the
+    per-leg u-integrand (radiator × jacobian, the ``per_leg`` of the tensor
+    path) at ARBITRARY u ∈ (0, u_max], as the edge-aware panels require.
+
+    Analytic LL+exp: the closed form, exact at any u.  eMELA (NLL / eMELA-LL):
+    a cubic spline of ``ln per_leg`` vs ``ln u`` through the cached
+    ``n_ref = max(_EDGE_SPLINE_N_REF, n_quad)`` reference radiator
+    (``_emela_radiator_setup`` — same disk cache), linearly extended in
+    log-log below the first node where ``per_leg ∝ u^{-ε}`` is exactly
+    log-linear (the NLL soft exponent mismatch, ε ≈ 0.007).  Fidelity
+    measured ≤ 1.1e-8 relative against direct eMELA queries
+    (scripts/investigations/nquad_edge/)."""
+    s = float(sq) * float(sq)
+    use_emela = nll or emela_ll
+    if not use_emela:
+        beta = beta_ISR(s, alpha_em=alpha_em_isr,
+                        isr_scale_factor=isr_scale_factor)
+        bh = beta / 2.0
+
+        def sampler(u):
+            u = np.asarray(u, dtype=float)
+            omx = u ** (1.0 / bh)
+            x = 1.0 - omx
+            with np.errstate(over="ignore", invalid="ignore"):
+                jac = np.where(u > _SAFE_FLOOR,
+                               u ** (1.0 / bh - 1.0) / bh, 0.0)
+            return _H_SV_per_leg(beta) + jac * _Gee_per_leg_NS(
+                x, beta, one_minus_x=omx)
+
+        return beta, sampler
+
+    from scipy.interpolate import CubicSpline
+    alpha_a = _resolve_isr_alpha(alpha_em_isr, emela_ren_scheme)
+    beta = beta_ISR(s, alpha_em=alpha_a, isr_scale_factor=isr_scale_factor)
+    bh = beta / 2.0
+    n_ref = max(_EDGE_SPLINE_N_REF, n_quad)
+    _x, _w, per_leg_ref = _emela_radiator_setup(
+        float(sq), alpha_em_isr=alpha_em_isr,
+        isr_scale_factor=isr_scale_factor, x_min=x_min, n_quad=n_ref,
+        nll=nll, emela_ll=emela_ll, emela_pert_order=emela_pert_order,
+        emela_fac_scheme=emela_fac_scheme, emela_ren_scheme=emela_ren_scheme)
+    # u of the reference layout (recomputed — the cache stores x, which
+    # underflows to 1.0 at the deep endpoint; u is the faithful variable)
+    u_ref = _endpoint_substitution(bh, x_min, n_ref)[0]
+    ln_pl = np.log(np.maximum(per_leg_ref, _SAFE_FLOOR))
+    spline = CubicSpline(np.log(u_ref), ln_pl, bc_type="natural")
+    t_lo = float(np.log(u_ref[0]))
+    t_hi = float(np.log(u_ref[-1]))
+    slope_lo = float(spline(t_lo, 1))
+    val_lo = float(spline(t_lo))
+
+    def sampler(u):
+        t = np.log(np.maximum(np.asarray(u, dtype=float), _SAFE_FLOOR))
+        out = spline(np.clip(t, t_lo, t_hi))
+        below = t < t_lo
+        if np.any(below):
+            out = np.where(below, val_lo + slope_lo * (t - t_lo), out)
+        return np.exp(out)
+
+    return beta, sampler
+
+
+def _edge_panels(bh: float, u_lo_edge: float, u_hi_edge: float, u_cap: float,
+                 n_main: int):
+    """Panel list [(u_lo, u_hi, n), ...] for one leg: the σ̂-live main panel
+    up to the ramp-top image, the ramp panel between the two edge images,
+    dead region beyond dropped.  All bounds clipped to [0, u_cap]."""
+    a = min(max(u_lo_edge, 0.0), u_cap)     # ramp-top image
+    b = min(max(u_hi_edge, 0.0), u_cap)     # support-floor image
+    panels = []
+    if a > 0.0:
+        panels.append((0.0, a, n_main))
+    if b > a:
+        panels.append((a, b, _EDGE_N_RAMP))
+    return panels
+
+
+def _sigma_2leg_edge_aware(sq: float, sigma_partonic_fn, mW: float,
+                           gammaW: float, x_min: float, n_quad: int,
+                           beta: float, sampler, **sigma_kwargs) -> float:
+    """One-√s 2-leg convolution with σ̂'s support edges as integration limits.
+
+    Outer leg: u-panels split at the images of the ramp top / support floor
+    (``x₁ = (F/√s)²`` — beyond the floor image the whole inner range is dead
+    and is dropped).  Inner leg, per outer node: live panel down to the
+    ramp-top image ``x₂ = (F_top/√s)²/x₁``, ramp panel down to the support
+    image, dead region dropped.  σ̂ is evaluated in ONE batched call."""
+    s = sq * sq
+    bh = beta / 2.0
+    z_edge = (_SQRTS_BFS_FLOOR / sq) ** 2       # σ̂ ≡ 0 below (support floor)
+    z_ramp = (_SQRTS_BFS_RAMP_TOP / sq) ** 2    # quintic ramp top
+    if z_edge >= 1.0:
+        return 0.0                              # √s below the σ̂ support
+    u_max = (1.0 - x_min) ** bh
+
+    def _u_of_x(x):
+        return (1.0 - x) ** bh if x < 1.0 else 0.0
+
+    outer = _edge_panels(bh, _u_of_x(min(z_ramp, 1.0)), _u_of_x(z_edge),
+                         u_max, n_quad)
+    xs_parts, w_parts = [], []
+    for u_lo, u_hi, n in outer:
+        u1, w1 = _quad_nodes(n, u_lo, u_hi)
+        x1v = 1.0 - u1 ** (1.0 / bh)
+        wpl1 = w1 * sampler(u1)
+        for x1, wt1 in zip(x1v, wpl1):
+            if x1 <= 0.0:
+                continue
+            ze, zr = z_edge / x1, z_ramp / x1
+            if ze >= 1.0:
+                continue                        # inner range entirely dead
+            inner = []
+            a_live = max(zr, x_min)
+            if a_live < 1.0:
+                inner.append((0.0, _u_of_x(a_live), n_quad))
+            a_r, b_r = max(ze, x_min), min(zr, 1.0)
+            if b_r > a_r:
+                inner.append((_u_of_x(b_r),
+                              min(_u_of_x(a_r), u_max), _EDGE_N_RAMP))
+            for v_lo, v_hi, m in inner:
+                if v_hi <= v_lo:
+                    continue
+                u2, w2 = _quad_nodes(m, v_lo, v_hi)
+                x2v = 1.0 - u2 ** (1.0 / bh)
+                xs_parts.append(x1 * x2v * s)
+                w_parts.append(wt1 * w2 * sampler(u2))
+    if not xs_parts:
+        return 0.0
+    s_hat = np.concatenate(xs_parts)
+    w_flat = np.concatenate(w_parts)
+    sigma_hat = np.asarray(
+        sigma_partonic_fn(s_hat, mW, gammaW, **sigma_kwargs), dtype=float)
+    return float(np.dot(w_flat, sigma_hat))
+
+
 def sigma_ISR_2leg_convolution(sqrt_s,
                                sigma_partonic_fn,
                                mW: float = M_W_DEFAULT,
@@ -791,6 +957,13 @@ def sigma_ISR_2leg_convolution(sqrt_s,
                                # evolution.  Symmetric ξ ∈ {0.5,1,2} envelope.
                                isr_scale_factor: float = 1.0,
                                n_jobs: int | None = None,
+                               # Edge-aware quadrature: make σ̂'s support floor
+                               # / ramp-top images integration LIMITS on both
+                               # legs instead of straddling them with the
+                               # tensor rule (few-100-ppm n_quad ripple at the
+                               # low scan edge → ≤0.1 ppm at n_quad=128).
+                               # False restores the legacy tensor rule.
+                               edge_aware: bool = True,
                                **sigma_kwargs):
     """Two-leg double-convolution ISR (BFS eq. 71):
 
@@ -886,6 +1059,7 @@ def sigma_ISR_2leg_convolution(sqrt_s,
             emela_ren_scheme=emela_ren_scheme,
             isr_scale_factor=isr_scale_factor,
             n_jobs=1,
+            edge_aware=edge_aware,
             **sigma_kwargs,
         )
         ctx = multiprocessing.get_context("fork")
@@ -897,6 +1071,22 @@ def sigma_ISR_2leg_convolution(sqrt_s,
 
     for idx, sq in enumerate(sqrt_s_arr):
         s = sq * sq
+
+        # Edge-aware path: engage whenever σ̂'s ramp structure intersects the
+        # integration domain (z_ramp above the product floor); below the σ̂
+        # support (√s ≤ floor) it returns 0 exactly, matching the tensor rule.
+        if edge_aware and (_SQRTS_BFS_RAMP_TOP / sq) ** 2 > x_min * x_min:
+            beta_e, sampler = _perleg_u_sampler(
+                float(sq), x_min=x_min, n_quad=n_quad,
+                alpha_em_isr=alpha_em_isr, isr_scale_factor=isr_scale_factor,
+                nll=nll, emela_ll=emela_ll,
+                emela_pert_order=emela_pert_order,
+                emela_fac_scheme=emela_fac_scheme,
+                emela_ren_scheme=emela_ren_scheme)
+            out[idx] = _sigma_2leg_edge_aware(
+                float(sq), sigma_partonic_fn, mW, gammaW, x_min, n_quad,
+                beta_e, sampler, **sigma_kwargs)
+            continue
 
         if _use_emela:
             # σ̂-independent per-leg eMELA radiator, cached in-memory + on disk
@@ -995,6 +1185,10 @@ def sigma_observed_munuqq(sqrt_s,
                           # ISR factorisation scale ξ ∈ {0.5, 1, 2}. Affects
                           # both LL log (β_ISR) and eMELA DGLAP Q = ξ·√s.
                           isr_scale_factor: float = 1.0,
+                          # Edge-aware 2-leg quadrature (σ̂ support edges as
+                          # integration limits); False = legacy tensor rule.
+                          # Only consumed by the 2-leg path.
+                          isr_edge_aware: bool = True,
                           coulomb_kc_safe: bool = False,
                           decay_uses_full_born: bool = True,
                           m_t: float = M_T_DEFAULT,
@@ -1074,6 +1268,7 @@ def sigma_observed_munuqq(sqrt_s,
             emela_pert_order=isr_emela_pert_order,
             emela_fac_scheme=isr_emela_fac_scheme,
             emela_ren_scheme=isr_emela_ren_scheme,
+            edge_aware=isr_edge_aware,
             **common_kwargs,
         )
     else:
