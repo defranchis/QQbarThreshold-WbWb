@@ -155,7 +155,11 @@ def main():
     ax.plot(sv, mc, ":", color="grey", lw=1.2, label="MC bar")
     ax.set_yscale("log")
     ax.set_xlabel(r"$\sqrt{s}$ [GeV]")
-    ax.set_ylabel(r"max $|$residual$|$ over doubly-off-axis [%]")
+    # loc="center" + reduced fontsize: at the CMS-style label size this label
+    # is longer than the panel height — mplhep's top-anchored default hangs
+    # below the figure and gets clipped by bbox_inches="tight".
+    ax.set_ylabel(r"max $|$residual$|$ over doubly-off-axis [%]",
+                  loc="center", fontsize=18)
     ax.set_title("cross-term gain vs √s", fontsize=11)
     ax.grid(alpha=0.25, which="both"); ax.legend(loc="best", fontsize=9)
 

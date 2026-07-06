@@ -51,9 +51,10 @@ SQ0 = 161.0   # normalisation anchor for the shape ratio
 
 # Gauss-Legendre nodes per leg in the ISR convolution.  Production templates use
 # 128; the visible line-shape ripple in the turn-on is a GL quadrature artefact
-# that scales as 1/n_quad (the moving σ̂ turn-on kink beating against the nodes),
-# so bump it for a clean figure.  Override with WW_PLOT_NQUAD.
-NQUAD = int(os.environ.get("WW_PLOT_NQUAD", "128"))
+# that scales as 1/n_quad (the moving σ̂ turn-on kink beating against the nodes).
+# Default 512 so the report figure matches its caption (a 128 run puts a
+# 0.25-GeV staircase in the shape-ratio panel).  Override with WW_PLOT_NQUAD.
+NQUAD = int(os.environ.get("WW_PLOT_NQUAD", "512"))
 
 
 def _prod_nll():

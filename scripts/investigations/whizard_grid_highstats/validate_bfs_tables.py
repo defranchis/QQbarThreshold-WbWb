@@ -134,7 +134,10 @@ def main():
         ax_rat.grid(alpha=0.25)
         ax_rat.legend(loc="lower right", fontsize=10)
     axes[0][0].set_ylabel(r"$\sigma(\mu\nu u\bar d)$ [fb]")
-    axes[1][0].set_ylabel(r"ratio to BFS WHIZARD 4f Born")
+    # loc="center": mplhep's top-anchored ylabel hangs below the (short)
+    # ratio panel for a label this long and gets clipped by
+    # bbox_inches="tight".
+    axes[1][0].set_ylabel(r"ratio to BFS WHIZARD 4f Born", loc="center")
 
     fig.suptitle("Morphed WHIZARD-3.1.5 grid vs BFS arXiv:0707.0773 "
                  "Tables 1 & 2", y=1.00)

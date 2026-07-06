@@ -66,8 +66,10 @@ def plot_one_axis(df, *, scan_col, fixed_col, fixed_val, x_label, ref_val,
         ax.set_xlabel(rf"{x_label} − {x_label}$^0$  [MeV]")
         ax.grid(alpha=0.25)
         if ax is axes[0]:
+            # loc="center": mplhep's top-anchored ylabel hangs below the axes
+            # for a label this long and gets clipped by bbox_inches="tight".
             ax.set_ylabel(r"$(\sigma_\mathrm{morph}-\sigma_\mathrm{WHIZARD})"
-                          r"/\sigma$ [%]")
+                          r"/\sigma$ [%]", loc="center")
             ax.legend(loc="best", fontsize=8)
         summary.append((s, len(sl),
                         float(np.abs(sl["resid"]).max()),

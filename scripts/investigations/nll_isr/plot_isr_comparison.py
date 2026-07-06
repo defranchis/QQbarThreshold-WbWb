@@ -74,7 +74,10 @@ BORN_KW = dict(
     br_convention="pdg-constant",
 )
 
-SQ_GRID = np.arange(157.0, 170.25, 0.25)
+# Plotted range capped at 165 GeV: the production anchor-morph fine grid ends
+# there — above it the anchor response is MC-noise-limited, and at exactly
+# 170 GeV the chain switches to the RACOONWW calibration spline (endpoint jump).
+SQ_GRID = np.arange(155.0, 165.05, 0.1)
 
 # ---------------------------------------------------------------------------
 # Compute the four scenarios — all via framework functions

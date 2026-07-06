@@ -78,7 +78,8 @@ def plot_smooth(splines, sqrts_axis, df):
                         mfc="white", markersize=4, alpha=0.7)
     ax_abs.axvline(2 * MW0, color="grey", linestyle=":", alpha=0.4)
     ax_abs.set_ylabel(r"$\sigma_{\rm morph}(\mu\nu u\bar d)$ [fb]")
-    ax_abs.set_title("Smooth σ(√s) from the morphing scheme — m_W and Γ_W variations  "
+    ax_abs.set_title(r"Smooth $\sigma(\sqrt{s})$ from the morphing scheme — "
+                     r"$m_W$ and $\Gamma_W$ variations  "
                      "(open markers = underlying grid points)")
     ax_abs.legend(loc="upper left", fontsize=9, ncol=2, framealpha=0.9)
     ax_abs.grid(alpha=0.25)

@@ -175,7 +175,7 @@ def plot_fit_scenario(fit):
         plt.xlim(*xlim)
     _fit_scenario_caption(fit)
 
-    save_figure(fit.plot_dir, f"fit_scenario_ratio_{suffix}", also_pdf=not fit.asimov)
+    save_figure(fit.plot_dir, f"fit_scenario_ratio_{suffix}", also_pdf=True)
 
 
 def plot_parameter_variations(fit):

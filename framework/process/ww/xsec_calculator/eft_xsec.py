@@ -236,6 +236,10 @@ def sigma_WW_partonic(s,
                   apply_delta_QCD: bool = True,
                   alpha_s: float = ALPHA_S_MW_DEFAULT,
                   apply_whizard_anchor: bool = True,
+                  # Default "grid" is the BFS-closure choice; PRODUCTION uses
+                  # "morph" (card). Any comparison against fit templates must
+                  # pass whizard_anchor_source="morph" or build kwargs via
+                  # generator.partonic_kwargs_from_card.
                   whizard_anchor_source: str = "grid",
                   coulomb_kc_safe: bool = False,
                   decay_uses_full_born: bool = True,
@@ -437,6 +441,8 @@ def sigma_partonic_munuqq(s,
                           alpha_s: float = ALPHA_S_MW_DEFAULT,
                           alpha_s_ref: float = ALPHA_S_MW_DEFAULT,
                           apply_whizard_anchor: bool = True,
+                          # Default "grid" = BFS-closure choice; production =
+                          # "morph" (see note at sigma_WW_partonic).
                           whizard_anchor_source: str = "grid",
                           coulomb_kc_safe: bool = False,
                           decay_uses_full_born: bool = True,

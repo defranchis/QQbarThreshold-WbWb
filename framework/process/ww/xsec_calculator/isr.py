@@ -1163,6 +1163,10 @@ def sigma_observed_munuqq(sqrt_s,
                           # None → α_Gμ(M_W_BFS_REF) per BFS prescription.
                           alpha_em_isr: float | None = None,
                           apply_whizard_anchor: bool = True,
+                          # Default "grid" is the BFS-closure choice; PRODUCTION
+                          # uses "morph" (card). Any comparison against fit
+                          # templates must pass whizard_anchor_source="morph" or
+                          # build kwargs via generator.observed_kwargs_from_card.
                           whizard_anchor_source: str = "grid",
                           isr_scheme: str = "single_conv",
                           isr_nll: bool = False,

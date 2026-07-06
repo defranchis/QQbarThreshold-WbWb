@@ -56,7 +56,10 @@ def main():
     def finish(a, ylabel, title):
         a.axhline(0, color="k", lw=1.6, label="denoised curve (used)")
         a.axvspan(*FINE_SPAN, color="orange", alpha=0.07)
-        a.set_ylabel(ylabel)
+        # loc="center": mplhep's top-anchored ylabel hangs below the panel
+        # for labels this long — the stacked panels' labels collide and get
+        # clipped by bbox_inches="tight".
+        a.set_ylabel(ylabel, loc="center")
         a.set_title(title, fontsize=12)
         a.grid(alpha=0.25)
         a.legend(loc="best", fontsize=8)
@@ -113,7 +116,9 @@ def main():
 
     fig.suptitle("√s carrying of the morph quantities — raw per-√s fit "
                  "vs the denoised curve the morph uses", y=1.00)
-    fig.tight_layout()
+    # h_pad: the stacked left panels' (long, centered) y-labels would
+    # otherwise overlap each other at the row boundary.
+    fig.tight_layout(h_pad=3.0)
     out_pdf = PLOTS / "sqrts_interpolation.pdf"
     out_png = PLOTS / "sqrts_interpolation.png"
     fig.savefig(out_pdf, bbox_inches="tight")

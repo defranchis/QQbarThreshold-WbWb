@@ -69,14 +69,19 @@ def main():
         ax.set_xlabel(r"$m_W$ [GeV] (1-MeV step)")
         ax.grid(alpha=0.25)
         if ax is axes[0]:
-            ax.set_ylabel(r"$(\sigma_{\rm morph} - \sigma_{\rm WHIZARD})/\sigma$ [%]")
+            # loc="center": mplhep's top-anchored ylabel hangs below the axes
+            # for a label this long and gets clipped by bbox_inches="tight".
+            ax.set_ylabel(r"$(\sigma_{\rm morph} - \sigma_{\rm WHIZARD})/\sigma$ [%]",
+                          loc="center")
             ax.legend(loc="upper right", fontsize=8, framealpha=0.9)
         summary.append((s, float(np.max(np.abs(sub.resid_pct))),
                         float(np.median(np.abs(sub.resid_pct))), float(mc_max), len(sub)))
 
     fig.suptitle("Sub-step validation: morph vs WHIZARD at 1-MeV (m_W, Γ_W) offsets",
                  y=1.02)
-    fig.tight_layout()
+    # w_pad: the edge x-tick labels (80.377/80.381) of adjacent panels merge
+    # at the default panel separation.
+    fig.tight_layout(w_pad=3.0)
     out_pdf = PLOTS / "validate_substep.pdf"
     out_png = PLOTS / "validate_substep.png"
     fig.savefig(out_pdf, bbox_inches="tight")

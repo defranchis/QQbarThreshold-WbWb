@@ -7,6 +7,16 @@ python3 scripts/investigations/<topic>/<script>.py`.
 Production validation lives in `scripts/validate_bfs_nlo.py`; these are
 the **off-tree** explorations that informed the project memories.
 
+**House rule — anchor source.** The raw calculator functions
+(`sigma_partonic_munuqq`, `sigma_observed_munuqq`, `sigma_WW_partonic`)
+default to `whizard_anchor_source="grid"` (the BFS-closure choice);
+production is `"morph"`. A new *production-facing* diagnostic must build
+its kwargs via `generator.partonic_kwargs_from_card` /
+`observed_kwargs_from_card` (as `scripts/plot_ww_diagnostics.py` does)
+— never call the raw functions bare, or its numbers will silently
+disagree with the fit templates (2026-07-02 survey:
+`notes/overnight_2026-07-02/RESULTS_anchor_defaults.md`).
+
 ## `gammaw_crossing/` — does dσ_WW/dΓ_W cross zero in the scan window?
 
 Triggered by [project_followup_gammaw_crossing.md]. Verdict: yes,

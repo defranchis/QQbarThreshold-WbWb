@@ -4,7 +4,7 @@ Five PDF figures written to ``fit_output/ww/diagnostics/``:
 
 * ``xsec_vs_sqrts.pdf`` — σ(√s) at successive BFS Born orders (eq. 17 →
   17+37 → 17+33+37 → 17+33+37+39) and then with the ISR convolution
-  layered on. Two panels: linear scale 155–170 GeV, and ratios relative
+  layered on. Two panels: linear scale 155–165 GeV, and ratios relative
   to the full N^(3/2)LO Born.
 
 * ``sensitivity_vs_sqrts.pdf`` — dσ/dm_W and dσ/dΓ_W vs √s computed by
@@ -87,6 +87,15 @@ def sigma_observed_munuqq(*args, **kwargs):
 
 PLOT_DIR = "fit_output/ww/diagnostics"
 
+# Plotted √s range. Ends at the anchor-morph grid_fine edge (165 GeV):
+# above it the morph rests on 0.5-GeV MC wing nodes whose (m_W, Γ_W)
+# response is MC-noise limited (visible wiggles in derivative/ratio
+# curves), and at √s = 170 GeV the chain switches to the RACOONWW
+# calibration spline (benign C⁰ discontinuity, but a spike in finite-
+# difference derivatives). Neither region carries scan points.
+SQRTS_PLOT_MIN, SQRTS_PLOT_MAX = 155.0, 165.0
+SQRTS_PLOT_N = 101   # 0.1 GeV step
+
 # FCC-ee primary scan window — read from cards/ww_default.py so a card edit
 # is the single source of truth (no copy in the plotting code).
 SCAN_WINDOW_GEV = (float(_card.SCENARIO["scan_min"]),
@@ -136,7 +145,7 @@ def _bfs_total_WW_order(s, mW, gammaW, order: str):
 def plot_xsec_vs_sqrts():
     import matplotlib.pyplot as plt
 
-    sqrts = np.linspace(155.0, 170.0, 151)
+    sqrts = np.linspace(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX, SQRTS_PLOT_N)
     s = sqrts ** 2
     mW, gW = M_W_DEFAULT, GAMMA_W_DEFAULT
 
@@ -252,7 +261,7 @@ def _ddiff(sigma_fn, x_default: float, *, h: float, **kwargs):
 def plot_sensitivity_vs_sqrts():
     import matplotlib.pyplot as plt
 
-    sqrts = np.linspace(155.0, 170.0, 151)
+    sqrts = np.linspace(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX, SQRTS_PLOT_N)
     s = sqrts ** 2
     mW, gW = M_W_DEFAULT, GAMMA_W_DEFAULT
 
@@ -318,7 +327,7 @@ def plot_ratios_vs_mW_GammaW():
     ``plot_parameter_variations`` figure."""
     import matplotlib.pyplot as plt
 
-    sqrts = np.linspace(155.0, 170.0, 151)
+    sqrts = np.linspace(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX, SQRTS_PLOT_N)
     mW0, gW0 = M_W_DEFAULT, GAMMA_W_DEFAULT
 
     sigma_nom = sigma_observed_munuqq(sqrts, mW=mW0, gammaW=gW0, channel="inclusive")
@@ -385,7 +394,7 @@ def plot_azzurri_style_pm1GeV():
     """
     import matplotlib.pyplot as plt
 
-    sqrts = np.linspace(155.0, 170.0, 121)
+    sqrts = np.linspace(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX, SQRTS_PLOT_N)
     mW_paper = 80.385
     gW_paper = 2.085
     # Small "calculation" step that stays inside validity, and the visual
@@ -435,7 +444,7 @@ def plot_azzurri_style_pm1GeV():
     ax_mW.set_xlabel(r"$\sqrt{s}$ [GeV]")
     ax_mW.set_ylabel(r"$\sigma_{\rm WW}$ [pb]  (with ISR)")
     ax_mW.set_title(rf"$m_W$ variation ($\pm {eff_d_mW:.1f}$ GeV, linear from $\pm 10$ MeV)")
-    ax_mW.set_xlim(155, 170)
+    ax_mW.set_xlim(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX)
     ax_mW.legend(loc="upper left", fontsize=9, framealpha=0.9)
     ax_mW.grid(alpha=0.25)
 
@@ -459,7 +468,7 @@ def plot_azzurri_style_pm1GeV():
                 alpha=0.7, fontsize=9, ha="left", va="bottom")
     ax_gW.set_xlabel(r"$\sqrt{s}$ [GeV]")
     ax_gW.set_title(rf"$\Gamma_W$ variation ($\pm {eff_d_gW:.1f}$ GeV, linear from $\pm 10$ MeV)")
-    ax_gW.set_xlim(155, 170)
+    ax_gW.set_xlim(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX)
     ax_gW.legend(loc="upper left", fontsize=9, framealpha=0.9)
     ax_gW.grid(alpha=0.25)
 
@@ -488,7 +497,7 @@ def plot_azzurri_style_overlay():
     """
     import matplotlib.pyplot as plt
 
-    sqrts = np.linspace(155.0, 170.0, 121)
+    sqrts = np.linspace(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX, SQRTS_PLOT_N)
     mW_paper = 80.385
     gW_paper = 2.085
     d_calc = 0.010
@@ -541,7 +550,7 @@ def plot_azzurri_style_overlay():
     ax.set_ylabel(r"$\sigma_{\rm WW}$ [pb]  (with ISR)")
     ax.set_title(rf"$m_W$ and $\Gamma_W$ $\pm {eff_d:.1f}$ GeV bands overlaid "
                  rf"(linear from $\pm 10$ MeV, $\times {int(inflate)}$)")
-    ax.set_xlim(155, 170)
+    ax.set_xlim(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX)
     ax.legend(loc="upper left", fontsize=9, framealpha=0.9)
     ax.grid(alpha=0.25)
 

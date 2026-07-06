@@ -992,7 +992,9 @@ def scan_chi2(fit):
             plt.xlabel(labels.get(pa, pa))
             plt.ylabel(labels.get(pb, pb))
             plt.title(projection_title(fit.scenario_dict["total_lumi"]), loc="right", fontsize=20)
-            process_annotation(fit.card, x=0.95, y=0.15, include_reference=True)
+            # No include_reference: the long generator/arXiv lines overflow the
+            # left axis edge; the chain footer already carries the chain.
+            process_annotation(fit.card, x=0.95, y=0.15)
             plt.legend(loc="upper left")
             y_offset = -0.003 if pb == "width" and pa == "mass" else 0
             plt.ylim(fit.value_from_param(gB[0], pb) + y_offset,

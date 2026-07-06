@@ -71,7 +71,11 @@ def dsigma_dx(s, *, axis, h, **chain_kw):
 
 
 def main():
-    sqrts = np.linspace(154.0, 172.0, 181)
+    # Plotted range capped at 165 GeV: the production anchor-morph fine grid
+    # ends there — above it the anchor response is MC-noise-limited, and at
+    # exactly 170 GeV the chain switches to the RACOONWW calibration spline
+    # (endpoint jump in all four panels).
+    sqrts = np.linspace(155.0, 165.0, 101)
     s = sqrts ** 2
 
     print("Computing chain σ at kcsafe={False, True} on the full grid...")
@@ -142,6 +146,12 @@ def main():
     ax[1, 1].set_title(r"Width sensitivity $\partial\sigma/\partial\Gamma_W$")
     ax[1, 1].legend(loc="upper left", fontsize=9)
     ax[1, 1].grid(True, alpha=0.3)
+
+    # Relative shift (top-right panel) at the plotted-range edge — quoted in
+    # the report caption.
+    i_edge = int(np.argmin(np.abs(sqrts - 165.0)))
+    print(f"relative shift sigma_KC-safe/sigma_current - 1 at "
+          f"sqrt(s)={sqrts[i_edge]:.1f} GeV: {rel[i_edge]:+.4f} %")
 
     fig.tight_layout()
     pdf = os.path.join(OUT_DIR, "compare_kc_safe_chain.pdf")

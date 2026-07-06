@@ -192,8 +192,10 @@ def main():
     valid = rows[:, 0] > 0.5
     n_bad = int((~valid).sum())
     r = rows[valid]
-    # toy-uniqueness guard: pseudo-data sums must not repeat
-    n_dupe = len(r) - len(np.unique(np.round(r[:, 5], 6)))
+    # toy-uniqueness guard: pseudo-data sums must not repeat. Compare the
+    # full-precision checksums — rounding to 6 decimals produced spurious
+    # birthday collisions at N≳1000.
+    n_dupe = len(r) - len(np.unique(r[:, 5]))
 
     with open(os.path.join(args.outdir, f"toys_{tag}.csv"), "w", newline="") as fh:
         w = csv.writer(fh)
