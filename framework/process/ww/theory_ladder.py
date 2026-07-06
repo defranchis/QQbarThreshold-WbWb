@@ -609,8 +609,9 @@ def _emit_table(rows, out, isr_keys, scheme_rows=None):
             if t is not None:
                 lines.append(f"  [{lm:5s}] NNLL truncation = {abs(t):6.2f} MeV  "
                              f"(eMELA-LL↔eMELA-NLL, α fixed)")
-        lines.append("         residual DELTA scheme =   0.14 MeV  "
-                     "(kernel α-swing; step 5, indep chain)")
+        lines.append("         residual DELTA scheme =   0.13 MeV  "
+                     "(kernel α-swing; step 5, indep chain, "
+                     "re-derived 2026-07-03 post endpoint fix)")
         lines.append("         α(M_Z) input          =   0.005 MeV "
                      "(aem_isr profiled nuisance)")
         lines.append("         ('ren'/'scale' rows above are STABILITY diagnostics, "
@@ -635,7 +636,7 @@ def _emit_table(rows, out, isr_keys, scheme_rows=None):
     lines.append("  • Higher-order Coulomb (BFS G_C vs. dropped FKM K_C).")
     lines.append("  • Factorisation-scheme (DELTA↔MSBAR) ISR uncertainty — proper variation")
     lines.append("    needs the +∫K(x)σ_Born collinear counterterm in σ̂ (deferred); bounded")
-    lines.append("    ≈0.14 MeV by the NLL-kernel α-swing (step 5, listed as a component above).")
+    lines.append("    ≈0.13 MeV by the NLL-kernel α-swing (step 5, listed as a component above).")
     text = "\n".join(lines)
     print("\n" + text + "\n")
 

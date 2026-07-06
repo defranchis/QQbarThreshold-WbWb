@@ -4,7 +4,7 @@
 # dispatch to request_cpus via WW_ISR_NJOBS.
 #
 # Args:
-#   $1  TAG          PARAMETERS tag: nominal|pseudodata|mass_var|width_var|alphas_var
+#   $1  TAG          PARAMETERS tag from the live card (nominal|pseudodata|<param>_var|cross_mass_width)
 #   $2  BEC_SHIFT    BEC shift in MeV (0 = nominal set; ±10/±30 = scan_{p,m}{10,30})
 
 set -eo pipefail

@@ -1,11 +1,16 @@
 """Generate the HTCondor submit file for the WW NLL-template regeneration.
 
 Mirrors the whizard/submit.py style. Fans out one job per
-(tag, BEC-shift) pair — 5 tags × 5 shifts = 25 jobs.
+(tag, BEC-shift) pair read from the live card (7 tags × 3 shifts = 21
+jobs today; the counts track the card, not this docstring).
 
 Usage:
     python3 condor/ww_templates/submit.py            # writes templates.sub
     condor_submit condor/ww_templates/templates.sub
+
+Always re-run this script before condor_submit: templates.sub is a
+generated artifact and silently under-provisions the campaign if the
+card has grown a tag since it was last written.
 
 Each job runs ``compute_xsec_ww.py --only-tag <tag> --only-bec-shift <shift>``
 on the worker with ``request_cpus = 4`` and ``WW_ISR_NJOBS = 4`` (set by
