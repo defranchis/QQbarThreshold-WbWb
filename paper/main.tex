@@ -78,7 +78,7 @@
 
 
 
-\abstract{A scan of the beam energy across the \WW production threshold is one of the flagship measurements of the electroweak programme of the Future Circular Collider (FCC-ee). In this paper, we provide projections for the achievable precision in the W boson mass (\mW) and total width (\GW) from a threshold scan in electron-positron (\epm) collisions in the centre-of-mass energy range $\sqrts\in[157,163]\GeV$. The theoretical prediction of the \WW production cross section is obtained from the unstable-particle effective-field-theory (EFT) expansion of Beneke, Falgari, and Schwinn, implemented up to \NhalfLO in the EFT power counting and supplemented with the dominant next-to-next-to-leading-order corrections, initial-state radiation at next-to-leading-logarithmic (NLL) accuracy, and an anchoring to the exact four-fermion Born cross section. A maximum-likelihood fit of the predicted lineshape to the measured cross sections, treating \mW and \GW as free parameters, projects a statistical precision of about 1.1 and 2.3\MeV on \mW and \GW, respectively, and a total experimental precision of 2.5 and 4.0\MeV including the leading parametric and machine-related uncertainties considered so far. We further assess the dependence of these results on the assumptions on the systematic uncertainties, and estimate the residual theoretical uncertainty associated with the modelling of initial-state radiation.
+\abstract{A scan of the beam energy across the \WW production threshold is one of the flagship measurements of the electroweak programme of the Future Circular Collider (FCC-ee). In this paper, we provide projections for the achievable precision in the W boson mass (\mW) and total width (\GW) from a threshold scan in electron-positron (\epm) collisions in the centre-of-mass energy range $\sqrts\in[157,163]\GeV$. The theoretical prediction of the \WW production cross section is obtained from the unstable-particle effective-field-theory (EFT) expansion of Beneke, Falgari, and Schwinn, implemented up to \NhalfLO in the EFT power counting and supplemented with the dominant next-to-next-to-leading-order corrections, initial-state radiation at next-to-leading-logarithmic (NLL) accuracy, and an anchoring to the exact four-fermion Born cross section. A maximum-likelihood fit of the predicted lineshape to the measured cross sections, treating \mW and \GW as free parameters, projects a statistical precision of about 0.9 and 2.0\MeV on \mW and \GW, respectively, and a total experimental precision of 1.5 and 2.9\MeV including the leading parametric, machine-related, and placeholder cross-section systematic uncertainties considered so far. We further assess the dependence of these results on the assumptions on the systematic uncertainties, and estimate the residual theoretical uncertainty associated with the modelling of initial-state radiation.
 A detailed detector-level study of the \WW cross section measurement, along the lines of the companion analysis of the \ttbar threshold scan, as well as the assessment of additional experimental and machine-related systematic uncertainties, are left to future work.}
 
 
@@ -279,10 +279,15 @@ The values of \mW and \GW are determined by fitting the predicted cross
 section, as a function of \sqrts, to the measured \WW production rate. We
 consider a baseline scan with seven equally-spaced points between
 $\sqrts=157$ and $163\GeV$, with a spacing of $1\GeV$. We assume a total
-integrated luminosity of $12\abinv$ split equally among the scan points.
-\TODO{the integrated luminosity and its distribution among scan points
-are placeholder values pending the finalisation of the FCC-ee \WW
-operation scenario; the results scale accordingly.}
+integrated luminosity of $19.2\abinv$, corresponding to the FCC-ee
+Feasibility Study baseline of a two-year run at the \WW threshold with
+four interaction points~\cite{FCC:2025lpp}, split equally among the scan
+points. The equal split is a simple, non-optimised choice; the results
+scale with the assumed luminosity and its distribution among the scan
+points. The measured cross sections are assumed to be obtained with a
+signal selection efficiency of $0.8$, which inflates the statistical
+uncertainties by $1/\sqrt{0.8}\approx 1.12$ with respect to the ideal
+case.
 
 The dependence of the predicted cross section on \mW, \GW, and \as is
 shown in Figure~\ref{fig:variations} (left). As anticipated, a variation
@@ -331,18 +336,32 @@ with Gaussian priors representing external knowledge. Details on the
 statistical model are given in Appendix~\ref{app:fit_model}.
 
 In the fit, \asmz is constrained to an uncertainty of $10^{-4}$ according
-to FCC-ee projections~\cite{dEnterria:2020cpv}. The beam-related
-uncertainties are split into a point-to-point uncorrelated and a
-correlated component, with the size of the correlated component assumed
-to be half of the uncorrelated one. We assume a luminosity uncertainty of
-$0.1\%$ (uncorrelated) and $0.05\%$ (correlated) per scan point, a beam
-energy calibration uncertainty of $10$ ($5$)\MeV for the uncorrelated
-(correlated) component, and a beam energy spread uncertainty of $1\%$
-($0.5\%$) for the uncorrelated (correlated) component.
-\TODO{the BEC and BES input uncertainties are placeholder values; their
-dependence is studied explicitly in Section~\ref{sec:param_scans}, and
-the impact of additional systematic sources will be assessed once the
-detector-level study is available.}
+to FCC-ee projections~\cite{dEnterria:2020cpv}. The value of
+$\alpha(\mZ)$ entering the ISR is profiled with an uncertainty of
+$4.7\times10^{-8}$, the FCC-ee Tera-Z projection~\cite{Riembau:2025xxx},
+and the parametric dependence of the overall EW coupling normalisation is
+profiled as a flat cross-section rescale with a prior of
+$\delta\sigma/\sigma = 1.2\times 10^{-5} = 2\,\delta\alpha/\alpha$ from
+the same projection; both are found to be negligible. The luminosity
+uncertainty is taken from the projected precision of the di-photon
+luminosity measurement~\cite{CarloniCalame:2019dyk}:
+$2\times10^{-4}$ per-point uncorrelated, rescaled with the collected
+luminosity at each point, and $1\times10^{-4}$ fully correlated. The
+beam energy calibration uncertainty follows the FCC-ee
+resonant-depolarisation projection~\cite{FCC:2025lpp,Blondel:2019jmp}:
+$0.1\MeV$ point-to-point uncorrelated and $0.3\MeV$ fully correlated on
+the collision energy. For the beam energy spread we assume a relative
+knowledge of $1\%$ ($0.5\%$) for the uncorrelated (correlated)
+component~\cite{Blondel:2019jmp}. Finally, to emulate experimental
+systematic uncertainties in the cross-section determination in advance
+of the detector-level study, we include two placeholder cross-section
+uncertainties, each sized as $30\%$ of the per-point statistical
+uncertainty: one fully correlated and one fully uncorrelated across the
+scan points, added directly to the covariance matrix.
+\TODO{the placeholder cross-section systematic uncertainties and the
+BES knowledge components will be refined once the detector-level study
+is available; the dependence of the results on all input uncertainties
+is studied explicitly in Section~\ref{sec:param_scans}.}
 
 Figure~\ref{fig:variations} (right) shows the fitted lineshape obtained
 from a fit to pseudo-data generated with \mW and \GW displaced from the
@@ -358,47 +377,56 @@ central value of the prediction.
     \centering
 \begin{tabular}{l|c|c|l}
 Uncertainty source  & \mW [\MeV{}] & \GW [\MeV{}] & Input value \\ \hline
-Experimental (stat.)              & 1.1 & 2.3 & $\mathcal{L} = 12\abinv$ (placeholder) \\
-Parametric \mW                    & --  & 2.5 & free parameter \\
-Parametric \GW                    & 1.5 & --  & free parameter \\
-Parametric \as                    & 0.1 & 0.0 & $\delta\asmz = 10^{-4}$ \\ \hline
-Luminosity calibration (uncorr.)  & 1.4 & 2.3 & $\delta L/L = 0.1\%$ \\
-Luminosity calibration (corr.)    & 1.1 & 0.0 & $\delta L/L = 0.05\%$ \\
-Beam energy calibration (uncorr.) & 0.7 & 1.1 & $\delta\sqrts = 10\MeV$ \\
-Beam energy calibration (corr.)   & 0.6 & 0.0 & $\delta\sqrts = 5\MeV$ \\
+Experimental (stat.)              & 0.9 & 2.0 & $\mathcal{L} = 19.2\abinv$, $\varepsilon = 0.8$ \\
+Parametric \mW                    & --  & 1.6 & free parameter \\
+Parametric \GW                    & 0.8 & --  & free parameter \\
+Parametric \as                    & 0.1 & 0.0 & $\delta\asmz = 10^{-4}$ \\
+Parametric $\alpha(\mZ)_\mathrm{ISR}$ & 0.0 & 0.0 & $\delta\alpha = 4.7\times10^{-8}$ \\
+Parametric EW normalisation       & 0.0 & 0.0 & $\delta\sigma/\sigma = 1.2\times10^{-5}$ \\ \hline
+Luminosity calibration (uncorr.)  & 0.3 & 0.5 & $\delta L/L = 2\times10^{-4}$, per-point scaled \\
+Luminosity calibration (corr.)    & 0.2 & 0.0 & $\delta L/L = 1\times10^{-4}$ \\
+Beam energy calibration (uncorr.) & 0.0 & 0.1 & $\delta\sqrts = 0.1\MeV$ \\
+Beam energy calibration (corr.)   & 0.2 & 0.0 & $\delta\sqrts = 0.3\MeV$ \\
 Beam energy spread (uncorr.)      & 0.0 & 0.0 & $\delta\Delta E = 1\%$ \\
 Beam energy spread (corr.)        & 0.0 & 0.0 & $\delta\Delta E = 0.5\%$ \\
+Cross section (uncorr.)           & 0.4 & 0.8 & $30\%$ of stat.\ (placeholder) \\
+Cross section (corr.)             & 0.5 & 0.5 & $30\%$ of stat.\ (placeholder) \\
 \hline
-Total experimental                & 2.5 & 4.0 & \\
-Theory (ISR, unprofiled)          & 5.4 & -- & NLL ISR (Section~\ref{sec:theory_unc}) \\
+Total experimental                & 1.5 & 2.9 & \\
+Theory (ISR, NNLL truncation)     & 2.4 & 0.2 & unprofiled; $0.7$ shape-only (Section~\ref{sec:theory_unc}) \\
 \end{tabular}
      \caption{Impact of the various sources of systematic uncertainty on
      the total uncertainty in \mW and \GW. The impacts are estimated as
      the difference in quadrature between the total uncertainty and an
      alternative fit in which the corresponding nuisance parameters are
      removed. The theoretical uncertainty is estimated separately, as
-     described in Section~\ref{sec:theory_unc}. The luminosity and its
-     distribution among scan points, as well as the BEC and BES input
-     uncertainties, are placeholder values, and additional experimental
-     and machine-related systematic uncertainties are not yet included.}
+     described in Section~\ref{sec:theory_unc}. The cross-section
+     systematic uncertainties are placeholder values in advance of the
+     detector-level study, and additional experimental and machine-related
+     systematic uncertainties are not yet included.}
      \label{tab:breakdown}
 \end{table}
 
 
 The results of the Asimov fit are summarised in
 Table~\ref{tab:breakdown}. We find that \mW and \GW can be determined
-with a total experimental precision of $2.5$ and $4.0\MeV$,
-respectively, taking into account the experimental, parametric, and
-machine-related uncertainties considered so far. The statistical
-component alone amounts to $1.1$ and $2.3\MeV$ for \mW and \GW. The
-leading systematic contribution to \mW is the uncertainty in the
-integrated luminosity, while the precision in \GW is driven by the
-statistical uncertainty and by the parametric correlation with \mW. A
-correlation of $61\%$ between \mW and \GW is obtained from the fit, as
+with a total experimental precision of $1.5$ and $2.9\MeV$,
+respectively, taking into account the experimental, parametric,
+machine-related, and placeholder cross-section uncertainties considered
+so far. The statistical
+component alone amounts to $0.9$ and $2.0\MeV$ for \mW and \GW. With the
+realistic di-photon luminosity and resonant-depolarisation
+beam-calibration projections, the budget is statistics-dominated: the
+leading systematic contributions to \mW are the placeholder
+cross-section uncertainties, followed by the luminosity and the
+correlated beam energy calibration, while the precision in \GW is driven
+by the statistical uncertainty and by the parametric correlation with
+\mW. A
+correlation of $55\%$ between \mW and \GW is obtained from the fit, as
 shown by the two-dimensional confidence intervals in
-Figure~\ref{fig:contour}. We stress that the absolute size of the
-luminosity-related uncertainties and the absence of detector-level and
-additional machine-related systematic uncertainties imply that the
+Figure~\ref{fig:contour}. We stress that the placeholder size of the
+cross-section systematic uncertainties and the absence of detector-level
+and additional machine-related systematic uncertainties imply that the
 numbers in Table~\ref{tab:breakdown} are to be regarded as a preliminary
 projection.
 
@@ -490,21 +518,28 @@ We assess this uncertainty by exploiting the fact that our implementation
 can convolute the partonic cross section with ISR at different orders of
 accuracy.
 
-We perform a cross-fit in which the pseudo-data are generated with one
-ISR scheme and the templates are built with another, and read off the
-resulting bias in the fitted \mW. Using LL ISR with the templates, while
-the pseudo-data are generated at NLL, biases \mW by about $22\MeV$, far
-above the FCC-ee statistical target. This bias decomposes into a
-component of about $17\MeV$ associated with the truncation of the LL
-series, which is removed by adopting a fully exponentiated NLL
-description, and a residual component of about $5.4\MeV$ associated with
-the genuine NLL terms. We adopt the NLL prediction as the baseline and
-take the residual $5.4\MeV$ as a conservative estimate of the residual
-ISR theoretical uncertainty on \mW, as reported in
-Table~\ref{tab:breakdown}. In addition, the uncertainty in the value of
-$\alpha(\mZ)$ that enters the ISR, propagated as a nuisance parameter
-according to the FCC-ee projection, is found to shift \mW by less than
-$0.05\MeV$ and is therefore negligible. We also verified that the
+We perform a cross-fit in which the pseudo-data are generated with the
+baseline NLL ISR and the templates are built with the LL kernel
+evaluated with the same $\alpha(\mZ)$, so that only the genuine NLL
+terms differ, and read off the resulting bias in the fitted \mW. The
+bias is $2.4\MeV$ with the baseline luminosity constraint, and reduces
+to $0.7\MeV$ when the overall normalisation is left free in the fit.
+The step from LL to NLL ISR is dominated by a change of the radiator
+normalisation of about $0.3\%$, with only a sub-MeV distortion of the
+lineshape: the larger figure therefore reflects the interplay of the
+ISR normalisation with the luminosity constraint rather than a genuine
+shape ambiguity. We conservatively take the pair ($2.4\MeV$ constrained,
+$0.7\MeV$ shape-only) as the estimate of the NNLL-truncation uncertainty
+on \mW, as reported in Table~\ref{tab:breakdown}. Replacing the NLL
+description by the fully exponentiated analytic LL radiator instead
+shifts \mW by about $18\MeV$ under the luminosity constraint --- again
+almost entirely a normalisation effect ($0.8\MeV$ shape-only) ---
+confirming that a NLL-accurate description of the ISR flux is required
+at the FCC-ee precision. In addition, the uncertainty in the value of
+$\alpha(\mZ)$ that enters the ISR, propagated as a profiled nuisance
+parameter according to the FCC-ee Tera-Z
+projection~\cite{Riembau:2025xxx}, is found to shift \mW by less than
+$0.01\MeV$ and is therefore negligible. We also verified that the
 template morphing closes at the few-ppm level under each ISR scheme, so
 that no scheme-dependent re-derivation of the morphing is required.
 
@@ -534,15 +569,17 @@ anchoring to the exact four-fermion Born cross section, and was validated
 against the reference BFS calculations.
 
 Using a maximum-likelihood fit of the predicted lineshape, with \mW and
-\GW as free parameters, we project a statistical precision of about $1.1$
-and $2.3\MeV$ on \mW and \GW, respectively, and a total experimental
-precision of $2.5$ and $4.0\MeV$ including the leading parametric and
-machine-related uncertainties considered so far. We studied the
+\GW as free parameters, we project a statistical precision of about $0.9$
+and $2.0\MeV$ on \mW and \GW, respectively, and a total experimental
+precision of $1.5$ and $2.9\MeV$ including the leading parametric,
+machine-related, and placeholder cross-section uncertainties considered
+so far. We studied the
 dependence of these results on the assumptions on the systematic
 uncertainties, providing a means to rescale the projections as the input
 estimates are refined, and we estimated the residual theoretical
-uncertainty associated with the modelling of ISR to be about $5.4\MeV$ on
-\mW.
+uncertainty associated with the modelling of ISR to be $2.4\MeV$ on \mW
+under the baseline luminosity constraint ($0.7\MeV$ from the lineshape
+shape alone).
 
 These results are preliminary in several respects. A detailed
 detector-level study of the \WW cross section measurement, using
@@ -551,9 +588,10 @@ systematic uncertainties, is in preparation, following the strategy of
 the companion \ttbar threshold study~\cite{Defranchis:2025hfh}.
 Additional experimental and machine-related systematic uncertainties, as
 well as a complete assessment of the theoretical uncertainty, remain to
-be included, and the assumed integrated luminosity and its distribution
-among scan points are placeholder values pending the finalisation of the
-FCC-ee operation scenario. Nonetheless, the present study demonstrates
+be included; the cross-section systematic uncertainties are placeholder
+values in advance of the detector-level study, and the equal luminosity
+split among the scan points is a simple, non-optimised choice.
+Nonetheless, the present study demonstrates
 that a \WW threshold scan at FCC-ee has the potential to determine \mW
 and \GW at the level of a few \MeV, providing a stringent test of the SM
 through the comparison with the indirect determination from the EW fit,
@@ -603,14 +641,23 @@ in \as, with $\as^0$ and $\delta\as$ the assumed central value and input
 uncertainty for \as. The total covariance matrix is
 \begin{equation}
     C_\mathrm{tot} = C_\mathrm{exp} + C_\mathrm{lumi}^\mathrm{uncorr} +
-    C_\mathrm{lumi}^\mathrm{corr},
+    C_\mathrm{lumi}^\mathrm{corr} + C_{\sigma}^\mathrm{uncorr} +
+    C_{\sigma}^\mathrm{corr},
 \end{equation}
 where $C_\mathrm{exp}$ is the diagonal covariance matrix of the measured
 cross sections, with
-$[C_\mathrm{exp}]_{ij} = \delta_{ij}\,\sigma_\mathrm{exp}^i/\mathcal{L}_i$,
-and $C_\mathrm{lumi}^\mathrm{uncorr}$ and $C_\mathrm{lumi}^\mathrm{corr}$
+$[C_\mathrm{exp}]_{ij} =
+\delta_{ij}\,\sigma_\mathrm{exp}^i/(\varepsilon\,\mathcal{L}_i)$ and
+$\varepsilon$ the signal selection efficiency,
+$C_\mathrm{lumi}^\mathrm{uncorr}$ and $C_\mathrm{lumi}^\mathrm{corr}$
 are the uncorrelated and correlated components of the luminosity
-uncertainty.
+uncertainty, and $C_{\sigma}^\mathrm{uncorr}$ and
+$C_{\sigma}^\mathrm{corr}$ are the placeholder cross-section systematic
+uncertainties, each sized as $30\%$ of the per-point statistical
+uncertainty and taken fully uncorrelated (diagonal) and fully correlated
+(rank-one), respectively. The profiled ISR coupling $\alpha(\mZ)$ and
+the flat EW-normalisation nuisance carry Gaussian penalty terms
+analogous to that of \as.
 
 The dependence of the predicted cross section on each parameter is
 modelled via an interpolation of two-point variations. We define the
