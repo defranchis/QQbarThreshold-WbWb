@@ -11,11 +11,11 @@ scan. THEORY uncertainties are channel-specific and NOT extrapolated.
 source               munuqq     inclusive WW  stat-scaling
 ----------------------------------------------------------
 stat                   0.95             0.36  ×       2.64
-alphas                 0.08             0.07              
-aem_isr                0.01             0.00              
+alphas                 0.08             0.08              
+aem_isr                0.00             0.00              
 aemEW                  0.03             0.03              
-BES                    0.01             0.00              
-BEC                    0.19             0.18              
+BES                    0.01             0.02              
+BEC                    0.18             0.18              
 lumi                   0.37             0.36              
 xsec                      —                —              
 total exp              1.36             0.64              
@@ -25,15 +25,15 @@ total exp              1.36             0.64
 σ(\Gamma_W)  [MeV]
 source               munuqq     inclusive WW  stat-scaling
 ----------------------------------------------------------
-stat                   2.03             0.77  ×       2.64
+stat                   1.98             0.75  ×       2.64
 alphas                 0.01             0.00              
 aem_isr                0.00             0.00              
 aemEW                  0.00             0.00              
-BES                    0.03             0.02              
+BES                    0.03             0.03              
 BEC                    0.06             0.06              
 lumi                   0.48             0.47              
 xsec                      —                —              
-total exp              2.79             1.15              
+total exp              2.75             1.13              
 ----------------------------------------------------------
 
 Expected stat improvement √(1/B) = 2.64 (if a row scales by this, it is stat-like; if it stays flat,
