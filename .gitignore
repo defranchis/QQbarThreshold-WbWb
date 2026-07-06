@@ -88,3 +88,7 @@ framework/process/ww/indep/grids/
 mdefranc.cc
 *.kcache
 krb5cc_*
+
+# Local talk/slides scratch (not part of the framework or report).
+talk/
+scripts/investigations/talk_figs/
