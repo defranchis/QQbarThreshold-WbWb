@@ -1,0 +1,15 @@
+universe   = vanilla
+executable = /afs/cern.ch/work/m/mdefranc/private/FCC/QQbar_threshold/WW_threshold/scripts/investigations/indep_mocanlo/seedtest_job.sh
+should_transfer_files = NO
+getenv                = false
+requirements          = (OpSysAndVer == "AlmaLinux9" || OpSysAndVer == "CentOS9" || OpSysAndVer == "RedHat9")
+MY.SendCredential     = true
+request_cpus   = 1
+request_memory = 3072
+request_disk   = 2048
++JobFlavour    = "longlunch"
+arguments = $(mode) $(vp) $(ecm)
+output = /afs/cern.ch/work/m/mdefranc/private/FCC/QQbar_threshold/WW_threshold/scripts/investigations/indep_mocanlo/logs/seedtest_$(mode)_$(vp)_$(ecm).out
+error  = /afs/cern.ch/work/m/mdefranc/private/FCC/QQbar_threshold/WW_threshold/scripts/investigations/indep_mocanlo/logs/seedtest_$(mode)_$(vp)_$(ecm).err
+log    = /afs/cern.ch/work/m/mdefranc/private/FCC/QQbar_threshold/WW_threshold/scripts/investigations/indep_mocanlo/logs/seedtest_$(mode)_$(vp)_$(ecm).log
+queue mode,vp,ecm from /afs/cern.ch/work/m/mdefranc/private/FCC/QQbar_threshold/WW_threshold/scripts/investigations/indep_mocanlo/points_seedtest.txt

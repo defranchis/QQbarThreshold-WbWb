@@ -1,0 +1,431 @@
+"""Independent (BFS-free) WW line-shape generator — MoCaNLO + decoupled ISR.
+
+Drop-in for the BFS ``WWGenerator`` (same ``file_name`` / ``do_scan`` contract,
+consumed by ``common.fit_core``).  Pipeline:
+
+  1. MoCaNLO NLO-EW partonic σ̂_Born(√ŝ), σ̂_NLO(√ŝ) per channel × varpoint
+     (``partonic_grid.load_grids`` → smooth interpolators).
+  2. Per channel: ISR-folded observed line shape σ_obs(√s) = ∫∫ D D σ̂_NLO
+     (``isr_beta.sigma_observed``; the σ̂ grids are beam-ISR-free, the
+     radiator carries all initial-state radiation — no O(α) subtraction).
+  3. Assemble the 6 blocks with flavour/colour multiplicities
+     (``channels.assemble_total``) → σ_tot(√s) per varpoint.
+  4. Factorized (BFS-style) morph over the rich (m_W, Γ_W) varpoint set
+     (σ_nom·R_m·R_Γ·(1+β·Δm·ΔΓ); ``morph.fit_factorized``) → σ_tot at the
+     requested fit point.  Output in **pb** (BFS convention; MoCaNLO is fb ×1e-3).
+
+This shares NO code or numerical input with the BFS-EFT chain: the goal is an
+independent σ(m_W)/σ(Γ_W)/ρ, not number-matching.
+
+Output √s outside the σ̂ generation grid [ECM_MIN, ECM_MAX] (156–164 GeV) is set
+to 0 — the WW-threshold scan window lives inside it; the fit must not place scan
+points above ECM_MAX (no σ̂ there to convolve).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import multiprocessing as _mp
+import os
+import warnings
+from dataclasses import dataclass, field, replace
+
+import numpy as np
+
+from framework.process.ww.indep import isr_beta
+from framework.process.ww.indep import match_bfs
+from framework.process.ww.indep.channels import (
+    BLOCKS, BLOCKS_BY_KEY, PURE_WW_WEIGHTS,
+)
+from framework.process.ww.indep.mocanlo_cards import SMInputs
+from framework.process.ww.indep.varpoints import (
+    MW0, GW0, VARPOINTS, VARPOINTS_BY_KEY,
+)
+from framework.process.ww.indep.partonic_grid import (
+    load_grids, DEFAULT_RESULTS_DIR, ChannelVarGrid,
+)
+from framework.process.ww.indep import grid as gridmod
+from framework.process.ww.indep import morph as morphmod
+
+FB_TO_PB = 1.0e-3
+
+#: Production eMELA NLL grid (α(M_Z)=1/128.943, ALPMZ/DELTA) — the per-leg ρ̃
+#: source for the luminosity ISR path (``isr_lumi``).  The default NLL radiator
+#: uses DIRECT eMELA; the luminosity path needs the grid, so ``isr_lumi=True``
+#: routes through this file.
+PROD_EMELA_GRID = os.path.join(os.path.dirname(__file__), "grids",
+                               "emela_nll_delta_alpmz.npz")
+
+# Output grid: mirror the BFS WWGenerator (155–170 @0.1 + 240) so the fit reads
+# an identical-shape CSV; values are 0 outside the σ̂ coverage.
+ECM_FINE_MIN, ECM_FINE_MAX, ECM_FINE_STEP = 155.0, 170.0, 0.1
+ECM_LAST = 240.0
+
+
+def _build_fine_grid() -> np.ndarray:
+    n = int(round((ECM_FINE_MAX - ECM_FINE_MIN) / ECM_FINE_STEP)) + 1
+    g = ECM_FINE_MIN + ECM_FINE_STEP * np.arange(n)
+    return np.concatenate([g, [ECM_LAST]])
+
+
+def _grid_key(sqrt_s) -> tuple:
+    """Content-based cache key for a √s grid (NOT id(): a freshly-built grid
+    array reuses no cache slot, and a GC'd id can be reused → stale hit)."""
+    a = np.ascontiguousarray(sqrt_s, dtype=float)
+    return (a.shape, hashlib.sha1(a.tobytes()).hexdigest())
+
+
+# Fork-pool morph build: the parent sets these globals, children inherit them
+# via copy-on-write (no pickling of the generator / its splines).
+_MORPH_GEN = None
+_MORPH_SQRTS = None
+
+
+def _morph_worker(vkey: str) -> np.ndarray:
+    return _MORPH_GEN._varpoint_lineshape(vkey, _MORPH_SQRTS)
+
+
+@dataclass
+class WWGeneratorMoCaNLO:
+    """Independent WW template producer (MoCaNLO partonic ⊗ beta-scheme ISR)."""
+    results_dir: str = DEFAULT_RESULTS_DIR
+    scheme_alpha: str = "gf"
+    lepton_cut: float | None = None     # None=inclusive(pure-WW); 0.97=fiducial
+    lepton_pt_min: float | None = None  # fiducial p_T,ℓ cut (GeV); pairs with lepton_cut
+    lepton_mll_min: float | None = None # fiducial m_ℓℓ cut (GeV) on same-flavour OS
+    pure_ww_weights: dict | None = None # override the inclusive (lepton_cut=None)
+                                        # PURE_WW assembly; e.g. {"lnuqq": 4.0} =
+                                        # inclusive μνqq scope (B≈0.143, the BFS-
+                                        # comparable single channel). None = full
+                                        # 12·lnuqq+4·qqqq+9·mutau.
+    isr_cfg: isr_beta.ISRConfig = field(default_factory=isr_beta.ISRConfig)
+    order: int = 1                      # NLO-EW → filename tag "1"
+    smooth: float | None = None         # σ̂ spline smoothing factor (None=auto)
+    morph_denoise_beta: bool = False    # χ²-smooth the factorized morph's β(√s)
+    br_convention: str = "off-shell"    # "off-shell" (native σ(4f)∝BR²) or
+                                        # "pdg-constant" (divide out BR(m_W,Γ_W);
+                                        # mirrors BFS — Γ_W becomes line-shape-only
+                                        # WITHOUT discarding the m_W rate handle)
+    # --- EXPLORATORY BFS matching (NOT production; opt-in) ----------------
+    # Add the BFS pieces genuinely missing from MoCaNLO's complete NLO-EW:
+    # δ_NNLO threshold block (production K-factor on the Born) + δ_QCD on
+    # hadronic decay.  Strictly-NLO BFS pieces are NOT added (already in NLO).
+    # See framework.process.ww.indep.match_bfs.
+    match_bfs: bool = False
+    match_bfs_nnlo: bool = True         # add BFS NNLO threshold (Coulomb α²/v² + hard/decay)
+    match_bfs_dqcd: bool = True         # add δ_QCD to hadronic-decay channels
+    alpha_s: float = 0.1199             # α_s(M_W) for δ_QCD (BFS reference)
+    sm: SMInputs = field(default_factory=SMInputs)   # mt/MH/MZ for δ_NNLO
+    # Upgrade the ISR convolution from analytic LL+exp to eMELA NLL
+    # (α(M_Z)/ALPMZ/DELTA — the BFS production NLL convention).  Independent of
+    # match_bfs; NO O(α) matching subtraction on either path (the grids are
+    # collinear-counterterm-subtracted — see isr_beta "No O(α) re-subtraction").
+    # Field default False so scheme-variation callers (crossfit_scheme) keep the
+    # radiator they built; dofit_indep flips it on for production fits.
+    isr_nll: bool = False
+    # ISR convolution form for the NLL chain (the isr_nll LL→NLL upgrade path).
+    #   None  = AUTO (PRODUCTION DEFAULT): use the ripple-free 1-D LUMINOSITY
+    #           self-convolution (isr_lumi) whenever the NLL radiator is active.
+    #           The 2-D Gauss-Legendre einsum ripples ∝1/n_quad against the σ̂
+    #           grid-edge step (point-wise ~0.66% at n_quad=128); the luminosity
+    #           makes that step the outer integration LIMIT → ripple-free, and
+    #           reproduces the 2-D's many-n_quad mean to ~0.04% (the Asimov
+    #           σ(m_W)/σ(Γ_W)/ρ are unchanged; cross-fit & validation in
+    #           scripts/investigations/nll_isr/).  Implies the eMELA-GRID radiator
+    #           (PROD_EMELA_GRID), not direct eMELA.
+    #   False = force the 2-D einsum (direct-eMELA radiator) — the pre-flip path.
+    #   True  = force luminosity (errors if no NLL radiator is active).
+    # With a user-supplied isr_cfg(nll=True) (isr_nll flag unset), None=auto
+    # respects that cfg verbatim (scheme-variation callers keep exact control);
+    # explicit True/False still override its lumi routing.
+    isr_lumi: bool | None = None
+    _grids: dict = field(default=None, repr=False)
+    _cache: dict = field(default_factory=dict, repr=False)
+
+    def _br_factor(self, mW: float, gW: float) -> float:
+        """Multiplicative factor converting the native off-shell σ(4f) ∝ BR²
+        to the BFS pdg-constant convention (BR held fixed at the reference
+        m_W, Γ_W).  BR ∝ Γ_partial(m_W)/Γ_W with Γ_partial ∝ m_W³, so
+        BR² ∝ m_W⁶/Γ_W²; dividing it out is universal (per-channel partial-width
+        constants cancel).  =1 at the reference point and for 'off-shell'."""
+        if self.br_convention == "off-shell":
+            return 1.0
+        if self.br_convention == "pdg-constant":
+            return (gW / GW0) ** 2 * (MW0 / mW) ** 6
+        raise ValueError(f"unknown br_convention {self.br_convention!r}")
+
+    # ------------------------------------------------------------------
+    def _load(self):
+        if self._grids is None:
+            self._grids = load_grids(self.results_dir, self.scheme_alpha,
+                                     self.lepton_cut, self.lepton_pt_min,
+                                     self.lepton_mll_min)
+            if not self._grids:
+                raise FileNotFoundError(
+                    f"no σ̂ grids under {self.results_dir} (scheme {self.scheme_alpha})")
+        return self._grids
+
+    def _weights(self) -> dict[str, float]:
+        """Channel→multiplicity map for the active definition.
+
+        Inclusive 'pure-WW' (lepton_cut is None): the 3 stable channels
+        12·lnuqq + 4·qqqq + 9·mutau (channels.PURE_WW_WEIGHTS).  Fiducial
+        (lepton_cut set): the original 6 blocks with their multiplicities.
+        """
+        if self.lepton_cut is None:
+            return dict(self.pure_ww_weights or PURE_WW_WEIGHTS)
+        return {b.key: b.weight for b in BLOCKS}
+
+    def _isr_cfg(self) -> "isr_beta.ISRConfig":
+        """Resolve the ISR config.
+
+        ``isr_nll`` upgrades the analytic LL+exp radiator to eMELA NLL in the BFS
+        production convention (α(M_Z)/ALPMZ/DELTA), preserving the user's μ_F /
+        x_min / n_quad knobs.
+
+        LL path: the radiator α should match the EW scheme of the grid it
+        dresses (``scheme_alpha``), so an α(0)/α(M_Z) grid does not silently
+        mix α schemes between σ̂ and the factorised ISR.  When the ISR α is
+        left at its module default (α_Gμ), couple it to ``scheme_alpha``.  An
+        explicitly pinned non-default ``isr_cfg.alpha`` (advanced ISR-α theory
+        variation) is respected, and an unknown ``scheme_alpha`` leaves the
+        cfg untouched."""
+        if self.isr_lumi is True and not (self.isr_nll or self.isr_cfg.nll):
+            raise ValueError(
+                "isr_lumi=True requires the NLL radiator: set isr_nll=True (or "
+                "pass an isr_cfg with nll=True). The luminosity convolution is an "
+                "NLL-grid-only path.")
+        if self.isr_nll and not self.isr_cfg.nll:
+            # The eMELA NLL radiator is built in the BFS production scheme
+            # conventions (ALPMZ/DELTA, at the PDG α(M_Z) = 1/128.943, matching
+            # the BFS chain's isr.py and cards/ww_default.py) and REPLACES the
+            # analytic LL radiator, so the LL `scheme` knob (LO_beta/eta/mixed)
+            # does not propagate.  The ISR radiator is a QED object off the e±
+            # line, independent of the σ̂ grid's EW (gf) scheme, so it takes the
+            # standard α(M_Z), not MoCaNLO's internal 1/128.232.  Warn if a
+            # non-default LL scheme is being overridden, so the drop is not silent.
+            if self.isr_cfg.scheme != "LO_beta":
+                warnings.warn(
+                    f"isr_nll=True replaces the analytic-LL radiator with eMELA NLL "
+                    f"(DELTA/ALPMZ): requested isr_cfg.scheme={self.isr_cfg.scheme!r} "
+                    f"is ignored on the NLL path.", stacklevel=2)
+            # alpha is pinned to the PDG α(M_Z)=1/128.943 (ALPHA_MZ_EMELA), so
+            # resolved_alpha() returns it directly and ew_scheme is never
+            # consulted; the "alphaz" tag is intentionally NOT set here because
+            # in isr_beta._ALPHA_BY_SCHEME it maps to MoCaNLO's lepton-PDF
+            # 1/128.232, not the PDG value — leaving the default avoids tagging
+            # the radiator with an α(M_Z) that disagrees with the pinned one.
+            # Luminosity is the production default for the NLL chain (isr_lumi is
+            # None=auto or True); it routes the convolution through the 1-D form,
+            # which needs the eMELA GRID radiator (PROD_EMELA_GRID).  isr_lumi=False
+            # forces the pre-flip 2-D einsum on the direct-eMELA radiator.
+            lumi_kw = (dict(emela_grid=PROD_EMELA_GRID, lumi=True)
+                       if self.isr_lumi is not False else {})
+            return isr_beta.ISRConfig(
+                nll=True, alpha=isr_beta.ALPHA_MZ_EMELA,
+                mu_F_factor=self.isr_cfg.mu_F_factor, mu_F_abs=self.isr_cfg.mu_F_abs,
+                m_e=self.isr_cfg.m_e, x_min=self.isr_cfg.x_min,
+                n_quad=self.isr_cfg.n_quad,
+                emela_fac_scheme="DELTA", emela_ren_scheme="ALPMZ", **lumi_kw)
+        cfg = self.isr_cfg
+        # User-supplied NLL cfg (isr_nll flag unset): auto/None keeps the cfg
+        # verbatim, but an EXPLICIT isr_lumi=True/False must still route the
+        # convolution — it was silently ignored here before 2026-07-02.
+        if cfg.nll and self.isr_lumi is True and not cfg.lumi:
+            cfg = replace(cfg, lumi=True,
+                          emela_grid=cfg.emela_grid or PROD_EMELA_GRID)
+        elif self.isr_lumi is False and cfg.lumi:
+            cfg = replace(cfg, lumi=False)
+        try:
+            want = isr_beta.alpha_for_scheme(self.scheme_alpha)
+        except ValueError:
+            want = None
+        left_at_default = (cfg.alpha is not None
+                           and abs(cfg.alpha - isr_beta.ALPHA_GMU) < 1e-12)
+        if want is not None and left_at_default and abs(want - cfg.alpha) > 1e-12:
+            return replace(cfg, alpha=want, ew_scheme=self.scheme_alpha)
+        return cfg
+
+    def _state_key(self) -> tuple:
+        """Fingerprint of every generator field that changes the cached line
+        shape, so toggling a matching/ISR flag on a REUSED instance cannot serve
+        a stale ``_cache`` hit (the dataclass is intentionally not frozen).
+        ``br_convention`` is excluded on purpose: ``_br_factor`` is applied in
+        ``do_scan`` AFTER the cached morph, so it never affects the cached
+        ``_varpoint_lineshape`` / ``_fit_morph`` outputs."""
+        return (
+            self.match_bfs, self.match_bfs_nnlo, self.match_bfs_dqcd,
+            self.alpha_s, (self.sm.mt, self.sm.mH, self.sm.mZ),
+            self.scheme_alpha, self.lepton_cut, self.lepton_pt_min,
+            self.lepton_mll_min, self.smooth, self.morph_denoise_beta,
+            isr_beta._cfg_fingerprint(self._isr_cfg()),
+        )
+
+    def _varpoint_lineshape(self, varpoint: str, sqrt_s: np.ndarray) -> np.ndarray:
+        """Assembled σ_tot(√s) [pb] for one varpoint (cached)."""
+        ck = (varpoint, self._state_key(), _grid_key(sqrt_s))
+        if ck in self._cache:
+            return self._cache[ck]
+        grids = self._load()
+        weights = self._weights()
+
+        # Exploratory BFS matching: δ_NNLO(√ŝ) production K-factor at THIS
+        # varpoint's (m_W, Γ_W), added on MoCaNLO's Born; the morph then carries
+        # its m_W/Γ_W dependence.  δ_QCD is a per-channel decay-side factor.
+        dnnlo_fn = None
+        if self.match_bfs and self.match_bfs_nnlo:
+            vp = VARPOINTS_BY_KEY[varpoint]
+            # Couple δ_NNLO's α_em to the grid's EW scheme for explicit non-Gμ
+            # variations; keep None (→ α_Gμ(m_W), the validated default) for the
+            # default 'gf' scheme so production numerics are byte-unchanged.  δ_NNLO
+            # is a ratio (σ_NNLO−σ_NLO)/σ_Born, so the scheme effect is tiny anyway.
+            aem = None
+            if (self.scheme_alpha or "").strip().lower() not in ("", "gf", "gmu"):
+                try:
+                    aem = isr_beta.alpha_for_scheme(self.scheme_alpha)
+                except ValueError:
+                    aem = None
+            dnnlo_fn = match_bfs.delta_nnlo_interp(
+                vp.mW, vp.gW, mt=self.sm.mt, MH=self.sm.mH, MZ=self.sm.mZ,
+                alpha_em=aem)
+
+        cfg = self._isr_cfg()
+        sigma_tot = np.zeros_like(sqrt_s, dtype=float)
+        for key, w in weights.items():
+            g: ChannelVarGrid = grids[(key, varpoint)]
+            nlo = g.nlo_fn(self.smooth)
+            if dnnlo_fn is not None:
+                # σ̂_comb = σ̂_NLO + δ_NNLO·σ̂_Born.  Both terms are ISR-naked
+                # (the grids are beam-ISR-free), so both take the full
+                # radiator convolution below.  σ̂_Born is only needed here (the
+                # plain-NLO production path no longer consumes it), so build it
+                # inside this branch.
+                born = g.born_fn(self.smooth)
+                def nlo_eff(sh, _nlo=nlo, _born=born, _d=dnnlo_fn):
+                    return _nlo(sh) + _d(sh) * _born(sh)
+            else:
+                nlo_eff = nlo
+            obs = isr_beta.sigma_observed(sqrt_s, nlo_eff, cfg)
+            if self.match_bfs and self.match_bfs_dqcd:
+                obs = obs * match_bfs.delta_qcd_channel_factor(
+                    BLOCKS_BY_KEY[key].outgoing, self.alpha_s)
+            sigma_tot = sigma_tot + w * obs
+        out = sigma_tot * FB_TO_PB           # fb → pb (BFS convention)
+        self._cache[ck] = out
+        return out
+
+    def _fit_morph(self, sqrt_s: np.ndarray) -> "morphmod.FactorizedMorph":
+        """Factorized (BFS-style) morph over the varpoint line shapes.
+
+        Builds, per √s, the multiplicative morph
+        ``σ = σ_nom · R_m(Δm) · R_Γ(ΔΓ) · (1 + β·Δm·ΔΓ)`` — a per-√s quadratic
+        ratio in each POI plus a bilinear cross from the diagonal varpoints
+        (:func:`morph.fit_factorized`).  This mirrors the BFS production morph
+        (``xsec_calculator/grid_morph.py``): the steep line shape sits in
+        ``σ_nom`` (reproduced exactly), the responses are slowly-varying ratios,
+        and β is isolated from the implicit ``R_m·R_Γ`` product cross.  Cached
+        per sqrt_s identity.
+        """
+        ck = ("morph_fac", self._state_key(), _grid_key(sqrt_s))
+        if ck in self._cache:
+            return self._cache[ck]
+        grids = self._load()
+        channels = list(self._weights())
+        vps = [v for v in VARPOINTS
+               if all((ch, v.key) in grids for ch in channels)]
+        # The factorized fit needs the nominal + ≥3 on each POI axis + ≥1 cross;
+        # the full rich varpoint set (9 m-axis, 9 Γ-axis, 3 diagonal) supplies all.
+        if len(vps) < 6:
+            missing_ch = sorted({ch for v in VARPOINTS for ch in channels
+                                 if (ch, v.key) not in grids})
+            raise ValueError(
+                f"incomplete σ̂ grid under {self.results_dir!r} "
+                f"(scheme_alpha={self.scheme_alpha!r}, lepton_cut={self.lepton_cut!r}): "
+                f"only {len(vps)} fully-populated varpoint(s); the factorized "
+                f"quad+bilinear morph needs the nominal + on-axis + cross varpoints.  "
+                f"Channels with missing varpoints: {missing_ch}.")
+
+        # PREWARM the radiator ONCE in the parent (default).  D(x)·|dx/du| is
+        # σ̂-independent, so all ~20 varpoints want the SAME radiator; building it
+        # here means the fork pool below inherits it via COW (and the serial path
+        # reuses it) instead of every child re-running the eMELA-NLL build — the
+        # morph bottleneck.  Cheap no-op for the analytic LL path; for direct-NLL
+        # it also writes the cross-process disk cache so sibling condor/forkserver
+        # jobs load it in ms.  (The LHAPDF-grid path is already fast interpolation.)
+        isr_beta._radiator_setup(np.atleast_1d(np.asarray(sqrt_s, dtype=float)),
+                                 self._isr_cfg())
+
+        # The per-varpoint line shapes are independent ISR convolutions — the
+        # build's bottleneck (esp. eMELA NLL).  Fan them out over a fork pool
+        # when WW_INDEP_NJOBS>1 (default serial; grids + the prewarmed radiator
+        # are in the parent above, so children inherit them via COW, no rebuild).
+        _nj = os.environ.get("WW_INDEP_NJOBS", "").strip()
+        njobs = int(_nj) if _nj else 1         # tolerate a set-but-empty env var
+        if njobs > 1 and len(vps) > 1:
+            global _MORPH_GEN, _MORPH_SQRTS
+            _MORPH_GEN, _MORPH_SQRTS = self, sqrt_s
+            ctx = _mp.get_context("fork")
+            with ctx.Pool(min(njobs, len(vps))) as pool:
+                rhs = pool.map(_morph_worker, [v.key for v in vps])
+            _MORPH_GEN = _MORPH_SQRTS = None
+        else:
+            rhs = [self._varpoint_lineshape(v.key, sqrt_s) for v in vps]
+
+        coords = {v.key: (v.dmW_MeV, v.dgW_MeV) for v in vps}
+        lineshapes = {v.key: r for v, r in zip(vps, rhs)}
+        model = morphmod.fit_factorized(coords, lineshapes, sqrt_s,
+                                        denoise_beta=self.morph_denoise_beta)
+        self._cache[ck] = model
+        return model
+
+    def _morphed(self, mW: float, gW: float, sqrt_s: np.ndarray) -> np.ndarray:
+        """σ_tot(√s; m_W, Γ_W) [pb] via the factorized morph."""
+        model = self._fit_morph(sqrt_s)
+        return model.evaluate((mW - MW0) * 1e3, (gW - GW0) * 1e3)   # Δ in MeV
+
+    # ------------------------------------------------------------------
+    # WWGenerator contract
+    # ------------------------------------------------------------------
+    def file_tag(self, values: dict) -> str:
+        mW = float(values["mass"]); gW = float(values["width"])
+        return f"mass{mW:.3f}_width{gW:.3f}"
+
+    def file_name(self, values: dict, *, mass_scale=None, width_scale=None,
+                  mass_scheme: str = "OS", indir: str = ".") -> str:
+        # "m" suffix on the order tag keeps BFS-matched templates from
+        # colliding with the pure-MoCaNLO ones (exploratory).
+        tag = f"{self.order}m" if self.match_bfs else f"{self.order}"
+        return os.path.join(indir, f"WW_{tag}_{self.file_tag(values)}.txt")
+
+    def do_scan(self, values: dict, *, mass_scale: float = 1.0,
+                width_scale: float = 1.0, mass_scheme: str = "OS",
+                outdir: str = "output_xsec/ww_indep/nominal",
+                ecm_shift_MeV: float = 0.0) -> str:
+        mW = float(values["mass"]); gW = float(values["width"])
+        ecm_grid = _build_fine_grid() + ecm_shift_MeV * 1e-3
+
+        # only convolve inside σ̂ coverage; 0 elsewhere
+        inside = (ecm_grid >= gridmod.ECM_MIN) & (ecm_grid <= gridmod.ECM_MAX)
+        sigma = np.zeros_like(ecm_grid)
+        if inside.any():
+            sigma[inside] = self._morphed(mW, gW, ecm_grid[inside])
+        sigma *= self._br_factor(mW, gW)   # off-shell→pdg-constant if requested
+
+        os.makedirs(outdir, exist_ok=True)
+        path = self.file_name(values, indir=outdir)
+        with open(path, "w") as fh:
+            tag = ("MoCaNLO+BFS-matched (EXPLORATORY)" if self.match_bfs
+                   else "MoCaNLO (independent, BFS-free)")
+            fh.write(f"# generator: WWGeneratorMoCaNLO — {tag}\n")
+            fh.write(f"# scheme_alpha: {self.scheme_alpha}\n")
+            if self.match_bfs:
+                fh.write(f"# match_bfs: nnlo={self.match_bfs_nnlo} "
+                         f"dqcd={self.match_bfs_dqcd} alpha_s={self.alpha_s}\n")
+            _cfg = self._isr_cfg()
+            _isr_lbl = ("eMELA-NLL" if _cfg.nll else _cfg.scheme) + (
+                " (lumi)" if getattr(_cfg, "lumi", False) else "")
+            fh.write(f"# isr: {_isr_lbl}  mu_F_factor: {_cfg.mu_F_factor}\n")
+            fh.write(f"# mass: {mW:.4f}  width: {gW:.4f}  units: pb\n")
+            for ecm, sig in zip(ecm_grid, sigma):
+                fh.write(f"{ecm:.4f}, {sig:.8f}\n")
+        return path

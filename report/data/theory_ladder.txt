@@ -1,0 +1,85 @@
+WW theory-uncertainty ladder — Asimov (m_W, Γ_W) residual bias
+Injected truth: +dQCD hard side + NLL ISR (full production).
+Fit: m_W, Γ_W float; stat (Asimov) + correlated lumi only; all other parameters fixed.
+'free' = corr-lumi opened up (pure shape bias); 'prior' = realistic FCC-ee corr-lumi prior.
+
+=============================================================================
+lumi  ISR  rung         Δm_W   δ(prev)      ΔΓ_W    σ_mW    σ_ΓW      ρ  conv
+                       [MeV]     [MeV]     [MeV]   [MeV]   [MeV]       
+-----------------------------------------------------------------------------
+free  LL   LO        -35.588              +3.679   5.129   2.791  +0.28  ok
+free  LL   +NLO       +3.142   +38.730    -2.441   4.737   2.762  +0.33  ok
+free  LL   +NNLO      +0.766    -2.376    +1.600   4.741   2.755  +0.32  ok
+free  LL   +dQCD      +0.766    +0.000    +1.600   4.741   2.755  +0.32  ok
+-----------------------------------------------------------------------------
+free  NLL  LO        -36.415              +2.113   5.101   2.770  +0.27  ok
+free  NLL  +NLO       +2.380   +38.795    -4.052   4.711   2.740  +0.32  ok
+free  NLL  +NNLO      +0.000    -2.380    +0.000   4.715   2.734  +0.32  ok
+free  NLL  +dQCD      +0.000    +0.000    +0.000   4.715   2.734  +0.32  ok
+-----------------------------------------------------------------------------
+=============================================================================
+lumi  ISR  rung         Δm_W   δ(prev)      ΔΓ_W    σ_mW    σ_ΓW      ρ  conv
+                       [MeV]     [MeV]     [MeV]   [MeV]   [MeV]       
+-----------------------------------------------------------------------------
+prior LL   LO       -109.593              -0.022   1.305   2.680  +0.63  ok
+prior LL   +NLO      -21.778   +87.815    -4.580   1.305   2.699  +0.66  ok
+prior LL   +NNLO     -18.318    +3.461    +0.016   1.308   2.702  +0.66  ok
+prior LL   +dQCD     -18.318    +0.000    +0.016   1.308   2.702  +0.66  ok
+-----------------------------------------------------------------------------
+prior NLL  LO        -90.867              -0.617   1.312   2.685  +0.64  ok
+prior NLL  +NLO       -3.439   +87.428    -4.560   1.312   2.704  +0.67  ok
+prior NLL  +NNLO      +0.000    +3.439    +0.000   1.316   2.708  +0.67  ok
+prior NLL  +dQCD      +0.000    +0.000    +0.000   1.316   2.708  +0.67  ok
+-----------------------------------------------------------------------------
+
+##########################################################################
+ISR scheme variation — hard side = +dQCD; truth = NLL/ALPMZ/ξ=1 (production).
+Components reported SEPARATELY, not in quadrature (2026-06-16 DELTA-NLL resolution):
+'trunc' = NNLL TRUNCATION (the ISR theory-systematic component): α-fixed
+          order step eMELA-LL ↔ eMELA-NLL (same α → only the NLL kernel).
+'ren'   = α-renorm-scheme STABILITY diagnostic (ALPMZ↔ALGMU↔α(0)); the
+          spread is the LL α-VALUE sensitivity, NOT the kernel. α is fixed by
+          the EW input scheme; physical residual = aem_isr nuisance (~0.005).
+'scale' = ξ (Q=ξ√s) DGLAP-stability diagnostic ONLY — NOT a truncation
+          uncertainty in the DELTA scheme (σ̂ has no μ_F counterterm).
+##########################################################################
+lumi  variant      kind        Δm_W      ΔΓ_W    σ_mW    σ_ΓW      ρ  conv
+                              [MeV]     [MeV]   [MeV]   [MeV]       
+--------------------------------------------------------------------------
+free  eMELA-LL     trunc     -0.742    -0.417   4.713   2.729  +0.32  ok
+free  ALPMZ(prod)  ren       +0.000    +0.000   4.715   2.734  +0.32  ok
+free  ALGMU        ren       -0.086    -0.052   4.717   2.735  +0.32  ok
+free  alpha(0)     ren       +2.015    +1.386   4.676   2.721  +0.32  ok
+free  xi=0.5       scale     +6.168    +3.873   4.595   2.694  +0.33  ok
+free  xi=2.0       scale     -6.212    -3.817   4.839   2.775  +0.31  ok
+--------------------------------------------------------------------------
+lumi  variant      kind        Δm_W      ΔΓ_W    σ_mW    σ_ΓW      ρ  conv
+                              [MeV]     [MeV]   [MeV]   [MeV]       
+--------------------------------------------------------------------------
+prior eMELA-LL     trunc     +2.439    -0.158   1.316   2.708  +0.67  ok
+prior ALPMZ(prod)  ren       +0.000    +0.000   1.316   2.708  +0.67  ok
+prior ALGMU        ren       -0.658    -0.099   1.316   2.707  +0.67  ok
+prior alpha(0)     ren      +15.483    +2.578   1.317   2.711  +0.68  ok
+prior xi=0.5       scale    +47.133    +7.907   1.318   2.718  +0.69  ok
+prior xi=2.0       scale    -47.690    -6.710   1.313   2.698  +0.65  ok
+--------------------------------------------------------------------------
+
+ISR theory systematic — SEPARATE components (NOT added in quadrature):
+  [free ] NNLL truncation =   0.74 MeV  (eMELA-LL↔eMELA-NLL, α fixed)
+  [prior] NNLL truncation =   2.44 MeV  (eMELA-LL↔eMELA-NLL, α fixed)
+         residual DELTA scheme =   0.13 MeV  (kernel α-swing; step 5, indep chain, re-derived 2026-07-03 post endpoint fix)
+         α(M_Z) input          =   0.005 MeV (aem_isr profiled nuisance)
+         ('ren'/'scale' rows above are STABILITY diagnostics, not components.)
+  NOTE: the truncation is ~0.7 MeV shape-only but ~2 MeV cov-lumi —
+  LL->NLL is almost pure NORMALISATION (~+0.3% ISR flux, little shape);
+  under the tight lumi prior that flux change leaks into m_W via the rate
+  handle (same pattern as 'scale'/'ren'). Whether the cov-lumi leakage is
+  a separate ISR-norm component or absorbed into the lumi + cross-section-
+  normalisation budget is an OPEN accounting choice (both shown above).
+
+NOT captured by this ladder (separate estimate needed):
+  • NLO electroweak (YFSWW3-class non-factorisable + initial-final).
+  • Higher-order Coulomb (BFS G_C vs. dropped FKM K_C).
+  • Factorisation-scheme (DELTA↔MSBAR) ISR uncertainty — proper variation
+    needs the +∫K(x)σ_Born collinear counterterm in σ̂ (deferred); bounded
+    ≈0.13 MeV by the NLL-kernel α-swing (step 5, listed as a component above).

@@ -1,0 +1,61 @@
+##### WW-like (2 POI, no theory, NaN diagonal) #####
+
+Systematic   Mass [MeV]   Width [MeV] 
+------------------------------------
+stat         --           1.0         
+lumi_corr    0.6          1.1         
+bec_corr     0.7          1.2         
+alphas       0.8          1.3         
+------------------------------------
+total exp    1.0          1.3         
+
+===TEX===
+\begin{table}[h!]
+\centering
+\begin{tabular}{|l|r|r|}
+\hline
+Systematic & Mass Uncertainty (MeV) & Width Uncertainty (MeV) \\
+\hline
+stat & -- & 1.0 \\
+lumi_corr & 0.6 & 1.1 \\
+bec_corr & 0.7 & 1.2 \\
+alphas & 0.8 & 1.3 \\
+\hline
+total & 1.0 & 1.3 \\
+\hline
+\end{tabular}
+\caption{Systematic uncertainties on mass and width.}
+\label{tab:syst_unc}
+\end{table}
+
+##### WbWb-like (3 POI, theory, relative yukawa, NaN) #####
+
+Systematic   Mass [MeV]   Width [MeV]  Yukawa [%]  
+------------------------------------------------
+stat         --           1.0          0.0         
+lumi_corr    0.6          1.1          0.0         
+bec_corr     0.7          1.2          0.0         
+alphas       0.8          1.3          0.0         
+------------------------------------------------
+total exp    1.0          1.3          0.0         
+theory       5            4            3           
+
+===TEX===
+\begin{table}[h!]
+\centering
+\begin{tabular}{|l|r|r|r|}
+\hline
+Systematic & Mass Uncertainty (MeV) & Width Uncertainty (MeV) & Yukawa Uncertainty (%) \\
+\hline
+stat & -- & 1.0 & 0.0 \\
+lumi_corr & 0.6 & 1.1 & 0.0 \\
+bec_corr & 0.7 & 1.2 & 0.0 \\
+alphas & 0.8 & 1.3 & 0.0 \\
+\hline
+total & 1.0 & 1.3 & 0.0 \\
+theory & 5 & 4 & 3 \\
+\hline
+\end{tabular}
+\caption{Systematic uncertainties on mass, width, and yukawa.}
+\label{tab:syst_unc}
+\end{table}

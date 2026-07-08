@@ -1,0 +1,36 @@
+# Sindarin template for the WHIZARD-internal ISR vs Beenakker-(67) check.
+# Inputs match BFS arXiv:0707.0773 Table 3/4 reference (mW=80.377, ΓW NLO=2.09201,
+# mt=174.2, mH=115, Gμ=1.16637e-5, me=0.51099892 MeV). Channel: e+e- → μ⁻ν̄_μ ud̄.
+# $ALPHA gets sed-replaced with the ISR α (7.2973525693e-03 = α(0) or
+# 7.5661369816e-03 = α_Gμ at m_W=80.377). Compare integral to BFS Born(ISR):
+# 158→45.64, 161→108.60, 164→219.7, 167→310.2, 170→378.4 fb.
+
+model = "SM"
+mZ = 91.188
+mW = 80.377
+wW = 2.09201
+mtop = 174.2
+mH = 115
+GF = 1.16637E-5
+
+?fatal_beam_decay = false
+
+process p_isr = e1, E1 => e2, N2, u, D
+compile
+
+beams = e1, E1 => isr
+isr_alpha = $ALPHA
+isr_order = 3
+isr_mass = 0.51099892E-3 GeV
+
+# BFS arXiv:0707.0773 line 2258 cuts off the convolution at √(x₁x₂s) < 155 GeV
+# to suppress Z-radiative-return contributions. Without this cut, σ_obs is
+# 2-3× larger at 158 GeV due to the Z-resonance peak in the ISR phase space.
+cuts = sqrts_hat > 155 GeV
+
+iterations = 8:200000:"gw",5:1000000
+
+scan sqrts = (158 GeV, 161 GeV, 164 GeV, 167 GeV, 170 GeV) {
+    integrate (p_isr)
+    printf "RESULT %g %g %g" (sqrts/1 GeV, integral(p_isr), error(p_isr))
+}

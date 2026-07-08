@@ -1,0 +1,29 @@
+Item 4 — G_F-consistency test: gf(G_F_adj)↔alphaz vs gf_prod↔alphaz
+  gf_adj α_Gμ tuned to alphaz α(M_Z)=1/128.233 (G_F=1.203449e-5)
+
+gf_adj grid: 3 (channel,varpoint) groups from /eos/user/m/mdefranc/FCC/QQbar_threshold/grid_gen/results_gf_consistency
+  lnuqq  nominal: 33 ecm nodes [156.0,164.0], <err_nlo>=0.324
+  qqqq   nominal: 33 ecm nodes [156.0,164.0], <err_nlo>=0.966
+  mutau  nominal: 33 ecm nodes [156.0,164.0], <err_nlo>=0.108
+
+[gen] alphaz full morph (prod EOS) ...
+[gen] gf_prod full morph (prod EOS) ...
+[gen] gf_adj nominal (G_F-tuned grid) over cloned gf_prod morph ...
+
+=== G_F-consistency cross-fit, shape-only (lumi free) ===
+truth     morph       dm_W     dG_W   s(m_W)     rho   [MeV]
+gf_prod   alphaz     12.26     7.20     1.80  +0.497
+gf_ADJ    alphaz     10.15     5.94     1.91  +0.496
+  → renorm-prescription residual (gf_ADJ↔alphaz) = +10.15 MeV
+  → α-value piece (gf_prod − gf_ADJ)            = +2.10 MeV
+
+=== G_F-consistency cross-fit, production cov-lumi ===
+truth     morph       dm_W     dG_W   s(m_W)     rho   [MeV]
+gf_prod   alphaz     11.73     6.74     1.46  -0.811
+gf_ADJ    alphaz   -107.88  -117.04     1.42  -0.835
+  → renorm-prescription residual (gf_ADJ↔alphaz) = -107.88 MeV
+  → α-value piece (gf_prod − gf_ADJ)            = +119.61 MeV
+
+INTERPRETATION: if |gf_ADJ↔alphaz| ≪ |gf_prod↔alphaz|, the EW-scheme spread
+is dominated by the (non-SM-consistent) input-α-value difference → demote;
+if it stays several MeV, it is a genuine renorm-prescription (NNLO-EW) effect.

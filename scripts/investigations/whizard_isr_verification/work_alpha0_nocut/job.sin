@@ -1,0 +1,30 @@
+# Same template as job_isr.sin.tmpl but WITHOUT the sqrts_hat > 155 GeV cut.
+# Tests the fresh hypothesis that BFS Born(ISR) column is raw WHIZARD output
+# (with no cut on the ISR convolution at the Born level — the 155 GeV cut
+# applies only to BFS's own LL+exp NLO-correction convolution, see line
+# 2660-2666 of arXiv:0707.0773). 7.2973525693e-03 gets sed-replaced.
+
+model = "SM"
+mZ = 91.188
+mW = 80.377
+wW = 2.09201
+mtop = 174.2
+mH = 115
+GF = 1.16637E-5
+
+?fatal_beam_decay = false
+
+process p_isr = e1, E1 => e2, N2, u, D
+compile
+
+beams = e1, E1 => isr
+isr_alpha = 7.2973525693e-03
+isr_order = 3
+isr_mass = 0.51099892E-3 GeV
+
+iterations = 8:200000:"gw",5:1000000
+
+scan sqrts = (158 GeV, 161 GeV, 164 GeV, 167 GeV, 170 GeV) {
+    integrate (p_isr)
+    printf "RESULT %g %g %g" (sqrts/1 GeV, integral(p_isr), error(p_isr))
+}

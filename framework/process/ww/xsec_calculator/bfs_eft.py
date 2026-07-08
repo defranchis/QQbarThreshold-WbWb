@@ -1,0 +1,1318 @@
+"""BFS unstable-particle EFT cross section for e+e- → W+W- near threshold.
+
+Closed-form leading-order results from Beneke, Falgari, Schwinn, Signer,
+Zanderighi, *"Four-fermion production near the W pair production
+threshold"*, [arXiv:0707.0773](https://arxiv.org/abs/0707.0773).
+
+Conventions match the paper. The natural BFS quantity is σ_LR^(0), the
+LR-helicity cross section for the *specific* channel e+e- → μ⁻ν̄_μ ud̄;
+helpers below convert to unpolarised totals.
+
+Born-level EFT contributions implemented here:
+
+  • σ_LR^(0)             doubly-resonant LO,                eq. (17)
+  • σ_LR^(1), σ_RL^(1)   NLO subleading potential,          eq. (33)
+  • σ_LR^(1/2), σ_RL^(1/2)
+                         hard non-resonant h1-h3 + h4-h7,   eq. (37) + (38)
+                         + appendix A C^f_{h_i,h} K^f_{h_i} coefficients
+  • σ_LR^(3/2),a, σ_RL^(3/2),a
+                         energy-dependent N^{3/2}LO h1-h3,  eq. (39) + (40)
+
+NLO loop corrections (section 4 of the paper):
+  • hard production C_p,LR^(1,fin), eq. (52) + HSC bracket (eq. finalcross)
+  • NLO Coulomb (eq. 62)
+  • NLO decay EW (eq. Gamma1ewFS / eq. 60)
+  • δ_QCD multiplier (eq. delta_qcd / section 6.1)
+
+Omitted / negligible:
+  • σ^(3/2),b (eq. 41) — paper estimate ≲ 2 fb energy-independent. Empirical
+    Scenario A closure to 4-5 digits at all BFS Table 1 √s confirms this
+    piece contributes < 0.01 fb in practice — much smaller than 2 fb.
+  • Im[c_p,LR^(1,fin)] — paper §4.2 around eq. (53): "...we take the real
+    part of the matching coefficients C_p,LR^(1) and C_p,RL^(1)" for the
+    flavour-specific cross section.
+  • C_p,RL^(1) NLO — paper §4.1: no helicity interference, drops at NLO.
+
+The sum σ^(0) + σ^(1) + σ^(1/2) + σ^(3/2),a is what the paper labels
+``EFT(N^{3/2}LO)`` in Table 1 — Scenario A closure with this code is
+0.9999-1.0000 (4-5 digits) at all six BFS Table 1 energies.
+
+Auxiliary kinematic functions, eq. (32):
+
+  • ξ(s) = −3 M_W² (s − 2 M_Z² s_W²) / (s (s − M_Z²))
+  • χ(s) = −6 M_W² M_Z² s_W²        / (s (s − M_Z²))
+
+All cross sections returned in pb. Vectorised in ``s``.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+from framework.process.ww.xsec_calculator.eft_xsec import (
+    ALPHA_S_MW_DEFAULT,
+    GEV_M2_TO_PB,
+    M_W_DEFAULT, GAMMA_W_DEFAULT, M_Z, M_W_BFS_REF, PB_TO_FB,
+    M_T_DEFAULT, M_H_DEFAULT,
+    alpha_Gmu, sin2_thetaW_OS,
+)
+
+
+def gamma_W_LO(mW: float, MZ: float = M_Z,
+               alpha_em: float | None = None) -> float:
+    """LO theoretical W width Γ_W^(0) = 3 α(m_W) m_W / (4 s_W²), eq. (19)
+    of arXiv:0707.0773. Used in the BR-factor convention for the BFS
+    formulae (see ``_BR_correction`` below).
+    """
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    return 3.0 * alpha * mW / (4.0 * sW2)
+
+
+def _BR_correction(mW: float, gammaW: float, MZ: float = M_Z,
+                   alpha_em: float | None = None) -> float:
+    """Replace the LO BR factor 1/27 in the BFS formulae (eqs. 17, 33, 37,
+    39) with Γ_μν^(0) Γ_ud̄^(0) / Γ_W² = (Γ_W^(0)/Γ_W)² × 1/27 when the
+    propagator uses an NLO+ width Γ_W ≠ Γ_W^(0). See section 6.1 of
+    arXiv:0707.0773 (paragraph after eq. 82). Without this correction
+    the BFS prediction is ~4–5 % too large when Γ_W is the physical
+    (PDG / NLO) width rather than the LO theoretical value.
+    """
+    gW0 = gamma_W_LO(mW, MZ, alpha_em=alpha_em)
+    return (gW0 / gammaW) ** 2
+
+
+# --- coefficients from the paper -------------------------------------------
+# eq. (38) — h1, h2, h3 N^{1/2}LO hard non-resonant
+_K_H1 = -2.35493
+_K_H2 = +3.86286
+_K_H3 = +1.88122
+# eq. (40) — h1, h2, h3 N^{3/2}LO,a energy-dependent
+_K_H1_A = -5.87912
+_K_H2_A = -19.15095
+_K_H3_A = -6.18662
+
+# BFS appendix h4-h7 single-resonant coefficients (lines 3116-3148 of source).
+# Per-fermion K factors; the same f flavor labels (u, d, μ, ν_μ) used for the
+# four final-state fermions in the specific channel μ⁻ν̄_μ u d̄.
+_K_H4 = {"u": -0.266477, "nu_mu": -0.266477, "d": +0.190394, "mu": +0.190394}
+_K_H5 = {"u": +0.455244, "nu_mu": +0.455244, "d": -0.455244, "mu": -0.455244}
+_K_H6 = {"u": +0.0804075, "d": +0.0804075, "mu": +0.0804075, "nu_mu": +0.0804075}
+_K_H7 = {"u": +0.0213082, "d": +0.0213082, "mu": +0.0213082, "nu_mu": +0.0213082}
+
+# Fermion electric charges (in units of the positron charge) and weak isospin.
+_Q_F = {"u": 2.0/3.0, "d": -1.0/3.0, "mu": -1.0, "nu_mu": 0.0}
+_I3_F = {"u": +0.5, "d": -0.5, "mu": -0.5, "nu_mu": +0.5}
+# SU(2) doublet partner mapping (used in h7 "barred" couplings).
+_PARTNER = {"u": "d", "d": "u", "mu": "nu_mu", "nu_mu": "mu"}
+
+
+def _ew_couplings(mW: float, MZ: float = M_Z):
+    """Return (sW, cW, Q_e, C_e_L, C_e_R, C_f_L per flavor, MZ) needed for
+    the BFS h4-h7 single-resonant coefficients (BFS appendix line 3119).
+
+    C_f^L = (I_W,f^3 − sW² Q_f) / (sW c_w)
+    C_e^L = same with f = e (Q = -1, I^3 = -1/2)
+    C_e^R = −(sW/c_w) Q_e = +sW/c_w     (since Q_e = -1)
+
+    MZ is carried along in the returned tuple so the downstream h4-h7
+    structure factors get the same M_Z value without re-threading it.
+    """
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    sW = np.sqrt(sW2)
+    cW = np.sqrt(1.0 - sW2)
+    Q_e = -1.0
+    I3_e = -0.5
+    C_e_L = (I3_e - sW2 * Q_e) / (sW * cW)
+    C_e_R = -(sW / cW) * Q_e
+    C_f_L = {f: (_I3_F[f] - sW2 * _Q_F[f]) / (sW * cW) for f in _Q_F}
+    return sW, cW, sW2, Q_e, C_e_L, C_e_R, C_f_L, MZ
+
+
+def _C_h4_LR(s_arr, mW, f, ew):
+    """C^f_{h4, LR} = 3 M_W² sW² × [-Q_f/s + C_e^L C_f^L / (s - M_Z²)]."""
+    sW, cW, sW2, Q_e, C_e_L, C_e_R, C_f_L, MZ = ew
+    return 3.0 * mW**2 * sW2 * (
+        -_Q_F[f] / s_arr + C_e_L * C_f_L[f] / (s_arr - MZ**2))
+
+
+def _C_h5(s_arr, mW, h, f, ew):
+    """C^f_{h5,h} = 9 M_W^4 sW^4 ×
+        [-Q_f/s² + C_e^h C_f^L / (s(s-M_Z²)) + (c_w/sW) Q_f C_e^h / (s(s-M_Z²))
+         - (c_w/sW) (C_e^h)² C_f^L / (s-M_Z²)²]
+    """
+    sW, cW, sW2, Q_e, C_e_L, C_e_R, C_f_L, MZ = ew
+    C_e_h = C_e_L if h == "LR" else C_e_R
+    sm = s_arr - MZ**2
+    return 9.0 * mW**4 * sW2**2 * (
+        -_Q_F[f] / s_arr**2
+        + C_e_h * C_f_L[f] / (s_arr * sm)
+        + (cW / sW) * _Q_F[f] * C_e_h / (s_arr * sm)
+        - (cW / sW) * C_e_h**2 * C_f_L[f] / sm**2)
+
+
+def _C_h6(s_arr, mW, h, f, ew):
+    """C^f_{h6,h} = 9 M_W^4 sW^4 × [-Q_f/s + C_e^h C_f^L / (s-M_Z²)]²"""
+    sW, cW, sW2, Q_e, C_e_L, C_e_R, C_f_L, MZ = ew
+    C_e_h = C_e_L if h == "LR" else C_e_R
+    sm = s_arr - MZ**2
+    inner = -_Q_F[f] / s_arr + C_e_h * C_f_L[f] / sm
+    return 9.0 * mW**4 * sW2**2 * inner ** 2
+
+
+def _C_h7(s_arr, mW, h, f, ew):
+    """C^f_{h7,h} = 9 M_W^4 sW^4 × [
+         Q_f Q̄_f/s² − Q_f C_e^h C̄_f^L/(s(s-M_Z²)) − Q̄_f C_e^h C_f^L/(s(s-M_Z²))
+         + (C_e^h)² C_f^L C̄_f^L / (s-M_Z²)²
+       ]
+    where the "bar" denotes the SU(2) doublet partner."""
+    sW, cW, sW2, Q_e, C_e_L, C_e_R, C_f_L, MZ = ew
+    C_e_h = C_e_L if h == "LR" else C_e_R
+    f_bar = _PARTNER[f]
+    Q_f, Q_fbar = _Q_F[f], _Q_F[f_bar]
+    Cf_L, Cfbar_L = C_f_L[f], C_f_L[f_bar]
+    sm = s_arr - MZ**2
+    return 9.0 * mW**4 * sW2**2 * (
+        Q_f * Q_fbar / s_arr**2
+        - Q_f * C_e_h * Cfbar_L / (s_arr * sm)
+        - Q_fbar * C_e_h * Cf_L / (s_arr * sm)
+        + C_e_h**2 * Cf_L * Cfbar_L / sm**2)
+
+
+def _sigma_half_h47_LR(s, mW: float, MZ: float = M_Z):
+    """h4-h7 contribution to σ_LR^(1/2) — BFS line 3112: only e_L^- e_R^+
+    contributes to h4 (LR only); h5, h6, h7 contribute to both helicities."""
+    s_arr = np.asarray(s, dtype=float)
+    ew = _ew_couplings(mW, MZ)
+    contrib = 0.0
+    for f in _Q_F:
+        contrib = contrib + _C_h4_LR(s_arr, mW, f, ew) * _K_H4[f]
+        contrib = contrib + _C_h5(s_arr, mW, "LR", f, ew) * _K_H5[f]
+        contrib = contrib + _C_h6(s_arr, mW, "LR", f, ew) * _K_H6[f]
+        contrib = contrib + _C_h7(s_arr, mW, "LR", f, ew) * _K_H7[f]
+    return contrib
+
+
+def _sigma_half_h57_RL(s, mW: float, MZ: float = M_Z):
+    """h5, h6, h7 contribution to σ_RL^(1/2). h4 only contributes to LR."""
+    s_arr = np.asarray(s, dtype=float)
+    ew = _ew_couplings(mW, MZ)
+    contrib = 0.0
+    for f in _Q_F:
+        contrib = contrib + _C_h5(s_arr, mW, "RL", f, ew) * _K_H5[f]
+        contrib = contrib + _C_h6(s_arr, mW, "RL", f, ew) * _K_H6[f]
+        contrib = contrib + _C_h7(s_arr, mW, "RL", f, ew) * _K_H7[f]
+    return contrib
+
+
+# ---------------------------------------------------------------------------
+# Whizard-anchor correction — BFS section 6.2 prescription
+# ---------------------------------------------------------------------------
+# BFS replaces the EFT Born by the Whizard exact 4f Born in their published
+# Table 4 numbers (paper line 2647-2656). We do the same: multiply the
+# BFS-EFT N^(3/2)LO Born by
+#
+#     f(s, m_W, Γ_W) = σ_Whizard / σ_EFT-N3/2
+#
+# Two sources are kept side-by-side and selectable via the ``source`` arg
+# of :func:`whizard_anchor_factor`:
+#
+#   "spline" — BFS arXiv:0707.0773 Tables 1+2: cubic spline in
+#              δ = √s − 2 m_W, linear interp in Γ_W between the two
+#              reference points {2.04483, 2.09201}. Smooth in (s, m_W, Γ_W)
+#              with no MC stat noise, but only two Γ_W anchor points.
+#
+#   "grid"   — 1295-point WHIZARD 3.1.5 grid (5 m_W × 7 Γ_W × 37 √s)
+#              produced by ``WW_threshold/whizard/``, trilinear interp in
+#              (s, m_W, Γ_W). Full (m_W, Γ_W) coverage with no
+#              extrapolation, but carries ~0.05-0.2 % per-point MC stat
+#              noise that propagates into variation templates.
+#
+# Both implementations are BR-aware: when called with
+# ``apply_BR_correction=False`` the σ_EFT denominator is brought to the
+# same BR convention as the caller's σ_LR/σ_RL, avoiding the (Γ^(0)/Γ_W)²
+# factor mismatch.
+
+# ----- "spline" source: BFS Tables 1+2 ratios --------------------------------
+# Data taken directly from BFS arXiv:0707.0773:
+#   Table 1 (LO width): m_W = 80.377, Γ_W = Γ_W^(0)(80.377) = 2.04483 GeV
+#   Table 2 (NLO+QCD width): m_W = 80.377, Γ_W = 2.09201 GeV
+# Both at: M_Z = 91.188, m_t = 174.2, M_H = 115, G_μ = 1.16637e-5.
+#
+# Table 2's caption ("as in Table 1, but now the NLO decay width Γ_W is used")
+# keeps the Table 1 pole m_W = 80.377; only Γ_W changes. Section 6.1 of the
+# paper makes this explicit: "replacing Γ_W^(0) by Γ_W wherever it appears".
+# So both tables share the same √s − 2 m_W abscissa. The BFS Tables use the
+# per-component BR correction (eq. 83), so the spline's "native" denominator
+# is the BR-corrected σ_EFT.
+
+_BFS_TABLE_1_SQRTS = [155.0, 158.0, 161.0, 164.0, 167.0, 170.0]
+_BFS_TABLE_1_MW    = 80.377   # BFS Table 1 reference m_W [GeV]
+_BFS_TABLE_1_GW    = 2.04483
+_BFS_TABLE_1_EFT   = [31.30, 62.50, 160.89, 318.80, 429.70, 505.40]   # fb, EFT N^(3/2)LO
+_BFS_TABLE_1_WHIZ  = [34.43, 63.39, 160.62, 318.30, 428.60, 505.10]   # fb, Whizard 4f Born
+
+_BFS_TABLE_2_SQRTS = [155.0, 158.0, 161.0, 164.0, 167.0, 170.0]
+_BFS_TABLE_2_MW    = 80.377  # BFS Table 2 keeps Table 1's pole mass and only changes Γ_W (paper §6.1, eq. mass_width fixes the pole mass).
+_BFS_TABLE_2_GW    = 2.09201
+_BFS_TABLE_2_EFT   = [30.54,  60.83, 154.44, 303.70, 409.30, 481.70]
+_BFS_TABLE_2_WHIZ  = [33.58,  61.67, 154.19, 303.00, 408.80, 481.70]
+
+
+def _build_whizard_anchor_splines():
+    """Cubic splines of σ_Whiz(δ) at the two BFS reference Γ_W values.
+    Abscissa is δ = √s − 2 m_W from the Tables' (constant) m_W; natural BC.
+
+    We spline σ_Whiz (the Whizard column), NOT the σ_Whiz/σ_EFT ratio: the
+    σ_EFT denominator is recomputed at the actual (s, m_W, Γ_W) with the
+    caller's BR convention so the σ^(0):σ^(1/2):σ^(1)_pot:σ^(3/2),a mix
+    is handled correctly (the ratio splines would bake in the BFS BR
+    convention, miscorrecting the σ^(1/2) piece).
+    """
+    from scipy.interpolate import CubicSpline
+    delta_T1 = np.array([s - 2.0 * _BFS_TABLE_1_MW for s in _BFS_TABLE_1_SQRTS])
+    delta_T2 = np.array([s - 2.0 * _BFS_TABLE_2_MW for s in _BFS_TABLE_2_SQRTS])
+    whiz_T1 = np.array(_BFS_TABLE_1_WHIZ, dtype=float)
+    whiz_T2 = np.array(_BFS_TABLE_2_WHIZ, dtype=float)
+    s1 = CubicSpline(delta_T1, whiz_T1, bc_type="natural", extrapolate=True)
+    s2 = CubicSpline(delta_T2, whiz_T2, bc_type="natural", extrapolate=True)
+    return s1, s2
+
+
+_WHIZ_SPLINE_T1, _WHIZ_SPLINE_T2 = _build_whizard_anchor_splines()
+
+
+def _bfs_table_whizard_sigma_fb(s, mW: float, gammaW: float):
+    """σ_Whiz(s, m_W, Γ_W) [fb, specific channel μνud̄] reconstructed from
+    BFS Tables 1+2 by cubic spline in δ = √s − 2 m_W and linear interp /
+    extrapolation in Γ_W between the two reference points.
+    """
+    s_arr = np.asarray(s, dtype=float)
+    delta = np.sqrt(s_arr) - 2.0 * mW
+    w1 = np.asarray(_WHIZ_SPLINE_T1(delta), dtype=float)
+    w2 = np.asarray(_WHIZ_SPLINE_T2(delta), dtype=float)
+    alpha = (gammaW - _BFS_TABLE_1_GW) / (_BFS_TABLE_2_GW - _BFS_TABLE_1_GW)
+    return (1.0 - alpha) * w1 + alpha * w2
+
+
+# WHIZARD's specific-channel σ has an implicit BR² squeeze: it computes σ
+# from a Lagrangian whose partial widths are SM-LO functions of m_W and the
+# EW couplings (independent of the `gw` parameter). As we step gw alone, the
+# propagator's Γ_W changes but Γ_partial stays at SM-LO, so the implicit BR
+# = Γ_partial / Γ_W shrinks. For the PDG-constant BR convention we want
+# σ_observed = σ_WW × BR_PDG (Azzurri picture: Γ_W is a pure propagator
+# parameter, decays held at their PDG-measured values, *m_W-independent*).
+# Strip the implicit squeeze with (Γ_W / _GAMMA_W_LO_REF)² — a FIXED
+# reference, not Γ_W^(0)(running m_W). The running Γ_W^(0)(m_W) ∝ m_W³
+# would inject a spurious m_W slope ~6 ΔmW/m_W into the anchor: in
+# PDG-constant BR the decay sector knows nothing about the fit m_W. The
+# reference is gamma_W_LO(M_W_BFS_REF = 80.377 GeV) = 2.04485 GeV — the
+# same reference point BFS uses for Tables 1+2.
+_GAMMA_W_LO_REF = gamma_W_LO(M_W_BFS_REF)
+
+
+def _br_strip_factor(gammaW: float, *, apply_BR_correction: bool):
+    if apply_BR_correction:
+        return 1.0
+    return (gammaW / _GAMMA_W_LO_REF) ** 2
+
+
+WHIZARD_ANCHOR_SOURCES = ("spline", "grid", "morph")
+
+
+def _whizard_sigma_fb_from_source(source: str):
+    """Return σ_Whiz(s, mW, gammaW) [fb] callable for the requested source."""
+    if source == "spline":
+        return _bfs_table_whizard_sigma_fb
+    if source == "grid":
+        from framework.process.ww.xsec_calculator.whizard_grid import whizard_sigma
+        return whizard_sigma
+    if source == "morph":
+        from framework.process.ww.xsec_calculator.grid_morph import whizard_sigma_morph
+        return whizard_sigma_morph
+    raise ValueError(f"whizard_anchor source must be one of "
+                     f"{WHIZARD_ANCHOR_SOURCES}; got {source!r}")
+
+
+def whizard_anchor_factor(s, mW: float = M_W_DEFAULT,
+                          gammaW: float = GAMMA_W_DEFAULT,
+                          *, apply_BR_correction: bool = True,
+                          source: str = "grid",
+                          MZ: float = M_Z,
+                          alpha_em: float | None = None):
+    """f(s, m_W, Γ_W) bringing the BFS-EFT N^(3/2)LO Born to the Whizard 4f
+    Born (BFS sec. 6.2 prescription). BR-aware: pass the same
+    ``apply_BR_correction`` you used for the σ_LR/σ_RL the factor is
+    multiplied with.
+
+    When ``apply_BR_correction=False`` (PDG-constant chain), σ_Whiz is
+    multiplied by (Γ_W/Γ_W^(0)_REF)² so the anchor produces σ_WW (pure
+    W-pair, BR-independent). Otherwise σ_Whiz is used as-is so the anchor
+    produces σ_specific (with WHIZARD's implicit BR² squeeze intact) for
+    the BFS-EFT per-component chain.
+
+    Sources:
+      ``"spline"`` — BFS Tables 1+2 cubic spline (2 Γ_W refs, no MC noise).
+      ``"grid"``   — 1295-pt WHIZARD scan, trilinear interpolation.
+      ``"morph"``  — grid_fine (6363 pts) morphing predictor; sub-MeV-safe.
+    """
+    sigma_whiz_callable = _whizard_sigma_fb_from_source(source)
+    s_eval = s
+    if source == "morph":
+        # Freeze the calibration factor at the morph knot edges: BOTH the
+        # numerator and the EFT-Born denominator are evaluated at the clamped
+        # √s, so below the 154 GeV grid edge (and above the top knot) the
+        # anchored Born keeps the EFT shape scaled by the edge calibration.
+        # Without this the natural-spline extrapolation goes negative and the
+        # ISR convolution samples it (−1.6 % on σ_obs(157.5) — 2026-07-02
+        # review).  The [149,150] quintic floor still zeroes the far tail.
+        from framework.process.ww.xsec_calculator.grid_morph import morph_sqrts_range
+        lo, hi = morph_sqrts_range()
+        s_eval = np.clip(np.asarray(s, dtype=float), lo ** 2, hi ** 2)
+        if np.ndim(s) == 0:
+            s_eval = float(s_eval)
+    sigma_whiz_fb = sigma_whiz_callable(s_eval, mW, gammaW) * _br_strip_factor(
+        gammaW, apply_BR_correction=apply_BR_correction)
+    sigma_LR, sigma_RL = _accumulate_born_orders(
+        s_eval, mW, gammaW, apply_BR_correction=apply_BR_correction, MZ=MZ,
+        alpha_em=alpha_em)
+    sigma_EFT_fb = (sigma_LR + sigma_RL) / 4.0 * PB_TO_FB
+    f = sigma_whiz_fb / sigma_EFT_fb
+    if np.ndim(s) == 0:
+        return float(f)
+    return np.asarray(f, dtype=float)
+
+
+def _xi_chi(s, mW: float, MZ: float = M_Z):
+    """Photon/Z propagator-induced shape functions, eq. (32)."""
+    s_arr = np.asarray(s, dtype=float)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    denom = s_arr * (s_arr - MZ ** 2)
+    xi = -3.0 * mW ** 2 * (s_arr - 2.0 * MZ ** 2 * sW2) / denom
+    chi = -6.0 * mW ** 2 * MZ ** 2 * sW2 / denom
+    return xi, chi
+
+
+def sigma_LR0_specific_pb(s, mW: float = M_W_DEFAULT,
+                          gammaW: float = GAMMA_W_DEFAULT,
+                          apply_BR_correction: bool = True,
+                          MZ: float = M_Z,
+                          alpha_em: float | None = None):
+    """σ_LR^(0) for the specific channel e+e- → μ⁻ν̄_μ ud̄, eq. (17).
+
+    Units: pb. The 1/27 LO branching factor BR(W→μν̄) × BR(W→ud̄) is
+    contained in the formula and is replaced by (Γ_W^(0)/Γ_W)² × 1/27
+    when ``apply_BR_correction=True`` (section 6.1 of the paper). Set
+    ``apply_BR_correction=False`` to reproduce Table 1 of the paper
+    (which uses Γ_W = Γ_W^(0) so the correction is trivially 1).
+    """
+    s_arr = np.asarray(s, dtype=float)
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    sqrt_s = np.sqrt(s_arr)
+    E = sqrt_s - 2.0 * mW
+    arg = -(E + 1j * gammaW) / mW
+    pref = (4.0 * np.pi * alpha ** 2) / (27.0 * sW2 ** 2 * s_arr)
+    # Im[-√arg] with principal branch — kernel of eq. (17).
+    val = pref * (-np.sqrt(np.asarray(arg, dtype=complex))).imag * GEV_M2_TO_PB
+    if apply_BR_correction:
+        val = val * _BR_correction(mW, gammaW, MZ, alpha_em=alpha_em)
+    return val
+
+
+def sigma_LR_RL_NLO_potential_specific_pb(s, mW: float = M_W_DEFAULT,
+                                          gammaW: float = GAMMA_W_DEFAULT,
+                                          apply_BR_correction: bool = True,
+                                          MZ: float = M_Z,
+                                          alpha_em: float | None = None):
+    """NLO Born expansion from the potential region, eq. (33). Returns
+    ``(σ_LR^(1), σ_RL^(1))`` in pb, for the specific channel.
+
+    The Γ_W^(1) electroweak NLO correction to the W width that appears
+    in eq. (33) is dropped (the BFS chain uses Γ_W as a fit parameter,
+    not a Γ_W^(0) + Γ_W^(1) expansion); the surviving formula is:
+
+        σ_LR^(1) = (4πα²)/(27 s_W^4 s) × {
+            (11/6 + 2ξ² + 38 ξ / 9) × Im[ (-(E+iΓ_W)/M_W)^(3/2) ]
+            + Im[ (3E/(8M_W) + 17 i Γ_W/(8M_W)) × √(-(E+iΓ_W)/M_W)
+                  − (Γ_W² / (8 M_W²)) × √(-M_W/(E+iΓ_W)) ]
+        }
+        σ_RL^(1) = (8πα²)/(27 s_W^4 s) × χ²(s) × Im[(-(E+iΓ_W)/M_W)^(3/2)]
+    """
+    s_arr = np.asarray(s, dtype=float)
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    sqrt_s = np.sqrt(s_arr)
+    E = sqrt_s - 2.0 * mW
+    xi, chi = _xi_chi(s_arr, mW, MZ)
+
+    minus_z = np.asarray(-(E + 1j * gammaW) / mW, dtype=complex)
+    sqrt_minus_z = np.sqrt(minus_z)
+    im_pow_32 = (sqrt_minus_z ** 3).imag
+    sqrt_inv = np.sqrt(np.asarray(-mW / (E + 1j * gammaW), dtype=complex))
+
+    pref = (4.0 * np.pi * alpha ** 2) / (27.0 * sW2 ** 2 * s_arr)
+    t1 = (11.0 / 6.0 + 2.0 * xi ** 2 + (38.0 / 9.0) * xi) * im_pow_32
+    coef_A = (3.0 * E / (8.0 * mW)) + (17.0j * gammaW / (8.0 * mW))
+    coef_B = gammaW ** 2 / (8.0 * mW ** 2)
+    t23 = (coef_A * sqrt_minus_z - coef_B * sqrt_inv).imag
+
+    sigma_LR_1 = pref * (t1 + t23)
+    sigma_RL_1 = (8.0 * np.pi * alpha ** 2) / (27.0 * sW2 ** 2 * s_arr) * chi ** 2 * im_pow_32
+
+    out_LR = sigma_LR_1 * GEV_M2_TO_PB
+    out_RL = sigma_RL_1 * GEV_M2_TO_PB
+    if apply_BR_correction:
+        c = _BR_correction(mW, gammaW, MZ, alpha_em=alpha_em)
+        out_LR = out_LR * c
+        out_RL = out_RL * c
+    return out_LR, out_RL
+
+
+def sigma_LR_RL_half_specific_pb(s, mW: float = M_W_DEFAULT,
+                                 gammaW: float = GAMMA_W_DEFAULT,
+                                 apply_BR_correction: bool = True,
+                                 MZ: float = M_Z,
+                                 alpha_em: float | None = None):
+    """N^{1/2}LO non-resonant pieces, eq. (37) with h1-h3 only (h4-h7 are
+    <0.5% per the paper text after eq. (40)).
+
+    Unlike the potential-region pieces σ^(0), σ^(1)_pot (whose BR
+    correction is squared because both W's are in cut effective-theory
+    propagators), the four-electron production-decay operator that
+    gives σ^(1/2) has ONE W in narrow-width approximation and the
+    OTHER in the production-decay operator at LO. Paper §6.1 and
+    surrounding text says we get a single prefactor Γ_partial^(0)/Γ_W
+    rather than a squared one. The same hard-region argument applies
+    to σ^(3/2),a (next order in E of the same h1-h3 cut diagrams):
+    see ``sigma_LR_RL_three_half_a_specific_pb`` — also linear.
+
+    Returns ``(σ_LR^{1/2}, σ_RL^{1/2})`` in pb, for the specific channel.
+    """
+    s_arr = np.asarray(s, dtype=float)
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    xi, chi = _xi_chi(s_arr, mW, MZ)
+    pref = (4.0 * alpha ** 3) / (27.0 * sW2 ** 3 * s_arr)
+    sigma_LR_half = pref * (_K_H1 + _K_H2 * xi + _K_H3 * xi ** 2
+                            + _sigma_half_h47_LR(s_arr, mW, MZ))
+    sigma_RL_half = pref * (_K_H3 * chi ** 2
+                            + _sigma_half_h57_RL(s_arr, mW, MZ))
+    sigma_LR_half = sigma_LR_half * GEV_M2_TO_PB
+    sigma_RL_half = sigma_RL_half * GEV_M2_TO_PB
+    if apply_BR_correction:
+        c_lin = gamma_W_LO(mW, MZ, alpha_em=alpha_em) / gammaW   # linear (not squared)
+        sigma_LR_half = sigma_LR_half * c_lin
+        sigma_RL_half = sigma_RL_half * c_lin
+    return sigma_LR_half, sigma_RL_half
+
+
+def delta_sigma_Coulomb_NLO_specific_pb(s, mW: float = M_W_DEFAULT,
+                                       gammaW: float = GAMMA_W_DEFAULT,
+                                       apply_BR_correction: bool = True,
+                                       subleading_only: bool = False,
+                                       MZ: float = M_Z,
+                                       alpha_em: float | None = None):
+    """NLO Coulomb correction Δσ_Coulomb^(1), eq. (62) of arXiv:0707.0773.
+
+    Closed form, IR-finite:
+
+        Δσ_Coulomb^(1) = (4πα²)/(27 s_W^4 s) × Im[
+            -(α/2) ln(-(E + iΓ_W^(0))/M_W)        ← term 1: N^(1/2)LO
+                                                    one-photon Coulomb,
+                                                    ~5 % at threshold
+            + (α² π²/12) × √(-M_W/(E + iΓ_W^(0))) ← term 2: NLO
+                                                    two-photon, ~0.2 %
+        ]
+
+    Cross-checked numerically against FKM 1995 hep-ph/9507422 eq. (21)
+    at threshold: their X/2 = 5.21 % and X²/6 = 0.17 % match terms 1 and
+    2 here to within 1 %.
+
+    **Overlap warning**: term 1 is the *same physics* as the leading
+    α/v piece of the Fadin-Khoze-Martin K_C used in ``coulomb_K_factor``
+    (Bardin-Riemann eq. 9 form, ~7 % at threshold — larger than 5 %
+    because it uses off-shell momentum vs. FKM's on-shell limit). If
+    both K_C and ``subleading_only=False`` are applied to the same σ,
+    the leading Coulomb is double-counted at threshold (~5 %).
+
+    Use ``subleading_only=True`` to return only term 2 (the BFS NLO
+    two-photon Coulomb correction beyond the leading-α/v piece) — this
+    is safe to combine with K_C.
+
+    Returns the absolute Δσ in pb for the specific channel μ⁻ν̄_μ ud̄.
+    With ``apply_BR_correction=True`` (default), the (Γ_W^(0)/Γ_W)² BR
+    correction is applied (two-cut-propagator piece).
+    """
+    s_arr = np.asarray(s, dtype=float)
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    sqrt_s = np.sqrt(s_arr)
+    E = sqrt_s - 2.0 * mW
+
+    z = np.asarray(-(E + 1j * gammaW) / mW, dtype=complex)
+
+    # term 1: N^(1/2)LO one-photon Coulomb (~5% at threshold, overlaps K_C)
+    term1 = -(alpha / 2.0) * np.log(z)
+    # term 2: NLO two-photon (~0.2% at threshold, K_C-safe subleading)
+    term2 = (alpha ** 2 * np.pi ** 2 / 12.0) * np.sqrt(1.0 / z)
+
+    pref = (4.0 * np.pi * alpha ** 2) / (27.0 * sW2 ** 2 * s_arr)
+    if subleading_only:
+        bracket = term2
+    else:
+        bracket = term1 + term2
+    delta_sigma = pref * bracket.imag * GEV_M2_TO_PB
+
+    if apply_BR_correction:
+        delta_sigma = delta_sigma * _BR_correction(mW, gammaW, MZ, alpha_em=alpha_em)
+    return delta_sigma
+
+
+def sigma_LR_RL_three_half_a_specific_pb(s, mW: float = M_W_DEFAULT,
+                                         gammaW: float = GAMMA_W_DEFAULT,
+                                         apply_BR_correction: bool = True,
+                                         MZ: float = M_Z,
+                                         alpha_em: float | None = None):
+    """Energy-dependent N^{3/2}LO,a, eq. (39).
+
+    σ^{3/2},a is the next-to-leading order in E of the *hard*-region
+    contribution that starts at σ^{1/2} (same h1-h3 cut diagrams, just
+    the next term in the threshold expansion in E). The flavour-specific
+    BR-correction prescription from BFS §6.1 — derived for the hard
+    region — therefore gives a *linear* Γ_W^(0)/Γ_W factor, not the
+    squared one used for the potential-region pieces (σ^{0}, σ^{1}_pot).
+    Closure against BFS Table 2 confirms this: the residual is exactly
+    −2.3 % of σ^{3/2},a everywhere with the squared factor, and matches
+    the (Γ_W^(0)/Γ_W − 1) shift, vanishing with the linear factor.
+
+    Returns ``(σ_LR^{3/2,a}, σ_RL^{3/2,a})`` in pb, for the specific channel.
+    """
+    s_arr = np.asarray(s, dtype=float)
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    sqrt_s = np.sqrt(s_arr)
+    E = sqrt_s - 2.0 * mW
+    xi, chi = _xi_chi(s_arr, mW, MZ)
+    pref = (4.0 * alpha ** 3 * E) / (27.0 * sW2 ** 3 * s_arr * mW)
+    sigma_LR_32a = pref * (_K_H1_A + _K_H2_A * xi + _K_H3_A * xi ** 2)
+    sigma_RL_32a = pref * (_K_H3_A * chi ** 2)
+    sigma_LR_32a = sigma_LR_32a * GEV_M2_TO_PB
+    sigma_RL_32a = sigma_RL_32a * GEV_M2_TO_PB
+    if apply_BR_correction:
+        c_lin = gamma_W_LO(mW, MZ, alpha_em=alpha_em) / gammaW   # linear (hard-region piece)
+        sigma_LR_32a = sigma_LR_32a * c_lin
+        sigma_RL_32a = sigma_RL_32a * c_lin
+    return sigma_LR_32a, sigma_RL_32a
+
+
+def _accumulate_born_orders(s, mW: float, gammaW: float,
+                            *, apply_BR_correction: bool,
+                            MZ: float = M_Z,
+                            alpha_em: float | None = None):
+    """N^(3/2)LO Born = σ^(0) + σ^(1/2) + σ^(1)_pot + σ^(3/2),a (all
+    specific-channel, in pb). The only truncation used in production;
+    the older ``order`` parameter has been dropped."""
+    kw = dict(apply_BR_correction=apply_BR_correction, MZ=MZ,
+              alpha_em=alpha_em)
+    sigma_LR = sigma_LR0_specific_pb(s, mW, gammaW, **kw)
+    sigma_RL = np.zeros_like(np.asarray(sigma_LR, dtype=float))
+    for piece in (sigma_LR_RL_half_specific_pb,
+                  sigma_LR_RL_NLO_potential_specific_pb,
+                  sigma_LR_RL_three_half_a_specific_pb):
+        s_LR, s_RL = piece(s, mW, gammaW, **kw)
+        sigma_LR = sigma_LR + s_LR
+        sigma_RL = sigma_RL + s_RL
+    return sigma_LR, sigma_RL
+
+
+def _add_nlo_loops_to_LR(sigma_LR, s, mW, gammaW, *, apply_BR_correction,
+                         coulomb_kc_safe: bool = False,
+                         decay_uses_full_born: bool = True,
+                         mt: float = M_T_DEFAULT, MH: float = M_H_DEFAULT,
+                         MZ: float = M_Z,
+                         alpha_em: float | None = None):
+    """BFS NLO loops (eq. finalcross): HSC + EW decay + Coulomb_NLO. All
+    additive to σ_LR; σ_RL has no NLO contribution since LO σ_RL = 0.
+
+    ``coulomb_kc_safe=True`` passes ``subleading_only=True`` to
+    ``delta_sigma_Coulomb_NLO_specific_pb`` — i.e. retains only the NLO
+    two-photon (O(α²)) piece of eq. 62 and drops the N^(1/2)LO one-photon
+    piece (~5% at threshold) that overlaps the leading α/v of the
+    Fadin-Khoze-Martin K_C resummation. Use this when K_C is on
+    (``include_coulomb=True`` in the chain) to avoid the leading-Coulomb
+    double-count. Default ``False`` preserves the historical chain
+    (validated against BFS Table 4 with K_C OFF).
+
+    ``decay_uses_full_born=True`` (BFS recipe, arXiv:0707.0773 §6.2
+    line 2255: "replacing the leading-order cross section σ^(0) by the
+    full Born cross section σ_Born in the decay correction") computes
+    Δσ_decay = δ_decay × σ_LR_Born, where σ_LR_Born is the per-helicity
+    LR Born accumulated *into the input* ``sigma_LR`` argument — i.e. the
+    N^(3/2)LO Born sum with the Whizard anchor already applied. This is
+    the prescription used to produce BFS Table 4. Setting ``False``
+    reverts to the historical δ_decay × σ_LR^(0) form (matches σ̂^(1)
+    of BFS eq. 60 in isolation; mis-closes Table 4 by 0.0–0.9 % at
+    scan-window energies).
+    """
+    if decay_uses_full_born:
+        # δ_decay × σ_Born_LR: ``sigma_LR`` here is the input Born sum
+        # (LO + 1/2 + NLO_pot + 3/2,a, optionally × anchor), which is
+        # exactly the "σ_Born" of BFS eq. (84) per the §6.2 prescription.
+        delta_decay = delta_decay_EW_relative(mW, mt, MH, MZ, alpha_em=alpha_em) * sigma_LR
+    else:
+        delta_decay = delta_sigma_NLO_decay_specific_pb(
+            s, mW, gammaW, apply_BR_correction=apply_BR_correction,
+            mt=mt, MH=MH, MZ=MZ, alpha_em=alpha_em)
+    sigma_LR = sigma_LR + delta_sigma_NLO_hard_softcoll_specific_pb(
+        s, mW, gammaW, apply_BR_correction=apply_BR_correction,
+        mt=mt, MH=MH, MZ=MZ, alpha_em=alpha_em)
+    sigma_LR = sigma_LR + delta_decay
+    sigma_LR = sigma_LR + delta_sigma_Coulomb_NLO_specific_pb(
+        s, mW, gammaW, apply_BR_correction=apply_BR_correction,
+        subleading_only=coulomb_kc_safe, MZ=MZ, alpha_em=alpha_em)
+    return sigma_LR
+
+
+def _add_nnlo_to_LR(sigma_LR, s, mW, gammaW, *, apply_BR_correction,
+                    mt: float = M_T_DEFAULT, MH: float = M_H_DEFAULT,
+                    MZ: float = M_Z,
+                    alpha_em: float | None = None):
+    """BFS dominant NNLO σ̂^(3/2)_LR (eq. 49 of arXiv:0807.0102): C×[S+H] +
+    NLO-C + C×decay + C×res + C3. ``mt, MH, MZ`` flow into the pieces that
+    use c_p,LR^(1,fin) / c_d,l/h^(1,fin) (C×[S+H], C×decay) and the
+    log(2 M_W / M_Z) of the NLO-C piece. The others are independent of
+    these EW inputs."""
+    sigma_LR = sigma_LR + delta_sigma_NNLO_C_soft_hard_specific_pb(
+        s, mW, gammaW, apply_BR_correction=apply_BR_correction,
+        mt=mt, MH=MH, MZ=MZ, alpha_em=alpha_em)
+    sigma_LR = sigma_LR + delta_sigma_NNLO_NLO_Coulomb_potential_specific_pb(
+        s, mW, gammaW, apply_BR_correction=apply_BR_correction, MZ=MZ,
+        alpha_em=alpha_em)
+    sigma_LR = sigma_LR + delta_sigma_NNLO_C_decay_specific_pb(
+        s, mW, gammaW, apply_BR_correction=apply_BR_correction,
+        mt=mt, MH=MH, MZ=MZ, alpha_em=alpha_em)
+    sigma_LR = sigma_LR + delta_sigma_NNLO_C_residue_specific_pb(
+        s, mW, gammaW, apply_BR_correction=apply_BR_correction, MZ=MZ,
+        alpha_em=alpha_em)
+    sigma_LR = sigma_LR + delta_sigma_NNLO_triple_Coulomb_specific_pb(
+        s, mW, gammaW, apply_BR_correction=apply_BR_correction, MZ=MZ,
+        alpha_em=alpha_em)
+    return sigma_LR
+
+
+def sigma_BFS_LO_total_WW_pb(s, mW: float = M_W_DEFAULT,
+                             gammaW: float = GAMMA_W_DEFAULT,
+                             order: str = "N3/2LO",
+                             apply_BR_correction: bool = False,
+                             include_NLO_hard_decay: bool = False,
+                             include_BFS_NNLO: bool = False,
+                             apply_delta_QCD: bool = False,
+                             alpha_s: float = ALPHA_S_MW_DEFAULT,
+                             apply_whizard_anchor: bool = False,
+                             whizard_anchor_source: str = "grid",
+                             coulomb_kc_safe: bool = False,
+                             decay_uses_full_born: bool = True,
+                             mt: float = M_T_DEFAULT,
+                             MH: float = M_H_DEFAULT,
+                             MZ: float = M_Z,
+                             alpha_em: float | None = None):
+    """Total σ_WW = σ(e+e- → W+W-) at BFS LO_EFT, unpolarised initial state,
+    summed over ALL 4-fermion final states.
+
+    Each σ_LR^(...) carries the BFS 1/27 specific-channel BR factor. We
+    strip it by × 27 and average over the four initial helicities by ÷4.
+    The result is σ(e+e- → W+W-) — the total pair-production cross
+    section, with no BR multiplication.
+
+    IMPORTANT: the BR-correction factor (Γ_W^(0)/Γ_W)² from BFS section
+    6.1 should NOT be applied to "total σ_WW". It applies inside the
+    σ_LR formula when interpreting it as a *specific-channel* cross
+    section with the correct BR weighting at NLO Γ_W. For total σ_WW we
+    strip the 1/27 by ×27 and the correction would double-count — the
+    total pair-production cross section has no BR dependence.
+
+    Default is therefore ``apply_BR_correction=False``. Set True only to
+    diagnose the σ_LR^(0..3/2) specific-channel values via this entry
+    point. Paper Table-1 / Table-2 self-tests use the specific-channel
+    functions directly with their own ``apply_BR_correction`` flag.
+
+    Parameters
+    ----------
+    s : float or array
+        Partonic CM energy² in GeV².
+    mW, gammaW : float
+        W mass and physical width in GeV. The width enters via the
+        complex-velocity propagator only (no BR-correction multiplication
+        with the default).
+    order : {"N3/2LO"}
+        The only supported value; retained as a guard.
+    apply_BR_correction : bool
+        Default False — DO NOT use for total σ_WW. See module docstring.
+
+    Returns
+    -------
+    σ_total_WW in pb (same shape as ``s``).
+    """
+    if order != "N3/2LO":
+        raise ValueError(
+            f"order={order!r} unsupported; the production chain is N3/2LO only.")
+    sigma_LR, sigma_RL = _accumulate_born_orders(
+        s, mW, gammaW, apply_BR_correction=apply_BR_correction, MZ=MZ,
+        alpha_em=alpha_em)
+
+    # Whizard anchor on the Born sum only (NOT on the NLO loops below).
+    # apply_BR_correction is forwarded so the σ_EFT denominator matches the
+    # σ_LR/σ_RL convention we just computed (avoids (Γ^(0)/Γ_W)² mismatch).
+    if apply_whizard_anchor:
+        f = whizard_anchor_factor(s, mW, gammaW,
+                                  apply_BR_correction=apply_BR_correction,
+                                  source=whizard_anchor_source, MZ=MZ,
+                                  alpha_em=alpha_em)
+        sigma_LR = sigma_LR * f
+        sigma_RL = sigma_RL * f
+
+    if include_NLO_hard_decay:
+        sigma_LR = _add_nlo_loops_to_LR(
+            sigma_LR, s, mW, gammaW, apply_BR_correction=apply_BR_correction,
+            coulomb_kc_safe=coulomb_kc_safe,
+            decay_uses_full_born=decay_uses_full_born, mt=mt, MH=MH, MZ=MZ,
+            alpha_em=alpha_em)
+    if include_BFS_NNLO:
+        sigma_LR = _add_nnlo_to_LR(
+            sigma_LR, s, mW, gammaW, apply_BR_correction=apply_BR_correction,
+            mt=mt, MH=MH, MZ=MZ, alpha_em=alpha_em)
+
+    sigma_total_WW = (sigma_LR + sigma_RL) * 27.0 / 4.0
+    if apply_delta_QCD:
+        sigma_total_WW = sigma_total_WW * delta_QCD_factor(alpha_s)
+
+    if np.ndim(s) == 0:
+        return float(sigma_total_WW)
+    return sigma_total_WW
+
+
+# ---------------------------------------------------------------------------
+# NLO hard+soft+collinear (eq. finalcross of arXiv:0707.0773)
+# ---------------------------------------------------------------------------
+
+# Hard matching coefficient c_p,LR^(1,fin) — BFS arXiv:0707.0773 appendix
+# B (eq. PV0LR + CTLR). The full analytic implementation lives in
+# bfs_c1fin.c_p_LR_1_fin(m_W, m_t, M_H, M_Z) and reproduces -10.076 + 0.205 i
+# at the BFS reference inputs (m_W=80.377, M_Z=91.188, m_t=174.2, M_H=115).
+# Only the real part enters the flavour-specific cross section (BFS sec. 4.2).
+# Dominant m-slope at the BFS reference: ∂Re(c)/∂m_W ≈ +1.30 / GeV;
+# ∂Re(c)/∂m_t ≈ +0.003 / GeV; ∂Re(c)/∂M_H ≈ -0.022 / GeV.
+from .bfs_c1fin import (
+    c_p_LR_1_fin as _c_p_LR_1_fin_full,
+    c_d_l_1_fin as _c_d_l_1_fin_full,
+    c_d_h_1_fin as _c_d_h_1_fin_full,
+)
+
+
+def _c_p_LR_1_fin_re(mW: float, mt: float = M_T_DEFAULT,
+                     MH: float = M_H_DEFAULT, MZ: float = M_Z) -> float:
+    """Re(c_p,LR^(1,fin)) — BFS hard production matching coefficient."""
+    return _c_p_LR_1_fin_full(mW, mt, MH, MZ).real
+
+
+def _c_d_l_1_fin_re(mW: float, mt: float = M_T_DEFAULT,
+                    MH: float = M_H_DEFAULT, MZ: float = M_Z) -> float:
+    """Re(c_d,l^(1,fin)) — BFS leptonic decay matching coefficient."""
+    return _c_d_l_1_fin_full(mW, mt, MH, MZ).real
+
+
+def _c_d_h_1_fin_re(mW: float, mt: float = M_T_DEFAULT,
+                    MH: float = M_H_DEFAULT, MZ: float = M_Z) -> float:
+    """Re(c_d,h^(1,fin)) — BFS hadronic decay matching coefficient."""
+    return _c_d_h_1_fin_full(mW, mt, MH, MZ).real
+
+
+def delta_sigma_NLO_hard_softcoll_specific_pb(s, mW: float = M_W_DEFAULT,
+                                              gammaW: float = GAMMA_W_DEFAULT,
+                                              apply_BR_correction: bool = True,
+                                              mt: float = M_T_DEFAULT,
+                                              MH: float = M_H_DEFAULT,
+                                              MZ: float = M_Z,
+                                              alpha_em: float | None = None):
+    """NLO hard + soft + collinear correction to σ_LR^specific (μ⁻ν̄_μ ud̄).
+
+    Bracket term of eq. (eq:finalcross) of arXiv:0707.0773:
+
+        Δσ̂_LR^(1,HSC)(s) = (4 α³)/(27 s_W^4 s) × Im{
+            -√(z) × [ 2 ln(4 z) + Re(c_p,LR^(1,fin)) + π²/4 + 1/2 ]
+        }
+
+    with z = -(E + i Γ_W)/M_W, E = √s − 2 m_W. This is the residue of the
+    HARD (eq. hardsigma) + SOFT (sec. 4.3) + COLLINEAR (sec. 4.4-4.5)
+    corrections after all 1/ε² and 1/ε poles cancel against each other and
+    against the conventional-scheme conversion of the LL ePDFs.
+
+    Combined with Δσ_Coulomb^(1) (eq. 62, ``delta_sigma_Coulomb_NLO_specific_pb``)
+    and Δσ_decay^(1) (eq. 60, ``delta_sigma_NLO_decay_specific_pb``) reproduces
+    the full NLO ``σ̂_LR_conv^(1)`` of BFS eq. (finalcross), the NLO correction
+    to the partonic σ_LR in the conventional ISR scheme.
+
+    Returns Δσ in pb for the specific channel μ⁻ν̄_μ ud̄. With
+    ``apply_BR_correction=True`` (default), the (Γ_W^(0)/Γ_W)² factor of BFS
+    section 6.1 is applied (same convention as for σ_LR^(0)).
+    """
+    s_arr = np.asarray(s, dtype=float)
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    sqrt_s = np.sqrt(s_arr)
+    E = sqrt_s - 2.0 * mW
+    z = np.asarray(-(E + 1j * gammaW) / mW, dtype=complex)
+
+    sqrt_z = np.sqrt(z)                              # principal branch
+    ln_4z = np.log(4.0 * z)                          # complex log, principal branch
+    bracket = (2.0 * ln_4z
+               + _c_p_LR_1_fin_re(mW, mt, MH, MZ)
+               + np.pi ** 2 / 4.0
+               + 0.5)
+    integrand = (-sqrt_z * bracket).imag
+    pref = (4.0 * alpha ** 3) / (27.0 * sW2 ** 2 * s_arr)
+    val = pref * integrand * GEV_M2_TO_PB
+    if apply_BR_correction:
+        val = val * _BR_correction(mW, gammaW, MZ, alpha_em=alpha_em)
+    return val
+
+
+# ---------------------------------------------------------------------------
+# NLO decay correction (eq. delta-decay / 60 of arXiv:0707.0773 — EW only)
+# ---------------------------------------------------------------------------
+
+# NNLO α_s² coefficient (Chetyrkin-Kühn-Kwiatkowski, PRL 1997).
+_DELTA_QCD_C2 = 1.409
+
+
+def delta_QCD_factor(alpha_s: float = ALPHA_S_MW_DEFAULT) -> float:
+    """Universal QCD correction to hadronic partial widths, BFS eq. (delta_qcd):
+
+        δ_QCD(α_s) = 1 + α_s/π + c₂ (α_s/π)²,   c₂ = _DELTA_QCD_C2 = 1.409
+
+    α_s is α_s(M_W) in MS-bar. BFS section 6.1 (lines 2622-2637) explains that
+    multiplying the entire NLO electroweak cross section by δ_QCD reproduces
+    the QCD running of hadronic partial widths to NNLO precision.
+
+    At α_s = 0.1199 this evaluates to 1.04025 (≈ +4.0 % multiplicative).
+    Differential: ∂δ_QCD/∂α_s = 1/π + 2 c₂ α_s/π² = +0.351 at the BFS
+    reference α_s — justifies treating α_s as an actively fit nuisance.
+    """
+    x = alpha_s / np.pi
+    return 1.0 + x + _DELTA_QCD_C2 * x * x
+
+
+# BFS eq. (Gamma1ewFS) explicit formula for the EW one-loop correction to the
+# W partial width into a single lepton or quark doublet:
+#
+#   Γ_W,l/h^(1,ew) / Γ_W,l/h^(0) =
+#     (α/(2π)) × [ 2·Re(c_d,l/h^(1,fin))
+#                  + 101/12 + (19/2)·Q_f·Q̄_f
+#                  - 7π²/12 - (π²/6)·Q_f·Q̄_f ]
+#
+# c_d,l/h^(1,fin) are the finite parts of the leptonic and hadronic decay
+# matching coefficients — now computed analytically from bfs_c1fin (reproduces
+# BFS quoted -2.709, -2.034 at the reference inputs to 4 decimals).
+# Charge factors (BFS line 1916): leptonic has Q_f = -1, Q̄_f = 0 → product 0.
+# Hadronic: Q_f = 2/3, Q̄_f = -1/3 → product -2/9.
+_Q_PROD_L = 0.0
+_Q_PROD_H = -2.0 / 9.0
+
+
+def _delta_W_ew_partial(c_d_fin_re: float, q_prod: float, alpha: float) -> float:
+    """Γ_x^(1,ew) / Γ_x^(0) per BFS eq. (Gamma1ewFS)."""
+    bracket = (2.0 * c_d_fin_re
+               + 101.0 / 12.0
+               + (19.0 / 2.0) * q_prod
+               - 7.0 * np.pi ** 2 / 12.0
+               - (np.pi ** 2 / 6.0) * q_prod)
+    return alpha / (2.0 * np.pi) * bracket
+
+
+def delta_decay_EW_relative(mW: float = M_W_DEFAULT,
+                            mt: float = M_T_DEFAULT,
+                            MH: float = M_H_DEFAULT,
+                            MZ: float = M_Z,
+                            alpha_em: float | None = None) -> float:
+    """δ_decay^(1,ew) = Γ_l^(1,ew)/Γ_l^(0) + Γ_h^(1,ew)/Γ_h^(0)  (BFS eq. delta-decay).
+
+    Computed from BFS eq. (Gamma1ewFS) with α = α_Gμ(m_W). The c_d,l/h^(1,fin)
+    are evaluated analytically per BFS appendix as functions of (m_W, m_t, M_H, M_Z).
+    At m_W = 80.377 GeV: returns ≈ −0.0071 (−0.71 %).
+    """
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    delta_l = _delta_W_ew_partial(_c_d_l_1_fin_re(mW, mt, MH, MZ), _Q_PROD_L, alpha)
+    delta_h = _delta_W_ew_partial(_c_d_h_1_fin_re(mW, mt, MH, MZ), _Q_PROD_H, alpha)
+    return delta_l + delta_h
+
+
+def delta_sigma_NLO_decay_specific_pb(s, mW: float = M_W_DEFAULT,
+                                      gammaW: float = GAMMA_W_DEFAULT,
+                                      apply_BR_correction: bool = True,
+                                      mt: float = M_T_DEFAULT,
+                                      MH: float = M_H_DEFAULT,
+                                      MZ: float = M_Z,
+                                      alpha_em: float | None = None):
+    """NLO **electroweak-only** decay-side correction (BFS eq. delta-decay):
+
+        Δσ_decay^(1,ew) = ( Γ_l^(1,ew)/Γ_l^(0)
+                            + Γ_h^(1,ew)/Γ_h^(0) ) × σ^(0)
+
+    with Γ_x^(1,ew)/Γ_x^(0) given by BFS eq. (Gamma1ewFS) — explicit α/(2π)
+    times a kinematic factor depending on the W → final-state charges and
+    the finite decay-matching coefficients c_d,l/h^(1,fin) (BFS appendix).
+
+    The QCD content of the decay correction is intentionally NOT included
+    here; it is captured by the multiplicative ``delta_QCD_factor(α_s)``
+    (BFS eq. delta_qcd / section 6.1 lines 2622-2637). Including both
+    would double-count.
+
+    At BFS reference parameters this is ≈ −0.71 % × σ^(0). Returns Δσ in
+    pb. The (m_W, Γ_W) dependence is captured through α_Gμ(m_W) and
+    sigma_LR0_specific_pb(s, mW, gammaW); the m_W/m_t/M_H/M_Z dependence of
+    c_d,l/h^(1,fin) is now included analytically (bfs_c1fin), evaluated at
+    the passed (mW, mt, MH, MZ) — see ``delta_decay_EW_relative``.
+    """
+    sigma_LR0 = sigma_LR0_specific_pb(s, mW, gammaW,
+                                       apply_BR_correction=apply_BR_correction,
+                                       MZ=MZ, alpha_em=alpha_em)
+    return delta_decay_EW_relative(mW, mt, MH, MZ, alpha_em=alpha_em) * sigma_LR0
+
+
+# ---------------------------------------------------------------------------
+# BFS NNLO (arXiv:0807.0102) — dominant N^{3/2}LO_EFT corrections
+# ---------------------------------------------------------------------------
+#
+# The full NNLO correction of eq. (49) of arXiv:0807.0102 is the sum
+#
+#   σ̂^(3/2)_LR = Δσ^(C×[S+H])_LR + Δσ^(NLO-C)_LR + Δσ^(C×decay)_LR
+#              + Δσ^(C×res)_LR    + Δσ^(C3)_LR.
+#
+# Two of these have closed-form analytic expressions in the paper
+# (eqs. 11 and 48); the remaining three require sections 3.2–3.7 and are
+# implemented elsewhere. Combined NNLO shifts m_W by ~3 MeV per BFS sec. 6
+# (~5 MeV without ISR convolution).
+#
+# Paper convention used in Table 1: Δσ^i = Δσ^i_LR / 4 (helicity-averaged).
+# The functions here return σ_LR (specific-channel, μ⁻ν̄_μ ud̄) in pb, in
+# line with the existing NLO loop functions; the /4 is applied at assembly.
+
+_ZETA_3 = 1.2020569031595942   # Apéry's constant ζ(3)
+
+
+def _delta_sigma_C1_LR_specific_pb(s, mW: float, gammaW: float,
+                                   MZ: float = M_Z,
+                                   alpha_em: float | None = None):
+    """Single-Coulomb exchange piece Δσ^(C1)_LR — the α-order term of
+    eq. (10) of arXiv:0807.0102:
+
+        Δσ^(C1)_LR = -(2π α_ew² α / 27 s) × Im[ ln(-ℰ_W/M_W) ]
+
+    Equivalent to the ``term1`` piece of ``delta_sigma_Coulomb_NLO_specific_pb``
+    (eq. 62 of arXiv:0707.0773), without the two-photon ``term2``. Returned
+    in pb for the specific channel, **without** BR-correction (callers apply
+    it).
+    """
+    s_arr = np.asarray(s, dtype=float)
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    E = np.sqrt(s_arr) - 2.0 * mW
+    z = -(E + 1j * gammaW) / mW
+    pref = -(2.0 * np.pi * alpha ** 2 * alpha) / (27.0 * sW2 ** 2 * s_arr)
+    return pref * np.log(z).imag * GEV_M2_TO_PB
+
+
+def delta_sigma_NNLO_triple_Coulomb_specific_pb(s, mW: float = M_W_DEFAULT,
+                                                gammaW: float = GAMMA_W_DEFAULT,
+                                                apply_BR_correction: bool = True,
+                                                MZ: float = M_Z,
+                                                alpha_em: float | None = None):
+    """Triple-Coulomb exchange Δσ^(C3)_LR, eq. (11) of arXiv:0807.0102:
+
+        Δσ^(C3)_LR = (π α_ew² / 27 s) × α³ ζ(3) × Im[ −M_W / ℰ_W ]
+
+    where ℰ_W = (√s − 2 M_W) + i Γ_W. Closed form, IR-finite. Numerically
+    tiny: ≲ 0.01 fb (helicity-averaged) over the entire scan window.
+
+    Returns Δσ in pb for the specific channel μ⁻ν̄_μ ud̄.
+    """
+    s_arr = np.asarray(s, dtype=float)
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    E = np.sqrt(s_arr) - 2.0 * mW
+    cE = E + 1j * gammaW                            # ℰ_W
+    pref = (np.pi * alpha ** 2) / (27.0 * sW2 ** 2 * s_arr)   # π α_ew²/(27 s)
+    delta = pref * (alpha ** 3) * _ZETA_3 * (-mW / cE).imag * GEV_M2_TO_PB
+    if apply_BR_correction:
+        delta = delta * _BR_correction(mW, gammaW, MZ, alpha_em=alpha_em)
+    return delta
+
+
+def delta_sigma_NNLO_C_residue_specific_pb(s, mW: float = M_W_DEFAULT,
+                                           gammaW: float = GAMMA_W_DEFAULT,
+                                           apply_BR_correction: bool = True,
+                                           MZ: float = M_Z,
+                                           alpha_em: float | None = None):
+    """Interference of residue correction and single-Coulomb exchange,
+    Δσ^(C×res)_LR, eq. (48) of arXiv:0807.0102:
+
+        Δσ^(C×res)_LR = (4π α_ew² α / 27 s) × (Γ_W / M_W)
+                        × ln[ 2 |ℰ_W| (Re ℰ_W + |ℰ_W|) / Γ_W² ]
+
+    with ℰ_W = (√s − 2 M_W) + i Γ_W. The Γ_W in the prefactor and inside
+    the logarithm is the full on-shell width (see paper sec. 3.8, text
+    after eq. 46). Dominant NNLO piece above threshold (~1 fb at 170 GeV).
+
+    Returns Δσ in pb for the specific channel μ⁻ν̄_μ ud̄.
+    """
+    s_arr = np.asarray(s, dtype=float)
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    E = np.sqrt(s_arr) - 2.0 * mW
+    cE = E + 1j * gammaW                            # ℰ_W
+    absE = np.abs(cE)
+    log_arg = 2.0 * absE * (cE.real + absE) / (gammaW ** 2)
+    pref = (4.0 * np.pi * alpha ** 2 * alpha) / (27.0 * sW2 ** 2 * s_arr)
+    delta = pref * (gammaW / mW) * np.log(log_arg) * GEV_M2_TO_PB
+    if apply_BR_correction:
+        delta = delta * _BR_correction(mW, gammaW, MZ, alpha_em=alpha_em)
+    return delta
+
+
+def delta_sigma_NNLO_C_decay_specific_pb(s, mW: float = M_W_DEFAULT,
+                                         gammaW: float = GAMMA_W_DEFAULT,
+                                         apply_BR_correction: bool = True,
+                                         mt: float = M_T_DEFAULT,
+                                         MH: float = M_H_DEFAULT,
+                                         MZ: float = M_Z,
+                                         alpha_em: float | None = None):
+    """Interference of decay correction and single-Coulomb exchange,
+    Δσ^(C×decay)_LR, eq. (40) of arXiv:0807.0102:
+
+        Δσ^(C×decay)_LR = ( Γ_μν^(1,ew)/Γ_μν^(0) + Γ_ud^(1,ew)/Γ_ud^(0) )
+                          × Δσ^(C1)_LR
+
+    The bracket is the same EW partial-width correction factor used by
+    ``delta_sigma_NLO_decay_specific_pb`` (BFS eq. 60 of arXiv:0707.0773
+    via ``delta_decay_EW_relative``). Δσ^(C1)_LR is the α-order single-
+    Coulomb piece of eq. (10).
+
+    Returns Δσ in pb for the specific channel μ⁻ν̄_μ ud̄.
+    """
+    sigma_C1 = _delta_sigma_C1_LR_specific_pb(s, mW, gammaW, MZ, alpha_em=alpha_em)
+    delta = delta_decay_EW_relative(mW, mt, MH, MZ, alpha_em=alpha_em) * sigma_C1
+    if apply_BR_correction:
+        delta = delta * _BR_correction(mW, gammaW, MZ, alpha_em=alpha_em)
+    return delta
+
+
+# Σ_f C_f Q_f² for the photon vacuum-polarisation fermion-bubble sum,
+# top excluded (integrated out as a hard mode). u,c: 3×(2/3)²=4/3 each;
+# d,s,b: 3×(1/3)²=1/3 each; e,μ,τ: 1×1²=1 each. Total = 20/3.
+_SUM_CF_QF2_NO_TOP = 20.0 / 3.0
+
+# α(M_Z)→G_μ conversion factor for the hard matching coefficient, BFS
+# eq. (39). Paper text after eq. (39): "for the same input parameters
+# as used for the hard-matching coefficient below (coeff1loop) the
+# numerical value is δ_{α(M_Z)→G_μ} = 4.103 α". Same BFS reference
+# parameters as the c^(1,fin) above; m_W dependence is sub-percent.
+_DELTA_ALPHA_MZ_TO_GMU_COEFF = 4.103
+
+
+def delta_sigma_NNLO_NLO_Coulomb_potential_specific_pb(
+        s, mW: float = M_W_DEFAULT, gammaW: float = GAMMA_W_DEFAULT,
+        apply_BR_correction: bool = True,
+        MZ: float = M_Z,
+        alpha_em: float | None = None):
+    """NLO corrections to the Coulomb potential Δσ^(NLO-C)_LR — eq. (39)
+    of arXiv:0807.0102 (the ``bubble-gmu`` result):
+
+        Δσ^(NLO-C)_LR = Δσ^(NLO-C)_LR|_α(M_Z) + δ_{α(M_Z)→G_μ} × Δσ^(C1)_LR
+
+    with the α(M_Z)-scheme piece
+
+        Δσ^(NLO-C)_LR|_α(M_Z) = -(α_ew² α² / 81 s) × (Σ_f C_f Q_f²)
+            × { 4 ln(2 M_W / M_Z) Im[ln(−ℰ_W/M_W)]
+                + Im[ln²(−ℰ_W/M_W)] }
+
+    encoding the running of α via photon-bubble insertions on the
+    Coulomb photon (semi-soft + hard, sec. 3.6 + appendix A). The
+    α(M_Z)→G_μ conversion adds a finite shift proportional to the
+    single-Coulomb piece Δσ^(C1)_LR. The conversion piece is the larger
+    of the two at threshold and gives a net positive correction.
+
+    Returns Δσ in pb for the specific channel μ⁻ν̄_μ ud̄.
+    """
+    s_arr = np.asarray(s, dtype=float)
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    E = np.sqrt(s_arr) - 2.0 * mW
+    z = -(E + 1j * gammaW) / mW
+    lz = np.log(z)
+
+    alpha_ew_sq = (alpha / sW2) ** 2
+    pref_aMZ = -alpha_ew_sq * alpha ** 2 / (81.0 * s_arr)
+    bracket = (4.0 * np.log(2.0 * mW / MZ) * lz.imag
+               + (lz ** 2).imag)
+    delta_aMZ = pref_aMZ * _SUM_CF_QF2_NO_TOP * bracket * GEV_M2_TO_PB
+
+    # α(M_Z)→G_μ conversion: add δ × Δσ^(C1)_LR
+    delta_conv = (_DELTA_ALPHA_MZ_TO_GMU_COEFF * alpha
+                  * _delta_sigma_C1_LR_specific_pb(s, mW, gammaW, MZ, alpha_em=alpha_em))
+
+    total = delta_aMZ + delta_conv
+    if apply_BR_correction:
+        total = total * _BR_correction(mW, gammaW, MZ, alpha_em=alpha_em)
+    return total
+
+
+def delta_sigma_NNLO_C_soft_hard_specific_pb(
+        s, mW: float = M_W_DEFAULT, gammaW: float = GAMMA_W_DEFAULT,
+        apply_BR_correction: bool = True,
+        mt: float = M_T_DEFAULT, MH: float = M_H_DEFAULT,
+        MZ: float = M_Z,
+        alpha_em: float | None = None):
+    """Interference of single-Coulomb with soft and hard corrections,
+    Δσ̂^(C×[S+H])_LR — eq. (34) of arXiv:0807.0102 (the ISR-subtracted
+    ``sigma-three-half`` partonic correction to be convoluted with the
+    electron structure functions):
+
+        Δσ̂^(C×[S+H])_LR = -(α_ew² α² / 27 s) × {
+            (9 + π²/2 + 2 Re c_p,LR^(1,fin)) × Im[ ln(−ℰ_W/M_W) ]
+            + 2 × Im[ ln²(−ℰ_W/M_W) ]
+        }
+
+    The hard matching coefficient ``Re c_p,LR^(1,fin)`` is the SAME quantity
+    used in the NLO HSC term (now evaluated analytically per BFS appendix;
+    sub-MeV m_W slope of +1.3/GeV); the BFS NNLO paper inherits it
+    unchanged from arXiv:0707.0773. After the
+    ISR subtraction described in paper section 3.4–3.5 (the `hat`
+    superscript), all logs of m_e are absorbed into the structure
+    functions and the partonic result is finite without an electron-mass
+    scale dependence.
+
+    Returns Δσ in pb for the specific channel μ⁻ν̄_μ ud̄.
+    """
+    s_arr = np.asarray(s, dtype=float)
+    alpha = alpha_Gmu(mW, MZ, override=alpha_em)
+    sW2 = sin2_thetaW_OS(mW, MZ)
+    E = np.sqrt(s_arr) - 2.0 * mW
+    z = -(E + 1j * gammaW) / mW
+    lz = np.log(z)
+
+    alpha_ew_sq = (alpha / sW2) ** 2
+    pref = -alpha_ew_sq * alpha ** 2 / (27.0 * s_arr)
+    coef = 9.0 + np.pi ** 2 / 2.0 + 2.0 * _c_p_LR_1_fin_re(mW, mt, MH, MZ)
+    bracket = coef * lz.imag + 2.0 * (lz ** 2).imag
+    delta = pref * bracket * GEV_M2_TO_PB
+    if apply_BR_correction:
+        delta = delta * _BR_correction(mW, gammaW, MZ, alpha_em=alpha_em)
+    return delta
+
+
+def sigma_BFS_specific_munuud_pb(s, mW: float = M_W_DEFAULT,
+                                 gammaW: float = GAMMA_W_DEFAULT,
+                                 order: str = "N3/2LO",
+                                 include_NLO_hard_decay: bool = False,
+                                 include_BFS_NNLO: bool = False,
+                                 apply_delta_QCD: bool = False,
+                                 alpha_s: float = ALPHA_S_MW_DEFAULT,
+                                 apply_whizard_anchor: bool = False,
+                                 whizard_anchor_source: str = "grid",
+                                 coulomb_kc_safe: bool = False,
+                                 decay_uses_full_born: bool = True,
+                                 mt: float = M_T_DEFAULT,
+                                 MH: float = M_H_DEFAULT,
+                                 MZ: float = M_Z,
+                                 alpha_em: float | None = None):
+    """σ(e+e- → μ⁻ν̄_μ ud̄) at BFS LO_EFT, unpolarised initial state, with
+    the BR correction (BFS section 6.1, eq. 83) applied PER COMPONENT:
+
+      * σ^(0), σ^(1)_pot:              (Γ_W^(0)/Γ_W)²   (potential region,
+                                                          two cut propagators)
+      * σ^(1/2), σ^(3/2),a:            Γ_W^(0)/Γ_W      (hard region, one
+                                                          W in NWA; σ^(3/2),a
+                                                          is the next E-order
+                                                          of σ^(1/2))
+
+    Returned value is the specific-channel (one quark generation, one W
+    charge) unpolarised cross section in pb. Inclusive μν qq̄ (both
+    charges × ud̄+cs̄ summed) is 4× this value at LO.
+
+    This is the entry point used by ``sigma_partonic_munuqq`` so that the
+    BR factor's correct (m_W, Γ_W) dependence is preserved in the fit.
+
+    ``include_NLO_hard_decay`` adds the NLO hard+soft+collinear piece
+    (eq. finalcross bracket × √) and the decay correction (eq. 60) on
+    top of the σ_LR Born expansion. This is the bulk of the BFS NLO
+    physical-σ correction. The NLO Coulomb (eq. 62) is added ADDITIVELY
+    inside ``_add_nlo_loops_to_LR``; ``coulomb_kc_safe`` (which passes
+    ``subleading_only=True``) guards the double-count only WHEN the FKM
+    K_C resummation is enabled — which is OFF by default, so the full
+    eq. 62 is added.
+
+    Parameters mirror ``sigma_BFS_LO_total_WW_pb``.
+    """
+    if order != "N3/2LO":
+        raise ValueError(
+            f"order={order!r} unsupported; the production chain is N3/2LO only.")
+    sigma_LR, sigma_RL = _accumulate_born_orders(
+        s, mW, gammaW, apply_BR_correction=True, MZ=MZ,
+        alpha_em=alpha_em)   # LINEAR BR per eq. 83
+
+    # BFS section 6.2: replace the EFT N^(3/2)LO Born by the Whizard 4f Born
+    # via the multiplicative anchor. Applied to the BORN SUM only — NOT to
+    # the NLO loop corrections, which are added on top per BFS
+    # eq. (finalcross). The σ_LR above use apply_BR_correction=True (linear
+    # BR per eq. 83), so the anchor's σ_EFT denominator must match.
+    if apply_whizard_anchor:
+        f = whizard_anchor_factor(s, mW, gammaW,
+                                  apply_BR_correction=True,
+                                  source=whizard_anchor_source, MZ=MZ,
+                                  alpha_em=alpha_em)
+        sigma_LR = sigma_LR * f
+        sigma_RL = sigma_RL * f
+
+    if include_NLO_hard_decay:
+        sigma_LR = _add_nlo_loops_to_LR(
+            sigma_LR, s, mW, gammaW, apply_BR_correction=True,
+            coulomb_kc_safe=coulomb_kc_safe,
+            decay_uses_full_born=decay_uses_full_born, mt=mt, MH=MH, MZ=MZ,
+            alpha_em=alpha_em)
+    if include_BFS_NNLO:
+        sigma_LR = _add_nnlo_to_LR(
+            sigma_LR, s, mW, gammaW, apply_BR_correction=True,
+            mt=mt, MH=MH, MZ=MZ, alpha_em=alpha_em)
+
+    # Unpolarised specific = (σ_LR + σ_RL) / 4
+    sigma_specific = (sigma_LR + sigma_RL) / 4.0
+    if apply_delta_QCD:
+        sigma_specific = sigma_specific * delta_QCD_factor(alpha_s)
+
+    if np.ndim(s) == 0:
+        return float(sigma_specific)
+    return sigma_specific
+
+
+# ---------------------------------------------------------------------------
+# Validation against Table 2 of arXiv:0707.0773
+# ---------------------------------------------------------------------------
+
+# Table 2 of the paper: σ(e+e- → μ⁻ν̄_μ ud̄) in fb, with the NLO width Γ_W
+# of eq. (81) = 2.09201 GeV resummed in the propagator. Columns are the
+# successive EFT truncations and the Whizard exact Born.
+TABLE_2 = {
+    "sqrts_GeV": np.array([155.0, 158.0, 161.0, 164.0, 167.0, 170.0]),
+    "eft_NLO_fb": np.array([42.25, 65.99, 154.02, 298.6, 400.3, 469.4]),  # N3/2LO+NLO
+    "eft_N32LO_fb": np.array([30.54, 60.83, 154.44, 303.7, 409.3, 481.7]),
+    "exact_Born_fb": np.array([33.58, 61.67, 154.19, 303.0, 408.8, 481.7]),
+}
+
+
+TABLE_1 = {
+    "sqrts_GeV": np.array([155.0, 158.0, 161.0, 164.0, 167.0, 170.0]),
+    "eft_NLO_fb":    np.array([43.28, 67.78, 160.45, 313.5, 420.4, 492.9]),
+    "eft_N32LO_fb":  np.array([31.30, 62.50, 160.89, 318.8, 429.7, 505.4]),
+    "exact_Born_fb": np.array([34.43, 63.39, 160.62, 318.3, 428.6, 505.1]),
+}

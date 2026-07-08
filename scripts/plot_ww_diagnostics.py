@@ -1,0 +1,643 @@
+"""Diagnostic plots for the WW threshold-scan calculation.
+
+Five PDF figures written to ``fit_output/ww/diagnostics/``:
+
+* ``xsec_vs_sqrts.pdf`` — σ(√s) at successive BFS Born orders (eq. 17 →
+  17+37 → 17+33+37 → 17+33+37+39) and then with the ISR convolution
+  layered on. Two panels: linear scale 155–165 GeV, and ratios relative
+  to the full N^(3/2)LO Born.
+
+* ``sensitivity_vs_sqrts.pdf`` — dσ/dm_W and dσ/dΓ_W vs √s computed by
+  central finite difference, both for the partonic cross section (no
+  ISR) and the observed cross section (with ISR). All in fb/MeV; both
+  POIs on a single figure with two panels.
+
+* ``ratios_mW_GammaW.pdf`` — σ_obs lineshape ratios for ±10/±30 MeV
+  shifts of m_W and Γ_W.
+
+* ``azzurri_style_pm1GeV.pdf`` — two-panel Azzurri 2107.04444 Fig. 1
+  style σ_WW with ±1 GeV-equivalent m_W / Γ_W bands.
+
+* ``azzurri_style_overlay.pdf`` — single-panel overlay of those same
+  m_W and Γ_W bands.
+
+Run from the WW_threshold/ directory:
+
+    python3 -m scripts.plot_ww_diagnostics
+"""
+
+from __future__ import annotations
+
+import os
+
+import numpy as np
+
+from framework.process.ww.xsec_calculator.bfs_eft import (
+    gamma_W_LO,
+    sigma_LR0_specific_pb,
+    sigma_LR_RL_half_specific_pb,
+    sigma_LR_RL_NLO_potential_specific_pb,
+    sigma_LR_RL_three_half_a_specific_pb,
+)
+from framework.process.ww.xsec_calculator.eft_xsec import (
+    BR_INCLUSIVE_MUNUQQ,
+    GAMMA_W_DEFAULT, M_W_DEFAULT,
+    sigma_partonic_munuqq as _sigma_partonic_munuqq_raw,
+    sigma_WW_partonic,
+)
+from framework.process.ww.xsec_calculator.isr import sigma_observed_munuqq as _sigma_observed_munuqq_raw
+from framework.process.ww.generator import (
+    partonic_kwargs_from_card, observed_kwargs_from_card,
+    chain_summary_latex,
+)
+from cards import ww_default as _card
+
+# Card-driven kwargs — single source of truth in process.ww.generator.
+# Diagnostic plots always reflect the *card-configured* chain so they match
+# what the fit templates actually use; channel is forced to "inclusive"
+# (this script's plots are about the inclusive μν qq̄ scan).
+_PARTONIC_KW = partonic_kwargs_from_card(_card) | {"channel": "inclusive"}
+_OBSERVED_KW = observed_kwargs_from_card(_card) | {"channel": "inclusive"}
+
+# Dynamic chain labels — derived from the kwargs so toggling any flag in
+# the card automatically updates every plot label and footer. Adding a
+# new physics knob requires editing chain_summary_latex(), not these
+# strings.
+_LABEL_PARTONIC = chain_summary_latex(_PARTONIC_KW)
+_LABEL_OBSERVED = chain_summary_latex(_OBSERVED_KW)
+
+
+def _add_chain_footer(fig):
+    """Stamp the active chain configuration at the bottom of every figure."""
+    fig.text(0.5, 0.005, _LABEL_OBSERVED, ha="center", va="bottom",
+             fontsize=7, color="0.35")
+
+
+def sigma_partonic_munuqq(*args, **kwargs):
+    for k, v in _PARTONIC_KW.items():
+        kwargs.setdefault(k, v)
+    return _sigma_partonic_munuqq_raw(*args, **kwargs)
+
+
+def sigma_observed_munuqq(*args, **kwargs):
+    for k, v in _OBSERVED_KW.items():
+        kwargs.setdefault(k, v)
+    return _sigma_observed_munuqq_raw(*args, **kwargs)
+
+
+PLOT_DIR = "fit_output/ww/diagnostics"
+
+# Plotted √s range. Ends at the anchor-morph grid_fine edge (165 GeV):
+# above it the morph rests on 0.5-GeV MC wing nodes whose (m_W, Γ_W)
+# response is MC-noise limited (visible wiggles in derivative/ratio
+# curves), and at √s = 170 GeV the chain switches to the RACOONWW
+# calibration spline (benign C⁰ discontinuity, but a spike in finite-
+# difference derivatives). Neither region carries scan points.
+SQRTS_PLOT_MIN, SQRTS_PLOT_MAX = 155.0, 165.0
+SQRTS_PLOT_N = 101   # 0.1 GeV step
+
+# FCC-ee primary scan window — read from cards/ww_default.py so a card edit
+# is the single source of truth (no copy in the plotting code).
+SCAN_WINDOW_GEV = (float(_card.SCENARIO["scan_min"]),
+                   float(_card.SCENARIO["scan_max"]))
+
+
+def _draw_scan_window(ax, *, label_top: bool = False):
+    """Overlay shaded scan window and vertical guides at the endpoints."""
+    lo, hi = SCAN_WINDOW_GEV
+    ax.axvspan(lo, hi, color="C2", alpha=0.06, zorder=0)
+    for x in (lo, hi):
+        ax.axvline(x, color="C2", alpha=0.55, linestyle="-", linewidth=1.0,
+                   zorder=1)
+    if label_top:
+        ax.text(0.5 * (lo + hi), ax.get_ylim()[1] * 0.97,
+                f"FCC-ee scan {lo:.0f}-{hi:.0f} GeV",
+                color="C2", alpha=0.9, fontsize=8, ha="center", va="top")
+
+
+def _bfs_total_WW_order(s, mW, gammaW, order: str):
+    """σ_WW (total, unpolarised, summed over 4f decays) at the requested
+    BFS Born truncation. Returns pb, vectorised in ``s``.
+
+    ``order`` ∈ {LO, N1/2LO, NLO, N3/2LO}.
+    """
+    sLR = sigma_LR0_specific_pb(s, mW, gammaW)
+    sRL = np.zeros_like(np.asarray(sLR, dtype=float))
+    if order in ("N1/2LO", "NLO", "N3/2LO"):
+        s12_LR, s12_RL = sigma_LR_RL_half_specific_pb(s, mW)
+        sLR = sLR + s12_LR
+        sRL = sRL + s12_RL
+    if order in ("NLO", "N3/2LO"):
+        s_NLO_LR, s_NLO_RL = sigma_LR_RL_NLO_potential_specific_pb(s, mW, gammaW)
+        sLR = sLR + s_NLO_LR
+        sRL = sRL + s_NLO_RL
+    if order == "N3/2LO":
+        s32_LR, s32_RL = sigma_LR_RL_three_half_a_specific_pb(s, mW)
+        sLR = sLR + s32_LR
+        sRL = sRL + s32_RL
+    return (sLR + sRL) * 27.0 / 4.0   # specific → total WW, unpolarised
+
+
+# ---------------------------------------------------------------------------
+# Plot 1: σ vs √s
+# ---------------------------------------------------------------------------
+
+def plot_xsec_vs_sqrts_3curve():
+    """Slim 3-curve version of the threshold buildup for the motivation slide:
+    Born → Born + higher orders (NLO+NNLO+δ_QCD) → + NLL ISR (observed). All
+    inclusive μν qq̄, same WHIZARD anchor. Alternative file (does NOT overwrite
+    ``xsec_vs_sqrts.pdf``)."""
+    import matplotlib.pyplot as plt
+
+    sqrts = np.linspace(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX, SQRTS_PLOT_N)
+    s = sqrts ** 2
+    mW, gW = M_W_DEFAULT, GAMMA_W_DEFAULT
+
+    # Born (loops off, anchor on) → +higher orders (card default partonic) → +ISR
+    born = sigma_partonic_munuqq(s, mW, gW, channel="inclusive",
+                                 include_NLO_hard_decay=False,
+                                 include_BFS_NNLO=False,
+                                 apply_delta_QCD=False) * 1e3
+    horder = sigma_partonic_munuqq(s, mW, gW, channel="inclusive") * 1e3
+    observed = sigma_observed_munuqq(sqrts, mW=mW, gammaW=gW,
+                                     channel="inclusive") * 1e3
+
+    fig, (ax_abs, ax_rat) = plt.subplots(2, 1, figsize=(8, 7), sharex=True,
+                                          gridspec_kw={"height_ratios": [3, 1.4]})
+    ax_abs.plot(sqrts, born, color="#4575b4", linestyle="--", linewidth=1.8,
+                label="Born (exact 4f, anchored)")
+    ax_abs.plot(sqrts, horder, color="black", linestyle=":", linewidth=1.8,
+                label=r"+ higher orders (NLO, NNLO, $\delta_{\rm QCD}$)")
+    ax_abs.plot(sqrts, observed, color="#a50026", linestyle="-", linewidth=2.2,
+                label=r"+ NLL ISR (observed)")
+    _draw_scan_window(ax_abs)
+    ax_abs.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_abs.text(2 * mW + 0.05, ax_abs.get_ylim()[1] * 0.95, r"$2\,m_W$",
+                color="grey", alpha=0.6, fontsize=9, ha="left", va="top")
+    ax_abs.set_ylabel(r"$\sigma(e^+e^- \to \mu\nu q\bar q)$ [fb]")
+    ax_abs.set_title(r"WW threshold cross section: build-up vs $\sqrt{s}$")
+    ax_abs.legend(loc="upper left", fontsize=10, framealpha=0.9)
+    ax_abs.grid(alpha=0.25)
+
+    eps = 1e-9
+    ax_rat.plot(sqrts, born / np.maximum(born, eps), color="#4575b4", ls="--", lw=1.6)
+    ax_rat.plot(sqrts, horder / np.maximum(born, eps), color="black", ls=":", lw=1.6)
+    ax_rat.plot(sqrts, observed / np.maximum(born, eps), color="#a50026", lw=2.0)
+    _draw_scan_window(ax_rat)
+    ax_rat.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
+    ax_rat.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_rat.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_rat.set_ylabel("ratio to Born")
+    ax_rat.set_ylim(0.6, 1.15)
+    ax_rat.grid(alpha=0.25)
+
+    plt.tight_layout()
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "xsec_vs_sqrts_3curve.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
+def plot_xsec_vs_sqrts():
+    import matplotlib.pyplot as plt
+
+    sqrts = np.linspace(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX, SQRTS_PLOT_N)
+    s = sqrts ** 2
+    mW, gW = M_W_DEFAULT, GAMMA_W_DEFAULT
+
+    # BFS orders for σ_WW (then × BR for inclusive μν qq̄)
+    orders = ["LO", "N1/2LO", "NLO", "N3/2LO"]
+    labels = {
+        "LO":     r"BFS LO partonic (eq. 17)",
+        "N1/2LO": r"+ N$^{1/2}$LO partonic non-res. (eq. 37)",
+        "NLO":    r"+ NLO Born pot. partonic (eq. 33)",
+        "N3/2LO": r"+ N$^{3/2}$LO E-dep partonic (eq. 39)",
+    }
+    colors = {"LO": "#4575b4", "N1/2LO": "#74add1", "NLO": "#fdae61", "N3/2LO": "#a50026"}
+
+    # Physics-layer curves on top of the best BFS Born. The framework σ_WW
+    # is BFS-EFT N^(3/2)LO + NLO loops + δ_QCD + Whizard anchor (cards/ww_default.py),
+    # switching to the RACOONWW calibration spline above √s = 170 GeV.
+    sigma_WW = sigma_WW_partonic(
+        s, mW, gW,
+        **{k: _PARTONIC_KW[k] for k in
+           ("include_NLO_hard_decay", "apply_delta_QCD", "alpha_s",
+            "apply_whizard_anchor")},
+    )
+    sigma_partonic = sigma_partonic_munuqq(s, mW, gW, channel="inclusive")
+    sigma_observed = sigma_observed_munuqq(sqrts, mW=mW, gammaW=gW, channel="inclusive")
+
+    # LO inclusive BR factor consistent with sigma_partonic_munuqq:
+    # 4/27 × (Γ_W^(0)(m_W)/Γ_W)². At default (m_W, Γ_W) this is
+    # ≈ 0.142, vs PDG BR_INCLUSIVE_MUNUQQ ≈ 0.143 (0.6 % smaller).
+    BR_LO_incl = (4.0 / 27.0) * (gamma_W_LO(mW) / gW) ** 2
+
+    fig, (ax_abs, ax_rat) = plt.subplots(2, 1, figsize=(8, 8), sharex=True,
+                                          gridspec_kw={"height_ratios": [3, 1.5]})
+
+    # Top: absolute σ (inclusive μν qq̄, in fb)
+    bfs_curves = {}
+    for o in orders:
+        sigma_WW_bfs = _bfs_total_WW_order(s, mW, gW, o)
+        sigma_incl = sigma_WW_bfs * BR_LO_incl
+        bfs_curves[o] = sigma_incl * 1e3   # pb → fb
+        ax_abs.plot(sqrts, bfs_curves[o], label=labels[o], color=colors[o],
+                    linewidth=1.3, linestyle="-")
+
+    # Framework curves — labels derived dynamically from the card-driven
+    # kwargs via chain_summary_latex(). RACOONWW spline above 170 GeV.
+    # Partonic-no-K_C label drops the K_C piece from the full partonic label.
+    label_partonic_noKC = chain_summary_latex(
+        {k: v for k, v in _PARTONIC_KW.items() if k != "include_coulomb"}
+        | {"include_coulomb": False})
+    ax_abs.plot(sqrts, sigma_WW * BR_LO_incl * 1e3,
+                label=label_partonic_noKC,
+                color="black", linestyle=":", linewidth=1.6)
+    ax_abs.plot(sqrts, sigma_partonic * 1e3,
+                label=_LABEL_PARTONIC + r"  (partonic, no ISR, PDG BR)",
+                color="green", linestyle="--", linewidth=1.6)
+    ax_abs.plot(sqrts, sigma_observed * 1e3,
+                label=_LABEL_OBSERVED + r"  (observed, $\otimes$ISR)",
+                color="red", linestyle="-", linewidth=2.0)
+
+    _draw_scan_window(ax_abs)
+    ax_abs.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_abs.text(2 * mW + 0.05, ax_abs.get_ylim()[1] * 0.95, r"$2\,m_W$",
+                color="grey", alpha=0.6, fontsize=9, ha="left", va="top")
+    ax_abs.set_ylabel(r"$\sigma(e^+e^- \to \mu\nu q\bar q)$ [fb]")
+    ax_abs.set_title(r"WW threshold cross section vs $\sqrt{s}$  "
+                      f"($m_W = {mW:.4f}$ GeV, $\\Gamma_W = {gW:.3f}$ GeV)")
+    ax_abs.legend(loc="upper left", fontsize=8, framealpha=0.9)
+    ax_abs.grid(alpha=0.25)
+
+    # Bottom: ratio to N^(3/2)LO Born
+    denom = bfs_curves["N3/2LO"]
+    eps = 1e-9
+    for o in orders:
+        ax_rat.plot(sqrts, bfs_curves[o] / np.maximum(denom, eps),
+                    color=colors[o], linewidth=1.3)
+    ax_rat.plot(sqrts,
+                (sigma_WW * BR_LO_incl * 1e3) / np.maximum(denom, eps),
+                color="black", linestyle=":", linewidth=1.4)
+    ax_rat.plot(sqrts, (sigma_partonic * 1e3) / np.maximum(denom, eps),
+                color="green", linestyle="--", linewidth=1.4)
+    ax_rat.plot(sqrts, (sigma_observed * 1e3) / np.maximum(denom, eps),
+                color="red", linewidth=1.6)
+
+    _draw_scan_window(ax_rat)
+    ax_rat.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
+    ax_rat.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_rat.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_rat.set_ylabel(r"ratio to N$^{3/2}$LO Born")
+    ax_rat.set_ylim(0.0, 1.6)
+    ax_rat.grid(alpha=0.25)
+
+    plt.tight_layout(rect=[0, 0.03, 1, 1])  # reserve 3% at the bottom for the chain footer
+    _add_chain_footer(plt.gcf())
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "xsec_vs_sqrts.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Plot 2: dσ/dm_W and dσ/dΓ_W vs √s
+# ---------------------------------------------------------------------------
+
+def _ddiff(sigma_fn, x_default: float, *, h: float, **kwargs):
+    """Central finite difference of ``sigma_fn(x, **kwargs)`` w.r.t. ``x``."""
+    plus  = sigma_fn(x_default + h, **kwargs)
+    minus = sigma_fn(x_default - h, **kwargs)
+    return (plus - minus) / (2.0 * h)
+
+
+def plot_sensitivity_vs_sqrts():
+    import matplotlib.pyplot as plt
+
+    sqrts = np.linspace(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX, SQRTS_PLOT_N)
+    s = sqrts ** 2
+    mW, gW = M_W_DEFAULT, GAMMA_W_DEFAULT
+
+    h_mW = 0.001   # 1 MeV
+    h_gW = 0.001   # 1 MeV
+
+    # Partonic sensitivity (no ISR)
+    dsig_dmW_part = (sigma_partonic_munuqq(s, mW + h_mW, gW, channel="inclusive")
+                     - sigma_partonic_munuqq(s, mW - h_mW, gW, channel="inclusive")) / (2 * h_mW)
+    dsig_dgW_part = (sigma_partonic_munuqq(s, mW, gW + h_gW, channel="inclusive")
+                     - sigma_partonic_munuqq(s, mW, gW - h_gW, channel="inclusive")) / (2 * h_gW)
+
+    # Observed sensitivity (with ISR)
+    dsig_dmW_obs = (sigma_observed_munuqq(sqrts, mW=mW + h_mW, gammaW=gW, channel="inclusive")
+                    - sigma_observed_munuqq(sqrts, mW=mW - h_mW, gammaW=gW, channel="inclusive")) / (2 * h_mW)
+    dsig_dgW_obs = (sigma_observed_munuqq(sqrts, mW=mW, gammaW=gW + h_gW, channel="inclusive")
+                    - sigma_observed_munuqq(sqrts, mW=mW, gammaW=gW - h_gW, channel="inclusive")) / (2 * h_gW)
+
+    # pb/GeV  →  fb/MeV  is a factor of 1 (1 pb/GeV = 1 fb/MeV).
+    fig, (ax_mW, ax_gW) = plt.subplots(2, 1, figsize=(8, 7.5), sharex=True)
+
+    ax_mW.plot(sqrts, dsig_dmW_part, color="C0", linewidth=1.6,
+               linestyle="--", label="partonic (no ISR)")
+    ax_mW.plot(sqrts, dsig_dmW_obs, color="C0", linewidth=2.0,
+               label="observed (with ISR)")
+    _draw_scan_window(ax_mW)
+    ax_mW.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_mW.axhline(0.0, color="grey", alpha=0.4, linewidth=0.6)
+    ax_mW.set_ylabel(r"$d\sigma/dm_W$ [fb/MeV]")
+    ax_mW.set_title(r"Sensitivity of $\sigma(\mu\nu q\bar q)$ to $m_W$ and $\Gamma_W$  "
+                     f"($m_W = {mW:.4f}$ GeV, $\\Gamma_W = {gW:.3f}$ GeV)")
+    ax_mW.legend(loc="best", fontsize=9)
+    ax_mW.grid(alpha=0.25)
+
+    ax_gW.plot(sqrts, dsig_dgW_part, color="C3", linewidth=1.6,
+               linestyle="--", label="partonic (no ISR)")
+    ax_gW.plot(sqrts, dsig_dgW_obs, color="C3", linewidth=2.0,
+               label="observed (with ISR)")
+    _draw_scan_window(ax_gW)
+    ax_gW.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_gW.axhline(0.0, color="grey", alpha=0.4, linewidth=0.6)
+    ax_gW.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_gW.set_ylabel(r"$d\sigma/d\Gamma_W$ [fb/MeV]")
+    ax_gW.legend(loc="best", fontsize=9)
+    ax_gW.grid(alpha=0.25)
+
+    plt.tight_layout(rect=[0, 0.03, 1, 1])  # reserve 3% at the bottom for the chain footer
+    _add_chain_footer(plt.gcf())
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "sensitivity_vs_sqrts.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
+def plot_ratios_vs_mW_GammaW():
+    """Two-panel ratio plot: σ_obs(s; m_W ± δ) / σ_obs(s; m_W) for a set of
+    m_W variations, and same for Γ_W. Shows the lineshape distortion
+    induced by physical-parameter shifts at the order of the FCC-ee
+    target precision (a few MeV). Counterpart of the WbWb
+    ``plot_parameter_variations`` figure."""
+    import matplotlib.pyplot as plt
+
+    sqrts = np.linspace(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX, SQRTS_PLOT_N)
+    mW0, gW0 = M_W_DEFAULT, GAMMA_W_DEFAULT
+
+    sigma_nom = sigma_observed_munuqq(sqrts, mW=mW0, gammaW=gW0, channel="inclusive")
+
+    # ±10, ±30 MeV variations — same convention as WbWb's parameter-variation
+    # plot (card mass/width "variation" defaults are 30 MeV).
+    variations_MeV = [-30, -10, +10, +30]
+    palette = {-30: "#08519c", -10: "#6baed6", +10: "#fb6a4a", +30: "#a50f15"}
+
+    fig, (ax_mW, ax_gW) = plt.subplots(2, 1, figsize=(8.5, 8), sharex=True)
+
+    for d in variations_MeV:
+        sigma_v = sigma_observed_munuqq(sqrts, mW=mW0 + 1e-3 * d, gammaW=gW0,
+                                        channel="inclusive")
+        ax_mW.plot(sqrts, sigma_v / sigma_nom,
+                   color=palette[d], linewidth=1.6,
+                   label=fr"$\delta m_W = {d:+d}$ MeV")
+    _draw_scan_window(ax_mW)
+    ax_mW.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
+    ax_mW.axvline(2 * mW0, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_mW.set_ylabel(r"$\sigma_{\rm obs}(m_W + \delta m_W) / \sigma_{\rm obs}(m_W)$")
+    ax_mW.set_title(r"Lineshape sensitivity to $m_W$ and $\Gamma_W$  "
+                     fr"($m_W = {mW0:.4f}$ GeV, $\Gamma_W = {gW0:.3f}$ GeV, with ISR)")
+    ax_mW.legend(loc="best", fontsize=9, framealpha=0.9)
+    ax_mW.grid(alpha=0.25)
+
+    for d in variations_MeV:
+        sigma_v = sigma_observed_munuqq(sqrts, mW=mW0, gammaW=gW0 + 1e-3 * d,
+                                        channel="inclusive")
+        ax_gW.plot(sqrts, sigma_v / sigma_nom,
+                   color=palette[d], linewidth=1.6,
+                   label=fr"$\delta \Gamma_W = {d:+d}$ MeV")
+    _draw_scan_window(ax_gW)
+    ax_gW.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
+    ax_gW.axvline(2 * mW0, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_gW.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_gW.set_ylabel(r"$\sigma_{\rm obs}(\Gamma_W + \delta\Gamma_W) / \sigma_{\rm obs}(\Gamma_W)$")
+    ax_gW.legend(loc="best", fontsize=9, framealpha=0.9)
+    ax_gW.grid(alpha=0.25)
+
+    plt.tight_layout(rect=[0, 0.03, 1, 1])  # reserve 3% at the bottom for the chain footer
+    _add_chain_footer(plt.gcf())
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "ratios_mW_GammaW.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
+def plot_azzurri_style_pm1GeV():
+    """Azzurri 2107.04444 Fig. 1 style σ_WW vs √s with ±1 GeV-equivalent
+    bands on m_W and Γ_W, generated by linearly inflating ±10 MeV
+    variations by a factor 100. This gives a visually wide band like the
+    paper's while keeping the underlying σ_observed evaluation inside
+    the framework's validity window (the WHIZARD anchor grid is bounded
+    to m_W ∈ [80.279, 80.479], Γ_W ∈ [2.045, 2.125]; the BFS-EFT Born
+    breaks down well before ±1 GeV). The vertical red line marks
+    Azzurri's claimed Γ_W crossing at √s ≈ 162.3 GeV.
+
+    σ_WW = σ(e+e- → W+W-) with ISR, derived from
+    σ_observed_munuqq / BR_INCLUSIVE_MUNUQQ (PDG-constant BR convention).
+    """
+    import matplotlib.pyplot as plt
+
+    sqrts = np.linspace(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX, SQRTS_PLOT_N)
+    mW_paper = 80.385
+    gW_paper = 2.085
+    # Small "calculation" step that stays inside validity, and the visual
+    # inflation factor used to draw the band.
+    d_calc = 0.010   # ±10 MeV: ratios are linear at this scale (3-digit closure
+                     # against the ±30 MeV samples per the numerical check).
+    inflate = 100.0  # ×100 → effective ±1 GeV band, as in Azzurri's plot.
+
+    def _sigma_WW_obs(sqrts_arr, mW, gW):
+        return sigma_observed_munuqq(sqrts_arr, mW=mW, gammaW=gW,
+                                      channel="inclusive") / BR_INCLUSIVE_MUNUQQ
+
+    def _inflated(s_var, s_nom):
+        return s_nom + inflate * (s_var - s_nom)
+
+    sigma_nom  = _sigma_WW_obs(sqrts, mW_paper, gW_paper)
+    s_mW_p_raw = _sigma_WW_obs(sqrts, mW_paper + d_calc, gW_paper)
+    s_mW_m_raw = _sigma_WW_obs(sqrts, mW_paper - d_calc, gW_paper)
+    s_gW_p_raw = _sigma_WW_obs(sqrts, mW_paper, gW_paper + d_calc)
+    s_gW_m_raw = _sigma_WW_obs(sqrts, mW_paper, gW_paper - d_calc)
+
+    sigma_mW_p = _inflated(s_mW_p_raw, sigma_nom)
+    sigma_mW_m = _inflated(s_mW_m_raw, sigma_nom)
+    sigma_gW_p = _inflated(s_gW_p_raw, sigma_nom)
+    sigma_gW_m = _inflated(s_gW_m_raw, sigma_nom)
+
+    eff_d_mW = d_calc * inflate   # = 1.0 GeV-equivalent
+    eff_d_gW = d_calc * inflate
+
+    fig, (ax_mW, ax_gW) = plt.subplots(1, 2, figsize=(13, 6), sharey=True)
+
+    # --- m_W panel ---
+    ax_mW.fill_between(sqrts, sigma_mW_m, sigma_mW_p,
+                        color="#9e6bbf", alpha=0.35,
+                        label=rf"$m_W \pm {int(d_calc*1000)}$ MeV $\times {int(inflate)}$")
+    ax_mW.plot(sqrts, sigma_nom, color="black", linewidth=1.8,
+                label=rf"central: $m_W={mW_paper:.3f}$, $\Gamma_W={gW_paper:.3f}$ GeV")
+    ax_mW.plot(sqrts, sigma_mW_p, color="#54278f", linewidth=1.0,
+                linestyle="--", label=rf"$m_W={mW_paper:.3f} + {eff_d_mW:.1f}$ GeV (extrap.)")
+    ax_mW.plot(sqrts, sigma_mW_m, color="#54278f", linewidth=1.0,
+                linestyle=":",  label=rf"$m_W={mW_paper:.3f} - {eff_d_mW:.1f}$ GeV (extrap.)")
+    _draw_scan_window(ax_mW)
+    ax_mW.axvline(2 * mW_paper, color="grey", alpha=0.4,
+                   linestyle="--", linewidth=0.8)
+    ax_mW.text(2 * mW_paper + 0.05, 0.1, r"$2\,m_W$", color="grey",
+                alpha=0.7, fontsize=9, ha="left", va="bottom")
+    ax_mW.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_mW.set_ylabel(r"$\sigma_{\rm WW}$ [pb]  (with ISR)")
+    ax_mW.set_title(rf"$m_W$ variation ($\pm {eff_d_mW:.1f}$ GeV, linear from $\pm 10$ MeV)")
+    ax_mW.set_xlim(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX)
+    ax_mW.legend(loc="upper left", fontsize=9, framealpha=0.9)
+    ax_mW.grid(alpha=0.25)
+
+    # --- Γ_W panel ---
+    ax_gW.fill_between(sqrts, sigma_gW_m, sigma_gW_p,
+                        color="#4daf4a", alpha=0.30,
+                        label=rf"$\Gamma_W \pm {int(d_calc*1000)}$ MeV $\times {int(inflate)}$")
+    ax_gW.plot(sqrts, sigma_nom, color="black", linewidth=1.8,
+                label=rf"central: $m_W={mW_paper:.3f}$, $\Gamma_W={gW_paper:.3f}$ GeV")
+    ax_gW.plot(sqrts, sigma_gW_p, color="#1b7837", linewidth=1.0,
+                linestyle="--", label=rf"$\Gamma_W={gW_paper:.3f}+{eff_d_gW:.1f}$ GeV (extrap.)")
+    ax_gW.plot(sqrts, sigma_gW_m, color="#1b7837", linewidth=1.0,
+                linestyle=":",  label=rf"$\Gamma_W={gW_paper:.3f}-{eff_d_gW:.1f}$ GeV (extrap.)")
+    _draw_scan_window(ax_gW)
+    ax_gW.axvline(2 * mW_paper, color="grey", alpha=0.4,
+                   linestyle="--", linewidth=0.8)
+    ax_gW.axvline(162.3, color="red", alpha=0.6,
+                   linestyle="-.", linewidth=0.9,
+                   label=r"Azzurri 'crossing' $\approx 162.3$ GeV")
+    ax_gW.text(2 * mW_paper + 0.05, 0.1, r"$2\,m_W$", color="grey",
+                alpha=0.7, fontsize=9, ha="left", va="bottom")
+    ax_gW.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_gW.set_title(rf"$\Gamma_W$ variation ($\pm {eff_d_gW:.1f}$ GeV, linear from $\pm 10$ MeV)")
+    ax_gW.set_xlim(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX)
+    ax_gW.legend(loc="upper left", fontsize=9, framealpha=0.9)
+    ax_gW.grid(alpha=0.25)
+
+    plt.suptitle(
+        rf"Azzurri 2107.04444 Fig. 1 style — $\pm 1$ GeV bands "
+        rf"(linearly inflated from $\pm 10$ MeV calc, $\times {int(inflate)}$)",
+        fontsize=11,
+    )
+    plt.tight_layout(rect=[0, 0.03, 1, 1])  # reserve 3% at the bottom for the chain footer
+    _add_chain_footer(plt.gcf())
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "azzurri_style_pm1GeV.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
+def plot_azzurri_style_overlay():
+    """Single-panel σ_WW vs √s with the m_W and Γ_W ±1 GeV-equivalent
+    bands overlaid. Same inflation trick as :func:`plot_azzurri_style_pm1GeV`
+    (compute at ±10 MeV, scale the deviation by ×100). Lets you see at a
+    glance where each parameter dominates the lineshape sensitivity and
+    where the Γ_W band collapses around the crossing at √s ≈ 162 GeV.
+    """
+    import matplotlib.pyplot as plt
+
+    sqrts = np.linspace(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX, SQRTS_PLOT_N)
+    mW_paper = 80.385
+    gW_paper = 2.085
+    d_calc = 0.010
+    inflate = 100.0
+    eff_d = d_calc * inflate   # = 1.0 GeV-equivalent for both
+
+    def _sigma_WW_obs(sqrts_arr, mW, gW):
+        return sigma_observed_munuqq(sqrts_arr, mW=mW, gammaW=gW,
+                                      channel="inclusive") / BR_INCLUSIVE_MUNUQQ
+
+    def _inflated(s_var, s_nom):
+        return s_nom + inflate * (s_var - s_nom)
+
+    sigma_nom  = _sigma_WW_obs(sqrts, mW_paper, gW_paper)
+    sigma_mW_p = _inflated(_sigma_WW_obs(sqrts, mW_paper + d_calc, gW_paper), sigma_nom)
+    sigma_mW_m = _inflated(_sigma_WW_obs(sqrts, mW_paper - d_calc, gW_paper), sigma_nom)
+    sigma_gW_p = _inflated(_sigma_WW_obs(sqrts, mW_paper, gW_paper + d_calc), sigma_nom)
+    sigma_gW_m = _inflated(_sigma_WW_obs(sqrts, mW_paper, gW_paper - d_calc), sigma_nom)
+
+    fig, ax = plt.subplots(figsize=(7.5, 7.5))
+
+    # m_W band (purple)
+    ax.fill_between(sqrts, sigma_mW_m, sigma_mW_p,
+                    color="#9e6bbf", alpha=0.35,
+                    label=rf"$m_W \pm {int(d_calc*1000)}$ MeV $\times {int(inflate)}$")
+    ax.plot(sqrts, sigma_mW_p, color="#54278f", linewidth=1.0, linestyle="--")
+    ax.plot(sqrts, sigma_mW_m, color="#54278f", linewidth=1.0, linestyle=":")
+
+    # Γ_W band (green)
+    ax.fill_between(sqrts, sigma_gW_m, sigma_gW_p,
+                    color="#4daf4a", alpha=0.30,
+                    label=rf"$\Gamma_W \pm {int(d_calc*1000)}$ MeV $\times {int(inflate)}$")
+    ax.plot(sqrts, sigma_gW_p, color="#1b7837", linewidth=1.0, linestyle="--")
+    ax.plot(sqrts, sigma_gW_m, color="#1b7837", linewidth=1.0, linestyle=":")
+
+    # Central curve on top
+    ax.plot(sqrts, sigma_nom, color="black", linewidth=1.8,
+            label=rf"central: $m_W={mW_paper:.3f}$, $\Gamma_W={gW_paper:.3f}$ GeV")
+
+    _draw_scan_window(ax)
+    ax.axvline(2 * mW_paper, color="grey", alpha=0.4,
+                linestyle="--", linewidth=0.8)
+    ax.text(2 * mW_paper + 0.05, 0.1, r"$2\,m_W$", color="grey",
+             alpha=0.7, fontsize=9, ha="left", va="bottom")
+    ax.axvline(162.3, color="red", alpha=0.6,
+                linestyle="-.", linewidth=0.9,
+                label=r"Azzurri $\Gamma_W$-crossing $\approx 162.3$ GeV")
+
+    ax.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax.set_ylabel(r"$\sigma_{\rm WW}$ [pb]  (with ISR)")
+    ax.set_title(rf"$m_W$ and $\Gamma_W$ $\pm {eff_d:.1f}$ GeV bands overlaid "
+                 rf"(linear from $\pm 10$ MeV, $\times {int(inflate)}$)")
+    ax.set_xlim(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX)
+    ax.legend(loc="upper left", fontsize=9, framealpha=0.9)
+    ax.grid(alpha=0.25)
+
+    plt.tight_layout(rect=[0, 0.03, 1, 1])
+    _add_chain_footer(plt.gcf())
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "azzurri_style_overlay.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
+def main():
+    import matplotlib
+    matplotlib.use("Agg")
+    print(f"Writing diagnostic plots to {PLOT_DIR}/ …")
+    plot_xsec_vs_sqrts()
+    plot_sensitivity_vs_sqrts()
+    plot_ratios_vs_mW_GammaW()
+    plot_azzurri_style_pm1GeV()
+    plot_azzurri_style_overlay()
+    print("Done.")
+
+    from framework.common.eos_publish import publish
+    publish(PLOT_DIR, os.environ.get("WW_DIAGNOSTICS_PUBSUB", "ww/diagnostics"))
+
+
+if __name__ == "__main__":
+    main()

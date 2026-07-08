@@ -1,0 +1,92 @@
+WW scan-scenario comparison — Asimov sensitivity + theory ladder
+Total luminosity = 19.2 /ab for ALL scenarios (same lumi).
+Fit: m_W, Γ_W float; stat (Asimov) + correlated-lumi only (2-POI ladder setup).
+Sensitivity = production chain (+δ_QCD / NLL ISR), realistic FCC-ee corr-lumi prior;
+the 'free-lumi' σ (rate floated) is shown in parentheses for reference.
+
+----------------------------------------------------------------------
+(a) SENSITIVITY  [prior]  (free)
+scenario       pts              σ_mW             σ_ΓW       ρ   points
+                               [MeV]            [MeV]        
+----------------------------------------------------------------------
+7pt baseline     7      1.32 ( 4.72)     2.71 ( 2.73)   +0.67   157–163, 1.0 GeV step (equal split)
+3pt FCC base     3      1.35 ( 4.62)     2.56 ( 2.78)   +0.62   157, 160, 163 (equal split)
+Azzurri-like     2    1.33 (2196.81)    2.22 (352.32)   +0.42   157 (60%) + 162.4 (40%) [Γ_W-insensitive crossing]
+----------------------------------------------------------------------
+
+(b) THEORY LADDER  Δm_W vs production truth [MeV], realistic corr-lumi prior
+-----------------------------------------------------------
+scenario       ISR         LO      +NLO     +NNLO     +dQCD
+-----------------------------------------------------------
+7pt baseline   LL    -109.593   -21.778   -18.318   -18.318
+7pt baseline   NLL    -90.867    -3.439    +0.000    +0.000
+-----------------------------------------------------------
+3pt FCC base   LL    -120.179   -26.105   -21.624   -21.624
+3pt FCC base   NLL    -98.261    -4.475    +0.000    +0.000
+-----------------------------------------------------------
+Azzurri-like   LL    -119.548   -25.041   -20.784   -20.784
+Azzurri-like   NLL    -98.290    -4.164    +0.000    +0.000
+-----------------------------------------------------------
+
+(c) SYSTEMATICS BREAKDOWN  full production fit (all POIs +
+    α_s/BES/BEC/lumi nuisances, realistic priors — as --systTable)
+-------------------------------------------------------
+σ(m_W)  [MeV]
+source       7pt baseline   3pt FCC base   Azzurri-like
+-------------------------------------------------------
+stat                 0.95           1.03           1.17
+alphas               0.08           0.09           0.09
+aem_isr              0.00           0.01           0.01
+aemEW                0.03           0.03           0.03
+BES                  0.01           0.01           0.00
+BEC                  0.18           0.19           0.20
+lumi                 0.37           0.41           0.41
+xsec                    —              —              —
+total exp            1.36           1.40           1.38
+-------------------------------------------------------
+-------------------------------------------------------
+σ(\Gamma_W)  [MeV]
+source       7pt baseline   3pt FCC base   Azzurri-like
+-------------------------------------------------------
+stat                 1.98           1.99           2.00
+alphas               0.01           0.02           0.01
+aem_isr              0.00           0.00           0.00
+aemEW                0.00           0.01           0.00
+BES                  0.03           0.03           0.02
+BEC                  0.06           0.08           0.07
+lumi                 0.48           0.48           0.33
+xsec                    —              —              —
+total exp            2.75           2.61           2.24
+-------------------------------------------------------
+
+(d) UNCERTAINTY & CORRELATION STABILITY across the ladder
+    (NLL ISR, realistic corr-lumi prior; σ in MeV)
+-----------------------------------------------------------------------
+scenario       quantity          LO     +NLO    +NNLO    +dQCD   spread
+-----------------------------------------------------------------------
+7pt baseline   σ_mW [MeV]      1.31     1.31     1.32     1.32     0.00
+7pt baseline   σ_ΓW [MeV]      2.69     2.70     2.71     2.71     0.02
+7pt baseline   ρ              +0.64    +0.67    +0.67    +0.67     0.03
+-----------------------------------------------------------------------
+3pt FCC base   σ_mW [MeV]      1.34     1.35     1.35     1.35     0.01
+3pt FCC base   σ_ΓW [MeV]      2.55     2.56     2.56     2.56     0.02
+3pt FCC base   ρ              +0.58    +0.61    +0.62    +0.62     0.04
+-----------------------------------------------------------------------
+Azzurri-like   σ_mW [MeV]      1.34     1.33     1.33     1.33     0.01
+Azzurri-like   σ_ΓW [MeV]      2.22     2.22     2.22     2.22     0.00
+Azzurri-like   ρ              +0.40    +0.42    +0.42    +0.42     0.03
+-----------------------------------------------------------------------
+
+Notes:
+  • Templates are identical across scenarios (σ on the fine √s
+    grid); only which points enter the fit changes.
+  • The Azzurri-like upper point is OUR dσ/dΓ_W=0 crossing
+    (snapped to the 0.1-GeV grid), not Azzurri's 162.3 GeV.
+  • The Azzurri-like layout reduces ρ relative to the 7-point
+    (see panel (a) for the live values) — the upper point carries
+    little Γ_W info, partly decorrelating the POIs — but NOT to
+    ρ≈0: the corr-lumi-only constraint leaves a residual (Azzurri's
+    ρ≈0 uses a different setup). It also gives the tightest σ_ΓW.
+  • The 'free-lumi' σ is meaningless for the 2-point Azzurri-like
+    scenario (huge values): 2 points cannot constrain 2 POIs PLUS
+    a floating normalisation — read its 'prior' (realistic) column.

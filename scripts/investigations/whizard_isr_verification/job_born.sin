@@ -1,0 +1,28 @@
+# WHIZARD no-ISR Born — should reproduce BFS Table 3 Column 1 (61.67, 154.19,
+# 303.00, 409.30, 481.70 fb at √s = 158, 161, 164, 167, 170 GeV). If our
+# setup matches BFS at the no-ISR level, the Born(ISR) discrepancy is
+# isolated to the ISR convolution (settings or version). If it doesn't,
+# the discrepancy starts at the no-ISR level (process definition / 4f
+# diagrams included).
+
+model = "SM"
+mZ = 91.188
+mW = 80.377
+wW = 2.09201
+mtop = 174.2
+mH = 115
+GF = 1.16637E-5
+
+?fatal_beam_decay = false
+
+process p_born = e1, E1 => e2, N2, u, D
+compile
+
+# No beam structure → fixed-energy e+e- collision, no ISR
+
+iterations = 8:200000:"gw",5:1000000
+
+scan sqrts = (158 GeV, 161 GeV, 164 GeV, 167 GeV, 170 GeV) {
+    integrate (p_born)
+    printf "RESULT %g %g %g" (sqrts/1 GeV, integral(p_born), error(p_born))
+}

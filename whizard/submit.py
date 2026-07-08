@@ -1,0 +1,289 @@
+#!/usr/bin/env python3
+"""Generate the HTCondor submit files for the WHIZARD validation +
+production-grid campaign.
+
+Phase 2 (bfs_table.sub): 2 jobs, one per BFS reference table.
+    Each job scans the 6 BFS sqrt(s) points (155-170 GeV) at the corresponding
+    (m_W, Gamma_W) reference values. Target: <0.1% MC stat per point.
+
+Phase 3 (grid.sub): 245 jobs = 35 (m_W, Gamma_W) pairs * 7 sqrt(s) blocks.
+    Covers sqrt(s) in [154, 172] GeV @ 0.5 GeV, m_W in [80.279, 80.479] @ 50
+    MeV, Gamma_W in {2.04483 (BFS T1), 2.045, 2.065, 2.085, 2.092 (BFS T2),
+    2.105, 2.125}. Includes the two BFS reference Gamma_W values as direct
+    grid nodes for byte-exact validation. Target: ~0.05% MC stat per point.
+
+Output directory layout:
+    whizard/work/condor/
+        bfs_table_1/{job.sin,whizard.log,results.csv}
+        bfs_table_2/{...}
+        grid/mw{MW_label}_gw{GW_label}/b{block_idx}/{...}
+        logs/condor_<cluster>_<process>.{out,err,log}
+"""
+
+from pathlib import Path
+
+# This script lives at WW_threshold/whizard/submit.py.
+# WHIZARD install + outputs live in the SIBLING whizard/ dir (one level up
+# from WW_threshold/), not inside it.
+SCRIPTS_DIR = Path(__file__).resolve().parent
+WW_THRESHOLD = SCRIPTS_DIR.parent
+WHIZARD_TOP = WW_THRESHOLD.parent / "whizard"
+CONDOR_DIR  = WHIZARD_TOP / "work" / "condor"
+WRAPPER     = SCRIPTS_DIR / "job.sh"
+
+# Phase 3 grid axes. Gamma_W list includes the two BFS reference values
+# (2.04483, 2.09201) so the validation comparison is byte-exact.
+SQRTS_VALS = [154.0 + 0.5 * i for i in range(37)]   # 154, 154.5, ..., 172 GeV (37)
+MW_VALS    = [80.279, 80.329, 80.379, 80.429, 80.479]
+GW_VALS    = [2.04483, 2.045, 2.065, 2.085, 2.09201, 2.105, 2.125]
+SQRTS_PER_BLOCK = 6                                 # 37 / 6 = 7 blocks (6,6,6,6,6,6,1)
+
+# High-stats grid: finer m_W axis (25 MeV step → 9 m_W) at ~0.02% MC stat
+# per point. Written to grid_highstats/ to avoid clobbering the regular
+# 50 MeV / 0.1%-stat grid.
+HIGHSTATS_MW_VALS = [80.279 + 0.025 * i for i in range(9)]   # 9 pts, 25 MeV
+HIGHSTATS_GW_VALS = GW_VALS                                  # same Γ_W axis
+
+# Densification: extra √s points at 0.25 GeV step inserted between the
+# existing 0.5 GeV grid in [157, 163] GeV. The peak-rise + peak region is
+# where σ_nom(s) and the bilinear cross term β(s) vary fastest, so the
+# cubic-spline-along-√s residual is largest there. Output lands in
+# grid_highstats/ alongside the existing 0.5 GeV pts.
+DENSIFY_SQRTS_VALS = [157.0 + 0.25 + 0.5 * i for i in range(12)]  # 12 pts: 157.25..162.75
+
+# 1-MeV-scale validation set: a fine (m_W, Γ_W) plane sampled at three
+# √s slices through the threshold to stress-test the morph at sub-step
+# resolutions. Operationally these are NOT used to build the morph —
+# they're held-out truth for residual diagnostics.
+VALIDATE_MW_VALS    = [80.377 + 0.001 * i for i in range(5)]     # 80.377..80.381, 1 MeV step
+VALIDATE_GW_VALS    = [2.083 + 0.001 * i for i in range(5)]      # 2.083..2.087, 1 MeV step
+VALIDATE_SQRTS_VALS = [161.0, 162.0, 163.0]
+
+# Fine √s grid: 0.1 GeV step in [155, 165] for the full 9 m_W × 7 Γ_W
+# plane, at 4× the highstats MC (mode "fine", target ~0.008%). The
+# analysis window is [157, 163]; [155, 165] leaves >=2 GeV margin so the
+# √s spline never extrapolates, and the existing 0.5 GeV highstats wings
+# (154-154.5, 165.5-172) remain as the outer spline support.
+FINE_SQRTS_VALS      = [round(155.0 + 0.1 * i, 1) for i in range(101)]  # 101 pts
+SQRTS_PER_BLOCK_FINE = 5
+
+# Fine (m_W, Γ_W) validation: 1D scans of m_W and of Γ_W about the morph
+# nominal (80.379, 2.085), at 0.1-MeV steps to +-1 MeV and 0.2-MeV steps
+# to +-3 MeV. Held-out truth to bound the morph's sub-MeV interpolation
+# bias; run at ~0.005% MC (mode "ultra") so a 0.1-MeV step (~0.019% in σ)
+# is cleanly resolved. The bilinear cross term is negligible at this
+# scale, so 1D scans suffice.
+VALIDATE_FINE_NOMINAL = (80.379, 2.085)
+VALIDATE_FINE_SQRTS   = [159.0, 161.0, 163.0]
+
+
+def fine_offsets_gev():
+    """Offsets about nominal, in GeV: 0.1-MeV steps to +-1 MeV, then
+    0.2-MeV steps to +-3 MeV (41 values, symmetric, 0 included)."""
+    pos = [round(0.1 * i, 1) for i in range(0, 11)]            # 0.0 .. 1.0
+    pos += [round(1.0 + 0.2 * i, 1) for i in range(1, 11)]     # 1.2 .. 3.0
+    offs = sorted(set(pos) | {-p for p in pos})
+    return [round(o / 1000.0, 7) for o in offs]                # MeV -> GeV
+
+
+def sqrts_blocks(values, per_block):
+    """Split a list into consecutive chunks of size ``per_block``."""
+    return [values[i:i + per_block] for i in range(0, len(values), per_block)]
+
+
+def csv(vals):
+    return ",".join(f"{v:g}" for v in vals)
+
+
+def mw_label(mw):
+    return f"mw{int(round(mw * 1000)):05d}"
+
+
+def gw_label(gw):
+    # 5-digit precision (10-keV resolution) — distinguishes BFS reference
+    # values (2.04483, 2.09201) from the round PDG grid values (2.045, 2.092).
+    return f"gw{int(round(gw * 100000)):06d}"
+
+
+def write_submit(sub_path, header, jobs):
+    """jobs: list of (label, mw, gw, sqrts_csv, mode, output_subdir).
+
+    No shell-style quoting: HTCondor's classic ``arguments =`` syntax splits
+    on whitespace and ignores shell quotes. Our arg values contain no
+    whitespace by construction. ``mw`` is formatted with 5-digit precision
+    so 5- and 6-decimal m_W values (e.g. 80.279 vs 80.304) survive
+    round-tripping through the args.
+    """
+    with open(sub_path, "w") as f:
+        f.write(header)
+        for label, mw, gw, sqrts, mode, subdir in jobs:
+            outdir = CONDOR_DIR / subdir
+            log_id = subdir.replace("/", "_")
+            args = " ".join([label, f"{mw:.5f}", f"{gw:.5f}", sqrts, mode, str(outdir)])
+            f.write(
+                f"\narguments = {args}\n"
+                f"output  = {CONDOR_DIR}/logs/{log_id}.out\n"
+                f"error   = {CONDOR_DIR}/logs/{log_id}.err\n"
+                f"log     = {CONDOR_DIR}/logs/{log_id}.log\n"
+                f"queue 1\n"
+            )
+
+
+# Shared submit-file header.
+HEADER = f"""# Auto-generated by whizard/submit.py — DO NOT EDIT.
+universe   = vanilla
+executable = {WRAPPER}
+
+should_transfer_files   = NO
+getenv                  = false
+# Worker needs CVMFS + AFS visibility.
+requirements            = (OpSysAndVer == "AlmaLinux9" || OpSysAndVer == "CentOS9" || OpSysAndVer == "RedHat9")
+
+# Forward Kerberos so the wrapper can write back to AFS.
+MY.SendCredential = true
+
+request_cpus   = {{cpus}}
+request_memory = {{memory}}
+request_disk   = 1024
+
++JobFlavour = "{{flavour}}"
+"""
+
+
+def main():
+    CONDOR_DIR.mkdir(parents=True, exist_ok=True)
+    (CONDOR_DIR / "logs").mkdir(exist_ok=True)
+
+    # Phase 2: 2 jobs (one per BFS table).
+    bfs_sqrts = "155.0,158.0,161.0,164.0,167.0,170.0"
+    phase2_jobs = [
+        ("bfs_t1", 80.377, 2.04483, bfs_sqrts, "bfs", "bfs_table_1"),
+        ("bfs_t2", 80.379, 2.09201, bfs_sqrts, "bfs", "bfs_table_2"),
+    ]
+    write_submit(SCRIPTS_DIR / "bfs_table.sub",
+                 HEADER.format(flavour="longlunch", cpus=4, memory=2048),
+                 phase2_jobs)
+
+    # Phase 3: full grid (canonical, 35 pairs × 7 blocks = 245 jobs) +
+    # an augment-only submit file containing just the two BFS reference
+    # Gamma_W values (70 jobs). The full grid.sub is the reproducer for a
+    # cold start; grid_augment.sub is for the incremental run on a host that
+    # already has the {2.045, 2.065, 2.085, 2.105, 2.125} Gamma_W slices.
+    BFS_AUGMENT_GW = {2.04483, 2.09201}
+    blocks = sqrts_blocks(SQRTS_VALS, SQRTS_PER_BLOCK)
+    full_jobs, augment_jobs = [], []
+    for mw in MW_VALS:
+        for gw in GW_VALS:
+            for b_idx, block in enumerate(blocks):
+                label = f"grid_{mw_label(mw)}_{gw_label(gw)}_b{b_idx}"
+                subdir = f"grid/{mw_label(mw)}_{gw_label(gw)}/b{b_idx}"
+                row = (label, mw, gw, csv(block), "grid", subdir)
+                full_jobs.append(row)
+                if gw in BFS_AUGMENT_GW:
+                    augment_jobs.append(row)
+    header = HEADER.format(flavour="longlunch", cpus=4, memory=2048)
+    write_submit(SCRIPTS_DIR / "grid.sub",         header, full_jobs)
+    write_submit(SCRIPTS_DIR / "grid_augment.sub", header, augment_jobs)
+
+    n_blocks = len(blocks)
+    print(f"Wrote {SCRIPTS_DIR / 'bfs_table.sub'} ({len(phase2_jobs)} jobs)")
+    print(f"Wrote {SCRIPTS_DIR / 'grid.sub'} ({len(full_jobs)} jobs "
+          f"= {len(MW_VALS)} m_W * {len(GW_VALS)} Gamma_W * {n_blocks} sqrt(s) blocks)")
+    print(f"Wrote {SCRIPTS_DIR / 'grid_augment.sub'} ({len(augment_jobs)} jobs — BFS reference Gamma_W only)")
+
+    # High-stats grid: finer m_W (25 MeV step → 9 pts) at ~0.02% MC stat per
+    # point. Lands in a separate `grid_highstats/` output tree so the regular
+    # grid is untouched. Uses workday queue (~3 h jobs).
+    highstats_jobs = []
+    for mw in HIGHSTATS_MW_VALS:
+        for gw in HIGHSTATS_GW_VALS:
+            for b_idx, block in enumerate(blocks):
+                label = f"hs_{mw_label(mw)}_{gw_label(gw)}_b{b_idx}"
+                subdir = f"grid_highstats/{mw_label(mw)}_{gw_label(gw)}/b{b_idx}"
+                highstats_jobs.append((label, mw, gw, csv(block), "highstats", subdir))
+    hs_header = HEADER.format(flavour="workday", cpus=4, memory=2048)
+    write_submit(SCRIPTS_DIR / "grid_highstats.sub", hs_header, highstats_jobs)
+    print(f"Wrote {SCRIPTS_DIR / 'grid_highstats.sub'} ({len(highstats_jobs)} jobs "
+          f"= {len(HIGHSTATS_MW_VALS)} m_W * {len(HIGHSTATS_GW_VALS)} Gamma_W "
+          f"* {n_blocks} sqrt(s) blocks; workday queue; writes to grid_highstats/)")
+
+    # Densification: 12 extra √s pts at 0.25 GeV step in [157.25, 162.75] for
+    # every (m_W, Γ_W) pair of the highstats grid. Written to a separate
+    # tree (grid_highstats_densify/) so the aggregator can pick it up
+    # alongside the 0.5 GeV grid_highstats/. tomorrow queue (highstats
+    # iter spec hit the 8 h wall-clock cap on workday for some pairs).
+    dens_blocks = sqrts_blocks(DENSIFY_SQRTS_VALS, SQRTS_PER_BLOCK)
+    densify_jobs = []
+    for mw in HIGHSTATS_MW_VALS:
+        for gw in HIGHSTATS_GW_VALS:
+            for b_idx, block in enumerate(dens_blocks):
+                label = f"hsd_{mw_label(mw)}_{gw_label(gw)}_b{b_idx}"
+                subdir = f"grid_highstats_densify/{mw_label(mw)}_{gw_label(gw)}/b{b_idx}"
+                densify_jobs.append((label, mw, gw, csv(block), "highstats", subdir))
+    dens_header = HEADER.format(flavour="tomorrow", cpus=4, memory=2048)
+    write_submit(SCRIPTS_DIR / "grid_highstats_densify.sub", dens_header, densify_jobs)
+    print(f"Wrote {SCRIPTS_DIR / 'grid_highstats_densify.sub'} ({len(densify_jobs)} jobs "
+          f"= {len(HIGHSTATS_MW_VALS)} m_W * {len(HIGHSTATS_GW_VALS)} Gamma_W "
+          f"* {len(dens_blocks)} sqrt(s) blocks @ 0.25 GeV in [157.25, 162.75]; tomorrow queue)")
+
+    # Validation: 1-MeV-scale (m_W, Γ_W) plane at 3 √s slices through the
+    # threshold. Held-out truth for sub-step morph-residual diagnostics —
+    # NOT used by the morph fit itself.
+    val_blocks = sqrts_blocks(VALIDATE_SQRTS_VALS, SQRTS_PER_BLOCK)
+    validate_jobs = []
+    for mw in VALIDATE_MW_VALS:
+        for gw in VALIDATE_GW_VALS:
+            for b_idx, block in enumerate(val_blocks):
+                label = f"val_{mw_label(mw)}_{gw_label(gw)}_b{b_idx}"
+                subdir = f"grid_validate/{mw_label(mw)}_{gw_label(gw)}/b{b_idx}"
+                validate_jobs.append((label, mw, gw, csv(block), "highstats", subdir))
+    val_header = HEADER.format(flavour="tomorrow", cpus=4, memory=2048)
+    write_submit(SCRIPTS_DIR / "grid_validate.sub", val_header, validate_jobs)
+    print(f"Wrote {SCRIPTS_DIR / 'grid_validate.sub'} ({len(validate_jobs)} jobs "
+          f"= {len(VALIDATE_MW_VALS)} m_W * {len(VALIDATE_GW_VALS)} Gamma_W "
+          f"* {len(val_blocks)} sqrt(s) blocks at {VALIDATE_SQRTS_VALS} GeV; tomorrow queue)")
+
+    # Fine √s grid: 0.1 GeV step in [155, 165], full 9 m_W × 7 Γ_W plane,
+    # mode "fine" (4× highstats MC). nextweek queue — at 4× MC a 5-√s
+    # block runs well inside the 1-week wall-clock cap, so jobs are not
+    # evicted. Writes to grid_fine/.
+    fine_blocks = sqrts_blocks(FINE_SQRTS_VALS, SQRTS_PER_BLOCK_FINE)
+    fine_jobs = []
+    for mw in HIGHSTATS_MW_VALS:
+        for gw in GW_VALS:
+            for b_idx, block in enumerate(fine_blocks):
+                label = f"fine_{mw_label(mw)}_{gw_label(gw)}_b{b_idx}"
+                subdir = f"grid_fine/{mw_label(mw)}_{gw_label(gw)}/b{b_idx}"
+                fine_jobs.append((label, mw, gw, csv(block), "fine", subdir))
+    fine_header = HEADER.format(flavour="nextweek", cpus=4, memory=2048)
+    write_submit(SCRIPTS_DIR / "grid_fine.sub", fine_header, fine_jobs)
+    print(f"Wrote {SCRIPTS_DIR / 'grid_fine.sub'} ({len(fine_jobs)} jobs "
+          f"= {len(HIGHSTATS_MW_VALS)} m_W * {len(GW_VALS)} Gamma_W "
+          f"* {len(fine_blocks)} sqrt(s) blocks @ 0.1 GeV in [155, 165]; "
+          f"nextweek queue; writes to grid_fine/)")
+
+    # Fine (m_W, Γ_W) validation: 1D scans of m_W (Γ_W nominal) and of
+    # Γ_W (m_W nominal), mode "ultra" (~0.005% MC). Index-based subdirs —
+    # a 0.1-MeV m_W step is below the resolution of mw_label. One √s per
+    # job so each stays well inside the nextweek wall-clock cap.
+    mw0, gw0 = VALIDATE_FINE_NOMINAL
+    vf_offsets = fine_offsets_gev()
+    vf_points = [(round(mw0 + o, 7), gw0) for o in vf_offsets]
+    vf_points += [(mw0, round(gw0 + o, 7)) for o in vf_offsets if o != 0.0]
+    vf_jobs = []
+    for idx, (mw, gw) in enumerate(vf_points):
+        for s in VALIDATE_FINE_SQRTS:
+            si = int(round(s * 10))
+            label = f"vf_p{idx:03d}_s{si}"
+            subdir = f"grid_validate_fine/p{idx:03d}/s{si}"
+            vf_jobs.append((label, mw, gw, csv([s]), "ultra", subdir))
+    vf_header = HEADER.format(flavour="nextweek", cpus=4, memory=2048)
+    write_submit(SCRIPTS_DIR / "grid_validate_fine.sub", vf_header, vf_jobs)
+    print(f"Wrote {SCRIPTS_DIR / 'grid_validate_fine.sub'} ({len(vf_jobs)} jobs "
+          f"= {len(vf_points)} (m_W,Gamma_W) 1D-scan points "
+          f"* {len(VALIDATE_FINE_SQRTS)} sqrt(s); nextweek queue; "
+          f"writes to grid_validate_fine/)")
+
+
+if __name__ == "__main__":
+    main()

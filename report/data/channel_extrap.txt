@@ -1,0 +1,40 @@
+WW experimental-uncertainty extrapolation: μνqq̄ → inclusive WW
+Inclusive event yield = 1/B(μνqq̄) = 6.978× (B = 2·BR_μν·BR_had = 0.1433) at the SAME
+machine luminosity, so only the statistical term scales (× √B).
+Luminosity (incl. its per-point counting prior), BES, BEC, α_s and aem_isr
+are channel-common and held fixed. Full production fit (all POIs +
+α_s/BES/BEC/lumi nuisances, realistic priors); baseline 7-point
+scan. THEORY uncertainties are channel-specific and NOT extrapolated.
+
+----------------------------------------------------------
+σ(m_W)  [MeV]
+source               munuqq     inclusive WW  stat-scaling
+----------------------------------------------------------
+stat                   0.95             0.36  ×       2.64
+alphas                 0.08             0.08              
+aem_isr                0.00             0.00              
+aemEW                  0.03             0.03              
+BES                    0.01             0.02              
+BEC                    0.18             0.18              
+lumi                   0.37             0.36              
+xsec                      —                —              
+total exp              1.36             0.64              
+----------------------------------------------------------
+
+----------------------------------------------------------
+σ(\Gamma_W)  [MeV]
+source               munuqq     inclusive WW  stat-scaling
+----------------------------------------------------------
+stat                   1.98             0.75  ×       2.64
+alphas                 0.01             0.00              
+aem_isr                0.00             0.00              
+aemEW                  0.00             0.00              
+BES                    0.03             0.03              
+BEC                    0.06             0.06              
+lumi                   0.48             0.47              
+xsec                      —                —              
+total exp              2.75             1.13              
+----------------------------------------------------------
+
+Expected stat improvement √(1/B) = 2.64 (if a row scales by this, it is stat-like; if it stays flat,
+ it is a systematic that does NOT improve with more channels).
