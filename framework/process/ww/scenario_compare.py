@@ -562,7 +562,12 @@ def _plot_comparison(scenarios, results, out, syst_results=None):
     # dependence. Same numbers as panel (c) of the text table.
     if syst_results and any(v is not None for v in syst_results.values()):
         names = [n for n in scenarios if syst_results.get(n) is not None]
-        srcs = _SYST_ROWS                       # stat + configured systematics
+        # Drop sources that are structurally absent (None for every scenario and
+        # POI) — e.g. the xsec placeholder is not among the scenario-fit
+        # nuisances here, so its bar would be a meaningless zero.
+        srcs = [s for s in _SYST_ROWS
+                if any(_grouped_syst(syst_results[n], poi, s) is not None
+                       for n in names for poi in card.POI_DISPLAY)]
         x = np.arange(len(srcs))
         w = 0.8 / max(len(names), 1)
         for poi in card.POI_DISPLAY:
