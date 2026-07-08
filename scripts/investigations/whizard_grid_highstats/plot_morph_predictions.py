@@ -93,6 +93,127 @@ def plot_smooth(splines, sqrts_axis, df):
     print(f"wrote {PLOTS / 'morph_smooth_sigma_sqrts.png'}")
 
 
+def plot_smooth_pdgconst(splines, sqrts_axis, df):
+    """σ(√s) at various (m_W, Γ_W) variations in the PDG-CONSTANT BR convention
+    (production default): the raw off-shell WHIZARD 4f σ ∝ BR² has its Γ_W-BR²
+    divided out via the production strip factor (Γ_W/Γ_W^{LO,ref})², so Γ_W
+    affects only the LINE SHAPE, not the rate. This is what the fit template
+    actually sees. Short title → larger plot."""
+    s_fine = np.linspace(sqrts_axis[0], sqrts_axis[-1], 400)
+
+    def strip(gw):                       # production pdg-constant BR-strip factor
+        return (gw / GAMMA_W_LO_REF) ** 2
+
+    def sig_pdg(s, mw, gw):
+        return sigma_morph(s, mw, gw, splines=splines) * strip(gw)
+
+    curves = [
+        ("m_W − 100 MeV", 80.279, GW0,   "C0",    "-"),
+        ("m_W −  50 MeV", 80.329, GW0,   "C0",    "--"),
+        ("nominal",       MW0,    GW0,   "black", "-"),
+        ("m_W +  50 MeV", 80.429, GW0,   "C3",    "--"),
+        ("m_W + 100 MeV", 80.479, GW0,   "C3",    "-"),
+        ("Γ_W − 40 MeV",  MW0,    2.045, "C2",    "-."),
+        ("Γ_W + 40 MeV",  MW0,    2.125, "C5",    "-."),
+        ("(m+50, Γ+40)",  80.429, 2.125, "C4",    ":"),
+    ]
+
+    fig, axes = plt.subplots(2, 1, figsize=(13, 9),
+                              gridspec_kw={"height_ratios": [3, 2]}, sharex=True)
+    ax_abs, ax_rat = axes
+    sig_nom = sig_pdg(s_fine, MW0, GW0)
+    for label, mw, gw, color, style in curves:
+        sig = sig_pdg(s_fine, mw, gw)
+        ax_abs.plot(s_fine, sig, style, color=color, linewidth=1.6, label=label)
+        ax_rat.plot(s_fine, sig / sig_nom - 1, style, color=color, linewidth=1.4)
+        on_grid = df[(np.isclose(df.mW, mw, atol=1e-3))
+                      & (np.isclose(df.gammaW, gw, atol=1e-3))].sort_values("sqrts")
+        if len(on_grid):
+            ax_abs.plot(on_grid.sqrts, on_grid.sigma_fb * strip(gw), "o", color=color,
+                        mfc="white", markersize=4, alpha=0.7)
+    ax_abs.axvline(2 * MW0, color="grey", linestyle=":", alpha=0.4)
+    ax_abs.set_ylabel(r"$\sigma_{\mu\nu u\bar d}$ [fb]")
+    # Short title → bigger plot area.
+    ax_abs.set_title(r"Morphed threshold lineshape (pdg-constant BR)", fontsize=15)
+    ax_abs.legend(loc="upper left", fontsize=9, ncol=2, framealpha=0.9)
+    ax_abs.grid(alpha=0.25)
+    ax_rat.axhline(0, color="grey", alpha=0.5, linewidth=0.7)
+    ax_rat.set_ylabel(r"$\sigma/\sigma_{\rm nom} - 1$")
+    ax_rat.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_rat.grid(alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(PLOTS / "morph_smooth_sigma_sqrts_pdgconst.pdf", bbox_inches="tight")
+    fig.savefig(PLOTS / "morph_smooth_sigma_sqrts_pdgconst.png", dpi=150,
+                bbox_inches="tight")
+    print(f"wrote {PLOTS / 'morph_smooth_sigma_sqrts_pdgconst.png'}")
+
+
+def plot_azzurri_like(splines, sqrts_axis, df):
+    """Clean 'Azzurri-like' threshold lineshape in the PDG-CONSTANT BR
+    convention: only symmetric +-50 MeV variations of m_W and Gamma_W, with the
+    ratio panel and the Gamma_W-insensitive crossing marked. m_W +-50 are exact
+    grid nodes (markers overlaid); Gamma_W +-50 (2.035/2.135) is a mild
+    extrapolation ~10 MeV beyond the +-40 MeV grid (no markers)."""
+    s_fine = np.linspace(sqrts_axis[0], sqrts_axis[-1], 400)
+
+    def strip(gw):
+        return (gw / GAMMA_W_LO_REF) ** 2
+
+    def sig_pdg(s, mw, gw):
+        return sigma_morph(s, mw, gw, splines=splines) * strip(gw)
+
+    #   label, mW, gW, colour, style, has_grid_nodes
+    curves = [
+        (r"$m_W - 50$ MeV",      80.329, GW0,   "C0",    "--", True),
+        (r"$m_W + 50$ MeV",      80.429, GW0,   "C3",    "--", True),
+        ("nominal",              MW0,    GW0,   "black", "-",  True),
+        (r"$\Gamma_W - 50$ MeV", MW0,    2.035, "C2",    "-.", False),
+        (r"$\Gamma_W + 50$ MeV", MW0,    2.135, "C4",    "-.", False),
+    ]
+
+    fig, axes = plt.subplots(2, 1, figsize=(13, 9),
+                              gridspec_kw={"height_ratios": [3, 2]}, sharex=True)
+    ax_abs, ax_rat = axes
+    sig_nom = sig_pdg(s_fine, MW0, GW0)
+    for label, mw, gw, color, style, has_nodes in curves:
+        sig = sig_pdg(s_fine, mw, gw)
+        ax_abs.plot(s_fine, sig, style, color=color, linewidth=1.8, label=label)
+        ax_rat.plot(s_fine, sig / sig_nom - 1, style, color=color, linewidth=1.6)
+        if has_nodes:
+            on_grid = df[(np.isclose(df.mW, mw, atol=1e-3))
+                          & (np.isclose(df.gammaW, gw, atol=1e-3))].sort_values("sqrts")
+            if len(on_grid):
+                ax_abs.plot(on_grid.sqrts, on_grid.sigma_fb * strip(gw), "o",
+                            color=color, mfc="white", markersize=4, alpha=0.7)
+
+    # Gamma_W-insensitive crossing (where the +-Gamma_W ratio curves meet zero).
+    gdiff = sig_pdg(s_fine, MW0, 2.135) - sig_nom
+    xc = np.where(np.diff(np.sign(gdiff)))[0]
+    for i in xc:
+        s_cross = s_fine[i] - gdiff[i] * (s_fine[i+1]-s_fine[i])/(gdiff[i+1]-gdiff[i])
+        for a in (ax_abs, ax_rat):
+            a.axvline(s_cross, color="grey", linestyle=":", alpha=0.6)
+        # Label in the empty upper region of the main panel (curves are ~200 fb
+        # at the crossing, so the top is clear).
+        ax_abs.text(s_cross - 0.4, 470,
+                    rf"$\Gamma_W$-insensitive $\approx {s_cross:.1f}$ GeV",
+                    fontsize=10, color="dimgrey", ha="right", va="center")
+
+    ax_abs.set_ylabel(r"$\sigma_{\mu\nu u\bar d}$ [fb]")
+    ax_abs.set_title(r"WW threshold lineshape: $\pm50$ MeV in $m_W,\ \Gamma_W$ "
+                     r"(pdg-constant BR)", fontsize=15)
+    ax_abs.legend(loc="upper left", fontsize=11, framealpha=0.9)
+    ax_abs.grid(alpha=0.25)
+    ax_rat.axhline(0, color="grey", alpha=0.5, linewidth=0.7)
+    ax_rat.set_ylabel(r"$\sigma/\sigma_{\rm nom} - 1$")
+    ax_rat.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_rat.grid(alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(PLOTS / "morph_azzurri_like.pdf", bbox_inches="tight")
+    fig.savefig(PLOTS / "morph_azzurri_like.png", dpi=150, bbox_inches="tight")
+    print(f"wrote {PLOTS / 'morph_azzurri_like.png'}")
+
+
 def plot_azzurri(splines, sqrts_axis):
     """σ_observed(√s) with BR² re-introduced; shows the Γ_W crossing at 162 GeV."""
     s_fine = np.linspace(sqrts_axis[0], sqrts_axis[-1], 400)
@@ -226,6 +347,8 @@ def main():
     # and plot_4d_loo.
     df_fit = denoise_grid(filter_uniform_gw(load_operational_grid()))
     plot_smooth(splines, sqrts_axis, df_fit)
+    plot_smooth_pdgconst(splines, sqrts_axis, df_fit)
+    plot_azzurri_like(splines, sqrts_axis, df_fit)
     plot_azzurri(splines, sqrts_axis)
     plot_4d_loo(df_fit)
 

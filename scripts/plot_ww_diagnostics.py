@@ -142,6 +142,65 @@ def _bfs_total_WW_order(s, mW, gammaW, order: str):
 # Plot 1: σ vs √s
 # ---------------------------------------------------------------------------
 
+def plot_xsec_vs_sqrts_3curve():
+    """Slim 3-curve version of the threshold buildup for the motivation slide:
+    Born → Born + higher orders (NLO+NNLO+δ_QCD) → + NLL ISR (observed). All
+    inclusive μν qq̄, same WHIZARD anchor. Alternative file (does NOT overwrite
+    ``xsec_vs_sqrts.pdf``)."""
+    import matplotlib.pyplot as plt
+
+    sqrts = np.linspace(SQRTS_PLOT_MIN, SQRTS_PLOT_MAX, SQRTS_PLOT_N)
+    s = sqrts ** 2
+    mW, gW = M_W_DEFAULT, GAMMA_W_DEFAULT
+
+    # Born (loops off, anchor on) → +higher orders (card default partonic) → +ISR
+    born = sigma_partonic_munuqq(s, mW, gW, channel="inclusive",
+                                 include_NLO_hard_decay=False,
+                                 include_BFS_NNLO=False,
+                                 apply_delta_QCD=False) * 1e3
+    horder = sigma_partonic_munuqq(s, mW, gW, channel="inclusive") * 1e3
+    observed = sigma_observed_munuqq(sqrts, mW=mW, gammaW=gW,
+                                     channel="inclusive") * 1e3
+
+    fig, (ax_abs, ax_rat) = plt.subplots(2, 1, figsize=(8, 7), sharex=True,
+                                          gridspec_kw={"height_ratios": [3, 1.4]})
+    ax_abs.plot(sqrts, born, color="#4575b4", linestyle="--", linewidth=1.8,
+                label="Born (exact 4f, anchored)")
+    ax_abs.plot(sqrts, horder, color="black", linestyle=":", linewidth=1.8,
+                label=r"+ higher orders (NLO, NNLO, $\delta_{\rm QCD}$)")
+    ax_abs.plot(sqrts, observed, color="#a50026", linestyle="-", linewidth=2.2,
+                label=r"+ NLL ISR (observed)")
+    _draw_scan_window(ax_abs)
+    ax_abs.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_abs.text(2 * mW + 0.05, ax_abs.get_ylim()[1] * 0.95, r"$2\,m_W$",
+                color="grey", alpha=0.6, fontsize=9, ha="left", va="top")
+    ax_abs.set_ylabel(r"$\sigma(e^+e^- \to \mu\nu q\bar q)$ [fb]")
+    ax_abs.set_title(r"WW threshold cross section: build-up vs $\sqrt{s}$")
+    ax_abs.legend(loc="upper left", fontsize=10, framealpha=0.9)
+    ax_abs.grid(alpha=0.25)
+
+    eps = 1e-9
+    ax_rat.plot(sqrts, born / np.maximum(born, eps), color="#4575b4", ls="--", lw=1.6)
+    ax_rat.plot(sqrts, horder / np.maximum(born, eps), color="black", ls=":", lw=1.6)
+    ax_rat.plot(sqrts, observed / np.maximum(born, eps), color="#a50026", lw=2.0)
+    _draw_scan_window(ax_rat)
+    ax_rat.axhline(1.0, color="grey", alpha=0.4, linewidth=0.7)
+    ax_rat.axvline(2 * mW, color="grey", alpha=0.4, linestyle="--", linewidth=0.8)
+    ax_rat.set_xlabel(r"$\sqrt{s}$ [GeV]")
+    ax_rat.set_ylabel("ratio to Born")
+    ax_rat.set_ylim(0.6, 1.15)
+    ax_rat.grid(alpha=0.25)
+
+    plt.tight_layout()
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    out = os.path.join(PLOT_DIR, "xsec_vs_sqrts_3curve.pdf")
+    plt.savefig(out, bbox_inches="tight")
+    plt.savefig(out.replace(".pdf", ".png"), dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out}")
+    return out
+
+
 def plot_xsec_vs_sqrts():
     import matplotlib.pyplot as plt
 
