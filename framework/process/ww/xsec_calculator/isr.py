@@ -964,6 +964,13 @@ def sigma_ISR_2leg_convolution(sqrt_s,
                                # low scan edge → ≤0.1 ppm at n_quad=128).
                                # False restores the legacy tensor rule.
                                edge_aware: bool = True,
+                               # Route the NLL convolution through the 1-D
+                               # LUMINOSITY self-convolution (isr_lumi_bfs)
+                               # instead of the 2-D tensor rule.  Same observable
+                               # (agrees with edge-aware 2-leg to <1 ppm / 0 ppm
+                               # shape), ripple-free by construction.  Opt-in;
+                               # requires nll=True.
+                               isr_lumi: bool = False,
                                **sigma_kwargs):
     """Two-leg double-convolution ISR (BFS eq. 71):
 
@@ -1033,6 +1040,23 @@ def sigma_ISR_2leg_convolution(sqrt_s,
             "mutually exclusive (CodePdf vs LLPDF select different eMELA "
             "PDFs); set exactly one."
         )
+
+    # Luminosity (1-D) route — collapse the 2-leg double convolution onto the
+    # single luminosity variable z = x₁x₂ (isr_lumi_bfs).  Same observable as the
+    # edge-aware 2-leg (agrees to <1 ppm / 0 ppm shape), ripple-free by
+    # construction.  NLL only; opt-in.
+    if isr_lumi:
+        if not nll:
+            raise ValueError("isr_lumi=True requires nll=True (the luminosity "
+                             "route is the NLL eMELA convolution).")
+        from . import isr_lumi_bfs
+        def _shat(sqrt_shat):
+            return sigma_partonic_fn(np.asarray(sqrt_shat, dtype=float) ** 2,
+                                     mW, gammaW, **sigma_kwargs)
+        return isr_lumi_bfs.sigma_obs(
+            sqrt_s, _shat, alpha_em_isr=alpha_em_isr,
+            isr_scale_factor=isr_scale_factor, emela_pert_order=emela_pert_order,
+            emela_fac_scheme=emela_fac_scheme, emela_ren_scheme=emela_ren_scheme)
 
     # Initialise eMELA once in the parent before any fork (cached globally).
     _use_emela = nll or emela_ll
@@ -1193,6 +1217,11 @@ def sigma_observed_munuqq(sqrt_s,
                           # integration limits); False = legacy tensor rule.
                           # Only consumed by the 2-leg path.
                           isr_edge_aware: bool = True,
+                          # Route the NLL convolution through the 1-D luminosity
+                          # self-convolution (isr_lumi_bfs) instead of the 2-D
+                          # tensor rule.  Opt-in; NLL only.  Ripple-free; agrees
+                          # with edge-aware 2-leg to <1 ppm / 0 ppm shape.
+                          isr_lumi: bool = False,
                           coulomb_kc_safe: bool = False,
                           decay_uses_full_born: bool = True,
                           m_t: float = M_T_DEFAULT,
@@ -1273,6 +1302,7 @@ def sigma_observed_munuqq(sqrt_s,
             emela_fac_scheme=isr_emela_fac_scheme,
             emela_ren_scheme=isr_emela_ren_scheme,
             edge_aware=isr_edge_aware,
+            isr_lumi=isr_lumi,
             **common_kwargs,
         )
     else:
